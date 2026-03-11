@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>灵境三维本体后台 | Digital Twin Aircraft</title>
+    <meta name="description" content="基于本体论驱动的数字孪生飞机控制平台，实现 I3DSpatial / I3DVisual / I3DBehavior 三大语义接口的实时状态同步。" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet" />
+
+    <!-- Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <!-- Axios CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <style>
+        /* ── Design Tokens (Minimalist Style) ────────── */
+        :root {
+            --bg-base: #fafafa;
+            --bg-panel: #ffffff;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f8f9fa;
+            --bg-input: #f3f4f6;
+            --border: #e5e7eb;
+            --border-focus: #111827;
+            --accent-primary: #111827;
+            --accent-danger: #ef4444;
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --text-main: #111827;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Microsoft YaHei', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --radius-sm: 6px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg-base);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Scrollbar ───────────────────────────────────────── */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+
+        /* ── Header ─────────────────────────────────────────── */
+        .app-header {
+            padding: 16px 40px;
+            background: rgba(255, 255, 255, 0.85);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-logo {
+            width: 36px;
+            height: 36px;
+            background: var(--accent-primary);
+            color: white;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .header-title-wrapper {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-main);
+            letter-spacing: -0.01em;
+        }
+
+        .header-subtitle {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 400;
+            margin-top: 2px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .asset-tag {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: var(--bg-input);
+            padding: 4px 10px;
+            border-radius: 20px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #d1fae5;
+        }
+
+        .status-badge.offline {
+            background: #fef2f2;
+            color: #991b1b;
+            border-color: #fee2e2;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent-success);
+        }
+
+        .status-badge.offline .status-dot {
+            background: var(--accent-danger);
+        }
+
+        /* ── Layout ─────────────────────────────────────────── */
+        .app-layout {
+            display: grid;
+            grid-template-columns: minmax(auto, 800px) 460px;
+            gap: 32px;
+            padding: 32px 40px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 1024px) {
+            .app-layout {
+                grid-template-columns: 1fr;
+                padding: 20px;
+            }
+        }
+
+        .controls-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+        }
+
+        .monitor-panel {
+            position: sticky;
+            top: 100px;
+            height: fit-content;
+        }
+
+        /* ── Section Structure ──────────────────────────────────── */
+        .section-header {
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-tag {
+            font-size: 10px;
+            font-family: var(--font-mono);
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .section-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* ── Card ───────────────────────────────────────────── */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 24px;
+            box-shadow: var(--shadow-sm);
+            transition: box-shadow 0.2s;
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .sub-section-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-main);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--border);
+            margin: 24px 0;
+        }
+
+        /* ── Sliders & Inputs ───────────────────────────────── */
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .control-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .axis-label {
+            width: 32px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-align: right;
+        }
+
+        .slider-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            background: var(--bg-input);
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+            position: relative;
+        }
+
+        input[type="range"]::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: var(--pct, 50%);
+            background: var(--accent-primary);
+            border-radius: 2px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #fff;
+            border: 2px solid var(--accent-primary);
+            box-shadow: var(--shadow-sm);
+            cursor: grab;
+            position: relative;
+            z-index: 2;
+            transition: transform 0.1s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:active {
+            cursor: grabbing;
+            transform: scale(1.1);
+        }
+
+        input[type="number"],
+        input[type="text"] {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            color: var(--text-main);
+            padding: 8px 12px;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            width: 90px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        input[type="number"]:focus,
+        input[type="text"]:focus {
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.1);
+        }
+
+        input[type="text"] {
+            width: 100%;
+            font-family: var(--font-ui);
+        }
+
+        /* ── Buttons ────────────────────────────────────────── */
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex: 1;
+            min-width: 80px;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn:hover {
+            background: var(--bg-input);
+            color: var(--text-main);
+        }
+
+        .btn.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+
+        /* Specific active colors if not primary */
+        .btn.active-danger {
+            background: var(--accent-danger);
+            border-color: var(--accent-danger);
+            color: white;
+        }
+
+        .btn.active-warning {
+            background: var(--accent-warning);
+            border-color: var(--accent-warning);
+            color: white;
+        }
+
+        .btn.active-success {
+            background: var(--accent-success);
+            border-color: var(--accent-success);
+            color: white;
+        }
+
+        /* ── Toggle ─────────────────────────────────────────── */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+        }
+
+        .toggle-label {
+            font-size: 14px;
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+            position: absolute;
+        }
+
+        .toggle-track {
+            position: absolute;
+            inset: 0;
+            background: var(--border);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle-track::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .toggle-switch input:checked~.toggle-track {
+            background: var(--accent-success);
+        }
+
+        .toggle-switch input:checked~.toggle-track::after {
+            transform: translateX(20px);
+        }
+
+        /* ── Input + Apply Row ───────────────────────────────── */
+        .input-apply-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-apply {
+            padding: 0 16px;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-main);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-apply:hover {
+            background: var(--border-focus);
+            color: white;
+        }
+
+        /* ── Reset Button ───────────────────────────────────── */
+        .btn-reset {
+            width: 100%;
+            padding: 14px;
+            background: transparent;
+            border: 1px dashed var(--text-muted);
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-reset:hover {
+            border-color: var(--accent-danger);
+            color: var(--accent-danger);
+            background: rgba(239, 68, 68, 0.05);
+        }
+
+        /* ── Monitor Panel ──────────────────────────────────── */
+        .monitor-card {
+            background: #fafafa;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .monitor-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+        }
+
+        .monitor-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .monitor-title::before {
+            content: '';
+            display: block;
+            width: 6px;
+            height: 6px;
+            background: var(--accent-success);
+            border-radius: 50%;
+        }
+
+        .poll-badge {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .json-viewer {
+            padding: 20px;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            line-height: 1.6;
+            background: #fdfdfd;
+            color: #374151;
+            overflow-x: auto;
+            white-space: pre;
+        }
+
+        /* Light theme JSON highlighter */
+        .json-key {
+            color: #0f766e;
+            font-weight: 500;
+        }
+
+        .json-str {
+            color: #b91c1c;
+        }
+
+        .json-num {
+            color: #1d4ed8;
+        }
+
+        .json-bool-t {
+            color: #047857;
+            font-weight: 600;
+        }
+
+        .json-bool-f {
+            color: #be123c;
+            font-weight: 600;
+        }
+
+        .json-punct {
+            color: #9ca3af;
+        }
+
+        .monitor-footer {
+            padding: 12px 20px;
+            background: white;
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .monitor-footer-row {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* ── Toast ──────────────────────────────────────────── */
+        .toast-container {
+            position: fixed;
+            bottom: 32px;
+            right: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 999;
+        }
+
+        .toast {
+            padding: 14px 20px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .toast-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .toast.success .toast-icon {
+            background: var(--accent-success);
+        }
+
+        .toast.error .toast-icon {
+            background: var(--accent-danger);
+        }
+
+        @keyframes slide-up {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+
+        <!-- ── Header ───────────────────────────────────────── -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="header-logo">DT</div>
+                <div class="header-title-wrapper">
+                    <div class="header-title">灵境三维本体后台</div>
+                    <div class="header-subtitle">本体驱动架构设计 (Ontology-Driven Architecture)</div>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="asset-tag">{{ state.asset_id || '等待连接...' }}</div>
+                <div class="status-badge" :class="{ offline: !isOnline }">
+                    <span class="status-dot"></span>
+                    {{ isOnline ? '已连接' : '已断开' }}
+                </div>
+            </div>
+        </header>
+
+        <!-- ── Main Layout ──────────────────────────────────── -->
+        <div class="app-layout">
+
+            <!-- ── Left: Controls ─────────────────────────────── -->
+            <div class="controls-panel">
+
+                <!-- ═══ I3DSpatial · Translation ════════════════════ -->
+                <section>
+                    <div class="section-header">
+                        <h2 class="section-title">空间变换 <span class="section-tag">I3DSpatial</span></h2>
+                        <div class="section-desc">控制三维空间中的位置、旋转角度以及缩放比例。</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="sub-section-title">位移 (cm)</div>
+
+                        <div class="control-row" v-for="axis in ['x', 'y', 'z']" :key="axis">
+                            <div class="axis-label">{{ axis.toUpperCase() }}</div>
+                            <div class="slider-container">
+                                <input type="range" min="-5000" max="5000" step="10"
+                                    v-model.number="draft['translation_' + axis]"
+                                    :style="sliderStyle(draft['translation_' + axis], -5000, 5000)"
+                                    @change="postField('translation_' + axis, draft['translation_' + axis])" />
+                            </div>
+                            <input type="number" v-model.number="draft['translation_' + axis]"
+                                @change="postField('translation_' + axis, draft['translation_' + axis])" />
+                        </div>
+
+                        <div class="divider"></div>
+                        <div class="sub-section-title">旋转 (°)</div>
+
+                        <div class="control-row" v-for="axis in ['x', 'y', 'z']" :key="'r'+axis">
+                            <div class="axis-label">R{{ axis.toUpperCase() }}</div>
+                            <div class="slider-container">
+                                <input type="range" min="0" max="360" step="1"
+                                    v-model.number="draft['rotation_' + axis]"
+                                    :style="sliderStyle(draft['rotation_' + axis], 0, 360)"
+                                    @change="postField('rotation_' + axis, draft['rotation_' + axis])" />
+                            </div>
+                            <input type="number" v-model.number="draft['rotation_' + axis]"
+                                @change="postField('rotation_' + axis, draft['rotation_' + axis])" />
+                        </div>
+
+                        <div class="divider"></div>
+                        <div class="sub-section-title">缩放 (×)</div>
+
+                        <div class="control-row" v-for="axis in ['x', 'y', 'z']" :key="'s'+axis">
+                            <div class="axis-label">S{{ axis.toUpperCase() }}</div>
+                            <div class="slider-container">
+                                <input type="range" min="0.1" max="5" step="0.05"
+                                    v-model.number="draft['scale_' + axis]"
+                                    :style="sliderStyle(draft['scale_' + axis], 0.1, 5)"
+                                    @change="postField('scale_' + axis, draft['scale_' + axis])" />
+                            </div>
+                            <input type="number" step="0.05" v-model.number="draft['scale_' + axis]"
+                                @change="postField('scale_' + axis, draft['scale_' + axis])" />
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ═══ I3DVisual ════════════════════════════════════ -->
+                <section>
+                    <div class="section-header">
+                        <h2 class="section-title">视觉表达 <span class="section-tag">I3DVisual</span></h2>
+                        <div class="section-desc">管理模型表面的材质呈现方案及可见性。</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="sub-section-title">材质变体</div>
+                        <div class="btn-group">
+                            <button class="btn" :class="{ 'active': draft.material_variant === 'normal' }"
+                                @click="setMaterial('normal')">正常</button>
+                            <button class="btn" :class="{ 'active-danger': draft.material_variant === 'fault' }"
+                                @click="setMaterial('fault')">故障</button>
+                            <button class="btn" :class="{ 'active-warning': draft.material_variant === 'alarm' }"
+                                @click="setMaterial('alarm')">告警</button>
+                            <button class="btn" :class="{ 'active': draft.material_variant === 'offline' }"
+                                @click="setMaterial('offline')">离线</button>
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <div class="toggle-row">
+                            <span class="toggle-label">模型可见性</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" v-model="draft.is_visible"
+                                    @change="postField('is_visible', draft.is_visible)" />
+                                <span class="toggle-track"></span>
+                            </label>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ═══ I3DBehavior ════════════════════════════════════ -->
+                <section>
+                    <div class="section-header">
+                        <h2 class="section-title">动态行为 <span class="section-tag">I3DBehavior</span></h2>
+                        <div class="section-desc">控制骨骼动画、触发粒子特效以及界面悬浮标签。</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="sub-section-title">动画状态</div>
+                        <div class="btn-group">
+                            <button class="btn" :class="{ 'active': draft.animation_state === 'idle' }"
+                                @click="setAnimation('idle')">待机</button>
+                            <button class="btn" :class="{ 'active': draft.animation_state === 'gear_down' }"
+                                @click="setAnimation('gear_down')">放下起落架</button>
+                            <button class="btn" :class="{ 'active-success': draft.animation_state === 'running' }"
+                                @click="setAnimation('running')">运行中</button>
+                            <button class="btn" :class="{ 'active-danger': draft.animation_state === 'broken' }"
+                                @click="setAnimation('broken')">严重损坏</button>
+                        </div>
+
+                        <div class="divider"></div>
+                        <div class="sub-section-title">粒子特效 (FX)</div>
+                        <div class="btn-group">
+                            <button class="btn" :class="{ 'active': draft.fx_trigger === '' }"
+                                @click="setFx('')">无特效</button>
+                            <button class="btn" :class="{ 'active': draft.fx_trigger === 'spark' }"
+                                @click="setFx('spark')">电火花飞溅</button>
+                            <button class="btn" :class="{ 'active': draft.fx_trigger === 'smoke' }"
+                                @click="setFx('smoke')">浓烟滚滚</button>
+                        </div>
+
+                        <div class="divider"></div>
+                        <div class="sub-section-title">悬浮 UI 标签内容</div>
+                        <div class="input-apply-row">
+                            <input type="text" placeholder="输入标签文本..." v-model="draft.ui_label_content"
+                                @focus="isLabelFocused = true" @blur="isLabelFocused = false"
+                                @keyup.enter="postField('ui_label_content', draft.ui_label_content)" />
+                            <button class="btn-apply"
+                                @click="postField('ui_label_content', draft.ui_label_content)">应用</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ── Reset ─────────────────────────────────────── -->
+                <button class="btn-reset" @click="resetState">恢复初始默认设置</button>
+
+                <!-- padding to prevent scroll block -->
+                <div style="height: 40px"></div>
+            </div>
+
+            <!-- ── Right: State Monitor ────────────────────────── -->
+            <div class="monitor-panel">
+                <div class="monitor-card">
+                    <div class="monitor-header">
+                        <div class="monitor-title">实时状态 JSON</div>
+                        <div class="poll-badge">轮询间隔: 500ms</div>
+                    </div>
+
+                    <!-- JSON viewer -->
+                    <div class="json-viewer" v-html="renderedJson"></div>
+
+                    <!-- Timestamps -->
+                    <div class="monitor-footer">
+                        <div class="monitor-footer-row">
+                            <span>UNIX 时间戳</span>
+                            <span>{{ state.timestamp ? state.timestamp.toFixed(3) : '—' }}</span>
+                        </div>
+                        <div class="monitor-footer-row">
+                            <span>本地同步时间</span>
+                            <span>{{ localTime }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ── Toast Notifications ─────────────────────────── -->
+        <div class="toast-container">
+            <div v-for="t in toasts" :key="t.id" :class="['toast', t.type]">
+                <div class="toast-icon">{{ t.type === 'success' ? '✓' : '!' }}</div>
+                <div>{{ t.msg }}</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted, onUnmounted } = Vue;
+
+        const API_BASE = "http://localhost:5000";
+
+        const INITIAL = {
+            translation_x: 0, translation_y: 0, translation_z: 0,
+            rotation_x: 0, rotation_y: 0, rotation_z: 0,
+            scale_x: 1, scale_y: 1, scale_z: 1,
+            material_variant: "normal",
+            is_visible: true,
+            animation_state: "idle",
+            fx_trigger: "",
+            ui_label_content: "Aircraft-001 Ready",
+        };
+
+        createApp({
+            setup() {
+                const state = reactive({ ...INITIAL, asset_id: '', timestamp: null });
+                const draft = reactive({ ...INITIAL });
+                const isOnline = ref(false);
+                const toasts = ref([]);
+                const localTime = ref('');
+                const isLabelFocused = ref(false);
+                let pollTimer = null;
+
+                function sliderStyle(val, min, max) {
+                    const pct = ((val - min) / (max - min) * 100).toFixed(1) + '%';
+                    return `--pct: ${pct}`;
+                }
+
+                function showToast(msg, type = 'success') {
+                    const id = Date.now();
+                    toasts.value.push({ id, msg, type });
+                    setTimeout(() => {
+                        toasts.value = toasts.value.filter(t => t.id !== id);
+                    }, 2800);
+                }
+
+                async function fetchState() {
+                    try {
+                        const res = await axios.get(`${API_BASE}/api/state`, { timeout: 2000 });
+                        Object.assign(state, res.data);
+                        ['translation_x', 'translation_y', 'translation_z',
+                            'rotation_x', 'rotation_y', 'rotation_z',
+                            'scale_x', 'scale_y', 'scale_z',
+                            'material_variant', 'is_visible', 'animation_state',
+                            'fx_trigger', 'ui_label_content'].forEach(k => {
+                                // 如果用户正在输入 UI 标签，则跳过覆盖该字段
+                                if (k === 'ui_label_content' && isLabelFocused.value) return;
+                                draft[k] = res.data[k];
+                            });
+                        isOnline.value = true;
+                        localTime.value = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+                    } catch {
+                        isOnline.value = false;
+                    }
+                }
+
+                async function postField(key, value) {
+                    try {
+                        const res = await axios.post(`${API_BASE}/api/update`, { [key]: value }, {
+                            headers: { 'Content-Type': 'application/json' },
+                            timeout: 2000,
+                        });
+                        Object.assign(state, res.data);
+                        showToast(`${key} 控制指令下发成功`);
+                    } catch (e) {
+                        showToast(e?.response?.data?.error || '状态更新失败', 'error');
+                    }
+                }
+
+                function setMaterial(v) { draft.material_variant = v; postField('material_variant', v); }
+                function setAnimation(v) { draft.animation_state = v; postField('animation_state', v); }
+                function setFx(v) { draft.fx_trigger = v; postField('fx_trigger', v); }
+
+                async function resetState() {
+                    try {
+                        const res = await axios.post(`${API_BASE}/api/update`, INITIAL, {
+                            headers: { 'Content-Type': 'application/json' },
+                        });
+                        Object.assign(state, res.data);
+                        Object.assign(draft, INITIAL);
+                        showToast('已成功恢复默认设置');
+                    } catch {
+                        showToast('恢复默认设置失败', 'error');
+                    }
+                }
+
+                const renderedJson = computed(() => {
+                    const raw = { ...state };
+                    const lines = JSON.stringify(raw, null, 2).split('\n');
+                    return lines.map(line => {
+                        return line
+                            .replace(/("[\w]+")(\s*:)/g, (_, k, c) => `<span class="json-key">${k}</span><span class="json-punct">${c}</span>`)
+                            .replace(/:\s*("([^"]*)")/g, (_, full) => `: <span class="json-str">${full}</span>`)
+                            .replace(/:\s*(true)/g, ': <span class="json-bool-t">true</span>')
+                            .replace(/:\s*(false)/g, ': <span class="json-bool-f">false</span>')
+                            .replace(/:\s*(-?\d+\.?\d*)/g, (_, n) => `: <span class="json-num">${n}</span>`)
+                            .replace(/([{}\[\],])/g, m => `<span class="json-punct">${m}</span>`);
+                    }).join('\n');
+                });
+
+                onMounted(() => {
+                    fetchState();
+                    pollTimer = setInterval(fetchState, 500);
+                });
+                onUnmounted(() => clearInterval(pollTimer));
+
+                return {
+                    state, draft, isOnline, toasts, localTime, renderedJson, isLabelFocused,
+                    sliderStyle, postField, setMaterial, setAnimation, setFx, resetState,
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>

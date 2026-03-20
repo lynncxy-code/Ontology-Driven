@@ -421,7 +421,15 @@ createApp({
             setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 3000);
         }
 
-        onMounted(loadTypes);
+        onMounted(async () => {
+            await loadTypes();
+            const urlParams = new URLSearchParams(window.location.search);
+            const ridParam = urlParams.get('rid');
+            if (ridParam) {
+                const target = objectTypes.value.find(t => t.rid === ridParam);
+                if (target) selectType(target);
+            }
+        });
         return {
             objectTypes, allInterfaces, allAssets, selected,
             parentInterfaces, childInterfaces, pendingInterfaces, hasRepresentable,

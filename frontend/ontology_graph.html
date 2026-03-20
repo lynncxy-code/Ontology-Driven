@@ -333,7 +333,7 @@
 
             <!-- 底部跳转按钮 -->
             <div style="padding: 16px 18px; border-top: 1px solid var(--border-color); flex-shrink: 0; background: #fafafa;">
-                <a href="/ontology" style="display: flex; align-items: center; justify-content: center; width: 100%; padding: 10px; background: var(--text-main); color: #fff; text-decoration: none; border-radius: 6px; font-size: 13px; font-weight: 500; transition: opacity 0.2s;">
+                <a id="add-ontology-btn" href="/ontology" style="display: flex; align-items: center; justify-content: center; width: 100%; padding: 10px; background: var(--text-main); color: #fff; text-decoration: none; border-radius: 6px; font-size: 13px; font-weight: 500; transition: opacity 0.2s;">
                     + 添加三维能力接口
                 </a>
             </div>
@@ -459,7 +459,7 @@
                             },
                             rich: {
                                 dot: {
-                                    backgroundColor: '#ef4444',
+                                    backgroundColor: '#22c55e',
                                     width: 8,
                                     height: 8,
                                     borderRadius: 4
@@ -574,6 +574,12 @@
                 }
             } else {
                 attrsGroup.style.display = 'none';
+            }
+            
+            // 更新底部跳转按钮带着 rid
+            const addBtn = document.getElementById('add-ontology-btn');
+            if (addBtn) {
+                addBtn.href = '/ontology?rid=' + encodeURIComponent(node.rid || node.id);
             }
         }
 

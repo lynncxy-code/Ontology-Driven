@@ -265,6 +265,11 @@
                                             </button>
                                         </div>
                                     </div>
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <span class="w-10 text-xs text-gray-500">特效</span>
+                                        <input type="text" v-model="overridePatch.fx_trigger" :placeholder="currentSnap.interfaces.I3D_Behavioral.fx_trigger"
+                                               class="flex-1 text-sm border border-gray-300 rounded px-3 py-1.5 font-sans outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
+                                    </div>
                                     <div class="flex items-center gap-3">
                                         <span class="w-10 text-xs text-gray-500">文本</span>
                                         <input type="text" v-model="overridePatch.ui_label_content" :placeholder="currentSnap.interfaces.I3D_Behavioral.ui_label_content"
@@ -343,6 +348,7 @@ createApp({
             }
             if (ifaces.I3D_Behavioral) {
                 fields.push({ key: 'animation_state', type: 'text' });
+                fields.push({ key: 'fx_trigger', type: 'text' });
                 fields.push({ key: 'ui_label_content', type: 'text' });
             }
             return fields;

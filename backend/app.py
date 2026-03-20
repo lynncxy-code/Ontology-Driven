@@ -506,147 +506,1223 @@ def delete_mapping_rule(rule_id):
 def get_graph_data():
     nodes = [
         {
-            "id": "Aircraft", "name": "设备000125", "category": "Core", "symbolSize": 55,
-            "rid": "ri.obj.airplane", "api_name": "Aircraft", "display_name": "设备000125",
-            "description": "大型民用客机设备实体，具备完整飞行数据与状态接口",
+            "id": "Employee",
+            "name": "工厂员工",
+            "category": "Personnel",
+            "symbolSize": 30,
+            "rid": "ri.obj.employee",
+            "api_name": "Employee",
+            "display_name": "工厂员工",
+            "description": "工厂员工",
             "lifecycle_status": "ACTIVE",
-            "interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Behavioral"],
-            "primary_keys": ["serial_number"],
-            "read_conn_id": "conn.mqtt.c919", "read_path": "/topics/aircraft/+/telemetry",
-            "writeback_enabled": False
+            "primary_keys": [
+                "id"
+            ]
         },
         {
-            "id": "Engine", "name": "CFM LEAP-1C 发动机", "category": "Part", "symbolSize": 40,
-            "rid": "ri.obj.engine", "api_name": "Engine", "display_name": "CFM LEAP-1C 发动机",
-            "description": "C919主动力装置，双发涡扇发动机",
+            "id": "Worker",
+            "name": "一线作业人员",
+            "category": "Personnel",
+            "symbolSize": 30,
+            "rid": "ri.obj.worker",
+            "api_name": "Worker",
+            "display_name": "一线作业人员",
+            "description": "一线作业人员",
             "lifecycle_status": "ACTIVE",
-            "interfaces": ["I3D_Representable", "I3D_Spatial"],
-            "primary_keys": ["serial_number"],
-            "read_conn_id": "conn.opcua.engine", "read_path": "ns=2;s=Engine.RPM",
-            "writeback_enabled": False
+            "primary_keys": [
+                "id"
+            ]
         },
         {
-            "id": "Wing", "name": "超临界机翼", "category": "Part", "symbolSize": 40,
-            "rid": "ri.obj.wing", "api_name": "Wing", "display_name": "超临界机翼",
-            "description": "采用超临界翼型设计，碳纤维复合材料结构",
+            "id": "Manager",
+            "name": "管理人员",
+            "category": "Personnel",
+            "symbolSize": 30,
+            "rid": "ri.obj.manager",
+            "api_name": "Manager",
+            "display_name": "管理人员",
+            "description": "管理人员",
             "lifecycle_status": "ACTIVE",
-            "interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
-            "primary_keys": ["component_id"],
-            "read_conn_id": None, "read_path": None,
-            "writeback_enabled": False
+            "primary_keys": [
+                "id"
+            ]
         },
         {
-            "id": "LandingGear", "name": "主起落架", "category": "Part", "symbolSize": 40,
-            "rid": "ri.obj.landing_gear", "api_name": "LandingGear", "display_name": "主起落架",
-            "description": "主起落架组件，含液压收放系统",
+            "id": "QualityInspector",
+            "name": "质检人员",
+            "category": "Personnel",
+            "symbolSize": 30,
+            "rid": "ri.obj.qualityinspector",
+            "api_name": "QualityInspector",
+            "display_name": "质检人员",
+            "description": "质检人员",
             "lifecycle_status": "ACTIVE",
-            "interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Behavioral"],
-            "primary_keys": ["component_id"],
-            "read_conn_id": "conn.opcua.lgr", "read_path": "ns=2;s=LandingGear.Status",
-            "writeback_enabled": True,
-            "write_conn_id": "conn.opcua.lgr", "write_path": "ns=2;s=LandingGear.Override"
+            "primary_keys": [
+                "id"
+            ]
         },
         {
-            "id": "AGV", "name": "自动导引车 (AGV)", "category": "Machine", "symbolSize": 35,
-            "rid": "ri.obj.agv", "api_name": "AGV", "display_name": "自动导引车 (AGV)",
-            "description": "用于物料搬运和装配支援的自动引导车辆",
+            "id": "MaintenanceStaff",
+            "name": "设备维保人员",
+            "category": "Personnel",
+            "symbolSize": 30,
+            "rid": "ri.obj.maintenancestaff",
+            "api_name": "MaintenanceStaff",
+            "display_name": "设备维保人员",
+            "description": "设备维保人员",
             "lifecycle_status": "ACTIVE",
-            "interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Behavioral"],
-            "primary_keys": ["serial_number"],
-            "read_conn_id": "conn.mqtt.agv", "read_path": "/agv/+/status",
-            "writeback_enabled": True,
-            "write_conn_id": "conn.mqtt.agv", "write_path": "/agv/+/command"
+            "primary_keys": [
+                "id"
+            ]
         },
         {
-            "id": "AssemblyJig", "name": "翼身对接型架", "category": "Tooling", "symbolSize": 30,
-            "rid": "ri.obj.tooling", "api_name": "AssemblyJig", "display_name": "翼身对接工装",
-            "description": "飞机翼身对接用精密型架，含液压定位系统",
+            "id": "WarehouseKeeper",
+            "name": "仓储管理员",
+            "category": "Personnel",
+            "symbolSize": 30,
+            "rid": "ri.obj.warehousekeeper",
+            "api_name": "WarehouseKeeper",
+            "display_name": "仓储管理员",
+            "description": "仓储管理员",
             "lifecycle_status": "ACTIVE",
-            "interfaces": ["I3D_Representable", "I3D_Spatial"],
-            "primary_keys": ["serial_number"],
-            "read_conn_id": "conn.plc.jig01", "read_path": "%DB10.DBD0",
-            "writeback_enabled": False
+            "primary_keys": [
+                "id"
+            ]
         },
         {
-            "id": "Mechanic", "name": "王工程师", "category": "Personnel", "symbolSize": 40,
-            "rid": "ri.obj.personnel", "api_name": "Mechanic", "display_name": "王工程师",
-            "description": "高级装配技师，持有航空维修执照",
+            "id": "Operator",
+            "name": "设备操作工",
+            "category": "Personnel",
+            "symbolSize": 30,
+            "rid": "ri.obj.operator",
+            "api_name": "Operator",
+            "display_name": "设备操作工",
+            "description": "设备操作工",
             "lifecycle_status": "ACTIVE",
-            "interfaces": [],
-            "primary_keys": ["employee_id"],
-            "read_conn_id": None, "read_path": None,
-            "writeback_enabled": False
+            "primary_keys": [
+                "id"
+            ]
         },
         {
-            "id": "CompositeMat", "name": "T800 碳纤维", "category": "Material", "symbolSize": 30,
-            "rid": "ri.obj.material", "api_name": "CompositeMat", "display_name": "T800 碳纤维",
-            "description": "高强度碳纤维复合材料，用于机翼蒙皮结构",
+            "id": "Technician",
+            "name": "技术人员",
+            "category": "Personnel",
+            "symbolSize": 30,
+            "rid": "ri.obj.technician",
+            "api_name": "Technician",
+            "display_name": "技术人员",
+            "description": "技术人员",
             "lifecycle_status": "ACTIVE",
-            "interfaces": [],
-            "primary_keys": ["batch_number"],
-            "read_conn_id": "conn.erp.mes", "read_path": "/materials/carbon/T800",
-            "writeback_enabled": False
+            "primary_keys": [
+                "id"
+            ]
         },
         {
-            "id": "SOP_Wing", "name": "机翼装配 SOP", "category": "Method", "symbolSize": 25,
-            "rid": "ri.obj.sop", "api_name": "SOP_Wing", "display_name": "机翼装配作业规程",
-            "description": "机翼总装作业标准规程，修订版 Rev.3",
+            "id": "SecurityGuard",
+            "name": "安保人员",
+            "category": "Personnel",
+            "symbolSize": 30,
+            "rid": "ri.obj.securityguard",
+            "api_name": "SecurityGuard",
+            "display_name": "安保人员",
+            "description": "安保人员",
             "lifecycle_status": "ACTIVE",
-            "interfaces": [],
-            "primary_keys": ["doc_id"],
-            "read_conn_id": None, "read_path": None,
-            "writeback_enabled": False
+            "primary_keys": [
+                "id"
+            ]
         },
         {
-            "id": "WorkshopEnv", "name": "101 号总装厂房", "category": "Environment", "symbolSize": 25,
-            "rid": "ri.obj.environment", "api_name": "WorkshopEnv", "display_name": "101号总装厂房",
-            "description": "大型总装集成厂房，恒温恒湿洁净环境",
+            "id": "Equipment",
+            "name": "生产设备",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.equipment",
+            "api_name": "Equipment",
+            "display_name": "生产设备",
+            "description": "生产设备",
             "lifecycle_status": "ACTIVE",
-            "interfaces": [],
-            "primary_keys": ["building_id"],
-            "read_conn_id": "conn.iot.bms", "read_path": "/buildings/101/env",
-            "writeback_enabled": False
+            "primary_keys": [
+                "id"
+            ]
         },
         {
-            "id": "AssemblyLine", "name": "脉动总装生产线", "category": "Line", "symbolSize": 50,
-            "rid": "ri.obj.assembly_line", "api_name": "AssemblyLine", "display_name": "脉动总装生产线",
-            "description": "C919脉动式总装生产线，共6个站位",
+            "id": "MachineTool",
+            "name": "机床",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.machinetool",
+            "api_name": "MachineTool",
+            "display_name": "机床",
+            "description": "机床",
             "lifecycle_status": "ACTIVE",
-            "interfaces": ["I3D_Representable", "I3D_Spatial"],
-            "primary_keys": ["line_id"],
-            "read_conn_id": "conn.mes.line", "read_path": "/lines/c919/stations",
-            "writeback_enabled": True,
-            "write_conn_id": "conn.mes.line", "write_path": "/lines/c919/dispatch"
+            "primary_keys": [
+                "id"
+            ]
         },
         {
-            "id": "Event_Alert", "name": "液压系统压力告警", "category": "Event", "symbolSize": 30,
-            "rid": "ri.obj.event", "api_name": "Event_Alert", "display_name": "液压系统压力告警",
-            "description": "主起落架液压管路压力超限事件，告警等级 Level-2",
-            "lifecycle_status": "DRAFT",
-            "interfaces": [],
-            "primary_keys": ["event_id"],
-            "validation": {"pressure_threshold_kpa": 350, "alert_level": "Level-2"},
-            "read_conn_id": None, "read_path": None,
-            "writeback_enabled": False
+            "id": "Robot",
+            "name": "工业机器人",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.robot",
+            "api_name": "Robot",
+            "display_name": "工业机器人",
+            "description": "工业机器人",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
         },
+        {
+            "id": "Conveyor",
+            "name": "传送带",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.conveyor",
+            "api_name": "Conveyor",
+            "display_name": "传送带",
+            "description": "传送带",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Forklift",
+            "name": "叉车",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.forklift",
+            "api_name": "Forklift",
+            "display_name": "叉车",
+            "description": "叉车",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "AGV",
+            "name": "自动导引车",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.agv",
+            "api_name": "AGV",
+            "display_name": "自动导引车",
+            "description": "自动导引车",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Cart",
+            "name": "手推车",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.cart",
+            "api_name": "Cart",
+            "display_name": "手推车",
+            "description": "手推车",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "PalletJack",
+            "name": "地牛",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.palletjack",
+            "api_name": "PalletJack",
+            "display_name": "地牛",
+            "description": "地牛",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Scanner",
+            "name": "扫码设备",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.scanner",
+            "api_name": "Scanner",
+            "display_name": "扫码设备",
+            "description": "扫码设备",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "IndustrialScale",
+            "name": "地磅",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.industrialscale",
+            "api_name": "IndustrialScale",
+            "display_name": "地磅",
+            "description": "地磅",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "ProductionTool",
+            "name": "工装工具",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.productiontool",
+            "api_name": "ProductionTool",
+            "display_name": "工装工具",
+            "description": "工装工具",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Fixture",
+            "name": "夹具",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.fixture",
+            "api_name": "Fixture",
+            "display_name": "夹具",
+            "description": "夹具",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Mold",
+            "name": "模具",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.mold",
+            "api_name": "Mold",
+            "display_name": "模具",
+            "description": "模具",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "QualityInstrument",
+            "name": "质检仪器",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.qualityinstrument",
+            "api_name": "QualityInstrument",
+            "display_name": "质检仪器",
+            "description": "质检仪器",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Rack",
+            "name": "仓储货架",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.rack",
+            "api_name": "Rack",
+            "display_name": "仓储货架",
+            "description": "仓储货架",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Table",
+            "name": "工作台",
+            "category": "Machine",
+            "symbolSize": 35,
+            "rid": "ri.obj.table",
+            "api_name": "Table",
+            "display_name": "工作台",
+            "description": "工作台",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "RawMaterial",
+            "name": "原材料",
+            "category": "Material",
+            "symbolSize": 30,
+            "rid": "ri.obj.rawmaterial",
+            "api_name": "RawMaterial",
+            "display_name": "原材料",
+            "description": "原材料",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "SemiFinishedGood",
+            "name": "半成品",
+            "category": "Material",
+            "symbolSize": 30,
+            "rid": "ri.obj.semifinishedgood",
+            "api_name": "SemiFinishedGood",
+            "display_name": "半成品",
+            "description": "半成品",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "FinishedGood",
+            "name": "成品",
+            "category": "Material",
+            "symbolSize": 30,
+            "rid": "ri.obj.finishedgood",
+            "api_name": "FinishedGood",
+            "display_name": "成品",
+            "description": "成品",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Material",
+            "name": "通用物料",
+            "category": "Material",
+            "symbolSize": 30,
+            "rid": "ri.obj.material",
+            "api_name": "Material",
+            "display_name": "通用物料",
+            "description": "通用物料",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Box",
+            "name": "包装箱",
+            "category": "Material",
+            "symbolSize": 30,
+            "rid": "ri.obj.box",
+            "api_name": "Box",
+            "display_name": "包装箱",
+            "description": "包装箱",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Bag",
+            "name": "袋装物料",
+            "category": "Material",
+            "symbolSize": 30,
+            "rid": "ri.obj.bag",
+            "api_name": "Bag",
+            "display_name": "袋装物料",
+            "description": "袋装物料",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Barrel",
+            "name": "桶装物料",
+            "category": "Material",
+            "symbolSize": 30,
+            "rid": "ri.obj.barrel",
+            "api_name": "Barrel",
+            "display_name": "桶装物料",
+            "description": "桶装物料",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Pallet",
+            "name": "托盘",
+            "category": "Material",
+            "symbolSize": 30,
+            "rid": "ri.obj.pallet",
+            "api_name": "Pallet",
+            "display_name": "托盘",
+            "description": "托盘",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "CableDrum",
+            "name": "电缆盘",
+            "category": "Material",
+            "symbolSize": 30,
+            "rid": "ri.obj.cabledrum",
+            "api_name": "CableDrum",
+            "display_name": "电缆盘",
+            "description": "电缆盘",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "ShippingCrate",
+            "name": "木箱",
+            "category": "Material",
+            "symbolSize": 30,
+            "rid": "ri.obj.shippingcrate",
+            "api_name": "ShippingCrate",
+            "display_name": "木箱",
+            "description": "木箱",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "MaterialBatch",
+            "name": "物料批次",
+            "category": "Material",
+            "symbolSize": 30,
+            "rid": "ri.obj.materialbatch",
+            "api_name": "MaterialBatch",
+            "display_name": "物料批次",
+            "description": "物料批次",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Workstation",
+            "name": "工位",
+            "category": "Method",
+            "symbolSize": 35,
+            "rid": "ri.obj.workstation",
+            "api_name": "Workstation",
+            "display_name": "工位",
+            "description": "工位",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "ProductionLine",
+            "name": "生产线",
+            "category": "Method",
+            "symbolSize": 35,
+            "rid": "ri.obj.productionline",
+            "api_name": "ProductionLine",
+            "display_name": "生产线",
+            "description": "生产线",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Process",
+            "name": "生产工艺",
+            "category": "Method",
+            "symbolSize": 35,
+            "rid": "ri.obj.process",
+            "api_name": "Process",
+            "display_name": "生产工艺",
+            "description": "生产工艺",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "WorkInstruction",
+            "name": "作业指导书",
+            "category": "Method",
+            "symbolSize": 35,
+            "rid": "ri.obj.workinstruction",
+            "api_name": "WorkInstruction",
+            "display_name": "作业指导书",
+            "description": "作业指导书",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "ProcessParameter",
+            "name": "工艺参数",
+            "category": "Method",
+            "symbolSize": 35,
+            "rid": "ri.obj.processparameter",
+            "api_name": "ProcessParameter",
+            "display_name": "工艺参数",
+            "description": "工艺参数",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "ProductionPlan",
+            "name": "生产计划",
+            "category": "Method",
+            "symbolSize": 35,
+            "rid": "ri.obj.productionplan",
+            "api_name": "ProductionPlan",
+            "display_name": "生产计划",
+            "description": "生产计划",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "QualityStandard",
+            "name": "质量标准",
+            "category": "Method",
+            "symbolSize": 35,
+            "rid": "ri.obj.qualitystandard",
+            "api_name": "QualityStandard",
+            "display_name": "质量标准",
+            "description": "质量标准",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "SafetyRule",
+            "name": "安全规范",
+            "category": "Method",
+            "symbolSize": 35,
+            "rid": "ri.obj.safetyrule",
+            "api_name": "SafetyRule",
+            "display_name": "安全规范",
+            "description": "安全规范",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "MaintenancePlan",
+            "name": "维保计划",
+            "category": "Method",
+            "symbolSize": 35,
+            "rid": "ri.obj.maintenanceplan",
+            "api_name": "MaintenancePlan",
+            "display_name": "维保计划",
+            "description": "维保计划",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "SOP",
+            "name": "标准作业程序",
+            "category": "Method",
+            "symbolSize": 35,
+            "rid": "ri.obj.sop",
+            "api_name": "SOP",
+            "display_name": "标准作业程序",
+            "description": "标准作业程序",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "InspectionRule",
+            "name": "检验规范",
+            "category": "Method",
+            "symbolSize": 35,
+            "rid": "ri.obj.inspectionrule",
+            "api_name": "InspectionRule",
+            "display_name": "检验规范",
+            "description": "检验规范",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Wall",
+            "name": "墙体",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.wall",
+            "api_name": "Wall",
+            "display_name": "墙体",
+            "description": "墙体",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Floor",
+            "name": "地面",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.floor",
+            "api_name": "Floor",
+            "display_name": "地面",
+            "description": "地面",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Ceiling",
+            "name": "吊顶",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.ceiling",
+            "api_name": "Ceiling",
+            "display_name": "吊顶",
+            "description": "吊顶",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Door",
+            "name": "门",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.door",
+            "api_name": "Door",
+            "display_name": "门",
+            "description": "门",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Window",
+            "name": "窗",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.window",
+            "api_name": "Window",
+            "display_name": "窗",
+            "description": "窗",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Workshop",
+            "name": "车间",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.workshop",
+            "api_name": "Workshop",
+            "display_name": "车间",
+            "description": "车间",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Warehouse",
+            "name": "仓库",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.warehouse",
+            "api_name": "Warehouse",
+            "display_name": "仓库",
+            "description": "仓库",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "OfficeArea",
+            "name": "办公区",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.officearea",
+            "api_name": "OfficeArea",
+            "display_name": "办公区",
+            "description": "办公区",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "LoadingDock",
+            "name": "装卸区",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.loadingdock",
+            "api_name": "LoadingDock",
+            "display_name": "装卸区",
+            "description": "装卸区",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Pipe",
+            "name": "管道",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.pipe",
+            "api_name": "Pipe",
+            "display_name": "管道",
+            "description": "管道",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "AirDuct",
+            "name": "通风管道",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.airduct",
+            "api_name": "AirDuct",
+            "display_name": "通风管道",
+            "description": "通风管道",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "CableTray",
+            "name": "电缆桥架",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.cabletray",
+            "api_name": "CableTray",
+            "display_name": "电缆桥架",
+            "description": "电缆桥架",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "Lamp",
+            "name": "照明灯具",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.lamp",
+            "api_name": "Lamp",
+            "display_name": "照明灯具",
+            "description": "照明灯具",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "FireExtinguisher",
+            "name": "灭火器",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.fireextinguisher",
+            "api_name": "FireExtinguisher",
+            "display_name": "灭火器",
+            "description": "灭火器",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "FireAlarm",
+            "name": "火警报警器",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.firealarm",
+            "api_name": "FireAlarm",
+            "display_name": "火警报警器",
+            "description": "火警报警器",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "FirstAidKit",
+            "name": "急救箱",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.firstaidkit",
+            "api_name": "FirstAidKit",
+            "display_name": "急救箱",
+            "description": "急救箱",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "SafetyFacility",
+            "name": "安全防护设施",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.safetyfacility",
+            "api_name": "SafetyFacility",
+            "display_name": "安全防护设施",
+            "description": "安全防护设施",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "EnvironmentalDevice",
+            "name": "环境设备",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.environmentaldevice",
+            "api_name": "EnvironmentalDevice",
+            "display_name": "环境设备",
+            "description": "环境设备",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "ColumnGuard",
+            "name": "防撞柱",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.columnguard",
+            "api_name": "ColumnGuard",
+            "display_name": "防撞柱",
+            "description": "防撞柱",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "GuardRail",
+            "name": "护栏",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.guardrail",
+            "api_name": "GuardRail",
+            "display_name": "护栏",
+            "description": "护栏",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        },
+        {
+            "id": "EnvironmentalMonitor",
+            "name": "环境监测设备",
+            "category": "Environment",
+            "symbolSize": 30,
+            "rid": "ri.obj.environmentalmonitor",
+            "api_name": "EnvironmentalMonitor",
+            "display_name": "环境监测设备",
+            "description": "环境监测设备",
+            "lifecycle_status": "ACTIVE",
+            "primary_keys": [
+                "id"
+            ]
+        }
     ]
     links = [
-        {"source": "Aircraft",    "target": "Engine",       "label": "has_part"},
-        {"source": "Aircraft",    "target": "Wing",         "label": "has_part"},
-        {"source": "Aircraft",    "target": "LandingGear",  "label": "has_part"},
-        {"source": "AGV",         "target": "Wing",         "label": "transports"},
-        {"source": "AssemblyJig", "target": "Aircraft",     "label": "supports"},
-        {"source": "Mechanic",    "target": "Engine",       "label": "installs"},
-        {"source": "CompositeMat","target": "Wing",         "label": "used_in"},
-        {"source": "SOP_Wing",    "target": "Wing",         "label": "guides_assembly"},
-        {"source": "WorkshopEnv", "target": "AssemblyLine", "label": "surrounds"},
-        {"source": "AssemblyLine","target": "Aircraft",     "label": "processes"},
-        {"source": "Event_Alert", "target": "LandingGear",  "label": "occurred_on"},
+        {
+            "source": "Manager",
+            "target": "ProductionPlan",
+            "label": "develops"
+        },
+        {
+            "source": "Manager",
+            "target": "QualityStandard",
+            "label": "approves"
+        },
+        {
+            "source": "QualityInspector",
+            "target": "QualityStandard",
+            "label": "enforces"
+        },
+        {
+            "source": "QualityInspector",
+            "target": "QualityInstrument",
+            "label": "uses"
+        },
+        {
+            "source": "MaintenanceStaff",
+            "target": "MaintenancePlan",
+            "label": "executes"
+        },
+        {
+            "source": "MaintenanceStaff",
+            "target": "Robot",
+            "label": "maintains"
+        },
+        {
+            "source": "MaintenanceStaff",
+            "target": "MachineTool",
+            "label": "maintains"
+        },
+        {
+            "source": "WarehouseKeeper",
+            "target": "Warehouse",
+            "label": "manages"
+        },
+        {
+            "source": "WarehouseKeeper",
+            "target": "MaterialBatch",
+            "label": "tracks"
+        },
+        {
+            "source": "WarehouseKeeper",
+            "target": "Forklift",
+            "label": "drives"
+        },
+        {
+            "source": "Operator",
+            "target": "MachineTool",
+            "label": "operates"
+        },
+        {
+            "source": "Operator",
+            "target": "WorkInstruction",
+            "label": "follows"
+        },
+        {
+            "source": "SecurityGuard",
+            "target": "SafetyRule",
+            "label": "enforces"
+        },
+        {
+            "source": "Technician",
+            "target": "ProcessParameter",
+            "label": "tunes"
+        },
+        {
+            "source": "MachineTool",
+            "target": "RawMaterial",
+            "label": "processes"
+        },
+        {
+            "source": "MachineTool",
+            "target": "ProcessParameter",
+            "label": "configured_by"
+        },
+        {
+            "source": "Robot",
+            "target": "SemiFinishedGood",
+            "label": "assembles"
+        },
+        {
+            "source": "Conveyor",
+            "target": "SemiFinishedGood",
+            "label": "moves"
+        },
+        {
+            "source": "AGV",
+            "target": "MaterialBatch",
+            "label": "transports"
+        },
+        {
+            "source": "AGV",
+            "target": "Rack",
+            "label": "docks_at"
+        },
+        {
+            "source": "Scanner",
+            "target": "MaterialBatch",
+            "label": "scans"
+        },
+        {
+            "source": "IndustrialScale",
+            "target": "MaterialBatch",
+            "label": "weighs"
+        },
+        {
+            "source": "ProductionTool",
+            "target": "Workstation",
+            "label": "used_at"
+        },
+        {
+            "source": "Fixture",
+            "target": "MachineTool",
+            "label": "mounted_on"
+        },
+        {
+            "source": "RawMaterial",
+            "target": "SemiFinishedGood",
+            "label": "converted_to"
+        },
+        {
+            "source": "SemiFinishedGood",
+            "target": "FinishedGood",
+            "label": "assembled_into"
+        },
+        {
+            "source": "MaterialBatch",
+            "target": "Box",
+            "label": "packaged_in"
+        },
+        {
+            "source": "Box",
+            "target": "Pallet",
+            "label": "stacked_on"
+        },
+        {
+            "source": "Pallet",
+            "target": "Rack",
+            "label": "stored_in"
+        },
+        {
+            "source": "ProductionPlan",
+            "target": "ProductionLine",
+            "label": "schedules"
+        },
+        {
+            "source": "SOP",
+            "target": "Process",
+            "label": "standardizes"
+        },
+        {
+            "source": "MaintenancePlan",
+            "target": "Equipment",
+            "label": "applies_to"
+        },
+        {
+            "source": "InspectionRule",
+            "target": "QualityInstrument",
+            "label": "guides"
+        },
+        {
+            "source": "SafetyRule",
+            "target": "Workshop",
+            "label": "applies_in"
+        },
+        {
+            "source": "Workshop",
+            "target": "ProductionLine",
+            "label": "contains"
+        },
+        {
+            "source": "Warehouse",
+            "target": "Rack",
+            "label": "contains"
+        },
+        {
+            "source": "LoadingDock",
+            "target": "AGV",
+            "label": "serves"
+        },
+        {
+            "source": "Wall",
+            "target": "Workshop",
+            "label": "structure_of"
+        },
+        {
+            "source": "Floor",
+            "target": "Workshop",
+            "label": "structure_of"
+        },
+        {
+            "source": "Ceiling",
+            "target": "Workshop",
+            "label": "structure_of"
+        },
+        {
+            "source": "Door",
+            "target": "Wall",
+            "label": "installed_in"
+        },
+        {
+            "source": "Window",
+            "target": "Wall",
+            "label": "installed_in"
+        },
+        {
+            "source": "Pipe",
+            "target": "Ceiling",
+            "label": "hung_from"
+        },
+        {
+            "source": "AirDuct",
+            "target": "Ceiling",
+            "label": "hung_from"
+        },
+        {
+            "source": "CableTray",
+            "target": "Ceiling",
+            "label": "hung_from"
+        },
+        {
+            "source": "Lamp",
+            "target": "CableTray",
+            "label": "draws_power"
+        },
+        {
+            "source": "EnvironmentalMonitor",
+            "target": "Lamp",
+            "label": "co_located"
+        },
+        {
+            "source": "FireExtinguisher",
+            "target": "Wall",
+            "label": "mounted_on"
+        },
+        {
+            "source": "FireAlarm",
+            "target": "Wall",
+            "label": "mounted_on"
+        },
+        {
+            "source": "FirstAidKit",
+            "target": "Wall",
+            "label": "mounted_on"
+        },
+        {
+            "source": "GuardRail",
+            "target": "Floor",
+            "label": "guards"
+        },
+        {
+            "source": "ColumnGuard",
+            "target": "Floor",
+            "label": "protects"
+        }
     ]
     categories = [
-        {"name": "Core"}, {"name": "Part"}, {"name": "Personnel"},
-        {"name": "Machine"}, {"name": "Material"}, {"name": "Method"},
-        {"name": "Environment"}, {"name": "Tooling"}, {"name": "Line"}, {"name": "Event"}
+        {"name": "Personnel"}, {"name": "Machine"}, {"name": "Material"},
+        {"name": "Method"}, {"name": "Environment"}
     ]
     
     # 动态同步对象类型中已注入的三维能力接口

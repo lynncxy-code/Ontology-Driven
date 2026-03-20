@@ -129,73 +129,2144 @@ INTERFACE_MAP = {i["rid"]: i for i in INTERFACES}
 # ═══════════════════════════════════════════════════════════════
 
 OBJECT_TYPES = {
-    "ri.obj.airplane": {
-        "rid": "ri.obj.airplane",
-        "name": "设备000125",
-        "category": "Core",
-        "description": "大型民用客机设备实体，具备完整飞行数据与状态接口",
-        "color": "#60a5fa",
+    "ri.obj.employee": {
+        "rid": "ri.obj.employee",
+        "name": "Employee",
+        "category": "Personnel",
+        "description": "工厂员工",
+        "color": "#f59e0b",
         "properties": [
-            {"name": "serial_number",    "label": "设备序列号 (Serial No.)",           "type": "string"},
-            {"name": "model",            "label": "型号规格 (Model)",                   "type": "string"},
-            {"name": "altitude",         "label": "飞行高度 (Altitude / m)",            "type": "number"},
-            {"name": "speed",            "label": "飞行速度 (Speed / km·h⁻¹)",          "type": "number"},
-            {"name": "heading",          "label": "航向角 (Heading / °)",               "type": "number"},
-            {"name": "fuel_level",       "label": "燃油余量 (Fuel Level / %)",          "type": "number"},
-            {"name": "engine_rpm",       "label": "发动机转速 (Engine RPM)",            "type": "number"},
-            {"name": "cabin_pressure",   "label": "舱内气压 (Cabin Pressure / hPa)",    "type": "number"},
-            {"name": "status",           "label": "运行状态 (Status)",                  "type": "enum",
-             "options": ["normal", "warning", "fault", "offline"]},
-            {"name": "maintenance_due",  "label": "下次维护日期 (Maintenance Due)",     "type": "string"},
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
         ],
         "injected_interfaces": [],
-        "mock_instances": ["B-919A", "B-919B"],
+        "mock_instances": [
+            "Employee-001",
+            "Employee-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.worker": {
+        "rid": "ri.obj.worker",
+        "name": "Worker",
+        "category": "Personnel",
+        "description": "一线作业人员",
+        "color": "#f59e0b",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Worker-001",
+            "Worker-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.manager": {
+        "rid": "ri.obj.manager",
+        "name": "Manager",
+        "category": "Personnel",
+        "description": "管理人员",
+        "color": "#f59e0b",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Manager-001",
+            "Manager-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.qualityinspector": {
+        "rid": "ri.obj.qualityinspector",
+        "name": "QualityInspector",
+        "category": "Personnel",
+        "description": "质检人员",
+        "color": "#f59e0b",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "QualityInspector-001",
+            "QualityInspector-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.maintenancestaff": {
+        "rid": "ri.obj.maintenancestaff",
+        "name": "MaintenanceStaff",
+        "category": "Personnel",
+        "description": "设备维保人员",
+        "color": "#f59e0b",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "MaintenanceStaff-001",
+            "MaintenanceStaff-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.warehousekeeper": {
+        "rid": "ri.obj.warehousekeeper",
+        "name": "WarehouseKeeper",
+        "category": "Personnel",
+        "description": "仓储管理员",
+        "color": "#f59e0b",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "WarehouseKeeper-001",
+            "WarehouseKeeper-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.operator": {
+        "rid": "ri.obj.operator",
+        "name": "Operator",
+        "category": "Personnel",
+        "description": "设备操作工",
+        "color": "#f59e0b",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Operator-001",
+            "Operator-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.technician": {
+        "rid": "ri.obj.technician",
+        "name": "Technician",
+        "category": "Personnel",
+        "description": "技术人员",
+        "color": "#f59e0b",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Technician-001",
+            "Technician-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.securityguard": {
+        "rid": "ri.obj.securityguard",
+        "name": "SecurityGuard",
+        "category": "Personnel",
+        "description": "安保人员",
+        "color": "#f59e0b",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "SecurityGuard-001",
+            "SecurityGuard-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.equipment": {
+        "rid": "ri.obj.equipment",
+        "name": "Equipment",
+        "category": "Machine",
+        "description": "生产设备",
+        "color": "#3b82f6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Equipment-001",
+            "Equipment-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.machinetool": {
+        "rid": "ri.obj.machinetool",
+        "name": "MachineTool",
+        "category": "Machine",
+        "description": "机床",
+        "color": "#3b82f6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [
+            "I3D_Representable",
+            "I3D_Spatial",
+            "I3D_Behavioral"
+        ],
+        "mock_instances": [
+            "MachineTool-001",
+            "MachineTool-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.robot": {
+        "rid": "ri.obj.robot",
+        "name": "Robot",
+        "category": "Machine",
+        "description": "工业机器人",
+        "color": "#3b82f6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [
+            "I3D_Representable",
+            "I3D_Spatial",
+            "I3D_Behavioral"
+        ],
+        "mock_instances": [
+            "Robot-001",
+            "Robot-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.conveyor": {
+        "rid": "ri.obj.conveyor",
+        "name": "Conveyor",
+        "category": "Machine",
+        "description": "传送带",
+        "color": "#3b82f6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Conveyor-001",
+            "Conveyor-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.forklift": {
+        "rid": "ri.obj.forklift",
+        "name": "Forklift",
+        "category": "Machine",
+        "description": "叉车",
+        "color": "#3b82f6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Forklift-001",
+            "Forklift-002"
+        ],
         "asset_id": None
     },
     "ri.obj.agv": {
         "rid": "ri.obj.agv",
-        "name": "自动导引车 (AGV)",
+        "name": "AGV",
         "category": "Machine",
-        "description": "用于物料搬运和装配支援的自引导车辆",
-        "color": "#34d399",
+        "description": "自动导引车",
+        "color": "#3b82f6",
         "properties": [
-            {"name": "serial_number",    "label": "设备序列号 (Serial No.)",            "type": "string"},
-            {"name": "battery_level",    "label": "电量 (Battery / %)",                 "type": "number"},
-            {"name": "speed",            "label": "移动速度 (Speed / m·s⁻¹)",           "type": "number"},
-            {"name": "position_x",       "label": "当前位置 X (Position X / cm)",       "type": "number"},
-            {"name": "position_y",       "label": "当前位置 Y (Position Y / cm)",       "type": "number"},
-            {"name": "load_weight",      "label": "当前载重 (Load / kg)",               "type": "number"},
-            {"name": "max_load",         "label": "额定载重 (Max Load / kg)",           "type": "number"},
-            {"name": "task_id",          "label": "当前任务 ID (Task ID)",              "type": "string"},
-            {"name": "status",           "label": "运行状态 (Status)",                  "type": "enum",
-             "options": ["idle", "running", "charging", "fault"]},
-            {"name": "error_code",       "label": "故障码 (Error Code)",               "type": "string"},
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
         ],
-        "injected_interfaces": [],
-        "mock_instances": ["AGV-101", "AGV-102", "AGV-103"],
+        "injected_interfaces": [
+            "I3D_Representable",
+            "I3D_Spatial",
+            "I3D_Behavioral"
+        ],
+        "mock_instances": [
+            "AGV-001",
+            "AGV-002"
+        ],
         "asset_id": None
     },
-    "ri.obj.tooling": {
-        "rid": "ri.obj.tooling",
-        "name": "翼身对接工装",
-        "category": "Tooling",
-        "description": "飞机翼身对接用精密型架",
-        "color": "#f59e0b",
+    "ri.obj.cart": {
+        "rid": "ri.obj.cart",
+        "name": "Cart",
+        "category": "Machine",
+        "description": "手推车",
+        "color": "#3b82f6",
         "properties": [
-            {"name": "serial_number",    "label": "工装序列号 (Serial No.)",            "type": "string"},
-            {"name": "jig_type",         "label": "型架类型 (Jig Type)",               "type": "string"},
-            {"name": "temperature",      "label": "环境温度 (Temperature / °C)",        "type": "number"},
-            {"name": "pressure",         "label": "液压压力 (Pressure / kPa)",          "type": "number"},
-            {"name": "clamping_force",   "label": "夹紧力 (Clamping Force / kN)",       "type": "number"},
-            {"name": "calibration_date", "label": "上次校准日期 (Calibration Date)",    "type": "string"},
-            {"name": "accuracy",         "label": "定位精度 (Accuracy / mm)",           "type": "number"},
-            {"name": "max_load",         "label": "额定承重 (Max Load / T)",            "type": "number"},
-            {"name": "status",           "label": "工装状态 (Status)",                  "type": "enum",
-             "options": ["available", "in_use", "maintenance"]},
-            {"name": "operator_id",      "label": "操作员工号 (Operator ID)",          "type": "string"},
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
         ],
         "injected_interfaces": [],
-        "mock_instances": ["JIG-W01", "JIG-W02"],
+        "mock_instances": [
+            "Cart-001",
+            "Cart-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.palletjack": {
+        "rid": "ri.obj.palletjack",
+        "name": "PalletJack",
+        "category": "Machine",
+        "description": "地牛",
+        "color": "#3b82f6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "PalletJack-001",
+            "PalletJack-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.scanner": {
+        "rid": "ri.obj.scanner",
+        "name": "Scanner",
+        "category": "Machine",
+        "description": "扫码设备",
+        "color": "#3b82f6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Scanner-001",
+            "Scanner-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.industrialscale": {
+        "rid": "ri.obj.industrialscale",
+        "name": "IndustrialScale",
+        "category": "Machine",
+        "description": "地磅",
+        "color": "#3b82f6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "IndustrialScale-001",
+            "IndustrialScale-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.productiontool": {
+        "rid": "ri.obj.productiontool",
+        "name": "ProductionTool",
+        "category": "Machine",
+        "description": "工装工具",
+        "color": "#3b82f6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "ProductionTool-001",
+            "ProductionTool-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.fixture": {
+        "rid": "ri.obj.fixture",
+        "name": "Fixture",
+        "category": "Machine",
+        "description": "夹具",
+        "color": "#3b82f6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Fixture-001",
+            "Fixture-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.mold": {
+        "rid": "ri.obj.mold",
+        "name": "Mold",
+        "category": "Machine",
+        "description": "模具",
+        "color": "#3b82f6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Mold-001",
+            "Mold-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.qualityinstrument": {
+        "rid": "ri.obj.qualityinstrument",
+        "name": "QualityInstrument",
+        "category": "Machine",
+        "description": "质检仪器",
+        "color": "#3b82f6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "QualityInstrument-001",
+            "QualityInstrument-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.rack": {
+        "rid": "ri.obj.rack",
+        "name": "Rack",
+        "category": "Machine",
+        "description": "仓储货架",
+        "color": "#3b82f6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Rack-001",
+            "Rack-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.table": {
+        "rid": "ri.obj.table",
+        "name": "Table",
+        "category": "Machine",
+        "description": "工作台",
+        "color": "#3b82f6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Table-001",
+            "Table-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.rawmaterial": {
+        "rid": "ri.obj.rawmaterial",
+        "name": "RawMaterial",
+        "category": "Material",
+        "description": "原材料",
+        "color": "#8b5cf6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "RawMaterial-001",
+            "RawMaterial-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.semifinishedgood": {
+        "rid": "ri.obj.semifinishedgood",
+        "name": "SemiFinishedGood",
+        "category": "Material",
+        "description": "半成品",
+        "color": "#8b5cf6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "SemiFinishedGood-001",
+            "SemiFinishedGood-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.finishedgood": {
+        "rid": "ri.obj.finishedgood",
+        "name": "FinishedGood",
+        "category": "Material",
+        "description": "成品",
+        "color": "#8b5cf6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "FinishedGood-001",
+            "FinishedGood-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.material": {
+        "rid": "ri.obj.material",
+        "name": "Material",
+        "category": "Material",
+        "description": "通用物料",
+        "color": "#8b5cf6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Material-001",
+            "Material-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.box": {
+        "rid": "ri.obj.box",
+        "name": "Box",
+        "category": "Material",
+        "description": "包装箱",
+        "color": "#8b5cf6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Box-001",
+            "Box-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.bag": {
+        "rid": "ri.obj.bag",
+        "name": "Bag",
+        "category": "Material",
+        "description": "袋装物料",
+        "color": "#8b5cf6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Bag-001",
+            "Bag-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.barrel": {
+        "rid": "ri.obj.barrel",
+        "name": "Barrel",
+        "category": "Material",
+        "description": "桶装物料",
+        "color": "#8b5cf6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Barrel-001",
+            "Barrel-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.pallet": {
+        "rid": "ri.obj.pallet",
+        "name": "Pallet",
+        "category": "Material",
+        "description": "托盘",
+        "color": "#8b5cf6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Pallet-001",
+            "Pallet-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.cabledrum": {
+        "rid": "ri.obj.cabledrum",
+        "name": "CableDrum",
+        "category": "Material",
+        "description": "电缆盘",
+        "color": "#8b5cf6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "CableDrum-001",
+            "CableDrum-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.shippingcrate": {
+        "rid": "ri.obj.shippingcrate",
+        "name": "ShippingCrate",
+        "category": "Material",
+        "description": "木箱",
+        "color": "#8b5cf6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "ShippingCrate-001",
+            "ShippingCrate-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.materialbatch": {
+        "rid": "ri.obj.materialbatch",
+        "name": "MaterialBatch",
+        "category": "Material",
+        "description": "物料批次",
+        "color": "#8b5cf6",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "MaterialBatch-001",
+            "MaterialBatch-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.workstation": {
+        "rid": "ri.obj.workstation",
+        "name": "Workstation",
+        "category": "Method",
+        "description": "工位",
+        "color": "#ec4899",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Workstation-001",
+            "Workstation-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.productionline": {
+        "rid": "ri.obj.productionline",
+        "name": "ProductionLine",
+        "category": "Method",
+        "description": "生产线",
+        "color": "#ec4899",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "ProductionLine-001",
+            "ProductionLine-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.process": {
+        "rid": "ri.obj.process",
+        "name": "Process",
+        "category": "Method",
+        "description": "生产工艺",
+        "color": "#ec4899",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Process-001",
+            "Process-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.workinstruction": {
+        "rid": "ri.obj.workinstruction",
+        "name": "WorkInstruction",
+        "category": "Method",
+        "description": "作业指导书",
+        "color": "#ec4899",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "WorkInstruction-001",
+            "WorkInstruction-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.processparameter": {
+        "rid": "ri.obj.processparameter",
+        "name": "ProcessParameter",
+        "category": "Method",
+        "description": "工艺参数",
+        "color": "#ec4899",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "ProcessParameter-001",
+            "ProcessParameter-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.productionplan": {
+        "rid": "ri.obj.productionplan",
+        "name": "ProductionPlan",
+        "category": "Method",
+        "description": "生产计划",
+        "color": "#ec4899",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "ProductionPlan-001",
+            "ProductionPlan-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.qualitystandard": {
+        "rid": "ri.obj.qualitystandard",
+        "name": "QualityStandard",
+        "category": "Method",
+        "description": "质量标准",
+        "color": "#ec4899",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "QualityStandard-001",
+            "QualityStandard-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.safetyrule": {
+        "rid": "ri.obj.safetyrule",
+        "name": "SafetyRule",
+        "category": "Method",
+        "description": "安全规范",
+        "color": "#ec4899",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "SafetyRule-001",
+            "SafetyRule-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.maintenanceplan": {
+        "rid": "ri.obj.maintenanceplan",
+        "name": "MaintenancePlan",
+        "category": "Method",
+        "description": "维保计划",
+        "color": "#ec4899",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "MaintenancePlan-001",
+            "MaintenancePlan-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.sop": {
+        "rid": "ri.obj.sop",
+        "name": "SOP",
+        "category": "Method",
+        "description": "标准作业程序",
+        "color": "#ec4899",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "SOP-001",
+            "SOP-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.inspectionrule": {
+        "rid": "ri.obj.inspectionrule",
+        "name": "InspectionRule",
+        "category": "Method",
+        "description": "检验规范",
+        "color": "#ec4899",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "InspectionRule-001",
+            "InspectionRule-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.wall": {
+        "rid": "ri.obj.wall",
+        "name": "Wall",
+        "category": "Environment",
+        "description": "墙体",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [
+            "I3D_Representable",
+            "I3D_Spatial",
+            "I3D_Visual"
+        ],
+        "mock_instances": [
+            "Wall-001",
+            "Wall-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.floor": {
+        "rid": "ri.obj.floor",
+        "name": "Floor",
+        "category": "Environment",
+        "description": "地面",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [
+            "I3D_Representable",
+            "I3D_Spatial",
+            "I3D_Visual"
+        ],
+        "mock_instances": [
+            "Floor-001",
+            "Floor-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.ceiling": {
+        "rid": "ri.obj.ceiling",
+        "name": "Ceiling",
+        "category": "Environment",
+        "description": "吊顶",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Ceiling-001",
+            "Ceiling-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.door": {
+        "rid": "ri.obj.door",
+        "name": "Door",
+        "category": "Environment",
+        "description": "门",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [
+            "I3D_Representable",
+            "I3D_Spatial",
+            "I3D_Visual"
+        ],
+        "mock_instances": [
+            "Door-001",
+            "Door-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.window": {
+        "rid": "ri.obj.window",
+        "name": "Window",
+        "category": "Environment",
+        "description": "窗",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Window-001",
+            "Window-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.workshop": {
+        "rid": "ri.obj.workshop",
+        "name": "Workshop",
+        "category": "Environment",
+        "description": "车间",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Workshop-001",
+            "Workshop-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.warehouse": {
+        "rid": "ri.obj.warehouse",
+        "name": "Warehouse",
+        "category": "Environment",
+        "description": "仓库",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Warehouse-001",
+            "Warehouse-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.officearea": {
+        "rid": "ri.obj.officearea",
+        "name": "OfficeArea",
+        "category": "Environment",
+        "description": "办公区",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "OfficeArea-001",
+            "OfficeArea-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.loadingdock": {
+        "rid": "ri.obj.loadingdock",
+        "name": "LoadingDock",
+        "category": "Environment",
+        "description": "装卸区",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "LoadingDock-001",
+            "LoadingDock-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.pipe": {
+        "rid": "ri.obj.pipe",
+        "name": "Pipe",
+        "category": "Environment",
+        "description": "管道",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "Pipe-001",
+            "Pipe-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.airduct": {
+        "rid": "ri.obj.airduct",
+        "name": "AirDuct",
+        "category": "Environment",
+        "description": "通风管道",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "AirDuct-001",
+            "AirDuct-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.cabletray": {
+        "rid": "ri.obj.cabletray",
+        "name": "CableTray",
+        "category": "Environment",
+        "description": "电缆桥架",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "CableTray-001",
+            "CableTray-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.lamp": {
+        "rid": "ri.obj.lamp",
+        "name": "Lamp",
+        "category": "Environment",
+        "description": "照明灯具",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [
+            "I3D_Representable",
+            "I3D_Spatial",
+            "I3D_Visual"
+        ],
+        "mock_instances": [
+            "Lamp-001",
+            "Lamp-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.fireextinguisher": {
+        "rid": "ri.obj.fireextinguisher",
+        "name": "FireExtinguisher",
+        "category": "Environment",
+        "description": "灭火器",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [
+            "I3D_Representable",
+            "I3D_Spatial",
+            "I3D_Visual"
+        ],
+        "mock_instances": [
+            "FireExtinguisher-001",
+            "FireExtinguisher-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.firealarm": {
+        "rid": "ri.obj.firealarm",
+        "name": "FireAlarm",
+        "category": "Environment",
+        "description": "火警报警器",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "FireAlarm-001",
+            "FireAlarm-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.firstaidkit": {
+        "rid": "ri.obj.firstaidkit",
+        "name": "FirstAidKit",
+        "category": "Environment",
+        "description": "急救箱",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "FirstAidKit-001",
+            "FirstAidKit-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.safetyfacility": {
+        "rid": "ri.obj.safetyfacility",
+        "name": "SafetyFacility",
+        "category": "Environment",
+        "description": "安全防护设施",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "SafetyFacility-001",
+            "SafetyFacility-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.environmentaldevice": {
+        "rid": "ri.obj.environmentaldevice",
+        "name": "EnvironmentalDevice",
+        "category": "Environment",
+        "description": "环境设备",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "EnvironmentalDevice-001",
+            "EnvironmentalDevice-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.columnguard": {
+        "rid": "ri.obj.columnguard",
+        "name": "ColumnGuard",
+        "category": "Environment",
+        "description": "防撞柱",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "ColumnGuard-001",
+            "ColumnGuard-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.guardrail": {
+        "rid": "ri.obj.guardrail",
+        "name": "GuardRail",
+        "category": "Environment",
+        "description": "护栏",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "GuardRail-001",
+            "GuardRail-002"
+        ],
+        "asset_id": None
+    },
+    "ri.obj.environmentalmonitor": {
+        "rid": "ri.obj.environmentalmonitor",
+        "name": "EnvironmentalMonitor",
+        "category": "Environment",
+        "description": "环境监测设备",
+        "color": "#10b981",
+        "properties": [
+            {
+                "name": "id",
+                "label": "唯一标识",
+                "type": "string"
+            },
+            {
+                "name": "status",
+                "label": "运行状态",
+                "type": "enum",
+                "options": [
+                    "normal",
+                    "warning",
+                    "fault",
+                    "offline"
+                ]
+            }
+        ],
+        "injected_interfaces": [],
+        "mock_instances": [
+            "EnvironmentalMonitor-001",
+            "EnvironmentalMonitor-002"
+        ],
         "asset_id": None
     }
 }

@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>语义图谱总览 - OntoTwin Nexus</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+    
+    <!-- ECharts CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+
+    <style>
+        :root {
+            --bg-base: #fafafa;
+            --text-main: #111111;
+            --text-secondary: #666666;
+            --border-color: #eaeaea;
+            --panel-bg: #ffffff;
+            --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        body.embedded-mode .top-nav { display: none !important; }
+
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg-base);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .top-nav {
+            height: 56px;
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            position: relative;
+        }
+
+        /* ── ECharts 区域 ────────────────────────────── */
+        #graph-container {
+            flex: 1;
+            height: 100%;
+            background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+
+        /* ── 右侧详情侧栏 ──────────────────────────── */
+        .detail-panel {
+            width: 340px;
+            background: var(--panel-bg);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transform: translateX(100%);
+            transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+            position: absolute;
+            right: 0; top: 0; bottom: 0;
+            z-index: 10;
+            box-shadow: -4px 0 24px rgba(0,0,0,0.04);
+        }
+        .detail-panel.open { transform: translateX(0); }
+
+        /* 顶部 header：标题 + 显示备注开关 */
+        .panel-topbar {
+            padding: 14px 18px 12px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex; align-items: center; justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .panel-topbar-title { font-size: 13px; font-weight: 600; color: #111; }
+        .toggle-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); }
+        .toggle-switch {
+            position: relative; width: 34px; height: 18px; display: inline-block;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute; inset: 0; border-radius: 18px; background: #3b82f6;
+            cursor: pointer; transition: background .2s;
+        }
+        .toggle-slider::before {
+            content: ''; position: absolute; width: 14px; height: 14px;
+            left: 2px; top: 2px; border-radius: 50%; background: #fff;
+            transition: transform .2s;
+        }
+        .toggle-switch input:not(:checked) + .toggle-slider { background: #d1d5db; }
+        .toggle-switch input:checked + .toggle-slider::before { transform: translateX(16px); }
+
+        /* 工具栏 */
+        .panel-toolbar {
+            padding: 8px 14px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex; align-items: center; gap: 2px;
+            flex-shrink: 0;
+        }
+        .tb-btn {
+            width: 30px; height: 30px; border: none; background: transparent;
+            border-radius: 4px; cursor: pointer; display: flex; align-items: center;
+            justify-content: center; color: var(--text-secondary); transition: all .15s;
+        }
+        .tb-btn:hover { background: #f3f4f6; color: #111; }
+        .tb-sep { width: 1px; height: 18px; background: var(--border-color); margin: 0 4px; }
+
+        /* 节点名称区 */
+        .node-title-row {
+            padding: 16px 18px 12px;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        .node-title {
+            font-size: 17px; font-weight: 700; letter-spacing: -.01em; margin-bottom: 8px;
+        }
+        .type-chip {
+            display: inline-flex; align-items: center; gap: 7px;
+            font-size: 12px; color: #444;
+        }
+        .type-chip-avatar {
+            width: 22px; height: 22px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
+        }
+
+        /* 面板主体 */
+        .panel-body {
+            flex: 1; overflow-y: auto; padding: 0;
+        }
+
+        /* 字段区块 */
+        .field-section {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .field-section:last-child { border-bottom: none; }
+
+        .field-row {
+            display: flex; align-items: flex-start; gap: 8px;
+            font-size: 13px; min-height: 26px; margin-bottom: 2px;
+        }
+        .field-label {
+            color: var(--text-secondary); flex-shrink: 0; white-space: nowrap;
+            width: 145px; padding-top: 1px;
+        }
+        .field-value {
+            color: #111; font-weight: 500; word-break: break-all; flex: 1;
+        }
+        .field-value.empty { color: #bbb; font-weight: 400; }
+        .field-value.mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+
+        /* 状态徽章 */
+        .status-badge {
+            display: inline-block; padding: 2px 10px;
+            border-radius: 12px; font-size: 11px; font-weight: 600;
+            letter-spacing: .03em;
+        }
+        .status-badge.active   { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+        .status-badge.inactive { background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb; }
+        .status-badge.draft    { background: #fef9c3; color: #854d0e; border: 1px solid #fde68a; }
+
+        .badge {
+            display: inline-block; padding: 2px 8px; border-radius: 4px;
+            font-size: 11px; font-weight: 500;
+            background: #f5f5f5; border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(250,250,250,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            font-size: 14px;
+            color: var(--text-secondary);
+            backdrop-filter: blur(2px);
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="top-nav">
+        本体资产中心 / 语义图谱总览
+    </nav>
+
+    <div class="main-content">
+        <div id="loading" class="loading-overlay">加载图谱数据中...</div>
+        
+        <!-- ECharts 渲染区 -->
+        <div id="graph-container"></div>
+
+        <!-- 节点详情侧拉面板 -->
+        <div class="detail-panel" id="detail-panel">
+
+            <!-- 顶部标题栏 -->
+            <div class="panel-topbar">
+                <div class="panel-topbar-title">信息视窗</div>
+                <div class="toggle-row">
+                    显示备注
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="show-notes-toggle" checked />
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <button class="tb-btn" onclick="closePanel()" title="关闭" style="margin-left:4px;">
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 工具栏 -->
+            <div class="panel-toolbar">
+                <button class="tb-btn" title="全屏展开">
+                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                </button>
+                <button class="tb-btn" title="收起">
+                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/></svg>
+                </button>
+                <div class="tb-sep"></div>
+                <button class="tb-btn" title="编辑">
+                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="tb-btn" title="从图中移除">
+                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                </button>
+                <button class="tb-btn" title="固定到图上">
+                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z"/></svg>
+                </button>
+                <div class="tb-sep"></div>
+                <button class="tb-btn" title="更多操作">
+                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                </button>
+            </div>
+
+            <!-- 节点名称 + 类型芯片 -->
+            <div class="node-title-row">
+                <div class="node-title" id="node-name">—</div>
+                <div class="type-chip">
+                    <div class="type-chip-avatar" id="type-chip-avatar" style="background:#666;">对</div>
+                    <span id="type-chip-label">对象定义（图节点类型）</span>
+                </div>
+            </div>
+
+            <!-- 面板主体（滚动区） -->
+            <div class="panel-body">
+
+                <!-- 基础标识 -->
+                <div class="field-section">
+                    <div class="field-row">
+                        <span class="field-label">对象唯一标识符（RID）：</span>
+                        <span class="field-value mono" id="f-rid"></span>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">API 访问名称：</span>
+                        <span class="field-value mono" id="f-api-name"></span>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">显示名称（中文）：</span>
+                        <span class="field-value" id="f-display-name"></span>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">详细描述：</span>
+                        <span class="field-value" id="f-description"></span>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">生命周期状态：</span>
+                        <span class="field-value" id="f-lifecycle"></span>
+                    </div>
+                </div>
+
+                <!-- 本体契约 -->
+                <div class="field-section">
+                    <div class="field-row">
+                        <span class="field-label">实现的接口 RID 列表（JSON）：</span>
+                        <span class="field-value mono" id="f-interfaces"></span>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">主键属性 RID 列表（JSON）：</span>
+                        <span class="field-value mono" id="f-primary-keys"></span>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">对象级校验表达式（JSON）：</span>
+                        <span class="field-value mono" id="f-validation"></span>
+                    </div>
+                </div>
+
+                <!-- 数据源 -->
+                <div class="field-section">
+                    <div class="field-row">
+                        <span class="field-label">读取数据源连接 ID：</span>
+                        <span class="field-value mono" id="f-read-conn"></span>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">读取数据源路径：</span>
+                        <span class="field-value mono" id="f-read-path"></span>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">是否启用回写：</span>
+                        <span class="field-value" id="f-writeback"></span>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">回写连接 ID：</span>
+                        <span class="field-value mono" id="f-write-conn"></span>
+                    </div>
+                    <div class="field-row">
+                        <span class="field-label">回写资产路径：</span>
+                        <span class="field-value mono" id="f-write-path"></span>
+                    </div>
+                </div>
+
+                <!-- 兜底：其余 attributes -->
+                <div class="field-section" id="attrs-group" style="display:none;">
+                    <div id="attrs-container"></div>
+                </div>
+
+            </div>
+
+            <!-- 底部跳转按钮 -->
+            <div style="padding: 16px 18px; border-top: 1px solid var(--border-color); flex-shrink: 0; background: #fafafa;">
+                <a href="/ontology" style="display: flex; align-items: center; justify-content: center; width: 100%; padding: 10px; background: var(--text-main); color: #fff; text-decoration: none; border-radius: 6px; font-size: 13px; font-weight: 500; transition: opacity 0.2s;">
+                    + 添加三维能力接口
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 检测是否在 iframe 内
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('nexus') === 'true') {
+            document.body.classList.add('embedded-mode');
+        }
+
+        let myChart = null;
+        let graphData = null;
+
+        // Typeless 极简配色盘
+        const colorPalette = {
+            'Core': '#111111',       // 黑 (核心对象)
+            'Part': '#666666',       // 深灰 (部件)
+            'Machine': '#3b82f6',    // 蓝 (机/设备)
+            'Equipment': '#3b82f6',  // 蓝 (向下兼容旧的数据)
+            'Personnel': '#f59e0b',  // 橙 (人)
+            'Material': '#8b5cf6',   // 紫 (料)
+            'Method': '#ec4899',     // 粉 (法/规程)
+            'Environment': '#0ea5e9',// 青蓝 (环/环境)
+            'Tooling': '#10b981',    // 绿 (工装)
+            'Line': '#f43f5e',       // 红 (产线)
+            'Event': '#ef4444'       // 亮红 (事件/告警)
+        };
+
+        async function initGraph() {
+            try {
+                const res = await fetch('/api/v2/ontology/graph_data');
+                graphData = await res.json();
+                
+                document.getElementById('loading').style.display = 'none';
+                renderGraph();
+            } catch (err) {
+                document.getElementById('loading').innerText = '数据加载失败';
+                console.error(err);
+            }
+        }
+
+        function renderGraph() {
+            const chartDom = document.getElementById('graph-container');
+            myChart = echarts.init(chartDom);
+
+            // 处理数据映射 ECharts 格式
+            const nodes = graphData.nodes.map(node => ({
+                id: node.id,
+                name: node.name,
+                category: node.category,
+                symbolSize: node.symbolSize || 30,
+                itemStyle: {
+                    color: colorPalette[node.category] || '#999',
+                    borderColor: '#ffffff',
+                    borderWidth: 2,
+                    shadowColor: 'rgba(0,0,0,0.1)',
+                    shadowBlur: 10
+                },
+                originalData: node // 携带原始数据备用
+            }));
+
+            const links = graphData.links.map(link => ({
+                source: link.source,
+                target: link.target,
+                label: {
+                    show: true,
+                    formatter: link.label,
+                    fontSize: 10,
+                    color: '#999',
+                    backgroundColor: 'rgba(255,255,255,0.7)',
+                    padding: [2, 4],
+                    borderRadius: 2
+                },
+                lineStyle: {
+                    width: 1.5,
+                    color: '#dddddd',
+                    curveness: 0.1
+                }
+            }));
+
+            const categories = graphData.categories.map(c => ({
+                name: c.name,
+                itemStyle: { color: colorPalette[c.name] }
+            }));
+
+            const option = {
+                tooltip: {
+                    trigger: 'item',
+                    backgroundColor: '#ffffff',
+                    borderColor: '#eaeaea',
+                    textStyle: { color: '#111' },
+                    formatter: function (params) {
+                        return `<div style="font-weight:600;margin-bottom:4px;">${params.data.name}</div>
+                                <div style="font-size:12px;color:#666;">类型: ${params.data.category}</div>`;
+                    }
+                },
+                legend: [{
+                    data: categories.map(a => a.name),
+                    bottom: 24,
+                    left: 'center',
+                    icon: 'circle',
+                    itemWidth: 10,
+                    textStyle: { color: '#666', fontSize: 12, fontFamily: 'Inter' }
+                }],
+                series: [
+                    {
+                        name: 'Ontology Graph',
+                        type: 'graph',
+                        layout: 'force',
+                        data: nodes,
+                        links: links,
+                        categories: categories,
+                        roam: true, // 开启鼠标缩放和平移漫游
+                        label: {
+                            show: true,
+                            position: 'bottom',
+                            formatter: function (params) {
+                                const hasI3D = params.data.originalData?.interfaces?.includes('I3D_Representable');
+                                return hasI3D ? '{dot|} ' + params.data.name : params.data.name;
+                            },
+                            rich: {
+                                dot: {
+                                    backgroundColor: '#ef4444',
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: 4
+                                }
+                            },
+                            distance: 8,
+                            color: '#333',
+                            fontSize: 12,
+                            fontFamily: 'Inter',
+                            fontWeight: 500
+                        },
+                        force: {
+                            repulsion: 800,
+                            edgeLength: [100, 200],
+                            gravity: 0.1
+                        },
+                        emphasis: {
+                            focus: 'adjacency',
+                            lineStyle: { width: 3, color: '#999' }
+                        }
+                    }
+                ]
+            };
+
+            myChart.setOption(option);
+
+            // 监听节点点击事件，打开侧栏
+            myChart.on('click', function (params) {
+                if (params.dataType === 'node') {
+                    openPanel(params.data.originalData);
+                }
+            });
+
+            // 窗口自适应
+            window.addEventListener('resize', () => myChart.resize());
+        }
+
+        // 类型颜色映射
+        const categoryColors = {
+            'Core': '#111111', 'Part': '#666666', 'Machine': '#3b82f6',
+            'Equipment': '#3b82f6', 'Personnel': '#f59e0b', 'Material': '#8b5cf6',
+            'Method': '#ec4899', 'Environment': '#0ea5e9', 'Tooling': '#10b981',
+            'Line': '#f43f5e', 'Event': '#ef4444'
+        };
+        const categoryLabels = {
+            'Core': '核心对象', 'Part': '部件', 'Machine': '机器设备',
+            'Equipment': '设备', 'Personnel': '人员', 'Material': '物料',
+            'Method': '工艺方法', 'Environment': '环境', 'Tooling': '工装',
+            'Line': '产线', 'Event': '事件'
+        };
+
+        function setField(id, value, cls) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const isEmpty = value === null || value === undefined || value === '' || value === '[]' || value === '{}';
+            el.textContent = isEmpty ? '' : value;
+            el.className = 'field-value' + (cls ? ' ' + cls : '') + (isEmpty ? ' empty' : '');
+        }
+
+        function openPanel(node) {
+            document.getElementById('detail-panel').classList.add('open');
+
+            // 节点名称
+            document.getElementById('node-name').textContent = node.name || node.id;
+
+            // 类型芯片
+            const cat = node.category || 'Core';
+            const color = colorPalette[cat] || '#888';
+            const avatar = document.getElementById('type-chip-avatar');
+            avatar.style.background = color;
+            avatar.textContent = (categoryLabels[cat] || cat).charAt(0);
+            document.getElementById('type-chip-label').textContent =
+                (categoryLabels[cat] || cat) + '（图节点类型）';
+
+            // 基础标识
+            setField('f-rid',          node.rid || node.id,               'mono');
+            setField('f-api-name',     node.api_name || node.id,          'mono');
+            setField('f-display-name', node.display_name || node.name,    '');
+            setField('f-description',  node.description,                   '');
+
+            // 生命周期
+            const lc = node.lifecycle_status || 'ACTIVE';
+            const lcEl = document.getElementById('f-lifecycle');
+            const lcClass = lc === 'ACTIVE' ? 'active' : lc === 'INACTIVE' ? 'inactive' : 'draft';
+            lcEl.innerHTML = `<span class="status-badge ${lcClass}">${lc}</span>`;
+
+            // 本体契约
+            setField('f-interfaces',  node.interfaces  ? JSON.stringify(node.interfaces)  : '', 'mono');
+            setField('f-primary-keys',node.primary_keys? JSON.stringify(node.primary_keys): '', 'mono');
+            setField('f-validation',  node.validation  ? JSON.stringify(node.validation)  : '', 'mono');
+
+            // 数据源
+            setField('f-read-conn',  node.read_conn_id,   'mono');
+            setField('f-read-path',  node.read_path,      'mono');
+            const wb = node.writeback_enabled;
+            setField('f-writeback',  wb === true ? '是' : wb === false ? '否' : '', '');
+            setField('f-write-conn', node.write_conn_id,  'mono');
+            setField('f-write-path', node.write_path,     'mono');
+
+            // 兜底属性
+            const attrsGroup = document.getElementById('attrs-group');
+            const attrsContainer = document.getElementById('attrs-container');
+            attrsContainer.innerHTML = '';
+            const extraAttrs = node.attributes && Object.keys(node.attributes).length > 0;
+            if (extraAttrs) {
+                attrsGroup.style.display = 'block';
+                for (const [key, value] of Object.entries(node.attributes)) {
+                    const row = document.createElement('div');
+                    row.className = 'field-row';
+                    row.innerHTML = `<span class="field-label">${key}</span><span class="field-value">${value}</span>`;
+                    attrsContainer.appendChild(row);
+                }
+            } else {
+                attrsGroup.style.display = 'none';
+            }
+        }
+
+        function closePanel() {
+            document.getElementById('detail-panel').classList.remove('open');
+            // 取消 ECharts 中的高亮
+            if (myChart) {
+                myChart.dispatchAction({ type: 'downplay' });
+            }
+        }
+
+        // 启动
+        initGraph();
+    </script>
+</body>
+
+</html>

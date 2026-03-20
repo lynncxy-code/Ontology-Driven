@@ -162,6 +162,10 @@ private:
                                 FHttpResponsePtr Response,
                                 bool bWasSuccessful);
 
+    /** 将 UE 实体的当前空间坐标推送到后端 */
+    void PushStateToBackend();
+    void OnStatePushed(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
+
     /** 解析 JSON 并驱动 Actor 行为 */
     void ApplyStateFromJson(TSharedPtr<FJsonObject> JsonObject);
 

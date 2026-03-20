@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>本体能力注入中心 | OntoTwin Nexus 2.3</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.staticfile.net/vue/3.3.4/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 h-screen overflow-hidden flex flex-col font-sans antialiased">
+<div id="app" class="flex flex-col flex-1 min-h-0">
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0 flex items-center justify-between">
+        <div>
+            <div class="flex items-center gap-3">
+                <h1 class="text-lg font-bold">本体能力注入中心</h1>
+                <span class="text-[10px] font-mono bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full border border-gray-200">MODULE 1 · PART A</span>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">为 ObjectType 挂载标准三维接口，赋予业务对象三维存在性与行为能力</p>
+        </div>
+        <div>
+            <a href="/instance" class="text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md transition border border-transparent hover:border-gray-300">
+                前往 实例运维中心 &rarr;
+            </a>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden min-h-0">
+        <!-- Left: ObjectType list -->
+        <div class="w-80 bg-white border-r border-gray-200 flex flex-col min-h-0 relative">
+            <div class="px-5 py-4 border-b border-gray-200 flex-shrink-0 bg-gray-50">
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">对象类型 (ObjectType)</h3>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-2">
+                <div v-for="ot in objectTypes" :key="ot.rid"
+                     @click="selectType(ot)"
+                     :class="[
+                        'p-3 border rounded-lg cursor-pointer transition-all duration-150 relative group',
+                        selected && selected.rid === ot.rid ? 'border-gray-900 bg-gray-50 shadow-sm' : 'border-gray-200 bg-white hover:border-gray-400 hover:shadow-sm'
+                     ]">
+                    <div class="flex items-start gap-3">
+                        <!-- Dot -->
+                        <div class="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0" :style="{ backgroundColor: ot.color || '#9ca3af' }"></div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between">
+                                <div class="text-sm font-bold text-gray-900 truncate">{{ ot.name }}</div>
+                                <span v-if="ot.has_representable" class="text-[10px] bg-green-50 text-green-700 border border-green-200 px-1.5 rounded-md whitespace-nowrap">已配置</span>
+                                <span v-else class="text-[10px] bg-gray-100 text-gray-400 border border-gray-200 px-1.5 rounded-md whitespace-nowrap">未配置</span>
+                            </div>
+                            <div class="text-[10px] text-gray-400 font-mono mt-0.5 truncate">{{ ot.rid }}</div>
+                            <div class="text-[11px] text-gray-500 mt-1">种类: <span class="text-gray-700">{{ ot.category }}</span></div>
+                            
+                            <!-- Interface Pills -->
+                            <div class="flex flex-wrap gap-1.5 mt-2" v-if="ot.injected_interfaces.length > 0">
+                                <span v-for="iface in ot.injected_interfaces" :key="iface"
+                                      :class="[
+                                         'text-[9px] font-mono px-1.5 py-0.5 rounded-md border',
+                                         iface === 'I3D_Representable' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-green-50 text-green-700 border-green-200'
+                                      ]">
+                                    {{ iface.replace('I3D_', '') }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Detail + Config -->
+        <div class="flex-1 overflow-y-auto bg-gray-50 p-6">
+            <div v-if="!selected" class="h-full flex flex-col items-center justify-center text-gray-400 space-y-3">
+                <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                <span class="text-sm font-medium">从左侧选择一个对象类型开始配置</span>
+            </div>
+
+            <template v-else>
+                <div class="max-w-4xl mx-auto space-y-6 pb-20">
+                    <!-- Object Info + Properties -->
+                    <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
+                            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">对象业务信息</span>
+                            <span class="text-[10px] font-mono bg-white border border-gray-200 text-gray-500 px-2 py-0.5 rounded">{{ selected.rid }}</span>
+                        </div>
+                        <div class="p-5">
+                            <div class="mb-5 flex justify-between items-start">
+                                <div>
+                                    <h2 class="text-lg font-bold text-gray-900">{{ selected.name }}</h2>
+                                    <p class="text-sm text-gray-500 mt-1">{{ selected.description }}</p>
+                                </div>
+                                <div class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-md">{{ selected.properties.length }} 个业务属性</div>
+                            </div>
+                            
+                            <div class="overflow-x-auto border border-gray-100 rounded-lg">
+                                <table class="w-full text-left text-sm text-gray-600">
+                                    <thead class="text-xs text-gray-500 bg-gray-50 border-b border-gray-100 uppercase">
+                                        <tr>
+                                            <th class="px-4 py-2 font-medium">属性名称</th>
+                                            <th class="px-4 py-2 font-medium">标识符 (Name)</th>
+                                            <th class="px-4 py-2 font-medium">数据类型</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-100">
+                                        <tr v-for="p in selected.properties" :key="p.name" class="hover:bg-gray-50/50 transition">
+                                            <td class="px-4 py-2.5 font-medium text-gray-800">{{ p.label }}</td>
+                                            <td class="px-4 py-2.5 font-mono text-xs text-blue-600">{{ p.name }}</td>
+                                            <td class="px-4 py-2.5">
+                                                <span :class="[
+                                                    'text-[10px] px-2 py-0.5 rounded uppercase tracking-wider font-semibold border',
+                                                    p.type === 'number' ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                                                    p.type === 'string' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
+                                                    p.type === 'enum' ? 'bg-purple-50 text-purple-700 border-purple-100' :
+                                                    'bg-green-50 text-green-700 border-green-100'
+                                                ]">{{ p.type }}</span>
+                                                <div v-if="p.options" class="text-[10px] text-gray-400 mt-1 font-mono break-all leading-tight">{{ p.options.join(' | ') }}</div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Interface Injection -->
+                    <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
+                            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">能力接口挂载</span>
+                            <button v-if="pendingInterfaces.size > 0" 
+                                    @click="saveInterfaces" :disabled="saving"
+                                    class="text-xs font-medium bg-gray-900 text-white px-3 py-1.5 rounded hover:bg-gray-800 disabled:opacity-50 transition drop-shadow-sm">
+                                {{ saving ? '保存中...' : `确认挂载变更 (${pendingInterfaces.size})` }}
+                            </button>
+                        </div>
+                        <div class="p-5 space-y-6">
+
+                            <!-- Tier 1 -->
+                            <div>
+                                <div class="flex items-center gap-3 mb-3">
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">第一层 · 核心实体</span>
+                                    <div class="flex-1 h-px bg-gray-100"></div>
+                                </div>
+                                <div v-for="iface in parentInterfaces" :key="iface.rid"
+                                     @click="toggleInterface(iface.rid)"
+                                     :class="[
+                                        'flex gap-4 p-4 border rounded-lg cursor-pointer transition select-none',
+                                        isInjected(iface.rid) ? 'border-green-300 bg-green-50/30' : (isChecked(iface.rid) ? 'border-gray-900 shadow-sm' : 'border-gray-200 hover:border-gray-400')
+                                     ]">
+                                    <div class="mt-0.5">
+                                        <div :class="[
+                                            'w-5 h-5 border-2 rounded transition flex items-center justify-center',
+                                            isChecked(iface.rid) ? 'bg-gray-900 border-gray-900' : 'bg-white border-gray-300'
+                                        ]">
+                                            <svg v-if="isChecked(iface.rid)" class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
+                                        </div>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-sm font-bold font-mono text-gray-900">{{ iface.rid }}</span>
+                                            <span class="text-[10px] bg-red-50 text-red-600 border border-red-100 px-1.5 py-0.5 rounded font-medium">必选</span>
+                                            <span v-if="isInjected(iface.rid)" class="text-[10px] text-green-600 font-medium ml-auto">已生效</span>
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-1 leading-relaxed">{{ iface.description }}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tier 2 -->
+                            <div>
+                                <div class="flex items-center gap-3 mb-3">
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">第二层 · 子能力扩展</span>
+                                    <div class="flex-1 h-px bg-gray-100"></div>
+                                </div>
+                                
+                                <template v-if="hasRepresentable">
+                                    <div class="space-y-3">
+                                        <div v-for="iface in childInterfaces" :key="iface.rid"
+                                             @click="toggleInterface(iface.rid)"
+                                             :class="[
+                                                'flex gap-4 p-4 border rounded-lg cursor-pointer transition select-none',
+                                                isInjected(iface.rid) ? 'border-green-300 bg-green-50/30' : (isChecked(iface.rid) ? 'border-gray-900 shadow-sm' : 'border-gray-200 hover:border-gray-400')
+                                             ]">
+                                            <div class="mt-0.5">
+                                                <div :class="[
+                                                    'w-5 h-5 border-2 rounded transition flex items-center justify-center',
+                                                    isChecked(iface.rid) ? 'bg-gray-900 border-gray-900' : 'bg-white border-gray-300'
+                                                ]">
+                                                    <svg v-if="isChecked(iface.rid)" class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
+                                                </div>
+                                            </div>
+                                            <div class="flex-1">
+                                                <div class="flex items-center gap-2">
+                                                    <span class="text-sm font-bold font-mono text-gray-900">{{ iface.rid }}</span>
+                                                    <span class="text-[10px] bg-gray-100 text-gray-500 border border-gray-200 px-1.5 py-0.5 rounded font-medium">按需</span>
+                                                    <span v-if="isInjected(iface.rid)" class="text-[10px] text-green-600 font-medium ml-auto">已生效</span>
+                                                </div>
+                                                <p class="text-xs text-gray-500 mt-1 leading-relaxed">{{ iface.description }}</p>
+                                                <div class="flex flex-wrap gap-1.5 mt-2.5">
+                                                    <span v-for="p in iface.properties" :key="p.name" class="text-[10px] font-mono bg-gray-50 text-gray-500 px-1.5 py-0.5 border border-gray-200 rounded">{{ p.name }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                                <div v-else class="text-sm text-yellow-600 bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex items-center gap-3">
+                                    <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                    <span>请先勾选并保存顶层接口 <strong class="font-mono">I3D_Representable</strong> 才能配置扩展能力。</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GLB Asset Binding -->
+                    <transition name="fade">
+                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm" v-if="hasRepresentable">
+                            <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
+                                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">3D GLB 资产绑定</span>
+                                <span class="text-[10px] font-mono text-gray-400">依赖: I3D_Representable.asset_id</span>
+                            </div>
+                            <div class="p-5">
+                                <div class="flex bg-gray-100 border border-gray-200 rounded-lg overflow-hidden p-1 mb-5 max-w-sm">
+                                    <button class="flex-1 text-xs font-medium py-1.5 rounded-md transition" :class="bindMode==='library' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="bindMode='library'; assetResult=null">标准资产库</button>
+                                    <button class="flex-1 text-xs font-medium py-1.5 rounded-md transition" :class="bindMode==='manual' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="bindMode='manual'; assetResult=null">路径直连</button>
+                                </div>
+
+                                <template v-if="bindMode === 'library'">
+                                    <div class="grid grid-cols-2 gap-3 mb-4">
+                                        <div v-for="asset in allAssets" :key="asset.file_number"
+                                             @click="selectedAssetFn = asset.file_number; assetResult = null"
+                                             :class="[
+                                                'p-3 border rounded-lg cursor-pointer transition flex flex-col',
+                                                selectedAssetFn === asset.file_number ? 'border-gray-900 bg-gray-50 ring-1 ring-gray-900' : 'border-gray-200 hover:border-gray-400'
+                                             ]">
+                                            <div class="font-mono text-xs font-bold text-gray-900">{{ asset.file_number }}</div>
+                                            <div class="text-[11px] text-gray-500 mt-1 truncate">{{ asset.name }}</div>
+                                            <div class="mt-auto pt-2">
+                                                <span class="text-[9px] bg-gray-100 text-gray-500 px-1 border border-gray-200 rounded font-semibold">{{ asset.format?.toUpperCase() }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <button class="text-xs font-medium bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-800 disabled:opacity-50 transition drop-shadow-sm" 
+                                                :disabled="!selectedAssetFn || bindingAsset" @click="bindAsset(selectedAssetFn)">
+                                            {{ bindingAsset ? '处理中...' : '确认绑定选中资产' }}
+                                        </button>
+                                    </div>
+                                </template>
+
+                                <template v-else>
+                                    <div class="flex gap-2">
+                                        <input type="text" v-model="manualPath" @keyup.enter="bindAsset(manualPath)"
+                                               placeholder="输入相对路径，如 /static/models/drone.glb" 
+                                               class="flex-1 text-sm font-mono border border-gray-300 rounded-md px-3 py-2 outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
+                                        <button class="text-xs font-medium bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-800 disabled:opacity-50 transition drop-shadow-sm whitespace-nowrap" 
+                                                :disabled="!manualPath.trim() || bindingAsset" @click="bindAsset(manualPath)">
+                                            {{ bindingAsset ? '处理中...' : '直接绑定' }}
+                                        </button>
+                                    </div>
+                                </template>
+
+                                <div v-if="assetResult" :class="[
+                                    'mt-4 p-3 rounded-md text-xs border',
+                                    assetResult.valid ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'
+                                ]">
+                                    <template v-if="assetResult.valid">
+                                        包含模型 <strong class="font-mono">{{ assetResult.file_number }}</strong> ({{ assetResult.name }})<br/>
+                                        <span class="text-gray-500 mt-1 block">体积包围盒: {{ assetResult.bounding_box?.x }} × {{ assetResult.bounding_box?.y }} × {{ assetResult.bounding_box?.z }} cm</span>
+                                    </template>
+                                    <template v-else>请求驳回: {{ assetResult.warning || assetResult.error }}</template>
+                                </div>
+                                <div v-else-if="selected.asset_id" class="mt-4 flex items-center gap-2 text-xs text-gray-600 bg-gray-50 border border-gray-100 px-3 py-2 rounded-md">
+                                    <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    <span>当前业务对象已绑定渲染资产:</span>
+                                    <code class="font-mono font-bold text-gray-900">{{ selected.asset_id }}</code>
+                                </div>
+                            </div>
+                        </div>
+                    </transition>
+
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
+        <transition-group name="fade">
+            <div v-for="t in toasts" :key="t.id" 
+                 :class="[
+                    'px-4 py-3 rounded shadow-lg text-sm font-medium border flex items-center gap-2',
+                    t.type === 'ok' ? 'bg-gray-900 text-white border-gray-800' : 'bg-red-600 text-white border-red-700'
+                 ]">
+                {{ t.msg }}
+            </div>
+        </transition-group>
+    </div>
+</div>
+
+<script>
+const { createApp, ref, computed, onMounted } = Vue;
+createApp({
+    setup() {
+        const objectTypes   = ref([]);
+        const allInterfaces = ref([]);
+        const allAssets     = ref([]);
+        const selected      = ref(null);
+        const pendingInterfaces = ref(new Set());
+        const saving        = ref(false);
+        const bindMode      = ref('library');
+        const selectedAssetFn = ref('');
+        const manualPath    = ref('');
+        const assetResult   = ref(null);
+        const bindingAsset  = ref(false);
+        const toasts        = ref([]);
+
+        const parentInterfaces = computed(() => allInterfaces.value.filter(i => i.tier === 'parent'));
+        const childInterfaces  = computed(() => allInterfaces.value.filter(i => i.tier === 'child'));
+
+        const hasRepresentable = computed(() => {
+            if (!selected.value) return false;
+            const injected = selected.value.injected_interfaces || [];
+            return injected.includes('I3D_Representable') || pendingInterfaces.value.has('I3D_Representable');
+        });
+
+        function isInjected(rid) { return selected.value?.injected_interfaces?.includes(rid) || false; }
+        function isChecked(rid)  { return isInjected(rid) || pendingInterfaces.value.has(rid); }
+
+        async function toggleInterface(rid) {
+            if (saving.value) return;
+            if (isInjected(rid)) {
+                await removeInterface(rid);
+                return;
+            }
+            const iface = allInterfaces.value.find(i => i.rid === rid);
+            if (iface?.tier === 'child' && !hasRepresentable.value) return;
+            
+            if (pendingInterfaces.value.has(rid)) pendingInterfaces.value.delete(rid);
+            else pendingInterfaces.value.add(rid);
+        }
+
+        async function saveInterfaces() {
+            if (!selected.value || pendingInterfaces.value.size === 0) return;
+            saving.value = true;
+            try {
+                const res = await axios.post('/api/v2/ontology/inject', {
+                    object_type_rid: selected.value.rid,
+                    interfaces: [...pendingInterfaces.value]
+                });
+                selected.value.injected_interfaces = res.data.injected_interfaces;
+                selected.value.has_representable    = res.data.injected_interfaces.includes('I3D_Representable');
+                pendingInterfaces.value = new Set();
+                toast('ok', '接口挂载变更已保存');
+                await loadTypes();
+            } catch (e) { toast('err', e.response?.data?.error || '保存失败'); }
+            finally { saving.value = false; }
+        }
+
+        async function removeInterface(rid) {
+            try {
+                const res = await axios.post(`/api/v2/ontology/inject/remove?object_type_rid=${encodeURIComponent(selected.value.rid)}&interface_rid=${encodeURIComponent(rid)}`);
+                selected.value.injected_interfaces = res.data.injected_interfaces;
+                selected.value.has_representable    = res.data.injected_interfaces.includes('I3D_Representable');
+                if (rid === 'I3D_Representable') { selected.value.asset_id = null; assetResult.value = null; }
+                toast('ok', `已移除接口: ${rid}`);
+                await loadTypes();
+            } catch (e) { toast('err', e.response?.data?.error || '移除失败'); }
+        }
+
+        async function bindAsset(id) {
+            if (!id?.trim()) return;
+            bindingAsset.value = true; assetResult.value = null;
+            try {
+                const res = await axios.post('/api/v2/assets/bind', {
+                    object_type_rid: selected.value.rid,
+                    file_number: id.trim()
+                });
+                assetResult.value = res.data;
+                if (res.data.valid) {
+                    selected.value.asset_id = res.data.file_number;
+                    toast('ok', `资产关系 [${res.data.file_number}] 建立成功`);
+                    await loadTypes();
+                } else { toast('err', res.data.warning); }
+            } catch (e) {
+                assetResult.value = { valid: false, warning: e.response?.data?.error || '绑定请求中断' };
+            } finally { bindingAsset.value = false; }
+        }
+
+        function selectType(ot) {
+            selected.value = { ...ot };
+            pendingInterfaces.value = new Set();
+            assetResult.value = null;
+            selectedAssetFn.value = ot.asset_id || '';
+            manualPath.value = ot.asset_id || '';
+        }
+
+        async function loadTypes() {
+            const [typesRes, ifaceRes, assetsRes] = await Promise.all([
+                axios.get('/api/v2/ontology/types'),
+                axios.get('/api/v2/ontology/interfaces'),
+                axios.get('/api/v2/assets')
+            ]);
+            objectTypes.value   = typesRes.data;
+            allInterfaces.value = ifaceRes.data;
+            allAssets.value     = assetsRes.data;
+            if (selected.value) {
+                const fresh = typesRes.data.find(t => t.rid === selected.value.rid);
+                if (fresh) selected.value = { ...fresh };
+            }
+        }
+
+        function toast(type, msg) {
+            const id = Date.now();
+            toasts.value.push({ id, type, msg });
+            setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 3000);
+        }
+
+        onMounted(loadTypes);
+        return {
+            objectTypes, allInterfaces, allAssets, selected,
+            parentInterfaces, childInterfaces, pendingInterfaces, hasRepresentable,
+            saving, bindMode, selectedAssetFn, manualPath, assetResult, bindingAsset, toasts,
+            isInjected, isChecked, toggleInterface, saveInterfaces, removeInterface, bindAsset, selectType
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

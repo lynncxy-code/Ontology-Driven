@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>三维场景 | OntoTwin Nexus 2.3</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0f1a; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; height: 100vh; overflow: hidden; -webkit-font-smoothing: antialiased; }
+#canvas-container { position: absolute; inset: 0; }
+canvas { display: block; }
+
+/* HUD */
+.hud { position: absolute; top: 0; left: 0; right: 0; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; background: linear-gradient(to bottom, rgba(10,15,26,.9), transparent); pointer-events: none; }
+.hud-left { display: flex; align-items: center; gap: 12px; pointer-events: all; }
+.hud-title { font-size: 13px; font-weight: 700; color: #f1f5f9; letter-spacing: -.01em; }
+.hud-badge { font-size: 10px; font-family: monospace; padding: 2px 8px; border-radius: 10px; background: rgba(255,255,255,.08); color: #94a3b8; border: 1px solid rgba(255,255,255,.1); }
+.hud-right { display: flex; align-items: center; gap: 8px; pointer-events: all; }
+
+/* Instance Panel */
+.inst-panel {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 280px;
+  background: rgba(10,15,26,.88); backdrop-filter: blur(16px);
+  border-left: 1px solid rgba(255,255,255,.07);
+  display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform .3s ease;
+}
+.inst-panel.open { transform: translateX(0); }
+.inst-panel-header { padding: 16px 16px 12px; border-bottom: 1px solid rgba(255,255,255,.07); display: flex; align-items: center; justify-content: space-between; }
+.inst-panel-title { font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; }
+.close-btn { width: 24px; height: 24px; border-radius: 4px; border: none; background: rgba(255,255,255,.06); color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.close-btn:hover { background: rgba(255,255,255,.12); }
+.inst-list-panel { flex: 1; overflow-y: auto; padding: 10px; }
+.inst-item {
+  padding: 10px 12px; border-radius: 6px; margin-bottom: 6px; cursor: pointer;
+  border: 1px solid transparent; transition: all .15s; background: rgba(255,255,255,.03);
+}
+.inst-item:hover { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.08); }
+.inst-item.focused { background: rgba(59,130,246,.12); border-color: rgba(59,130,246,.3); }
+.inst-id { font-size: 12px; font-weight: 600; font-family: monospace; color: #e2e8f0; }
+.inst-meta { font-size: 11px; color: #64748b; margin-top: 2px; }
+.inst-status { display: flex; align-items: center; gap: 5px; margin-top: 5px; }
+.dot { width: 6px; height: 6px; border-radius: 50%; }
+.dot.online  { background: #10b981; box-shadow: 0 0 4px #10b981; }
+.dot.offline { background: #ef4444; }
+.inst-label { font-size: 10px; color: #94a3b8; font-family: monospace; margin-top: 4px; word-break: break-all; }
+
+/* Tooltip / label overlay */
+.label-overlay { position: absolute; pointer-events: none; top: 0; left: 0; }
+.obj-label {
+  position: absolute; transform: translate(-50%, -100%);
+  padding: 4px 10px; border-radius: 4px; font-size: 11px; white-space: nowrap;
+  background: rgba(10,15,26,.85); border: 1px solid rgba(255,255,255,.12);
+  color: #e2e8f0; backdrop-filter: blur(8px); pointer-events: none;
+  font-family: monospace;
+}
+
+/* Controls bar */
+.controls-bar {
+  position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 8px; align-items: center;
+  background: rgba(10,15,26,.8); backdrop-filter: blur(12px);
+  padding: 8px 14px; border-radius: 24px; border: 1px solid rgba(255,255,255,.08);
+}
+.ctrl-btn {
+  font-size: 12px; padding: 5px 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,.12);
+  background: transparent; color: #94a3b8; cursor: pointer; transition: all .15s;
+}
+.ctrl-btn:hover { background: rgba(255,255,255,.08); color: #e2e8f0; }
+.ctrl-btn.active { background: rgba(59,130,246,.2); border-color: rgba(59,130,246,.4); color: #93c5fd; }
+.ctrl-sep { width: 1px; height: 18px; background: rgba(255,255,255,.1); }
+
+/* Loader */
+.loader { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; background: #0a0f1a; }
+.loader-ring { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,.08); border-top-color: #3b82f6; border-radius: 50%; animation: spin .8s linear infinite; }
+.loader-text { font-size: 13px; color: #475569; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Stats bar */
+.stats-bar { position: absolute; bottom: 20px; left: 20px; font-size: 11px; font-family: monospace; color: #475569; display: flex; flex-direction: column; gap: 2px; }
+
+/* Panel toggle btn */
+.panel-toggle { padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: #94a3b8; cursor: pointer; font-size: 12px; transition: all .15s; }
+.panel-toggle:hover { background: rgba(255,255,255,.1); color: #e2e8f0; }
+.nav-link { padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: #94a3b8; cursor: pointer; font-size: 12px; text-decoration: none; transition: all .15s; }
+.nav-link:hover { background: rgba(255,255,255,.1); color: #e2e8f0; }
+</style>
+</head>
+<body>
+<div id="canvas-container"></div>
+<div class="loader" id="loader">
+  <div class="loader-ring"></div>
+  <div class="loader-text">正在初始化 3D 场景...</div>
+</div>
+
+<!-- HUD -->
+<div class="hud">
+  <div class="hud-left">
+    <div class="hud-title">OntoTwin Nexus · 三维场景</div>
+    <div class="hud-badge">PART B · 3D Runtime</div>
+    <div class="hud-badge" id="poll-badge">轮询中...</div>
+  </div>
+  <div class="hud-right">
+    <a class="nav-link" href="/instance">📋 运维面板</a>
+    <a class="nav-link" href="/ontology">🧬 注入中心</a>
+    <button class="panel-toggle" id="panel-toggle-btn" onclick="togglePanel()">☰ 实例列表</button>
+  </div>
+</div>
+
+<!-- Instance Panel -->
+<div class="inst-panel" id="inst-panel">
+  <div class="inst-panel-header">
+    <div class="inst-panel-title">场景实例</div>
+    <button class="close-btn" onclick="togglePanel()">✕</button>
+  </div>
+  <div class="inst-list-panel" id="inst-list-panel">
+    <div style="color:#475569;font-size:12px;text-align:center;padding:20px;">等待实例加载...</div>
+  </div>
+</div>
+
+<!-- Label Overlay -->
+<div class="label-overlay" id="label-overlay"></div>
+
+<!-- Bottom Controls -->
+<div class="controls-bar">
+  <button class="ctrl-btn" onclick="resetCamera()">重置视角</button>
+  <div class="ctrl-sep"></div>
+  <button class="ctrl-btn" id="grid-btn" onclick="toggleGrid()" class="active">网格</button>
+  <button class="ctrl-btn" id="label-btn" onclick="toggleLabels()">标签</button>
+  <div class="ctrl-sep"></div>
+  <span style="font-size:11px;color:#475569;" id="inst-count">0 个实例</span>
+</div>
+
+<!-- Stats -->
+<div class="stats-bar">
+  <span id="stat-fps">FPS: --</span>
+  <span id="stat-last">最后更新: --</span>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three":              "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+    "three/addons/":      "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// ── Scene Setup ─────────────────────────────────────────────
+const container = document.getElementById('canvas-container');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0f1a);
+scene.fog = new THREE.Fog(0x0a0f1a, 200, 800);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 2000);
+camera.position.set(60, 40, 80);
+camera.lookAt(0, 0, 0);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 5;
+controls.maxDistance = 600;
+controls.maxPolarAngle = Math.PI / 2 + 0.1;
+
+// ── Lighting ────────────────────────────────────────────────
+const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambient);
+const sun = new THREE.DirectionalLight(0xfff0dd, 1.6);
+sun.position.set(100, 150, 80);
+sun.castShadow = true;
+sun.shadow.camera.near = 1;
+sun.shadow.camera.far = 500;
+sun.shadow.camera.left = sun.shadow.camera.bottom = -200;
+sun.shadow.camera.right = sun.shadow.camera.top = 200;
+sun.shadow.mapSize.set(2048, 2048);
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0x8bb0ff, 0.4);
+fill.position.set(-60, 40, -80);
+scene.add(fill);
+
+// ── Grid ────────────────────────────────────────────────────
+const gridHelper = new THREE.GridHelper(400, 40, 0x1e293b, 0x1e293b);
+scene.add(gridHelper);
+
+// Ground plane (invisible, for shadows)
+const groundGeo = new THREE.PlaneGeometry(400, 400);
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x0d1420, roughness: 1, metalness: 0 });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ── Material Palette ────────────────────────────────────────
+const MATERIALS = {
+  normal:    new THREE.MeshStandardMaterial({ color: 0x60a5fa, roughness: 0.4, metalness: 0.6 }),
+  alarm:     new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3, metalness: 0.4, emissive: 0xef4444, emissiveIntensity: 0.3 }),
+  offline:   new THREE.MeshStandardMaterial({ color: 0x374151, roughness: 0.8, metalness: 0.2, transparent: true, opacity: 0.5 }),
+  highlight: new THREE.MeshStandardMaterial({ color: 0x818cf8, roughness: 0.2, metalness: 0.8, emissive: 0x4338ca, emissiveIntensity: 0.2 }),
+};
+
+// Per-type placeholder geometries (used when GLB not available)
+function makePlaceholder(ot_rid) {
+  let geo;
+  if (ot_rid?.includes('airplane')) {
+    // Elongated fuselage
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 12, 16), MATERIALS.normal.clone());
+    body.rotation.z = Math.PI / 2;
+    group.add(body);
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(20, 0.3, 4), MATERIALS.normal.clone());
+    group.add(wing);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 0.3), MATERIALS.normal.clone());
+    tail.position.set(-6, 1.5, 0);
+    group.add(tail);
+    group.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+    return group;
+  } else if (ot_rid?.includes('agv')) {
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(4, 1.2, 2.5), MATERIALS.normal.clone());
+    const top  = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.6, 1.8), MATERIALS.normal.clone());
+    top.position.y = 0.9;
+    group.add(body, top);
+    group.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+    return group;
+  } else {
+    // Tooling
+    const group = new THREE.Group();
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(6, 8, 2), MATERIALS.normal.clone());
+    group.add(frame);
+    group.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+    return group;
+  }
+}
+
+// ── Instance Registry ────────────────────────────────────────
+const objects = {};  // instanceId → { group, labelEl, ot_rid, lastSnap }
+const gltfLoader = new GLTFLoader();
+const assetCache = {};  // file_number → THREE.Group (cloneable)
+
+async function loadGLB(url) {
+  if (assetCache[url]) return assetCache[url].clone();
+  return new Promise((resolve, reject) => {
+    gltfLoader.load(url, (gltf) => {
+      const m = gltf.scene;
+      m.traverse(n => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
+      assetCache[url] = m;
+      resolve(m.clone());
+    }, undefined, reject);
+  });
+}
+
+function createLabel(id) {
+  const el = document.createElement('div');
+  el.className = 'obj-label';
+  el.id = `lbl-${id}`;
+  el.textContent = id;
+  document.getElementById('label-overlay').appendChild(el);
+  return el;
+}
+
+function removeObject(id) {
+  const obj = objects[id];
+  if (!obj) return;
+  scene.remove(obj.group);
+  obj.labelEl?.remove();
+  delete objects[id];
+}
+
+async function ensureObject(snap) {
+  const id = snap.instanceId;
+  const ifaces = snap.interfaces || {};
+  const rep = ifaces.I3D_Representable;
+
+  // If no Representable, remove any existing object
+  if (!rep) { removeObject(id); return; }
+  if (!rep.is_visible) {
+    if (objects[id]) objects[id].group.visible = false;
+    return;
+  }
+
+  if (!objects[id]) {
+    let group;
+    // Try load GLB
+    if (rep.asset_id) {
+      try {
+        const meta = await fetch(`/api/v2/assets/resolve?file_number=${rep.asset_id}`).then(r => r.json());
+        if (meta.valid && meta.download_url) {
+          group = await loadGLB(meta.download_url);
+        }
+      } catch (_) {}
+    }
+    if (!group) group = makePlaceholder(snap.objectTypeRid);
+
+    group.visible = true;
+    scene.add(group);
+    const labelEl = showLabels ? createLabel(id) : null;
+    objects[id] = { group, labelEl, ot_rid: snap.objectTypeRid, lastSnap: snap };
+  }
+
+  const obj = objects[id];
+  obj.group.visible = true;
+  obj.lastSnap = snap;
+
+  // Apply I3D_Spatial
+  const sp = ifaces.I3D_Spatial;
+  if (sp) {
+    // Convert cm → scene units (1 cm = 0.01 scene unit → multiply by 0.01 for realistic scale, 
+    // or keep as cm and just scale scene; here we use 1cm=0.1 units for visibility)
+    const S = 0.1;
+    obj.group.position.set(
+      (sp.translation_x || 0) * S,
+      (sp.translation_z || 0) * S,   // Z→up in Three.js
+      (sp.translation_y || 0) * S
+    );
+    obj.group.rotation.set(
+      THREE.MathUtils.degToRad(sp.rotation_x || 0),
+      THREE.MathUtils.degToRad(sp.rotation_y || 0),
+      THREE.MathUtils.degToRad(sp.rotation_z || 0)
+    );
+    obj.group.scale.set(sp.scale_x || 1, sp.scale_y || 1, sp.scale_z || 1);
+  }
+
+  // Apply I3D_Visual material
+  const vis = ifaces.I3D_Visual;
+  if (vis) {
+    const mat = MATERIALS[vis.material_variant] || MATERIALS.normal;
+    obj.group.traverse(n => { if (n.isMesh && n.material) n.material = mat; });
+  }
+
+  // Apply label
+  const beh = ifaces.I3D_Behavioral;
+  if (obj.labelEl && beh) {
+    obj.labelEl.textContent = beh.ui_label_content || id;
+  }
+}
+
+// ── Polling ─────────────────────────────────────────────────
+let pollInterval = null;
+let lastPollTime = 0;
+let frameCount = 0;
+let fps = 0;
+
+async function pollAll() {
+  try {
+    const res = await fetch('/api/v2/state/snapshots');
+    const snaps = await res.json();
+    lastPollTime = Date.now();
+
+    const activeIds = new Set();
+
+    for (const snap of snaps) {
+      activeIds.add(snap.instanceId);
+      await ensureObject(snap);
+    }
+
+    // Remove objects no longer in server list
+    for (const id of Object.keys(objects)) {
+      if (!activeIds.has(id)) removeObject(id);
+    }
+
+    updateSidePanel(snaps);
+    document.getElementById('inst-count').textContent = `${snaps.length} 个实例`;
+    document.getElementById('stat-last').textContent = `最后更新: ${new Date().toLocaleTimeString()}`;
+    document.getElementById('poll-badge').textContent = `实例: ${snaps.length} ｜ 500ms`;
+  } catch (e) {
+    document.getElementById('poll-badge').textContent = '连接失败';
+  }
+}
+
+function updateSidePanel(snaps) {
+  const panel = document.getElementById('inst-list-panel');
+  if (snaps.length === 0) {
+    panel.innerHTML = '<div style="color:#475569;font-size:12px;text-align:center;padding:20px;">暂无实例。前往<br/><a href="/instance" style="color:#3b82f6;">运维面板</a>投产。</div>';
+    return;
+  }
+  panel.innerHTML = snaps.map(snap => {
+    const online = snap.online;
+    const label = snap.interfaces?.I3D_Behavioral?.ui_label_content || '';
+    return `
+    <div class="inst-item" onclick="focusInstance('${snap.instanceId}')">
+      <div class="inst-id">${snap.instanceId}</div>
+      <div class="inst-meta">${snap.objectTypeName || snap.objectTypeRid}</div>
+      <div class="inst-status">
+        <div class="dot ${online ? 'online' : 'offline'}"></div>
+        <span style="font-size:10px;color:#64748b;">${online ? '在线' : '离线'}</span>
+      </div>
+      ${label ? `<div class="inst-label">${label}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── Label Update (per frame) ─────────────────────────────────
+const vec = new THREE.Vector3();
+function updateLabels() {
+  if (!showLabels) return;
+  const w = window.innerWidth, h = window.innerHeight;
+  for (const [id, obj] of Object.entries(objects)) {
+    if (!obj.labelEl || !obj.group.visible) { if (obj.labelEl) obj.labelEl.style.display = 'none'; continue; }
+    obj.group.getWorldPosition(vec);
+    vec.project(camera);
+    const x = ((vec.x + 1) / 2) * w;
+    const y = ((-vec.y + 1) / 2) * h;
+    if (vec.z < 1) {
+      obj.labelEl.style.display = 'block';
+      obj.labelEl.style.left = x + 'px';
+      obj.labelEl.style.top  = (y - 12) + 'px';
+    } else {
+      obj.labelEl.style.display = 'none';
+    }
+  }
+}
+
+// ── Animation Loop ───────────────────────────────────────────
+let lastFpsTime = performance.now();
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  frameCount++;
+  const now = performance.now();
+  if (now - lastFpsTime > 1000) {
+    fps = Math.round(frameCount * 1000 / (now - lastFpsTime));
+    document.getElementById('stat-fps').textContent = `FPS: ${fps}`;
+    frameCount = 0;
+    lastFpsTime = now;
+  }
+  updateLabels();
+  renderer.render(scene, camera);
+}
+
+// ── UI Controls ──────────────────────────────────────────────
+let panelOpen = false;
+let showLabels = true;
+let gridVisible = true;
+
+window.togglePanel = () => {
+  panelOpen = !panelOpen;
+  document.getElementById('inst-panel').classList.toggle('open', panelOpen);
+};
+
+window.toggleGrid = () => {
+  gridVisible = !gridVisible;
+  gridHelper.visible = gridVisible;
+  document.getElementById('grid-btn').classList.toggle('active', gridVisible);
+};
+
+window.toggleLabels = () => {
+  showLabels = !showLabels;
+  document.getElementById('label-btn').classList.toggle('active', showLabels);
+  document.querySelectorAll('.obj-label').forEach(el => { el.style.display = showLabels ? 'block' : 'none'; });
+  if (showLabels) {
+    for (const [id, obj] of Object.entries(objects)) {
+      if (!obj.labelEl) obj.labelEl = createLabel(id);
+    }
+  }
+};
+
+window.resetCamera = () => {
+  camera.position.set(60, 40, 80);
+  controls.target.set(0, 0, 0);
+  controls.update();
+};
+
+window.focusInstance = (id) => {
+  const obj = objects[id];
+  if (!obj) return;
+  const pos = obj.group.position.clone();
+  const dist = 30;
+  camera.position.set(pos.x + dist, pos.y + dist * 0.6, pos.z + dist);
+  controls.target.copy(pos);
+  controls.update();
+};
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ── Boot ─────────────────────────────────────────────────────
+document.getElementById('loader').style.display = 'flex';
+animate();
+setTimeout(() => {
+  document.getElementById('loader').style.display = 'none';
+  pollAll();
+  pollInterval = setInterval(pollAll, 500);
+}, 800);
+
+// Enable grid by default
+document.getElementById('grid-btn').classList.add('active');
+</script>
+</body>
+</html>

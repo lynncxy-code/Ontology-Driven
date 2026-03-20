@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>实例运维与监控中心 | OntoTwin Nexus 2.3</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.staticfile.net/vue/3.3.4/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+        
+        /* Custom slide range track */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px; width: 16px; border-radius: 50%;
+            background: #ffffff; cursor: pointer;
+            border: 2px solid #111827;
+            margin-top: -6px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer;
+            background: #e5e7eb; border-radius: 2px;
+        }
+        input[type=range]:focus::-webkit-slider-runnable-track {
+            background: #d1d5db;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 h-screen overflow-hidden flex flex-col font-sans antialiased">
+<div id="app" class="flex flex-col flex-1 min-h-0">
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0 flex items-center justify-between">
+        <div>
+            <div class="flex items-center gap-3">
+                <h1 class="text-lg font-bold">实例运维与监控中心</h1>
+                <span class="text-[10px] font-mono bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full border border-gray-200">MODULE 2 · PART A</span>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">管理数字孪生实例生命周期，提供实时监控与手动 Override 干预</p>
+        </div>
+        <div>
+            <a href="/ontology" class="text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md transition border border-transparent hover:border-gray-300">
+                &larr; 返回 本体注入中心
+            </a>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden min-h-0">
+        <!-- Left: Spawn + List -->
+        <div class="w-96 bg-white border-r border-gray-200 flex flex-col min-h-0 relative">
+            <!-- Spawn Form -->
+            <div class="flex-shrink-0 border-b border-gray-200">
+                <div class="px-5 py-3 border-b border-gray-200 bg-gray-50/50">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">实例投产 (Spawn)</span>
+                </div>
+                <div class="p-5 space-y-3 bg-white">
+                    <div class="flex items-center gap-3">
+                        <label class="w-12 text-xs font-medium text-gray-500 shrink-0">类型</label>
+                        <select v-model="spawnForm.objectTypeRid" @change="spawnForm.instanceId = ''" 
+                                class="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition">
+                            <option value="">-- 选择 ObjectType --</option>
+                            <option v-for="ot in readyTypes" :key="ot.rid" :value="ot.rid">{{ ot.name }}</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="w-12 text-xs font-medium text-gray-500 shrink-0">实体 ID</label>
+                        <select v-model="spawnForm.instanceId" :disabled="!spawnForm.objectTypeRid"
+                                class="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm font-mono outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition disabled:bg-gray-50 disabled:text-gray-400">
+                            <option value="">-- 选择可用编号 --</option>
+                            <option v-for="id in availableInstanceIds" :key="id" :value="id">{{ id }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-gray-400 mb-1.5 ml-[60px]">初始位置坐标 (厘米)</div>
+                        <div class="flex items-center gap-3">
+                            <label class="w-12 text-xs font-medium text-gray-500 shrink-0"></label>
+                            <div class="grid grid-cols-3 gap-2 flex-1">
+                                <input v-model.number="spawnForm.x" type="number" placeholder="X" class="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm font-mono text-center outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
+                                <input v-model.number="spawnForm.y" type="number" placeholder="Y" class="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm font-mono text-center outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
+                                <input v-model.number="spawnForm.z" type="number" placeholder="Z" class="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm font-mono text-center outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pt-2">
+                        <button @click="spawnInstance" :disabled="!spawnForm.objectTypeRid || !spawnForm.instanceId.trim() || spawning"
+                                class="w-full text-sm font-bold bg-gray-900 text-white rounded-md py-2.5 hover:bg-gray-800 disabled:opacity-50 transition border border-gray-900 shadow-sm flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                            {{ spawning ? '投产分配中...' : '确认投产上线' }}
+                        </button>
+                    </div>
+                    <div v-if="readyTypes.length === 0" class="text-xs text-yellow-600 bg-yellow-50 border border-yellow-200 p-2 rounded mt-2">
+                        请先前往 [本体注入中心] 配置含有 I3D_Representable 能力的 ObjectType。
+                    </div>
+                </div>
+            </div>
+
+            <!-- Instance List -->
+            <div class="flex flex-col flex-1 min-h-0">
+                <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">存活实例清单 <span class="text-gray-400 font-mono ml-1">({{ instances.length }})</span></span>
+                    <button @click="loadInstances" class="text-[10px] font-medium text-gray-500 hover:text-gray-900 px-2 py-1 bg-white border border-gray-200 rounded shadow-sm hover:shadow transition">
+                        刷新
+                    </button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4 space-y-2">
+                    <div v-if="instances.length === 0" class="text-center text-sm text-gray-400 py-10">当前无实例在役</div>
+                    <div v-for="inst in instances" :key="inst.id"
+                         @click="selectInstance(inst)"
+                         :class="[
+                            'p-3 border rounded-lg cursor-pointer transition flex items-center gap-3',
+                            selectedInst?.id === inst.id ? 'border-gray-900 bg-gray-50 shadow-sm' : 'border-gray-200 hover:border-gray-400'
+                         ]">
+                        <div :class="[
+                            'w-2.5 h-2.5 rounded-full flex-shrink-0',
+                            inst.status === 'online' ? 'bg-green-500 shadow-[0_0_0_2px_rgba(34,197,94,0.2)]' : 'bg-red-500 shadow-[0_0_0_2px_rgba(239,68,68,0.2)]'
+                        ]"></div>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-mono text-sm font-bold text-gray-900 truncate">{{ inst.id }}</div>
+                            <div class="text-[11px] text-gray-500 mt-0.5 truncate">{{ inst.object_type_name }}</div>
+                        </div>
+                        <div class="flex flex-col items-end gap-1.5 shrink-0">
+                            <span :class="[
+                                'text-[9px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wider',
+                                inst.status === 'online' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+                            ]">{{ inst.status === 'online' ? '在线' : '失联' }}</span>
+                            
+                            <div v-if="pendingDelete === inst.id" class="flex items-center gap-1.5">
+                                <button @click.stop="deleteInstance(inst.id)" class="text-[10px] px-2 py-0.5 rounded bg-red-600 text-white font-medium hover:bg-red-700 transition">销毁</button>
+                                <button @click.stop="pendingDelete=null" class="text-[10px] px-2 py-0.5 rounded bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition">取消</button>
+                            </div>
+                            <button v-else @click.stop="pendingDelete = inst.id" class="text-[10px] text-gray-400 hover:text-red-600 hover:underline transition">移除</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Monitor Panel -->
+        <div class="flex-1 flex flex-col min-h-0 bg-gray-50">
+            <div v-if="!selectedInst" class="flex-1 flex flex-col items-center justify-center text-gray-400 space-y-3">
+                <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path></svg>
+                <span class="text-sm font-medium">从左侧清单选中一个实例进行实时监视</span>
+            </div>
+
+            <template v-else>
+                <!-- Monitor Header -->
+                <div class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0 shadow-sm z-10">
+                    <div class="flex items-center gap-4">
+                        <span class="text-xl font-bold font-mono text-gray-900">{{ selectedInst.id }}</span>
+                        <span :class="[
+                            'text-xs font-bold px-2.5 py-1 rounded-md border flex items-center gap-1.5',
+                            currentSnap?.online ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                        ]">
+                            <svg v-if="currentSnap?.online" class="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                            <svg v-else class="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            {{ currentSnap?.online ? '实时通讯中' : '心跳异常' }}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-4 text-xs">
+                        <span class="text-gray-500 font-medium">源类型: <span class="text-gray-800">{{ currentSnap?.objectTypeName }}</span></span>
+                        <div class="w-px h-4 bg-gray-300"></div>
+                        <span class="text-gray-400 font-mono tracking-widest flex items-center gap-1.5">
+                            <span class="relative flex h-2 w-2">
+                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                              <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                            </span>
+                            500MS POLLING
+                        </span>
+                    </div>
+                </div>
+
+                <div class="flex-1 overflow-y-auto p-6 space-y-6">
+                    
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                        <!-- Interface Snapshot (JSON) -->
+                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm" v-if="currentSnap">
+                            <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
+                                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">3D 引擎通信帧序列</span>
+                                <span class="text-[9px] font-mono bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded tracking-widest">READ ONLY</span>
+                            </div>
+                            <div class="p-0 bg-gray-900 overflow-x-auto text-gray-300">
+                                <pre class="p-5 text-xs font-mono leading-relaxed">{{ JSON.stringify(currentSnap.interfaces, null, 2) }}</pre>
+                            </div>
+                        </div>
+
+                        <!-- Manual Override Panel -->
+                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm" v-if="currentSnap">
+                            <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
+                                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">热干预终端 (Override)</span>
+                                <span class="text-[9px] font-mono bg-purple-50 text-purple-600 border border-purple-200 px-1.5 py-0.5 rounded tracking-widest">DEBUG CONTROL</span>
+                            </div>
+                            <div class="p-5 space-y-6">
+                                
+                                <!-- Spatial Overlay -->
+                                <div v-if="currentSnap.injected_interfaces.includes('I3D_Spatial')" class="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
+                                    <h4 class="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                                        I3D_Spatial [空间测绘]
+                                    </h4>
+                                    <!-- POS -->
+                                    <div class="space-y-3 mb-4">
+                                        <div v-for="axis in ['x','y','z']" :key="'t'+axis" class="flex items-center gap-3">
+                                            <span class="w-5 text-[10px] font-bold text-gray-400 uppercase font-mono text-right">T{{axis}}</span>
+                                            <input type="range" class="flex-1 accent-gray-900" min="-1000" max="1000" step="1" v-model.number="overridePatch['translation_' + axis]">
+                                            <input type="number" class="w-16 text-xs font-mono border border-gray-300 rounded px-2 py-1 outline-none focus:border-gray-900 transition text-right" v-model.number="overridePatch['translation_' + axis]" :placeholder="currentSnap.interfaces.I3D_Spatial['translation_' + axis]">
+                                        </div>
+                                    </div>
+                                    <!-- ROT -->
+                                    <div class="space-y-3 mb-4">
+                                        <div v-for="axis in ['x','y','z']" :key="'r'+axis" class="flex items-center gap-3">
+                                            <span class="w-5 text-[10px] font-bold text-gray-400 uppercase font-mono text-right">R{{axis}}</span>
+                                            <input type="range" class="flex-1 accent-gray-900" min="-180" max="180" step="1" v-model.number="overridePatch['rotation_' + axis]">
+                                            <input type="number" class="w-16 text-xs font-mono border border-gray-300 rounded px-2 py-1 outline-none focus:border-gray-900 transition text-right" v-model.number="overridePatch['rotation_' + axis]" :placeholder="currentSnap.interfaces.I3D_Spatial['rotation_' + axis]">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Visual Overlay -->
+                                <div v-if="currentSnap.injected_interfaces.includes('I3D_Visual')" class="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
+                                    <h4 class="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>
+                                        I3D_Visual [材质外观]
+                                    </h4>
+                                    <div class="flex items-center gap-3">
+                                        <span class="w-10 text-xs text-gray-500">变体</span>
+                                        <div class="flex flex-wrap gap-2">
+                                            <button v-for="v in ['normal','wireframe','gray','alert']" :key="v"
+                                                    @click="overridePatch.material_variant = v"
+                                                    :class="[
+                                                        'text-xs font-mono px-3 py-1.5 rounded transition border',
+                                                        (overridePatch.material_variant || currentSnap.interfaces.I3D_Visual.material_variant) === v
+                                                            ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
+                                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                                                    ]">
+                                                {{ v }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Behavioral Overlay -->
+                                <div v-if="currentSnap.injected_interfaces.includes('I3D_Behavioral')" class="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
+                                    <h4 class="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        I3D_Behavioral [行为表达]
+                                    </h4>
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <span class="w-10 text-xs text-gray-500">动画</span>
+                                        <div class="flex flex-wrap gap-2">
+                                            <button v-for="s in ['idle','running','fault','charging']" :key="s"
+                                                    @click="overridePatch.animation_state = s"
+                                                    :class="[
+                                                        'text-xs font-mono px-3 py-1.5 rounded transition border',
+                                                        (overridePatch.animation_state || currentSnap.interfaces.I3D_Behavioral.animation_state) === s
+                                                            ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
+                                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                                                    ]">
+                                                {{ s }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <span class="w-10 text-xs text-gray-500">文本</span>
+                                        <input type="text" v-model="overridePatch.ui_label_content" :placeholder="currentSnap.interfaces.I3D_Behavioral.ui_label_content"
+                                               class="flex-1 text-sm border border-gray-300 rounded px-3 py-1.5 font-sans outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
+                                    </div>
+                                </div>
+
+                                <!-- Action Buttons -->
+                                <div class="pt-2 flex items-center gap-3 border-t border-gray-100">
+                                    <button @click="applyOverride" :disabled="overriding"
+                                            class="flex-1 text-sm font-bold bg-gray-900 text-white px-4 py-2.5 rounded-md hover:bg-gray-800 transition disabled:opacity-50">
+                                        {{ overriding ? '命令下发中...' : '提交 Override 覆写' }}
+                                    </button>
+                                    <button @click="resetOverride" class="w-24 text-sm font-medium bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-md hover:bg-gray-50 hover:border-gray-400 transition">
+                                        复位重置
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
+        <transition-group name="fade">
+            <div v-for="t in toasts" :key="t.id" 
+                 :class="[
+                    'px-4 py-3 rounded shadow-lg text-sm font-medium border flex items-center gap-2',
+                    t.type === 'ok' ? 'bg-gray-900 text-white border-gray-800' : 'bg-red-600 text-white border-red-700'
+                 ]">
+                {{ t.msg }}
+            </div>
+        </transition-group>
+    </div>
+</div>
+
+<script>
+const { createApp, ref, computed, onMounted, onUnmounted, watch } = Vue;
+createApp({
+    setup() {
+        const instances = ref([]);
+        const objectTypes = ref([]);
+        const selectedInst = ref(null);
+        const currentSnap = ref(null);
+        const spawning = ref(false);
+        const overriding = ref(false);
+        const toasts = ref([]);
+        let pollTimer = null;
+
+        const spawnForm = ref({ objectTypeRid: '', instanceId: '', x: 0, y: 0, z: 0 });
+
+        const readyTypes = computed(() => objectTypes.value.filter(t => t.has_representable));
+
+        const availableInstanceIds = computed(() => {
+            const ot = objectTypes.value.find(t => t.rid === spawnForm.value.objectTypeRid);
+            return ot ? (ot.mock_instances || []) : [];
+        });
+
+        const overrideFields = computed(() => {
+            if (!currentSnap.value?.interfaces) return [];
+            const fields = [];
+            const ifaces = currentSnap.value.interfaces;
+            if (ifaces.I3D_Representable) {
+                fields.push({ key: 'is_visible', type: 'text' });
+            }
+            if (ifaces.I3D_Spatial) {
+                ['translation_x','translation_y','translation_z',
+                 'rotation_x','rotation_y','rotation_z',
+                 'scale_x','scale_y','scale_z'].forEach(k => fields.push({ key: k, type: 'number', step: 1 }));
+            }
+            if (ifaces.I3D_Visual) {
+                fields.push({ key: 'material_variant', type: 'text' });
+            }
+            if (ifaces.I3D_Behavioral) {
+                fields.push({ key: 'animation_state', type: 'text' });
+                fields.push({ key: 'ui_label_content', type: 'text' });
+            }
+            return fields;
+        });
+
+        const pendingDelete = ref(null);
+        const overridePatch = ref({});
+
+        watch(currentSnap, (snap) => {
+            if (!snap) return;
+            // Only update initialized structure of undefined values to avoid wiping slider movements during polling resets 
+            // Better behavior: we won't deep bind override fields locally on every poll unless desired by UX. 
+            // In a real app we might diff local state, but we'll stick to simplistic assignment.
+            const patch = overridePatch.value;
+            const raw = snap.raw_state || {};
+            overrideFields.value.forEach(f => { 
+                if (!(f.key in patch)) {
+                    patch[f.key] = raw[f.key] ?? ''; 
+                }
+            });
+            overridePatch.value = patch;
+        }, { deep: false });
+
+        async function loadInstances() {
+            const [instRes, typeRes] = await Promise.all([
+                axios.get('/api/v2/instances'),
+                axios.get('/api/v2/ontology/types')
+            ]);
+            instances.value = instRes.data;
+            objectTypes.value = typeRes.data;
+        }
+
+        async function spawnInstance() {
+            if (!spawnForm.value.objectTypeRid || !spawnForm.value.instanceId.trim()) return;
+            spawning.value = true;
+            try {
+                await axios.post('/api/v2/instances', {
+                    instance_id: spawnForm.value.instanceId.trim(),
+                    object_type_rid: spawnForm.value.objectTypeRid,
+                    initial_position: { x: spawnForm.value.x, y: spawnForm.value.y, z: spawnForm.value.z }
+                });
+                toast('ok', `实体标识 [${spawnForm.value.instanceId}] 已投产上线`);
+                spawnForm.value.instanceId = '';
+                await loadInstances();
+            } catch (e) {
+                toast('err', e.response?.data?.error || '投产配置无法解析或请求中断');
+            } finally {
+                spawning.value = false;
+            }
+        }
+
+        async function deleteInstance(id) {
+            try {
+                await axios.post(`/api/v2/instances/${encodeURIComponent(id)}/delete`);
+                pendingDelete.value = null;
+                if (selectedInst.value?.id === id) { selectedInst.value = null; currentSnap.value = null; stopPoll(); }
+                toast('ok', `已强制销毁实例: ${id}`);
+                await loadInstances();
+            } catch (e) {
+                toast('err', e.response?.data?.error || '实例挂起或移除失败');
+            }
+        }
+
+        function selectInstance(inst) {
+            selectedInst.value = inst;
+            stopPoll();
+            fetchSnap();
+            pollTimer = setInterval(fetchSnap, 500);
+        }
+
+        async function fetchSnap() {
+            if (!selectedInst.value) return;
+            try {
+                const res = await axios.get(`/api/v2/state/snapshot?id=${selectedInst.value.id}`);
+                currentSnap.value = res.data;
+                const found = instances.value.find(i => i.id === selectedInst.value.id);
+                if (found) found.status = res.data.online ? 'online' : 'offline';
+            } catch (_) {}
+        }
+
+        async function applyOverride() {
+            if (!selectedInst.value) return;
+            overriding.value = true;
+            try {
+                const patch = {};
+                for (const [k, v] of Object.entries(overridePatch.value)) {
+                    if (v !== '' && v !== null && v !== undefined) patch[k] = v;
+                }
+                const res = await axios.post('/api/v2/state/override', {
+                    instance_id: selectedInst.value.id, patch
+                });
+                currentSnap.value = res.data.snapshot;
+                toast('ok', `接口下发：环境覆写命令已送达`);
+            } catch (e) {
+                toast('err', e.response?.data?.error || '参数越界或传输中断');
+            } finally {
+                overriding.value = false;
+            }
+        }
+
+        function resetOverride() {
+            if (!currentSnap.value) return;
+            const patch = {};
+            const raw = currentSnap.value.raw_state || {};
+            overrideFields.value.forEach(f => { patch[f.key] = raw[f.key] ?? ''; });
+            overridePatch.value = patch;
+        }
+
+        function stopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+        function toast(type, msg) {
+            const id = Date.now();
+            toasts.value.push({ id, type, msg });
+            setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 3000);
+        }
+
+        onMounted(loadInstances);
+        onUnmounted(stopPoll);
+
+        return {
+            instances, objectTypes, readyTypes, availableInstanceIds, selectedInst, currentSnap,
+            spawnForm, spawning, overriding, overrideFields, overridePatch, toasts, pendingDelete,
+            loadInstances, spawnInstance, deleteInstance, selectInstance, applyOverride, resetOverride
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

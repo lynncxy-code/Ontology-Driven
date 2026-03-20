@@ -71,73 +71,54 @@ void UDigitalTwinSyncComponent::BeginPlay()
         }
     }
 
-    // ── 强制搜寻并分配特效组件 ──────────────────────────────────────────
-    // 打印当前引用状态
-    UE_LOG(LogTemp, Warning, TEXT("[数字孪生] === 开始组件搜寻 ==="));
-    UE_LOG(LogTemp, Warning, TEXT("[数字孪生] SparkFx 当前=%s"), SparkFxComponent ? TEXT("已赋值") : TEXT("空"));
-    UE_LOG(LogTemp, Warning, TEXT("[数字孪生] SmokeFx 当前=%s"), SmokeFxComponent ? TEXT("已赋值") : TEXT("空"));
-    UE_LOG(LogTemp, Warning, TEXT("[数字孪生] LabelWidget 当前=%s"), LabelWidgetComponent ? TEXT("已赋值") : TEXT("空"));
-
-    // 清空旧的引用，强制重新搜寻
-    SparkFxComponent = nullptr;
-    SmokeFxComponent = nullptr;
-    LabelWidgetComponent = nullptr;
-
+    // ── 智能搜寻并分配组件 (仅在未手动分配时触发) ────────────────────────
+    
     TArray<UNiagaraComponent*> NiagaraComps;
     Owner->GetComponents<UNiagaraComponent>(NiagaraComps);
-    UE_LOG(LogTemp, Warning, TEXT("[数字孪生] 找到 %d 个 Niagara 组件"), NiagaraComps.Num());
 
+    // 如果未手动分配，尝试通过名字匹配搜索分配
     for (int32 i = 0; i < NiagaraComps.Num(); i++)
     {
         UNiagaraComponent* NC = NiagaraComps[i];
         FString N = NC->GetFName().ToString();
-        UE_LOG(LogTemp, Warning, TEXT("[数字孪生]   [%d] %s"), i, *N);
-
-        // 按名字分配
+        
         if (!SparkFxComponent && N.Equals(TEXT("FX_Spark")))
         {
             SparkFxComponent = NC;
-            UE_LOG(LogTemp, Warning, TEXT("[数字孪生]   -> 分配为 Spark"));
         }
         else if (!SmokeFxComponent && N.Equals(TEXT("FX_Smoke")))
         {
             SmokeFxComponent = NC;
-            UE_LOG(LogTemp, Warning, TEXT("[数字孪生]   -> 分配为 Smoke"));
         }
     }
 
-    // 如果名字匹配失败，强制按顺序分配前两个
+    // fallback：如果有多的组件，则兜底分配给空位
     if (!SparkFxComponent && NiagaraComps.Num() >= 1)
     {
         SparkFxComponent = NiagaraComps[0];
-        UE_LOG(LogTemp, Warning, TEXT("[数字孪生]   Fallback: [0] -> Spark"));
     }
     if (!SmokeFxComponent && NiagaraComps.Num() >= 2)
     {
         SmokeFxComponent = NiagaraComps[1];
-        UE_LOG(LogTemp, Warning, TEXT("[数字孪生]   Fallback: [1] -> Smoke"));
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("[数字孪生] 最终: Spark=%s Smoke=%s"),
-        SparkFxComponent ? TEXT("OK") : TEXT("FAIL"),
-        SmokeFxComponent ? TEXT("OK") : TEXT("FAIL"));
-
-    // 强制重新搜寻 WidgetComponent（BeginPlay 时 Widget 实例尚未创建，直接取第一个）
+    // 智能搜寻 WidgetComponent
+    if (!LabelWidgetComponent)
     {
         TArray<UWidgetComponent*> WidgetComps;
         Owner->GetComponents<UWidgetComponent>(WidgetComps);
-        UE_LOG(LogTemp, Warning, TEXT("[数字孪生] 找到 %d 个 WidgetComponent"), WidgetComps.Num());
         if (WidgetComps.Num() > 0)
         {
             LabelWidgetComponent = WidgetComps[0];
-            UE_LOG(LogTemp, Warning, TEXT("[数字孪生]   -> 选中 Widget[0] %s 为 LabelWidget"),
-                *WidgetComps[0]->GetFName().ToString());
         }
     }
 
     UE_LOG(LogTemp, Log,
            TEXT("[数字孪生] 组件初始化完毕 | 实体ID=%s | 轮询间隔=%.2fs | API=%s"),
            *InstanceId, PollIntervalSeconds, *ApiUrl);
+
+    // 将 UE 世界真实的初始坐标刻印到数字孪生后端
+    PushStateToBackend();
 }
 
 // ── EndPlay ──────────────────────────────────────────────────────────────────
@@ -197,7 +178,19 @@ void UDigitalTwinSyncComponent::SendHttpRequest()
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request =
         FHttpModule::Get().CreateRequest();
 
-    Request->SetURL(ApiUrl);
+    // ── 拼接 InstanceId ─────────────────────────────────────────────────
+    FString FinalUrl = ApiUrl;
+    if (!InstanceId.IsEmpty())
+    {
+        // 如果 ApiUrl 尚未包含 id 查询参数，则自动追加
+        if (!ApiUrl.Contains(TEXT("?id=")) && !ApiUrl.Contains(TEXT("&id=")))
+        {
+            FString Separator = ApiUrl.Contains(TEXT("?")) ? TEXT("&") : TEXT("?");
+            FinalUrl = FString::Printf(TEXT("%s%sid=%s"), *ApiUrl, *Separator, *InstanceId);
+        }
+    }
+
+    Request->SetURL(FinalUrl);
     Request->SetVerb(TEXT("GET"));
     Request->SetHeader(TEXT("Accept"), TEXT("application/json"));
 
@@ -263,20 +256,64 @@ void UDigitalTwinSyncComponent::OnHttpResponseReceived(
         }
     }
 
-    // ── 时间戳去重：若状态未变化则跳过 ───────────────────────────────────
+    // ── 时间戳更新：仅记录，始终执行坐标应用 ─────────────────────────────────
     double NewTimestamp = 0.0;
     if (JsonObject->TryGetNumberField(TEXT("timestamp"), NewTimestamp))
     {
-        if (NewTimestamp == LastTimestamp)
-        {
-            // 状态未变化，不做任何操作（幂等性保证）
-            return;
-        }
         LastTimestamp = NewTimestamp;
     }
 
     // ── 应用状态到 Actor ─────────────────────────────────────────────────
     ApplyStateFromJson(JsonObject);
+}
+
+void UDigitalTwinSyncComponent::PushStateToBackend()
+{
+    if (InstanceId.IsEmpty()) return;
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+
+    FString UpdateUrl = ApiUrl.Replace(TEXT("/api/state"), TEXT("/api/update"));
+    if (!UpdateUrl.Contains(TEXT("?id=")) && !UpdateUrl.Contains(TEXT("&id=")))
+    {
+        FString Separator = UpdateUrl.Contains(TEXT("?")) ? TEXT("&") : TEXT("?");
+        UpdateUrl = FString::Printf(TEXT("%s%sid=%s"), *UpdateUrl, *Separator, *InstanceId);
+    }
+
+    Request->SetURL(UpdateUrl);
+    Request->SetVerb(TEXT("POST"));
+    Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    Request->SetHeader(TEXT("Accept"), TEXT("application/json"));
+
+    TSharedPtr<FJsonObject> JsonObj = MakeShareable(new FJsonObject());
+    JsonObj->SetStringField(TEXT("id"), InstanceId);
+    JsonObj->SetNumberField(TEXT("translation_x"), TargetLocation.X);
+    JsonObj->SetNumberField(TEXT("translation_y"), TargetLocation.Y);
+    JsonObj->SetNumberField(TEXT("translation_z"), TargetLocation.Z);
+    JsonObj->SetNumberField(TEXT("rotation_x"), TargetRotation.Roll);
+    JsonObj->SetNumberField(TEXT("rotation_y"), TargetRotation.Pitch);
+    JsonObj->SetNumberField(TEXT("rotation_z"), TargetRotation.Yaw);
+    JsonObj->SetNumberField(TEXT("scale_x"), TargetScale.X);
+    JsonObj->SetNumberField(TEXT("scale_y"), TargetScale.Y);
+    JsonObj->SetNumberField(TEXT("scale_z"), TargetScale.Z);
+
+    FString ContentString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ContentString);
+    FJsonSerializer::Serialize(JsonObj.ToSharedRef(), Writer);
+
+    Request->SetContentAsString(ContentString);
+    Request->OnProcessRequestComplete().BindUObject(this, &UDigitalTwinSyncComponent::OnStatePushed);
+    Request->ProcessRequest();
+}
+
+void UDigitalTwinSyncComponent::OnStatePushed(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
+{
+    if (!bWasSuccessful || !Response.IsValid())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[数字孪生] 初始坐标推送失败: Web状态可能不同步"));
+        return;
+    }
+    UE_LOG(LogTemp, Log, TEXT("[数字孪生] 初始坐标签名已成功植入中心服务器 (Code: %d)"), Response->GetResponseCode());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

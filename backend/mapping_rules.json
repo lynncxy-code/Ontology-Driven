@@ -1,0 +1,144 @@
+{
+  "4cceab47": {
+    "object_type": "ri.obj.airplane",
+    "file_number": "",
+    "display_name": "",
+    "mappings": [
+      {
+        "id": "m1773212324309",
+        "source": "altitude",
+        "target": "Transform.Z",
+        "transform": {
+          "type": "passthrough",
+          "scale": 1,
+          "offset": 0
+        }
+      }
+    ],
+    "id": "4cceab47",
+    "updated_at": 1773212345.1799612
+  },
+  "271afa70": {
+    "object_type": "ri.obj.airplane",
+    "file_number": "",
+    "display_name": "",
+    "mappings": [
+      {
+        "id": "m1773212746300",
+        "source": "status",
+        "target": "MaterialVariant",
+        "transform": {
+          "type": "passthrough",
+          "scale": 1,
+          "offset": 0
+        }
+      }
+    ],
+    "id": "271afa70",
+    "updated_at": 1773212806.0550437
+  },
+  "6fff278c": {
+    "object_type": "ri.obj.airplane",
+    "file_number": "",
+    "display_name": "",
+    "mappings": [
+      {
+        "id": "m1773213385144",
+        "source": "engine_fx",
+        "target": "FxTrigger",
+        "transform": {
+          "type": "passthrough",
+          "scale": 1,
+          "offset": 0
+        }
+      }
+    ],
+    "id": "6fff278c",
+    "updated_at": 1773213396.932507
+  },
+  "c960ecdc": {
+    "object_type": "ri.obj.airplane",
+    "file_number": "",
+    "display_name": "",
+    "mappings": [
+      {
+        "id": "m1773212324309",
+        "source": "altitude",
+        "target": "Transform.Z",
+        "transform": {
+          "offset": 0,
+          "scale": 1,
+          "type": "passthrough"
+        }
+      }
+    ],
+    "id": "c960ecdc",
+    "updated_at": 1773219207.6485646
+  },
+  "328cb03f": {
+    "object_type": "ri.obj.ari.obj.airplaneirplane",
+    "file_number": "6D654-G3",
+    "display_name": "",
+    "implement_interfaces": [
+      {
+        "rid": "I3D_Movable",
+        "properties": {
+          "translation_z": {
+            "source": "altitude",
+            "transform": {
+              "type": "passthrough",
+              "scale": 1,
+              "offset": 0
+            }
+          }
+        }
+      }
+    ],
+    "id": "328cb03f",
+    "updated_at": 1773294192.9062908
+  },
+  "c69db579": {
+    "object_type": "ri.obj.ari.obj.airplaneirplane",
+    "file_number": "6D654-G3",
+    "display_name": "Airplane-Test-2.1",
+    "implement_interfaces": [
+      {
+        "rid": "I3D_Movable",
+        "properties": {
+          "translation_z": {
+            "source": "altitude",
+            "transform": {
+              "type": "passthrough",
+              "scale": 1,
+              "offset": 0
+            }
+          }
+        }
+      }
+    ],
+    "id": "c69db579",
+    "updated_at": 1773294213.8376842
+  },
+  "16bb6d4a": {
+    "object_type": "ri.obj.airplane",
+    "file_number": "",
+    "display_name": "",
+    "implement_interfaces": [
+      {
+        "rid": "I3D_Representable",
+        "properties": {
+          "file_number": {
+            "source": "altitude",
+            "transform": {
+              "type": "linear",
+              "scale": 1,
+              "offset": 0
+            }
+          }
+        }
+      }
+    ],
+    "id": "16bb6d4a",
+    "updated_at": 1773387565.7870588
+  }
+}

@@ -41,7 +41,8 @@
                 <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">对象类型 (ObjectType)</h3>
             </div>
             <div class="flex-1 overflow-y-auto p-4 space-y-2">
-                <div v-for="ot in objectTypes" :key="ot.rid"
+                <div v-for="ot in sortedObjectTypes" :key="ot.rid"
+                     :id="'list-item-' + ot.rid.replace(/\./g, '-')"
                      @click="selectType(ot)"
                      :class="[
                         'p-3 border rounded-lg cursor-pointer transition-all duration-150 relative group',
@@ -358,6 +359,19 @@ createApp({
         const parentInterfaces = computed(() => allInterfaces.value.filter(i => i.tier === 'parent'));
         const childInterfaces  = computed(() => allInterfaces.value.filter(i => i.tier === 'child'));
 
+        const sortedObjectTypes = computed(() => {
+            return [...objectTypes.value].sort((a, b) => {
+                // 1. 已配置的优先置顶
+                if (a.has_representable !== b.has_representable) {
+                    return a.has_representable ? -1 : 1;
+                }
+                // 2. 然后按照名称或 RID 字母拼音顺序排列
+                const nameA = a.name || a.rid;
+                const nameB = b.name || b.rid;
+                return nameA.localeCompare(nameB, 'zh-CN');
+            });
+        });
+
         const hasRepresentable = computed(() => {
             if (!selected.value) return false;
             const injected = selected.value.injected_interfaces || [];
@@ -523,11 +537,18 @@ createApp({
             const ridParam = urlParams.get('rid');
             if (ridParam) {
                 const target = objectTypes.value.find(t => t.rid === ridParam);
-                if (target) selectType(target);
+                if (target) {
+                    selectType(target);
+                    // 等待渲染完成后自动滚动到选中项
+                    setTimeout(() => {
+                        const el = document.getElementById('list-item-' + target.rid.replace(/\./g, '-'));
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 50);
+                }
             }
         });
         return {
-            objectTypes, allInterfaces, allAssets, selected,
+            objectTypes, sortedObjectTypes, allInterfaces, allAssets, selected,
             parentInterfaces, childInterfaces, pendingInterfaces, pendingRemove, hasRepresentable,
             editMode, saving, bindMode, selectedAssetFn, manualPath, assetResult, bindingAsset, toasts,
             isInjected, isChecked, toggleInterface, saveInterfaces, removeInterface, bindAsset, selectType,

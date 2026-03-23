@@ -195,8 +195,29 @@
                                 <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">热干预终端 (Override)</span>
                                 <span class="text-[9px] font-mono bg-purple-50 text-purple-600 border border-purple-200 px-1.5 py-0.5 rounded tracking-widest">DEBUG CONTROL</span>
                             </div>
-                            <div class="p-5 space-y-6">
-                                
+                                <!-- Representable Overlay -->
+                                <div v-if="currentSnap.injected_interfaces.includes('I3D_Representable') || currentSnap.interfaces.I3D_Representable" class="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
+                                    <h4 class="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                        I3D_Representable [基础表征]
+                                    </h4>
+                                    <div class="flex items-center gap-3">
+                                        <span class="w-10 text-xs text-gray-500">可见性</span>
+                                        <div class="flex flex-wrap gap-2">
+                                            <button v-for="vis in [{label: '加载进场景', val: true}, {label: '从场景卸载', val: false}]" :key="vis.label"
+                                                    @click="overridePatch.is_loaded = vis.val"
+                                                    :class="[
+                                                        'text-xs font-mono px-3 py-1.5 rounded transition border',
+                                                        (overridePatch.is_loaded !== undefined ? overridePatch.is_loaded : currentSnap.interfaces.I3D_Representable.is_visible) === vis.val
+                                                            ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
+                                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                                                    ]">
+                                                {{ vis.label }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <!-- Spatial Overlay -->
                                 <div v-if="currentSnap.injected_interfaces.includes('I3D_Spatial')" class="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
                                     <h4 class="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -227,18 +248,33 @@
                                         <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>
                                         I3D_Visual [材质外观]
                                     </h4>
-                                    <div class="flex items-center gap-3">
-                                        <span class="w-10 text-xs text-gray-500">变体</span>
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <span class="w-10 text-xs text-gray-500">显隐</span>
                                         <div class="flex flex-wrap gap-2">
-                                            <button v-for="v in ['normal','wireframe','gray','alert']" :key="v"
-                                                    @click="overridePatch.material_variant = v"
+                                            <button v-for="vis in [{label: '允许渲染(Visible)', val: true}, {label: '仅隐藏(Hidden)', val: false}]" :key="vis.label"
+                                                    @click="overridePatch.is_visible = vis.val"
                                                     :class="[
                                                         'text-xs font-mono px-3 py-1.5 rounded transition border',
-                                                        (overridePatch.material_variant || currentSnap.interfaces.I3D_Visual.material_variant) === v
+                                                        (overridePatch.is_visible !== undefined ? overridePatch.is_visible : (currentSnap.interfaces.I3D_Visual.is_visible !== false)) === vis.val
                                                             ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
                                                             : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
                                                     ]">
-                                                {{ v }}
+                                                {{ vis.label }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <span class="w-10 text-xs text-gray-500">变体</span>
+                                        <div class="flex flex-wrap gap-2">
+                                            <button v-for="matInfo in [{label:'普通(normal)', val:'normal'}, {label:'线框(wire)', val:'wireframe'}, {label:'灰模(gray)', val:'gray'}, {label:'高亮(alert)', val:'alert'}]" :key="matInfo.val"
+                                                    @click="overridePatch.material_variant = matInfo.val"
+                                                    :class="[
+                                                        'text-xs font-mono px-3 py-1.5 rounded transition border',
+                                                        (overridePatch.material_variant || currentSnap.interfaces.I3D_Visual.material_variant || 'normal') === matInfo.val
+                                                            ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
+                                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                                                    ]">
+                                                {{ matInfo.label }}
                                             </button>
                                         </div>
                                     </div>
@@ -253,7 +289,7 @@
                                     <div class="flex items-center gap-3 mb-4">
                                         <span class="w-10 text-xs text-gray-500">动画</span>
                                         <div class="flex flex-wrap gap-2">
-                                            <button v-for="s in ['idle','running','fault','charging']" :key="s"
+                                            <button v-for="s in ['待机','运行','故障','充电']" :key="s"
                                                     @click="overridePatch.animation_state = s"
                                                     :class="[
                                                         'text-xs font-mono px-3 py-1.5 rounded transition border',
@@ -267,8 +303,18 @@
                                     </div>
                                     <div class="flex items-center gap-3 mb-4">
                                         <span class="w-10 text-xs text-gray-500">特效</span>
-                                        <input type="text" v-model="overridePatch.fx_trigger" :placeholder="currentSnap.interfaces.I3D_Behavioral.fx_trigger"
-                                               class="flex-1 text-sm border border-gray-300 rounded px-3 py-1.5 font-sans outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
+                                        <div class="flex flex-wrap gap-2">
+                                            <button v-for="f in ['故障','正常','维修','过载']" :key="f"
+                                                    @click="overridePatch.fx_trigger = f"
+                                                    :class="[
+                                                        'text-xs font-mono px-3 py-1.5 rounded transition border',
+                                                        (overridePatch.fx_trigger || currentSnap.interfaces.I3D_Behavioral.fx_trigger) === f
+                                                            ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
+                                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                                                    ]">
+                                                {{ f }}
+                                            </button>
+                                        </div>
                                     </div>
                                     <div class="flex items-center gap-3">
                                         <span class="w-10 text-xs text-gray-500">文本</span>

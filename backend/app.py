@@ -374,7 +374,7 @@ def _build_snapshot(instance_id):
         interfaces["I3D_Representable"] = {
             "asset_id": ue_asset_path,
             "file_number": asset_id,
-            "is_visible": raw.get("is_visible", True)
+            "is_visible": raw.get("is_loaded", True)
         }
 
     if "I3D_Spatial" in injected:
@@ -392,7 +392,8 @@ def _build_snapshot(instance_id):
 
     if "I3D_Visual" in injected:
         interfaces["I3D_Visual"] = {
-            "material_variant": raw.get("material_variant", "normal")
+            "material_variant": raw.get("material_variant", "normal"),
+            "is_visible": raw.get("is_visible", True)
         }
 
     if "I3D_Behavioral" in injected:
@@ -458,7 +459,7 @@ def override_state():
                 patch[k] = float(v)
             except (ValueError, TypeError):
                 pass
-        if k == 'is_visible' and isinstance(v, str):
+        if k in ('is_visible', 'is_loaded') and isinstance(v, str):
             patch[k] = v.lower() not in ('false', '0', 'no')
 
     success = instance_store.update_raw_state(instance_id, patch)

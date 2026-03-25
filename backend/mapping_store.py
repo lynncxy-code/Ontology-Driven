@@ -104,7 +104,7 @@ INTERFACES = [
         "description": "赋予对象切换材质外观的能力。资产加载与整体显隐由 I3D_Representable 管理。",
         "properties": [
             {"name": "material_variant", "label": "材质变体", "type": "enum",
-             "options": ["normal", "alarm", "offline", "highlight"], "default": "normal"}
+             "options": ["normal", "wireframe", "gray", "highlight"], "default": "normal"}
         ]
     },
     {
@@ -114,7 +114,8 @@ INTERFACES = [
         "required": False,
         "description": "赋予对象执行动态行为与信息标注的能力。",
         "properties": [
-            {"name": "animation_state",  "label": "动画状态",  "type": "string", "default": "idle"},
+            {"name": "animation_state",  "label": "动画状态",  "type": "enum", 
+             "options": ["idle", "translate", "jump", "flip"], "default": "idle"},
             {"name": "fx_trigger",       "label": "特效触发",  "type": "string", "default": ""},
             {"name": "ui_label_content", "label": "标签内容",  "type": "string", "default": ""}
         ]

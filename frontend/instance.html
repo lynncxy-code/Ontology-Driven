@@ -266,7 +266,7 @@
                                     <div class="flex items-center gap-3">
                                         <span class="w-10 text-xs text-gray-500">变体</span>
                                         <div class="flex flex-wrap gap-2">
-                                            <button v-for="matInfo in [{label:'普通(normal)', val:'normal'}, {label:'线框(wire)', val:'wireframe'}, {label:'灰模(gray)', val:'gray'}, {label:'高亮(alert)', val:'alert'}]" :key="matInfo.val"
+                                            <button v-for="matInfo in [{label:'普通(normal)', val:'normal'}, {label:'线框(wireframe)', val:'wireframe'}, {label:'灰模(gray)', val:'gray'}, {label:'高亮(highlight)', val:'highlight'}]" :key="matInfo.val"
                                                     @click="overridePatch.material_variant = matInfo.val"
                                                     :class="[
                                                         'text-xs font-mono px-3 py-1.5 rounded transition border',
@@ -289,30 +289,30 @@
                                     <div class="flex items-center gap-3 mb-4">
                                         <span class="w-10 text-xs text-gray-500">动画</span>
                                         <div class="flex flex-wrap gap-2">
-                                            <button v-for="s in ['待机','运行','故障','充电']" :key="s"
-                                                    @click="overridePatch.animation_state = s"
+                                            <button v-for="sInfo in [{label:'停止(idle)', val:'idle'}, {label:'平移(translate)', val:'translate'}, {label:'跳跃(jump)', val:'jump'}, {label:'翻转(flip)', val:'flip'}]" :key="sInfo.val"
+                                                    @click="overridePatch.animation_state = sInfo.val"
                                                     :class="[
                                                         'text-xs font-mono px-3 py-1.5 rounded transition border',
-                                                        (overridePatch.animation_state || currentSnap.interfaces.I3D_Behavioral.animation_state) === s
+                                                        (overridePatch.animation_state || currentSnap.interfaces.I3D_Behavioral.animation_state || 'idle') === sInfo.val
                                                             ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
                                                             : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
                                                     ]">
-                                                {{ s }}
+                                                {{ sInfo.label }}
                                             </button>
                                         </div>
                                     </div>
                                     <div class="flex items-center gap-3 mb-4">
                                         <span class="w-10 text-xs text-gray-500">特效</span>
                                         <div class="flex flex-wrap gap-2">
-                                            <button v-for="f in ['故障','正常','维修','过载']" :key="f"
-                                                    @click="overridePatch.fx_trigger = f"
+                                            <button v-for="fInfo in [{label:'正常(normal)', val:'normal'}, {label:'火警(fire)', val:'fire'}, {label:'烟雾(smoke)', val:'smoke'}, {label:'警报(warning)', val:'warning'}]" :key="fInfo.val"
+                                                    @click="overridePatch.fx_trigger = fInfo.val"
                                                     :class="[
                                                         'text-xs font-mono px-3 py-1.5 rounded transition border',
-                                                        (overridePatch.fx_trigger || currentSnap.interfaces.I3D_Behavioral.fx_trigger) === f
+                                                        (overridePatch.fx_trigger || currentSnap.interfaces.I3D_Behavioral.fx_trigger) === fInfo.val
                                                             ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
                                                             : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
                                                     ]">
-                                                {{ f }}
+                                                {{ fInfo.label }}
                                             </button>
                                         </div>
                                     </div>

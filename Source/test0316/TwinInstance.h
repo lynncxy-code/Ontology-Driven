@@ -24,6 +24,34 @@
 
 class UDigitalTwinSyncComponent;
 
+// ============================================================================
+// 动画配方结构体（内置库使用）
+// ============================================================================
+struct FAnimRecipe
+{
+    FVector  TranslationDelta; // 每次循环相对位移（cm）
+    FRotator RotationDelta;    // 每次循环额外旋转度数
+    float    Duration;         // 单次时长（秒）
+    bool     bLoop;            // 是否循环
+    bool     bPingPong;        // 是否来回往返
+
+    FAnimRecipe()
+        : TranslationDelta(FVector::ZeroVector)
+        , RotationDelta(FRotator::ZeroRotator)
+        , Duration(1.0f)
+        , bLoop(true)
+        , bPingPong(true)
+    {}
+
+    FAnimRecipe(FVector InTrans, FRotator InRot, float InDur, bool InLoop, bool InPingPong)
+        : TranslationDelta(InTrans)
+        , RotationDelta(InRot)
+        , Duration(InDur)
+        , bLoop(InLoop)
+        , bPingPong(InPingPong)
+    {}
+};
+
 /**
  * ATwinInstance
  *
@@ -113,10 +141,11 @@ public:
 
 protected:
     virtual void BeginPlay() override;
+    virtual void Tick(float DeltaTime) override;
 
     // ── 组件（供蓝图访问） ────────────────────────────────────────────────
     /** 网格体组件 */
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体", meta=(AllowPrivateAccess="true"))
     UStaticMeshComponent* MeshComponent = nullptr;
 
 private:
@@ -159,6 +188,29 @@ private:
 
     /** 当前特效状态缓存 */
     FString CurrentFxTrigger;
+
+    // ── 程序化动画状态 ────────────────────────────────────────────────
+    /** 内置动画配方字典（state名 → 执行配方）*/
+    TMap<FString, FAnimRecipe> AnimLibrary;
+
+    /** 动画计时器 */
+    float  AnimTimer = 0.0f;
+
+    /** 动画各自的基准動画开始时的位置和旋转（用于计算相对偏移） */
+    FVector  AnimBaseLocation  = FVector::ZeroVector;
+    FRotator AnimBaseRotation  = FRotator::ZeroRotator;
+
+    /** 当前活跃的动画配方 */
+    FAnimRecipe ActiveRecipe;
+
+    /** 动画是否正在运行 */
+    bool bAnimRunning = false;
+
+    /** 动画内部立即切换动画状态 */
+    void PlayAnimationState(const FString& StateName);
+
+    /** 初始化动画配方字典 */
+    void InitAnimLibrary();
 
     /** 插值目标值 */
     FVector TargetLocation = FVector::ZeroVector;

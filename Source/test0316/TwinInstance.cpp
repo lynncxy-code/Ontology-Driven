@@ -19,14 +19,13 @@
 
 ATwinInstance::ATwinInstance()
 {
-    PrimaryActorTick.bCanEverTick = false; // 不需要 Tick，由 SceneManager 推送状态
+    // Tick 默认关闭，只有动画进行时才开启，节省性能
+    PrimaryActorTick.bCanEverTick = true;
+    PrimaryActorTick.bStartWithTickEnabled = false;
 
     // 创建默认的 StaticMeshComponent 作为根组件
     MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TwinMesh"));
     RootComponent = MeshComponent;
-
-    // ⚠️ 修复：不在构造函数里隐藏组件
-    // 可见性由 InitializeTwin / ApplyRepresentableFromSnapshot 控制
 }
 
 // ── BeginPlay ────────────────────────────────────────────────────────────────
@@ -34,6 +33,112 @@ ATwinInstance::ATwinInstance()
 void ATwinInstance::BeginPlay()
 {
     Super::BeginPlay();
+    InitAnimLibrary();
+}
+
+void ATwinInstance::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+
+    if (!bAnimRunning) return;
+
+    AnimTimer += DeltaTime;
+    float Duration = ActiveRecipe.Duration;
+    if (Duration <= 0.f) return;
+
+    // 计算动画进度 Alpha（0.0−1.0）
+    float RawAlpha = FMath::Fmod(AnimTimer, Duration) / Duration;
+
+    // PingPong：偶数循环就反过来
+    float Alpha = RawAlpha;
+    if (ActiveRecipe.bPingPong)
+    {
+        int32 CycleIndex = FMath::FloorToInt(AnimTimer / Duration);
+        if (CycleIndex % 2 == 1) Alpha = 1.0f - RawAlpha;
+    }
+
+    // 平滑曲线（SmoothStep）让动画两端更自然
+    float SmoothAlpha = FMath::SmoothStep(0.f, 1.f, Alpha);
+
+    // 应用位移
+    if (!ActiveRecipe.TranslationDelta.IsNearlyZero())
+    {
+        FVector NewLoc = AnimBaseLocation + ActiveRecipe.TranslationDelta * SmoothAlpha;
+        SetActorLocation(NewLoc);
+    }
+
+    // 应用旋转
+    if (!ActiveRecipe.RotationDelta.IsNearlyZero())
+    {
+        FRotator Delta = ActiveRecipe.RotationDelta * SmoothAlpha;
+        FRotator NewRot = AnimBaseRotation + Delta;
+        SetActorRotation(NewRot);
+    }
+
+    // 如果不循环且时间到达，停止
+    if (!ActiveRecipe.bLoop && AnimTimer >= Duration)
+    {
+        bAnimRunning = false;
+        SetActorEnableCollision(true);
+        SetActorTickEnabled(false);
+    }
+}
+
+// 初始化动画配方字典
+void ATwinInstance::InitAnimLibrary()
+{
+    AnimLibrary.Empty();
+
+    // idle: 停止，无动画
+    AnimLibrary.Add(TEXT("idle"),
+        FAnimRecipe(FVector::ZeroVector, FRotator::ZeroRotator, 0.f, false, false));
+
+    // translate: X轴平移 100cm，循环往返，3秒一霿
+    AnimLibrary.Add(TEXT("translate"),
+        FAnimRecipe(FVector(100.f, 0.f, 0.f), FRotator::ZeroRotator, 3.0f, true, true));
+
+    // jump: Z轴上弹 15cm，循环往返，1秒一霿
+    AnimLibrary.Add(TEXT("jump"),
+        FAnimRecipe(FVector(0.f, 0.f, 15.f), FRotator::ZeroRotator, 1.0f, true, true));
+
+    // flip: Y轴封转 180°，循环往返，1.5秒一霿
+    AnimLibrary.Add(TEXT("flip"),
+        FAnimRecipe(FVector::ZeroVector, FRotator(180.f, 0.f, 0.f), 1.5f, true, true));
+}
+
+// 立即切换并播放动画状态
+void ATwinInstance::PlayAnimationState(const FString& StateName)
+{
+    const FAnimRecipe* Found = AnimLibrary.Find(StateName);
+    if (!Found)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[孪生体] 未知动画状态: %s"), *StateName);
+        return;
+    }
+
+    // idle 返回初始位置并关闭 Tick
+    if (StateName == TEXT("idle"))
+    {
+        bAnimRunning = false;
+        SetActorTickEnabled(false);
+        // 归位
+        SetActorLocation(AnimBaseLocation);
+        SetActorRotation(AnimBaseRotation);
+        UE_LOG(LogTemp, Log, TEXT("[孪生体] 动画归位: %s"), *InstanceId);
+        return;
+    }
+
+    // 记录当前状态作为基准点
+    AnimBaseLocation = GetActorLocation();
+    AnimBaseRotation = GetActorRotation();
+    AnimTimer        = 0.0f;
+    ActiveRecipe     = *Found;
+    bAnimRunning     = true;
+
+    // 开启 Tick
+    SetActorTickEnabled(true);
+
+    UE_LOG(LogTemp, Log, TEXT("[孪生体] 动画切换: %s → %s"), *InstanceId, *StateName);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -324,8 +429,9 @@ void ATwinInstance::ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& B
     if (BehaviorObj->TryGetStringField(TEXT("animation_state"), AnimState) && AnimState != CurrentAnimState)
     {
         CurrentAnimState = AnimState;
-        OnAnimationStateChanged(AnimState); // 抛出给蓝图实现
-        UE_LOG(LogTemp, Log, TEXT("[孪生体] 触发蓝图动画状态: %s"), *AnimState);
+        // C++ 直接驱动程序化动画，不再依赖蓝图
+        PlayAnimationState(AnimState);
+        UE_LOG(LogTemp, Log, TEXT("[孪生体] 动画状态: %s → %s"), *InstanceId, *AnimState);
     }
 
     FString FxTrigger;

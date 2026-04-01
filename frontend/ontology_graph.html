@@ -192,6 +192,118 @@
             color: var(--text-secondary);
             backdrop-filter: blur(2px);
         }
+
+        /* ── Tab Bar ─────────────────────────────────── */
+        .tab-bar {
+            position: absolute;
+            top: 14px;
+            left: 16px;
+            display: flex;
+            gap: 6px;
+            z-index: 20;
+        }
+        .tab-btn {
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--panel-bg);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all .15s;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+        .tab-btn:hover { background: #f3f4f6; color: #111; }
+        .tab-btn.active {
+            background: #111111;
+            color: #ffffff;
+            border-color: #111111;
+        }
+
+        /* ── Load Data Panel ────────────────────────────── */
+        #load-data-panel {
+            position: absolute;
+            inset: 0;
+            background: var(--bg-base);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            z-index: 15;
+        }
+        #load-data-panel.visible { display: flex; }
+        .load-data-box {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 32px 40px;
+            width: 540px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+        }
+        .load-data-box h2 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+        .load-data-box p  { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.6; }
+        .load-input {
+            width: 100%; box-sizing: border-box;
+            border: 1px solid var(--border-color);
+            border-radius: 6px; padding: 9px 12px;
+            font-size: 13px; outline: none; margin-bottom: 12px;
+            transition: border-color .15s;
+        }
+        .load-input:focus { border-color: #111; }
+        .load-btn {
+            width: 100%; padding: 10px;
+            background: #111; color: #fff;
+            border: none; border-radius: 6px;
+            font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: background .15s;
+        }
+        .load-btn:hover { background: #333; }
+        .load-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .load-status {
+            font-size: 12px; color: var(--text-secondary); text-align: center;
+        }
+        .load-status.error { color: #dc2626; }
+        .load-status.success { color: #16a34a; }
+
+        /* Sub-tab 切换 */
+        .sub-tab-bar {
+            display: flex; gap: 0; margin-bottom: 20px;
+            border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;
+        }
+        .sub-tab-btn {
+            flex: 1; padding: 8px 0; font-size: 12px; font-weight: 600;
+            background: #f9fafb; color: var(--text-secondary); border: none;
+            cursor: pointer; transition: all .15s; text-align: center;
+        }
+        .sub-tab-btn:not(:last-child) { border-right: 1px solid var(--border-color); }
+        .sub-tab-btn.active { background: #111; color: #fff; }
+
+        /* 拖拽上传区 */
+        .upload-dropzone {
+            border: 2px dashed #d1d5db; border-radius: 10px;
+            padding: 24px 16px; text-align: center;
+            cursor: pointer; transition: all .2s;
+            margin-bottom: 12px; background: #fafafa;
+        }
+        .upload-dropzone:hover, .upload-dropzone.dragover {
+            border-color: #111; background: #f5f5f5;
+        }
+        .upload-dropzone .icon { font-size: 28px; margin-bottom: 8px; }
+        .upload-dropzone .hint { font-size: 12px; color: var(--text-secondary); }
+        .file-list { margin-bottom: 12px; }
+        .file-item {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 12px; padding: 5px 8px; background: #f3f4f6;
+            border-radius: 6px; margin-bottom: 4px; justify-content: space-between;
+        }
+        .file-item .name { font-weight: 500; color: #111; font-family: monospace; }
+        .file-item .size { color: #999; }
+        .file-item .remove { cursor: pointer; color: #999; font-size: 14px; }
+        .file-item .remove:hover { color: #dc2626; }
+        .file-item.missing { background: #fef2f2; border: 1px solid #fecaca; }
+        .file-item.missing .name { color: #dc2626; }
     </style>
 </head>
 
@@ -202,9 +314,83 @@
 
     <div class="main-content">
         <div id="loading" class="loading-overlay">加载图谱数据中...</div>
-        
+
+        <!-- Tab Bar -->
+        <div class="tab-bar">
+            <button class="tab-btn active" id="tab-datasets" onclick="switchTab('datasets')">我的数据集</button>
+            <button class="tab-btn" id="tab-loaddata" onclick="switchTab('loaddata')">加载数据</button>
+        </div>
+
+        <!-- 发布数据横幅 (仅在预览自定义数据时可见) -->
+        <div id="publish-banner" style="display: none; position: absolute; top: 48px; left: 50%; transform: translateX(-50%); z-index: 10; background: #fff; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); border: 1px solid #e5e7eb; align-items: center; gap: 16px;">
+            <div style="font-size: 13px; color: #374151;">
+                <span style="color: #10b981; margin-right: 6px; font-size: 18px; vertical-align: bottom;">•</span>
+                <b>预览模式：</b>数据解析成功。确认无误后请保存到我的数据集。
+            </div>
+            <div style="display:flex; gap: 8px; align-items: center;">
+                <input id="dataset-name-input" type="text" placeholder="数据集名称（可选）"
+                    style="border:1px solid #d1d5db; border-radius:6px; padding: 6px 10px; font-size: 12px; outline:none; width: 160px;" />
+                <button id="btn-publish" onclick="publishCustomGraph()" style="background: #111; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">
+                    ✨ 保存到我的数据集
+                </button>
+            </div>
+        </div>
+
         <!-- ECharts 渲染区 -->
         <div id="graph-container"></div>
+
+        <!-- 我的数据集面板 -->
+        <div id="datasets-panel" style="position: absolute; inset: 0; background: var(--bg-base); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 15;">
+            <div style="background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 28px 36px; width: 560px; box-shadow: 0 4px 24px rgba(0,0,0,0.06);">
+                <h2 style="font-size:15px; font-weight:700; margin-bottom:6px;">我的数据集</h2>
+                <p style="font-size:13px; color: var(--text-secondary); margin-bottom:20px;">选中数据集后，语义图谱与本体配置中心将同步切换至该数据。</p>
+                <div id="datasets-list" style="display:flex; flex-direction:column; gap: 8px;">
+                    <!-- 动态渲染 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 加载数据面板 -->
+        <div id="load-data-panel">
+            <div class="load-data-box">
+                <h2>加载图谱数据</h2>
+                <p>从本地 CSV 文件包或远程 API 导入本体定义数据，自动解析并渲染为知识图谱。</p>
+
+                <!-- 子 Tab 切换 -->
+                <div class="sub-tab-bar">
+                    <button class="sub-tab-btn active" id="sub-tab-csv" onclick="switchSubTab('csv')">📁 CSV 文件导入</button>
+                    <button class="sub-tab-btn" id="sub-tab-api" onclick="switchSubTab('api')">🔗 API 链接拉取</button>
+                </div>
+
+                <!-- CSV 上传子面板 -->
+                <div id="sub-panel-csv">
+                    <div class="upload-dropzone" id="csv-dropzone"
+                         onclick="document.getElementById('csv-file-input').click()">
+                        <div class="icon">📄</div>
+                        <div><strong>点击选择或拖拽 CSV 文件到此处</strong></div>
+                        <div class="hint">必须包含: objectdef.csv, linkdef.csv, linksourcetype.csv, linktargettype.csv</div>
+                        <div class="hint">可选: propertydef.csv, hasproperty.csv</div>
+                    </div>
+                    <input type="file" id="csv-file-input" multiple accept=".csv" style="display:none" onchange="handleFileSelect(event)" />
+
+                    <div class="file-list" id="csv-file-list"></div>
+
+                    <button class="load-btn" id="csv-upload-btn" onclick="handleCsvUpload()" disabled>
+                        导入并预览图谱
+                    </button>
+                </div>
+
+                <!-- API 链接子面板 -->
+                <div id="sub-panel-api" style="display:none">
+                    <input class="load-input" id="data-source-url" type="text"
+                           placeholder="数据源地址，例如 https://api.example.com/ontology/graph" />
+                    <input class="load-input" id="data-source-token" type="password"
+                           placeholder="访问令牌（可选）" />
+                    <button class="load-btn" onclick="handleApiLoad()">连接并预览</button>
+                </div>
+            </div>
+            <div class="load-status" id="load-status"></div>
+        </div>
 
         <!-- 节点详情侧拉面板 -->
         <div class="detail-panel" id="detail-panel">
@@ -559,7 +745,7 @@
             setField('f-write-conn', node.write_conn_id,  'mono');
             setField('f-write-path', node.write_path,     'mono');
 
-            // 兜底属性
+            // 兑底属性
             const attrsGroup = document.getElementById('attrs-group');
             const attrsContainer = document.getElementById('attrs-container');
             attrsContainer.innerHTML = '';
@@ -576,7 +762,7 @@
                 attrsGroup.style.display = 'none';
             }
             
-            // 更新底部跳转按钮带着 rid
+            // 更新底部跳转按鈕带着 rid
             const addBtn = document.getElementById('add-ontology-btn');
             if (addBtn) {
                 addBtn.href = '/ontology?rid=' + encodeURIComponent(node.rid || node.id);
@@ -585,14 +771,357 @@
 
         function closePanel() {
             document.getElementById('detail-panel').classList.remove('open');
-            // 取消 ECharts 中的高亮
             if (myChart) {
                 myChart.dispatchAction({ type: 'downplay' });
             }
         }
 
-        // 启动
-        initGraph();
+        // ── Tab Switching ──────────────────────────────
+        let currentDataSource = 'demo';
+
+        function switchTab(tab) {
+            const graphArea     = document.getElementById('graph-container');
+            const datasetsPanel = document.getElementById('datasets-panel');
+            const loadPanel     = document.getElementById('load-data-panel');
+            const btnDatasets   = document.getElementById('tab-datasets');
+            const btnLoad       = document.getElementById('tab-loaddata');
+            const status        = document.getElementById('load-status');
+
+            graphArea.style.display     = 'none';
+            datasetsPanel.style.display = 'none';
+            loadPanel.classList.remove('visible');
+            btnDatasets.classList.remove('active');
+            btnLoad.classList.remove('active');
+            document.getElementById('publish-banner').style.display = 'none';
+            document.getElementById('detail-panel').classList.remove('open');
+
+            if (tab === 'datasets') {
+                btnDatasets.classList.add('active');
+                datasetsPanel.style.display = 'flex';
+                loadDatasets();
+            } else {
+                btnLoad.classList.add('active');
+                loadPanel.classList.add('visible');
+                status.textContent = '';
+                status.className = 'load-status';
+            }
+        }
+
+        // ── Sub-Tab Switching ──────────────────────────────
+        function switchSubTab(sub) {
+            const csvPanel = document.getElementById('sub-panel-csv');
+            const apiPanel = document.getElementById('sub-panel-api');
+            const btnCsv = document.getElementById('sub-tab-csv');
+            const btnApi = document.getElementById('sub-tab-api');
+            const status = document.getElementById('load-status');
+            status.textContent = '';
+            status.className = 'load-status';
+
+            if (sub === 'csv') {
+                csvPanel.style.display = '';
+                apiPanel.style.display = 'none';
+                btnCsv.classList.add('active');
+                btnApi.classList.remove('active');
+            } else {
+                csvPanel.style.display = 'none';
+                apiPanel.style.display = '';
+                btnApi.classList.add('active');
+                btnCsv.classList.remove('active');
+            }
+        }
+
+        // ── CSV File Management ──────────────────────────────
+        const REQUIRED = ['objectdef.csv', 'linkdef.csv', 'linksourcetype.csv', 'linktargettype.csv'];
+        let selectedFiles = new Map(); // filename -> File
+
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            for (const f of files) {
+                selectedFiles.set(f.name.toLowerCase(), f);
+            }
+            renderFileList();
+        }
+
+        // 拖拽支持
+        document.addEventListener('DOMContentLoaded', () => {
+            const dz = document.getElementById('csv-dropzone');
+            if (!dz) return;
+            dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
+            dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+            dz.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dz.classList.remove('dragover');
+                for (const f of e.dataTransfer.files) {
+                    if (f.name.toLowerCase().endsWith('.csv')) {
+                        selectedFiles.set(f.name.toLowerCase(), f);
+                    }
+                }
+                renderFileList();
+            });
+        });
+
+        function renderFileList() {
+            const container = document.getElementById('csv-file-list');
+            const btn = document.getElementById('csv-upload-btn');
+            container.innerHTML = '';
+
+            // 先显示已选文件
+            for (const [name, file] of selectedFiles) {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                const sizeKB = (file.size / 1024).toFixed(1);
+                div.innerHTML = `
+                    <span class="name">${name}</span>
+                    <span class="size">${sizeKB} KB</span>
+                    <span class="remove" onclick="removeFile('${name}')" title="移除">✕</span>
+                `;
+                container.appendChild(div);
+            }
+
+            // 检查缺失的必须文件
+            const missing = REQUIRED.filter(r => !selectedFiles.has(r));
+            for (const name of missing) {
+                const div = document.createElement('div');
+                div.className = 'file-item missing';
+                div.innerHTML = `<span class="name">⚠ ${name}（缺失）</span>`;
+                container.appendChild(div);
+            }
+
+            btn.disabled = missing.length > 0 || selectedFiles.size === 0;
+        }
+
+        function removeFile(name) {
+            selectedFiles.delete(name);
+            renderFileList();
+        }
+
+        // ── CSV Upload ──────────────────────────────
+        async function handleCsvUpload() {
+            const status = document.getElementById('load-status');
+            const btn = document.getElementById('csv-upload-btn');
+            status.textContent = '正在上传并解析 CSV 文件...';
+            status.className = 'load-status';
+            btn.disabled = true;
+
+            const formData = new FormData();
+            for (const [name, file] of selectedFiles) {
+                formData.append(name, file, name);
+            }
+
+            try {
+                const res = await fetch('/api/v2/ontology/import_csv', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    status.textContent = '❌ ' + (data.error || '上传失败');
+                    status.className = 'load-status error';
+                    btn.disabled = false;
+                    return;
+                }
+
+                status.textContent = `✅ 解析成功！共 ${data.node_count} 个节点, ${data.link_count} 条关系, ${data.category_count} 个分类`;
+                status.className = 'load-status success';
+
+                // 切换到图谱视图并渲染
+                renderCustomGraph(data.graph_data);
+            } catch (e) {
+                status.textContent = '❌ 网络或服务器错误: ' + e.message;
+                status.className = 'load-status error';
+                btn.disabled = false;
+            }
+        }
+
+        // ── API Load ──────────────────────────────
+        async function handleApiLoad() {
+            const url = document.getElementById('data-source-url').value.trim();
+            const token = document.getElementById('data-source-token').value.trim();
+            const status = document.getElementById('load-status');
+
+            if (!url) {
+                status.textContent = '请输入数据源地址。';
+                status.className = 'load-status error';
+                return;
+            }
+            status.textContent = '正在连接数据源，请稍候...';
+            status.className = 'load-status';
+
+            try {
+                const res = await fetch('/api/v2/ontology/fetch_api', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, token })
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    status.textContent = '❌ ' + (data.error || '拉取失败');
+                    status.className = 'load-status error';
+                    return;
+                }
+
+                status.textContent = `✅ 拉取成功！共 ${data.node_count} 个节点, ${data.link_count} 条关系`;
+                status.className = 'load-status success';
+
+                renderCustomGraph(data.graph_data);
+            } catch (e) {
+                status.textContent = '❌ 网络错误: ' + e.message;
+                status.className = 'load-status error';
+            }
+        }
+
+        // ── 数据集列表加载 / 渲染 ──────────────────────────
+        let _datasetsCache = [];
+
+        async function loadDatasets() {
+            try {
+                const res = await fetch('/api/v2/ontology/datasets');
+                _datasetsCache = await res.json();
+                renderDatasetList();
+            } catch(e) {
+                console.error('加载数据集失败', e);
+            }
+        }
+
+        function renderDatasetList() {
+            const container = document.getElementById('datasets-list');
+            if (!container) return;
+            container.innerHTML = '';
+
+            for (const ds of _datasetsCache) {
+                const isActive = ds.is_active;
+                const nodeTxt = ds.node_count != null ? `${ds.node_count}节点` : '内置';
+                const linkTxt = ds.link_count != null ? ` · ${ds.link_count}关系` : '';
+                const dateTxt = ds.created_at !== 'built-in' ? `<span style="color:#aaa; font-size:11px; margin-left:8px;">${ds.created_at}</span>` : '';
+
+                const row = document.createElement('div');
+                row.style.cssText = `
+                    display:flex; align-items:center; gap:12px;
+                    padding: 12px 16px; border-radius: 8px;
+                    border: 1.5px solid ${isActive ? '#111' : '#e5e7eb'};
+                    background: ${isActive ? '#f9f9f9' : '#fff'};
+                    cursor: pointer; transition: border-color .15s;
+                `;
+                row.innerHTML = `
+                    <input type="radio" name="active-dataset" value="${ds.id}" ${isActive ? 'checked' : ''}
+                        style="width:15px; height:15px; cursor:pointer; accent-color:#111;"
+                        onchange="activateDataset('${ds.id}', this.closest('div'))"/>
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-weight:600; font-size:13px;">${ds.name}</div>
+                        <div style="font-size:12px; color:#888; margin-top:2px;">${nodeTxt}${linkTxt}${dateTxt}</div>
+                    </div>
+                    <button onclick="previewDataset('${ds.id}')" style="background:transparent; border:1px solid #d1d5db; border-radius:5px; padding:4px 10px; font-size:11px; cursor:pointer; color:#555;">预览图谱</button>
+                `;
+                container.appendChild(row);
+            }
+        }
+
+        async function activateDataset(dsId, rowEl) {
+            try {
+                const res = await fetch('/api/v2/ontology/datasets/activate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dataset_id: dsId })
+                });
+                const result = await res.json();
+                if (res.ok) {
+                    // 居山列表中所有节点的激活标记
+                    _datasetsCache.forEach(d => d.is_active = d.id === dsId);
+                    renderDatasetList();
+                }
+            } catch(e) {
+                console.error('激活失败', e);
+            }
+        }
+
+        async function previewDataset(dsId) {
+            if (dsId === 'demo') {
+                // Demo 数据集：使用原始接口
+                const res = await fetch('/api/v2/ontology/graph_data');
+                const data = await res.json();
+                renderCustomGraph(data, false);
+            } else {
+                const ds = _datasetsCache.find(d => d.id === dsId);
+                if (!ds) return;
+                // 通过后端返回的 graph_data 字段渲染
+                // 直接拉取该数据集的 graph_data
+                try {
+                    const res2 = await fetch(`/api/v2/ontology/datasets/${dsId}/graph`);
+                    if (res2.ok) {
+                        const data = await res2.json();
+                        renderCustomGraph(data, false);
+                    }
+                } catch(e) {
+                    console.error(e);
+                }
+            }
+        }
+
+        // ── 渲染自定义图谱（复用同一套 ECharts 引擎） ──────
+        function renderCustomGraph(data, showBanner = true) {
+            currentDataSource = 'custom';
+            graphData = data;
+
+            // 切换到图谱视图
+            const graphArea = document.getElementById('graph-container');
+            const loadPanel = document.getElementById('load-data-panel');
+            const datasetsPanel = document.getElementById('datasets-panel');
+            loadPanel.classList.remove('visible');
+            datasetsPanel.style.display = 'none';
+            graphArea.style.display = '';
+
+            // 更新 tab 状态
+            document.getElementById('tab-datasets').classList.remove('active');
+            document.getElementById('tab-loaddata').classList.add('active');
+
+            // 销毁旧 chart 避免残留
+            if (myChart) { myChart.dispose(); myChart = null; }
+            document.getElementById('loading').style.display = 'none';
+            renderGraph();
+
+            // 显示发布悬浮窗（仅导入后预览时）
+            if (showBanner) {
+                const btn = document.getElementById('btn-publish');
+                if (btn) { btn.disabled = false; btn.textContent = '✨ 保存到我的数据集'; }
+                document.getElementById('publish-banner').style.display = 'flex';
+            } else {
+                document.getElementById('publish-banner').style.display = 'none';
+            }
+        }
+
+        // ── 保存到我的数据集 ──────────────────────────────────
+        async function publishCustomGraph() {
+            const btn = document.getElementById('btn-publish');
+            const nameInput = document.getElementById('dataset-name-input');
+            const name = nameInput ? nameInput.value.trim() : '';
+
+            if (btn) { btn.disabled = true; btn.textContent = '保存中...'; }
+
+            try {
+                const res = await fetch('/api/v2/ontology/publish', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                const result = await res.json();
+
+                if (res.ok) {
+                    const banner = document.getElementById('publish-banner');
+                    if (banner) {
+                        banner.innerHTML = `<span style="color:#10b981; font-weight:600;">✅ 已保存到“${result.name}”</span>
+                            <span style="font-size:12px; color:#666;"> — 可切到「我的数据集」勾选激活。</span>`;
+                        setTimeout(() => { banner.style.display = 'none'; }, 5000);
+                    }
+                } else {
+                    if (btn) { btn.disabled = false; btn.textContent = '❌保存失败: ' + (result.error || '未知错误'); }
+                }
+            } catch(e) {
+                if (btn) { btn.disabled = false; btn.textContent = '❌错误: ' + e.message; }
+            }
+        }
+
+        // 启动：先隐藏 loading 遮罩，然后默认展示"我的数据集"面板
+        document.getElementById('loading').style.display = 'none';
+        switchTab('datasets');
     </script>
 </body>
 

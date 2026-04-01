@@ -1,6 +1,7 @@
 import os
 import time
 import math
+import requests as http_requests
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from ontology import SharedState
@@ -9,6 +10,7 @@ from mapping_store import (
     TRANSFORM_TYPES, MOCK_ASSETS, OBJECT_TYPES,
     InstanceStore, MockInstanceSimulator
 )
+from ontology_parser import validate_files, parse_ontology_csvs
 
 # ── App Setup ───────────────────────────────────────────────────
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
@@ -500,11 +502,229 @@ def delete_mapping_rule(rule_id):
 
 
 # ═══════════════════════════════════════════════════════════════
+# 动态图谱数据：CSV 导入 / API 代理
+# ═══════════════════════════════════════════════════════════════
+
+# 内存缓存：最近一次通过 CSV 或 API 导入的自定义图谱数据
+_custom_graph_data = None
+
+# 数据集列表：第一个元素永远是内置 Demo
+_datasets = [
+    {
+        "id": "demo",
+        "name": "标准实践（内置 Demo）",
+        "created_at": "built-in",
+        "node_count": None,   # 延迟卡，初始化时填充
+        "link_count": None,
+        "graph_data": None    # None 表示使用 get_graph_data 的硬标编 Demo
+    }
+]
+# 当前激活的数据集 ID
+_active_dataset_id = "demo"
+
+
+@app.route('/api/v2/ontology/import_csv', methods=['POST'])
+def import_csv_ontology():
+    """
+    接收前端上传的多个 CSV 文件，解析为图谱结构并缓存。
+    前端通过 FormData 上传，每个 file input 的 name 就是文件名。
+    """
+    global _custom_graph_data
+
+    if not request.files:
+        return jsonify({"error": "未检测到任何上传文件"}), 400
+
+    # 将 FileStorage 转为 { filename: str_content }
+    file_dict = {}
+    for key, fs in request.files.items():
+        filename = fs.filename.lower().strip()
+        content = fs.read().decode('utf-8-sig')  # 兼容 BOM
+        file_dict[filename] = content
+
+    # 严格校验必须文件
+    missing = validate_files(file_dict)
+    if missing:
+        return jsonify({
+            "error": f"缺少必须的文件: {', '.join(missing)}。请补充后重新上传。",
+            "missing_files": missing
+        }), 400
+
+    try:
+        graph = parse_ontology_csvs(file_dict)
+        _custom_graph_data = graph
+        return jsonify({
+            "status": "ok",
+            "node_count": len(graph["nodes"]),
+            "link_count": len(graph["links"]),
+            "category_count": len(graph["categories"]),
+            "graph_data": graph
+        })
+    except Exception as e:
+        return jsonify({"error": f"CSV 解析失败: {str(e)}"}), 500
+
+
+@app.route('/api/v2/ontology/fetch_api', methods=['POST'])
+def fetch_api_ontology():
+    """
+    代理拉取外部图数据库 API。
+    Body: { "url": str, "token": str (可选) }
+    期望目标 API 直接返回 { nodes: [...], links: [...], categories: [...] } 结构。
+    """
+    global _custom_graph_data
+
+    data = request.json or {}
+    url = data.get("url", "").strip()
+    token = data.get("token", "").strip()
+
+    if not url:
+        return jsonify({"error": "请提供数据源 URL"}), 400
+
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    try:
+        resp = http_requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        graph = resp.json()
+
+        # 基础格式校验
+        if "nodes" not in graph or "links" not in graph:
+            return jsonify({"error": "API 返回数据缺少 nodes 或 links 字段，不符合图谱格式要求"}), 422
+
+        if "categories" not in graph:
+            cat_set = set(n.get("category", "Core") for n in graph["nodes"])
+            graph["categories"] = [{"name": c} for c in sorted(cat_set)]
+
+        _custom_graph_data = graph
+        return jsonify({
+            "status": "ok",
+            "node_count": len(graph["nodes"]),
+            "link_count": len(graph["links"]),
+            "category_count": len(graph["categories"]),
+            "graph_data": graph
+        })
+    except http_requests.exceptions.Timeout:
+        return jsonify({"error": "连接超时，请检查 URL 是否可达"}), 504
+    except http_requests.exceptions.ConnectionError:
+        return jsonify({"error": "无法连接到目标地址，请检查网络或 URL"}), 502
+    except Exception as e:
+        return jsonify({"error": f"拉取失败: {str(e)}"}), 500
+
+
+@app.route('/api/v2/ontology/custom_graph', methods=['GET'])
+def get_custom_graph():
+    """获取最近一次导入的自定义图谱数据（如果有）"""
+    if _custom_graph_data is None:
+        return jsonify({"error": "尚未导入任何自定义数据"}), 404
+    return jsonify(_custom_graph_data)
+
+
+@app.route('/api/v2/ontology/datasets', methods=['GET'])
+def list_datasets():
+    """获取所有已保存的数据集列表，包含内置 Demo"""
+    result = []
+    for ds in _datasets:
+        result.append({
+            "id": ds["id"],
+            "name": ds["name"],
+            "created_at": ds["created_at"],
+            "node_count": ds["node_count"],
+            "link_count": ds["link_count"],
+            "is_active": ds["id"] == _active_dataset_id
+        })
+    return jsonify(result)
+
+
+@app.route('/api/v2/ontology/publish', methods=['POST'])
+def publish_custom_graph():
+    """将当前导入的自定义数据作为新数据集追加到列表。不再视口第一个元素。"""
+    global _custom_graph_data, _datasets
+    if not _custom_graph_data:
+        return jsonify({"error": "没有可发布的数据，请先从 CSV 或 API 导入"}), 400
+
+    import datetime
+    data = request.json or {}
+    name = data.get("name", "").strip() or "自定义数据集"
+    created_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    ds_id = f"ds_{int(datetime.datetime.now().timestamp())}"
+
+    new_ds = {
+        "id": ds_id,
+        "name": name,
+        "created_at": created_at,
+        "node_count": len(_custom_graph_data["nodes"]),
+        "link_count": len(_custom_graph_data["links"]),
+        "graph_data": _custom_graph_data
+    }
+    _datasets.append(new_ds)
+    return jsonify({"status": "ok", "dataset_id": ds_id, "name": name})
+
+
+@app.route('/api/v2/ontology/datasets/activate', methods=['POST'])
+def activate_dataset():
+    """
+    激活指定数据集，同时将该数据集的节点写入 _object_types。
+    Body: { "dataset_id": str }
+    """
+    global _active_dataset_id, _object_types
+    data = request.json or {}
+    ds_id = data.get("dataset_id", "").strip()
+    if not ds_id:
+        return jsonify({"error": "请提供 dataset_id"}), 400
+
+    ds = next((d for d in _datasets if d["id"] == ds_id), None)
+    if not ds:
+        return jsonify({"error": f"找不到数据集: {ds_id}"}), 404
+
+    _active_dataset_id = ds_id
+
+    if ds_id == "demo" or ds.get("graph_data") is None:
+        # Demo 模式：用原始 OBJECT_TYPES
+        _object_types = {k: dict(v) for k, v in OBJECT_TYPES.items()}
+    else:
+        # 自定义数据集：将图谱节点写入 _object_types
+        new_types = {}
+        for node in ds["graph_data"]["nodes"]:
+            rid = node.get("rid")
+            if not rid:
+                continue
+            old = _object_types.get(rid, {})
+            new_types[rid] = {
+                "rid": rid,
+                "name": node.get("name", rid),
+                "category": node.get("category", "Core"),
+                "description": node.get("description", ""),
+                "color": old.get("color", "#888888"),
+                "properties": node.get("properties", []),
+                "injected_interfaces": old.get("injected_interfaces", []),
+                "asset_id": old.get("asset_id"),
+                "mock_instances": old.get("mock_instances", [])
+            }
+        _object_types = new_types
+
+    return jsonify({"status": "ok", "active": _active_dataset_id})
+
+
+@app.route('/api/v2/ontology/datasets/<ds_id>/graph', methods=['GET'])
+def get_dataset_graph(ds_id):
+    """获取指定数据集的图谱数据（用于前端预览）"""
+    ds = next((d for d in _datasets if d["id"] == ds_id), None)
+    if not ds:
+        return jsonify({"error": f"找不到数据集: {ds_id}"}), 404
+    if ds.get("graph_data") is None:
+        # Demo 数据集，重定向到 graph_data
+        return get_graph_data()
+    return jsonify(ds["graph_data"])
+
+
+# ═══════════════════════════════════════════════════════════════
 # 知识图谱 Mock 数据（ontology_graph.html 用）
 # ═══════════════════════════════════════════════════════════════
 
 @app.route('/api/v2/ontology/graph_data', methods=['GET'])
 def get_graph_data():
+    # 此接口将始终只返回内置 Demo 数据，不受发布数据集影响
     nodes = [
         {
             "id": "Employee",

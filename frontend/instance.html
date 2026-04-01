@@ -104,9 +104,15 @@
             <div class="flex flex-col flex-1 min-h-0">
                 <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
                     <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">存活实例清单 <span class="text-gray-400 font-mono ml-1">({{ instances.length }})</span></span>
-                    <button @click="loadInstances" class="text-[10px] font-medium text-gray-500 hover:text-gray-900 px-2 py-1 bg-white border border-gray-200 rounded shadow-sm hover:shadow transition">
-                        刷新
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button @click="openBatchDrawer" :disabled="instances.length === 0"
+                                class="text-[10px] font-medium text-indigo-600 hover:text-indigo-900 px-2 py-1 bg-indigo-50 border border-indigo-200 rounded shadow-sm hover:shadow transition disabled:opacity-40">
+                            批量部署
+                        </button>
+                        <button @click="loadInstances" class="text-[10px] font-medium text-gray-500 hover:text-gray-900 px-2 py-1 bg-white border border-gray-200 rounded shadow-sm hover:shadow transition">
+                            刷新
+                        </button>
+                    </div>
                 </div>
                 <div class="flex-1 overflow-y-auto p-4 space-y-2">
                     <div v-if="instances.length === 0" class="text-center text-sm text-gray-400 py-10">当前无实例在役</div>
@@ -353,6 +359,148 @@
             </div>
         </transition-group>
     </div>
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- 批量配置部署 抽屉 (Batch Deploy Drawer) -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <transition name="fade">
+    <div v-if="showBatchDrawer" class="fixed inset-0 z-50 flex items-stretch">
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-black/40" @click="closeBatchDrawer"></div>
+
+        <!-- Drawer panel -->
+        <div class="relative ml-auto w-full max-w-3xl bg-white shadow-2xl flex flex-col" style="max-height:100vh;">
+
+            <!-- Drawer header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+                <div>
+                    <h2 class="text-base font-bold text-gray-900">批量配置部署</h2>
+                    <p class="text-xs text-gray-500 mt-0.5">从现有实例中选择目标，手动配置初始场景坐标</p>
+                </div>
+                <button @click="closeBatchDrawer" class="text-gray-400 hover:text-gray-900 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <!-- Step indicator -->
+            <div class="flex items-center gap-0 px-6 py-3 border-b border-gray-100 flex-shrink-0">
+                <div :class="['flex items-center gap-2 text-xs font-semibold', batchStep === 1 ? 'text-indigo-600' : 'text-gray-400']">
+                    <span :class="['w-5 h-5 rounded-full flex items-center justify-center text-[10px]', batchStep === 1 ? 'bg-indigo-600 text-white' : batchStep > 1 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500']">{{ batchStep > 1 ? '✓' : '1' }}</span>
+                    选择实例
+                </div>
+                <div class="w-8 h-px bg-gray-200 mx-2"></div>
+                <div :class="['flex items-center gap-2 text-xs font-semibold', batchStep === 2 ? 'text-indigo-600' : 'text-gray-400']">
+                    <span :class="['w-5 h-5 rounded-full flex items-center justify-center text-[10px]', batchStep === 2 ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500']">2</span>
+                    配置坐标
+                </div>
+            </div>
+
+            <!-- STEP 1: Select instances -->
+            <template v-if="batchStep === 1">
+                <!-- Filter bar -->
+                <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
+                    <label class="text-xs text-gray-500 font-medium whitespace-nowrap">按类型筛选</label>
+                    <select v-model="batchTypeFilter" class="flex-1 text-sm border border-gray-300 rounded-md px-3 py-1.5 outline-none focus:border-indigo-500 transition">
+                        <option value="">全部类型</option>
+                        <option v-for="ot in readyTypes" :key="ot.rid" :value="ot.rid">{{ ot.name }}</option>
+                    </select>
+                    <span class="text-xs text-gray-400 whitespace-nowrap">已选 <span class="font-bold text-indigo-600">{{ batchSelectedIds.length }}</span> / {{ batchCandidates.length }}</span>
+                </div>
+
+                <!-- Instance checkboxes -->
+                <div class="flex-1 overflow-y-auto px-6 py-4 space-y-2">
+                    <div v-if="batchCandidates.length === 0" class="text-sm text-gray-400 text-center py-12">暂无实例可选</div>
+                    <label v-for="inst in batchCandidates" :key="inst.id"
+                           class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition hover:border-indigo-300"
+                           :class="batchSelectedIds.includes(inst.id) ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200'">
+                        <input type="checkbox" :value="inst.id" v-model="batchSelectedIds"
+                               class="accent-indigo-600 w-4 h-4 cursor-pointer" />
+                        <div class="flex-1 min-w-0">
+                            <div class="font-mono text-sm font-bold text-gray-900 truncate">{{ inst.id }}</div>
+                            <div class="text-[11px] text-gray-500">{{ inst.object_type_name }}</div>
+                        </div>
+                        <div :class="['w-2 h-2 rounded-full flex-shrink-0', inst.status === 'online' ? 'bg-green-400' : 'bg-red-400']"></div>
+                    </label>
+                </div>
+
+                <!-- Step 1 footer -->
+                <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+                    <button @click="closeBatchDrawer" class="text-sm px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition">取消</button>
+                    <button @click="batchNext" :disabled="batchSelectedIds.length === 0"
+                            class="text-sm px-5 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 disabled:opacity-40 transition">
+                        下一步：配置坐标（{{ batchSelectedIds.length }}）
+                    </button>
+                </div>
+            </template>
+
+            <!-- STEP 2: Coordinate table -->
+            <template v-if="batchStep === 2">
+                <div class="flex-1 overflow-y-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">实例 ID</th>
+                                <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">类型</th>
+                                <th class="px-2 py-2.5 text-center text-xs font-semibold text-gray-500">X (cm)</th>
+                                <th class="px-2 py-2.5 text-center text-xs font-semibold text-gray-500">Y (cm)</th>
+                                <th class="px-2 py-2.5 text-center text-xs font-semibold text-gray-500">Z (cm)</th>
+                                <th class="px-2 py-2.5 text-center text-xs font-semibold text-gray-500">旋转Z (°)</th>
+                                <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-500">状态</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            <tr v-for="row in batchRows" :key="row.id" :class="batchRowStatus(row.id)">
+                                <td class="px-4 py-2 font-mono text-xs font-bold text-gray-900 whitespace-nowrap">{{ row.id }}</td>
+                                <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{{ row.objectTypeName }}</td>
+                                <td class="px-2 py-1.5"><input v-model.number="row.x" type="number" :disabled="batchDeploying" class="w-20 text-center text-xs border border-gray-300 rounded px-1.5 py-1 outline-none focus:border-indigo-500 font-mono disabled:bg-gray-50" /></td>
+                                <td class="px-2 py-1.5"><input v-model.number="row.y" type="number" :disabled="batchDeploying" class="w-20 text-center text-xs border border-gray-300 rounded px-1.5 py-1 outline-none focus:border-indigo-500 font-mono disabled:bg-gray-50" /></td>
+                                <td class="px-2 py-1.5"><input v-model.number="row.z" type="number" :disabled="batchDeploying" class="w-20 text-center text-xs border border-gray-300 rounded px-1.5 py-1 outline-none focus:border-indigo-500 font-mono disabled:bg-gray-50" /></td>
+                                <td class="px-2 py-1.5"><input v-model.number="row.rotZ" type="number" :disabled="batchDeploying" class="w-20 text-center text-xs border border-gray-300 rounded px-1.5 py-1 outline-none focus:border-indigo-500 font-mono disabled:bg-gray-50" /></td>
+                                <td class="px-3 py-2 text-center">
+                                    <span v-if="batchRowResults[row.id] === 'ok'" class="text-green-600 text-xs font-bold">✓ 成功</span>
+                                    <span v-else-if="batchRowResults[row.id] === 'err'" class="text-red-500 text-xs font-bold">✗ 失败</span>
+                                    <span v-else class="text-gray-300 text-xs">—</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Progress bar -->
+                <div v-if="batchDeploying || batchDone" class="px-6 py-3 border-t border-gray-100 flex-shrink-0">
+                    <div class="flex items-center justify-between text-xs text-gray-500 mb-1.5">
+                        <span>{{ batchDone ? '部署完成' : `正在部署... ${batchProgress.current} / ${batchProgress.total}` }}</span>
+                        <span v-if="batchDone" class="font-medium" :class="batchProgress.fail > 0 ? 'text-yellow-600' : 'text-green-600'">
+                            ✓ {{ batchProgress.ok }} 成功，{{ batchProgress.fail }} 失败
+                        </span>
+                    </div>
+                    <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full transition-all duration-300"
+                             :class="batchDone && batchProgress.fail > 0 ? 'bg-yellow-400' : 'bg-indigo-500'"
+                             :style="{ width: batchProgress.total ? (batchProgress.current / batchProgress.total * 100) + '%' : '0%' }"></div>
+                    </div>
+                </div>
+
+                <!-- Step 2 footer -->
+                <div class="px-6 py-4 border-t border-gray-100 flex justify-between gap-3 flex-shrink-0">
+                    <button @click="batchStep = 1" :disabled="batchDeploying" class="text-sm px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition disabled:opacity-40">
+                        ← 返回选择
+                    </button>
+                    <div class="flex gap-3">
+                        <button @click="closeBatchDrawer" :disabled="batchDeploying" class="text-sm px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition disabled:opacity-40">取消</button>
+                        <button @click="doBatchDeploy" :disabled="batchDeploying || batchDone"
+                                class="text-sm px-5 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 disabled:opacity-40 transition flex items-center gap-2">
+                            <svg v-if="batchDeploying" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+                            {{ batchDeploying ? '部署中...' : batchDone ? '✓ 已完成' : `确认部署（${batchRows.length}）` }}
+                        </button>
+                    </div>
+                </div>
+            </template>
+
+        </div>
+    </div>
+    </transition>
+
 </div>
 
 <script>
@@ -370,11 +518,31 @@ createApp({
 
         const spawnForm = ref({ objectTypeRid: '', instanceId: '', x: 0, y: 0, z: 0 });
 
+        // ── Batch deployment state ──────────────────────────────────────
+        const showBatchDrawer = ref(false);
+        const batchStep = ref(1);
+        const batchTypeFilter = ref('');
+        const batchSelectedIds = ref([]);
+        const batchRows = ref([]);         // [{id, objectTypeName, x, y, z, rotZ}]
+        const batchDeploying = ref(false);
+        const batchDone = ref(false);
+        const batchProgress = ref({ current: 0, total: 0, ok: 0, fail: 0 });
+        const batchRowResults = ref({});   // id -> 'ok' | 'err'
+
         const readyTypes = computed(() => objectTypes.value.filter(t => t.has_representable));
 
         const availableInstanceIds = computed(() => {
             const ot = objectTypes.value.find(t => t.rid === spawnForm.value.objectTypeRid);
             return ot ? (ot.mock_instances || []) : [];
+        });
+
+        // Batch: filter instances by selected ObjectType
+        const batchCandidates = computed(() => {
+            if (!batchTypeFilter.value) return instances.value;
+            return instances.value.filter(i => {
+                const ot = objectTypes.value.find(t => t.name === i.object_type_name);
+                return ot && ot.rid === batchTypeFilter.value;
+            });
         });
 
         const overrideFields = computed(() => {
@@ -425,6 +593,78 @@ createApp({
             ]);
             instances.value = instRes.data;
             objectTypes.value = typeRes.data;
+        }
+
+        // ── Batch deployment methods ────────────────────────────────────
+        function openBatchDrawer() {
+            batchStep.value = 1;
+            batchTypeFilter.value = '';
+            batchSelectedIds.value = [];
+            batchRows.value = [];
+            batchDeploying.value = false;
+            batchDone.value = false;
+            batchProgress.value = { current: 0, total: 0, ok: 0, fail: 0 };
+            batchRowResults.value = {};
+            showBatchDrawer.value = true;
+        }
+
+        function closeBatchDrawer() {
+            if (batchDeploying.value) return;
+            showBatchDrawer.value = false;
+        }
+
+        function batchNext() {
+            if (!batchSelectedIds.value.length) return;
+            batchRows.value = batchSelectedIds.value.map(id => {
+                const inst = instances.value.find(i => i.id === id);
+                return { id, objectTypeName: inst?.object_type_name || '—', x: 0, y: 0, z: 0, rotZ: 0 };
+            });
+            batchStep.value = 2;
+        }
+
+        async function doBatchDeploy() {
+            // Validate: no row should have all-zero coords (warn but proceed)
+            const allZero = batchRows.value.every(r => r.x === 0 && r.y === 0 && r.z === 0);
+            if (allZero && batchRows.value.length > 1) {
+                if (!confirm('所有实例坐标均为 (0, 0, 0)，确认仍要部署吗？')) return;
+            }
+
+            batchDeploying.value = true;
+            batchDone.value = false;
+            batchProgress.value = { current: 0, total: batchRows.value.length, ok: 0, fail: 0 };
+            batchRowResults.value = {};
+
+            for (const row of batchRows.value) {
+                try {
+                    await axios.post('/api/v2/state/override', {
+                        instance_id: row.id,
+                        patch: {
+                            translation_x: row.x,
+                            translation_y: row.y,
+                            translation_z: row.z,
+                            rotation_z: row.rotZ
+                        }
+                    });
+                    batchRowResults.value[row.id] = 'ok';
+                    batchProgress.value.ok++;
+                } catch (_) {
+                    batchRowResults.value[row.id] = 'err';
+                    batchProgress.value.fail++;
+                }
+                batchProgress.value.current++;
+            }
+
+            batchDeploying.value = false;
+            batchDone.value = true;
+            toast('ok', `批量部署完成：${batchProgress.value.ok} 成功，${batchProgress.value.fail} 失败`);
+            await loadInstances();
+        }
+
+        function batchRowStatus(id) {
+            const r = batchRowResults.value[id];
+            if (r === 'ok') return 'bg-green-50';
+            if (r === 'err') return 'bg-red-50';
+            return '';
         }
 
         async function spawnInstance() {
@@ -517,7 +757,11 @@ createApp({
         return {
             instances, objectTypes, readyTypes, availableInstanceIds, selectedInst, currentSnap,
             spawnForm, spawning, overriding, overrideFields, overridePatch, toasts, pendingDelete,
-            loadInstances, spawnInstance, deleteInstance, selectInstance, applyOverride, resetOverride
+            loadInstances, spawnInstance, deleteInstance, selectInstance, applyOverride, resetOverride,
+            // batch
+            showBatchDrawer, batchStep, batchTypeFilter, batchSelectedIds, batchCandidates,
+            batchRows, batchDeploying, batchDone, batchProgress, batchRowResults,
+            openBatchDrawer, closeBatchDrawer, batchNext, doBatchDeploy, batchRowStatus
         };
     }
 }).mount('#app');

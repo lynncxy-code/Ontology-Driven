@@ -471,7 +471,10 @@ OBJECT_TYPES = {
         ],
         "mock_instances": [
             "MachineTool-001",
-            "MachineTool-002"
+            "MachineTool-002",
+            "MachineTool-003",
+            "MachineTool-004",
+            "MachineTool-005"
         ],
         "asset_id": None
     },
@@ -506,7 +509,11 @@ OBJECT_TYPES = {
         ],
         "mock_instances": [
             "Robot-001",
-            "Robot-002"
+            "Robot-002",
+            "Robot-003",
+            "Robot-004",
+            "Robot-005",
+            "Robot-006"
         ],
         "asset_id": None
     },
@@ -603,7 +610,13 @@ OBJECT_TYPES = {
         ],
         "mock_instances": [
             "AGV-001",
-            "AGV-002"
+            "AGV-002",
+            "AGV-003",
+            "AGV-004",
+            "AGV-005",
+            "AGV-006",
+            "AGV-007",
+            "AGV-008"
         ],
         "asset_id": None
     },
@@ -665,7 +678,12 @@ OBJECT_TYPES = {
         "injected_interfaces": [],
         "mock_instances": [
             "PalletJack-001",
-            "PalletJack-002"
+            "PalletJack-002",
+            "PalletJack-003",
+            "PalletJack-004",
+            "PalletJack-005",
+            "PalletJack-006",
+            "PalletJack-007"
         ],
         "asset_id": None
     },
@@ -2439,6 +2457,214 @@ MOCK_ASSETS = {
         "format": "uasset",
         "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Medkit_01",
         "bounding_box": {"x": 30, "y": 20, "z": 25},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    # ── 仓库 Props Bundle 扩展包（截图来源） ────────────────────────────
+    "Assembly_line": {
+        "file_number": "Assembly_line",
+        "name": "装配线 (Assembly Line)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/Assembly_line",
+        "bounding_box": {"x": 800, "y": 200, "z": 150},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual", "I3D_Behavioral"],
+        "download_url": ""
+    },
+    "SM_Air_Duct_01_10m": {
+        "file_number": "SM_Air_Duct_01_10m",
+        "name": "通风管道 10m (Air Duct)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Air_Duct_01_10m",
+        "bounding_box": {"x": 1000, "y": 40, "z": 40},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial"],
+        "download_url": ""
+    },
+    "SM_Air_Duct_01_1m": {
+        "file_number": "SM_Air_Duct_01_1m",
+        "name": "通风管道 1m (Air Duct)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Air_Duct_01_1m",
+        "bounding_box": {"x": 100, "y": 40, "z": 40},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial"],
+        "download_url": ""
+    },
+    "SM_Air_Duct_01_2m": {
+        "file_number": "SM_Air_Duct_01_2m",
+        "name": "通风管道 2m (Air Duct)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Air_Duct_01_2m",
+        "bounding_box": {"x": 200, "y": 40, "z": 40},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial"],
+        "download_url": ""
+    },
+    "SM_Air_Duct_01_5m": {
+        "file_number": "SM_Air_Duct_01_5m",
+        "name": "通风管道 5m (Air Duct)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Air_Duct_01_5m",
+        "bounding_box": {"x": 500, "y": 40, "z": 40},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial"],
+        "download_url": ""
+    },
+    "SM_Bag_01a": {
+        "file_number": "SM_Bag_01a",
+        "name": "麻袋 (Bag)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Bag_01a",
+        "bounding_box": {"x": 80, "y": 50, "z": 30},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    "SM_Bag_01a_Stack": {
+        "file_number": "SM_Bag_01a_Stack",
+        "name": "麻袋堆叠 (Bag Stack)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Bag_01a_Stack",
+        "bounding_box": {"x": 120, "y": 80, "z": 120},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    "SM_Bag_02a": {
+        "file_number": "SM_Bag_02a",
+        "name": "编织袋 (Bag v2)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Bag_02a",
+        "bounding_box": {"x": 80, "y": 50, "z": 25},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    "SM_Bag_02a_Stack": {
+        "file_number": "SM_Bag_02a_Stack",
+        "name": "编织袋堆叠 (Bag v2 Stack)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Bag_02a_Stack",
+        "bounding_box": {"x": 120, "y": 80, "z": 100},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    "SM_Barrel_01a": {
+        "file_number": "SM_Barrel_01a",
+        "name": "铁桶 (Barrel)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Barrel_01a",
+        "bounding_box": {"x": 60, "y": 60, "z": 90},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    "SM_Beam_01_10m": {
+        "file_number": "SM_Beam_01_10m",
+        "name": "工字钢 10m (I-Beam)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Beam_01_10m",
+        "bounding_box": {"x": 1000, "y": 20, "z": 20},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial"],
+        "download_url": ""
+    },
+    "SM_Beam_02_5m": {
+        "file_number": "SM_Beam_02_5m",
+        "name": "方钢 5m (Square Beam)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Beam_02_5m",
+        "bounding_box": {"x": 500, "y": 15, "z": 15},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial"],
+        "download_url": ""
+    },
+    "SM_Beer_Keg_01a": {
+        "file_number": "SM_Beer_Keg_01a",
+        "name": "不锈钢桶 (Keg)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Beer_Keg_01a",
+        "bounding_box": {"x": 40, "y": 40, "z": 50},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    "SM_Box_01a": {
+        "file_number": "SM_Box_01a",
+        "name": "纸箱 (Box)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_01a",
+        "bounding_box": {"x": 60, "y": 40, "z": 40},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    "SM_Box_Large_01a": {
+        "file_number": "SM_Box_Large_01a",
+        "name": "大纸箱 (Large Box)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Large_01a",
+        "bounding_box": {"x": 120, "y": 80, "z": 80},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    "SM_Box_Long_01a": {
+        "file_number": "SM_Box_Long_01a",
+        "name": "长纸箱 (Long Box)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Long_01a",
+        "bounding_box": {"x": 200, "y": 40, "z": 30},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    "SM_Box_Long_01a_Stack": {
+        "file_number": "SM_Box_Long_01a_Stack",
+        "name": "长纸箱堆叠 v1 (Long Box Stack)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Long_01a_Stack",
+        "bounding_box": {"x": 200, "y": 40, "z": 120},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    "SM_Box_Long_02a": {
+        "file_number": "SM_Box_Long_02a",
+        "name": "长纸箱 v2 (Long Box v2)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Long_02a",
+        "bounding_box": {"x": 200, "y": 40, "z": 30},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    "SM_Box_Long_02a_Stack": {
+        "file_number": "SM_Box_Long_02a_Stack",
+        "name": "长纸箱堆叠 v2 (Long Box v2 Stack)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Long_02a_Stack",
+        "bounding_box": {"x": 200, "y": 40, "z": 120},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    "SM_Box_Small_01a": {
+        "file_number": "SM_Box_Small_01a",
+        "name": "小纸箱 (Small Box)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Small_01a",
+        "bounding_box": {"x": 30, "y": 20, "z": 20},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    "SM_Box_Small_01a_Stack": {
+        "file_number": "SM_Box_Small_01a_Stack",
+        "name": "小纸箱堆叠 (Small Box Stack)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Small_01a_Stack",
+        "bounding_box": {"x": 60, "y": 40, "z": 80},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    "SM_Cable_Drum_01a": {
+        "file_number": "SM_Cable_Drum_01a",
+        "name": "线缆盘 v1 (Cable Drum)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Cable_Drum_01a",
+        "bounding_box": {"x": 80, "y": 40, "z": 80},
+        "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
+        "download_url": ""
+    },
+    "SM_Cable_Drum_01b": {
+        "file_number": "SM_Cable_Drum_01b",
+        "name": "线缆盘 v2 (Cable Drum)",
+        "format": "uasset",
+        "ue_path": "/Game/WarehouseProps_Bundle/Models/SM_Cable_Drum_01b",
+        "bounding_box": {"x": 80, "y": 40, "z": 80},
         "supported_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Visual"],
         "download_url": ""
     },

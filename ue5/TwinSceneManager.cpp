@@ -215,8 +215,10 @@ void ATwinSceneManager::OnSnapshotResponse(
         FActorSpawnParameters SpawnParams;
         SpawnParams.Name = FName(*FString::Printf(TEXT("Twin_%s"), *InstId));
 
+        UClass* SpawnClass = InstanceClass ? InstanceClass.Get() : ATwinInstance::StaticClass();
+
         ATwinInstance* Inst = World->SpawnActor<ATwinInstance>(
-            ATwinInstance::StaticClass(),
+            SpawnClass,
             FVector::ZeroVector,
             FRotator::ZeroRotator,
             SpawnParams
@@ -429,8 +431,10 @@ ATwinInstance* ATwinSceneManager::SpawnTwinInstance(
     FActorSpawnParameters SpawnParams;
     SpawnParams.Name = FName(*FString::Printf(TEXT("Twin_%s"), *InstanceId));
 
+    UClass* SpawnClass = InstanceClass ? InstanceClass.Get() : ATwinInstance::StaticClass();
+
     ATwinInstance* Inst = World->SpawnActor<ATwinInstance>(
-        ATwinInstance::StaticClass(),
+        SpawnClass,
         SpawnLocation,
         FRotator::ZeroRotator,
         SpawnParams

@@ -331,7 +331,7 @@
                 <input id="dataset-name-input" type="text" placeholder="数据集名称（可选）"
                     style="border:1px solid #d1d5db; border-radius:6px; padding: 6px 10px; font-size: 12px; outline:none; width: 160px;" />
                 <button id="btn-publish" onclick="publishCustomGraph()" style="background: #111; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">
-                    ✨ 保存到我的数据集
+                    保存到我的数据集
                 </button>
             </div>
         </div>
@@ -358,15 +358,17 @@
 
                 <!-- 子 Tab 切换 -->
                 <div class="sub-tab-bar">
-                    <button class="sub-tab-btn active" id="sub-tab-csv" onclick="switchSubTab('csv')">📁 CSV 文件导入</button>
-                    <button class="sub-tab-btn" id="sub-tab-api" onclick="switchSubTab('api')">🔗 API 链接拉取</button>
+                    <button class="sub-tab-btn active" id="sub-tab-csv" onclick="switchSubTab('csv')">CSV 导入</button>
+                    <button class="sub-tab-btn" id="sub-tab-api" onclick="switchSubTab('api')">API 链接</button>
                 </div>
 
                 <!-- CSV 上传子面板 -->
                 <div id="sub-panel-csv">
                     <div class="upload-dropzone" id="csv-dropzone"
                          onclick="document.getElementById('csv-file-input').click()">
-                        <div class="icon">📄</div>
+                        <div class="icon">
+                            <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="1.5" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        </div>
                         <div><strong>点击选择或拖拽 CSV 文件到此处</strong></div>
                         <div class="hint">必须包含: objectdef.csv, linkdef.csv, linksourcetype.csv, linktargettype.csv</div>
                         <div class="hint">可选: propertydef.csv, hasproperty.csv</div>
@@ -1009,9 +1011,45 @@
                         <div style="font-weight:600; font-size:13px;">${ds.name}</div>
                         <div style="font-size:12px; color:#888; margin-top:2px;">${nodeTxt}${linkTxt}${dateTxt}</div>
                     </div>
-                    <button onclick="previewDataset('${ds.id}')" style="background:transparent; border:1px solid #d1d5db; border-radius:5px; padding:4px 10px; font-size:11px; cursor:pointer; color:#555;">预览图谱</button>
+                    <div style="display:flex; gap:6px;">
+                        <button onclick="previewDataset('${ds.id}')" style="background:transparent; border:1px solid #d1d5db; border-radius:5px; padding:4px 10px; font-size:11px; cursor:pointer; color:#555;">预览图谱</button>
+                        ${ds.id !== 'demo' ? `<button onclick="deleteDataset(this, '${ds.id}')" style="background:transparent; border:1px solid #ff4d4f; border-radius:5px; padding:4px 10px; font-size:11px; cursor:pointer; color:#ff4d4f;">删除</button>` : ''}
+                    </div>
                 `;
                 container.appendChild(row);
+            }
+        }
+
+        async function deleteDataset(btn, dsId) {
+            // 两步确认：防止浏览器的 confirm 被拦截
+            if (btn.textContent !== '确认删除') {
+                btn.textContent = '确认删除';
+                btn.style.background = '#fff0f0';
+                setTimeout(() => {
+                    if (btn && btn.textContent === '确认删除') {
+                        btn.textContent = '删除';
+                        btn.style.background = 'transparent';
+                    }
+                }, 3000);
+                return;
+            }
+
+            try {
+                btn.disabled = true;
+                btn.textContent = '删...';
+                const res = await fetch('/api/v2/ontology/datasets/' + encodeURIComponent(dsId), { method: 'DELETE' });
+                if (res.ok) {
+                    loadDatasets();
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = '删除';
+                    btn.style.background = 'transparent';
+                }
+            } catch(e) {
+                console.error(e);
+                btn.disabled = false;
+                btn.textContent = '删除';
+                btn.style.background = 'transparent';
             }
         }
 
@@ -1069,23 +1107,26 @@
             datasetsPanel.style.display = 'none';
             graphArea.style.display = '';
 
-            // 更新 tab 状态
-            document.getElementById('tab-datasets').classList.remove('active');
-            document.getElementById('tab-loaddata').classList.add('active');
+            if (showBanner) {
+                // 如果是从“加载数据”导入此时提供发布横幅，“加载数据”高亮
+                document.getElementById('tab-datasets').classList.remove('active');
+                document.getElementById('tab-loaddata').classList.add('active');
+                
+                const btn = document.getElementById('btn-publish');
+                if (btn) { btn.disabled = false; btn.textContent = '保存到我的数据集'; }
+                document.getElementById('publish-banner').style.display = 'flex';
+            } else {
+                // 如果是从“我的数据集”点击的预览，此时高亮应继续停留在 datasets 上
+                document.getElementById('tab-loaddata').classList.remove('active');
+                document.getElementById('tab-datasets').classList.add('active');
+                
+                document.getElementById('publish-banner').style.display = 'none';
+            }
 
             // 销毁旧 chart 避免残留
             if (myChart) { myChart.dispose(); myChart = null; }
             document.getElementById('loading').style.display = 'none';
             renderGraph();
-
-            // 显示发布悬浮窗（仅导入后预览时）
-            if (showBanner) {
-                const btn = document.getElementById('btn-publish');
-                if (btn) { btn.disabled = false; btn.textContent = '✨ 保存到我的数据集'; }
-                document.getElementById('publish-banner').style.display = 'flex';
-            } else {
-                document.getElementById('publish-banner').style.display = 'none';
-            }
         }
 
         // ── 保存到我的数据集 ──────────────────────────────────
@@ -1107,15 +1148,15 @@
                 if (res.ok) {
                     const banner = document.getElementById('publish-banner');
                     if (banner) {
-                        banner.innerHTML = `<span style="color:#10b981; font-weight:600;">✅ 已保存到“${result.name}”</span>
+                        banner.innerHTML = `<span style="color:#10b981; font-weight:600;">已保存到“${result.name}”</span>
                             <span style="font-size:12px; color:#666;"> — 可切到「我的数据集」勾选激活。</span>`;
                         setTimeout(() => { banner.style.display = 'none'; }, 5000);
                     }
                 } else {
-                    if (btn) { btn.disabled = false; btn.textContent = '❌保存失败: ' + (result.error || '未知错误'); }
+                    if (btn) { btn.disabled = false; btn.textContent = '保存失败: ' + (result.error || '未知错误'); }
                 }
             } catch(e) {
-                if (btn) { btn.disabled = false; btn.textContent = '❌错误: ' + e.message; }
+                if (btn) { btn.disabled = false; btn.textContent = '保存出错: ' + e.message; }
             }
         }
 

@@ -19,10 +19,39 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "Dom/JsonObject.h"
 #include "TwinInstance.generated.h"
 
 class UDigitalTwinSyncComponent;
+
+// ============================================================================
+// 动画配方结构体（内置库使用）
+// ============================================================================
+struct FAnimRecipe
+{
+    FVector  TranslationDelta; // 每次循环相对位移（cm）
+    FRotator RotationDelta;    // 每次循环额外旋转度数
+    float    Duration;         // 单次时长（秒）
+    bool     bLoop;            // 是否循环
+    bool     bPingPong;        // 是否来回往返
+
+    FAnimRecipe()
+        : TranslationDelta(FVector::ZeroVector)
+        , RotationDelta(FRotator::ZeroRotator)
+        , Duration(1.0f)
+        , bLoop(true)
+        , bPingPong(true)
+    {}
+
+    FAnimRecipe(FVector InTrans, FRotator InRot, float InDur, bool InLoop, bool InPingPong)
+        : TranslationDelta(InTrans)
+        , RotationDelta(InRot)
+        , Duration(InDur)
+        , bLoop(InLoop)
+        , bPingPong(InPingPong)
+    {}
+};
 
 /**
  * ATwinInstance
@@ -63,6 +92,60 @@ public:
     bool bEditorPlaced = false;
 
     // ═══════════════════════════════════════════════════════════════════════
+    // 视觉特效属性与蓝图接口
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /** 灰模材质 (用于 material_variant = gray) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|视觉展示", meta=(DisplayName="灰模通用材质"))
+    UMaterialInterface* MatGray = nullptr;
+
+    /** 线框材质 (用于 material_variant = wireframe) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|视觉展示", meta=(DisplayName="线框通用材质"))
+    UMaterialInterface* MatWireframe = nullptr;
+
+    /** 缓存加载时的原始材质（以支持从灰模/线框恢复） */
+    UPROPERTY()
+    TArray<UMaterialInterface*> OriginalMaterials;
+
+    // ── 3D 文字标签配置 ──────────────────────────────────────────────────────
+
+    /** 标签字体（在 Details 面板中拖入已导入的 Font 资产，支持中文） */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="标签字体"))
+    UFont* LabelFont = nullptr;
+
+    /** 标签文字大小（世界坐标单位，默认 8cm） */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="文字大小"))
+    float LabelWorldSize = 8.0f;
+
+    /** 标签颜色 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="文字颜色"))
+    FColor LabelColor = FColor::White;
+
+    /** 相对模型原点的 Z 轴偏移（cm），默认 20cm */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="标签高度偏移"))
+    float LabelZOffset = 20.0f;
+
+    /** 当从 Web 接收到全新的动画指令（平移/跳跃/翻转）时抛出，供美术在蓝图中实现运镜或 Timeline */
+    UFUNCTION(BlueprintImplementableEvent, Category="孪生体|行为事件", meta=(DisplayName="当触发新动画状态时"))
+    void OnAnimationStateChanged(const FString& NewAnimState);
+
+    /**
+     * 当 Web 端下发的 material_variant 不在 C++ 内置列表中时抛出。
+     * 蓝图可在此事件中通过 Map 查找并应用自定义材质。
+     * @param VariantName  前端传来的变体名称字符串，如 "metal", "glass", "xray"
+     */
+    UFUNCTION(BlueprintImplementableEvent, Category="孪生体|视觉事件", meta=(DisplayName="当材质变体变化时"))
+    void OnMaterialVariantChanged(const FString& VariantName);
+
+    /**
+     * 当 Web 端下发特效触发指令时抛出。
+     * 蓝图可在此事件中通过 Map 查找对应的 Niagara/Particle System 并播放。
+     * @param FxName  前端传来的特效名称字符串，如 "fire", "smoke", "warning_glow"
+     */
+    UFUNCTION(BlueprintImplementableEvent, Category="孪生体|行为事件", meta=(DisplayName="当触发特效时"))
+    void OnFxTriggered(const FString& FxName);
+
+    // ═══════════════════════════════════════════════════════════════════════
     // 公开接口（供 ATwinSceneManager 调用）
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -77,13 +160,19 @@ public:
 
 protected:
     virtual void BeginPlay() override;
+    virtual void Tick(float DeltaTime) override;
+
+    // ── 组件（供蓝图访问） ────────────────────────────────────────────────
+    /** 网格体组件 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体", meta=(AllowPrivateAccess="true"))
+    UStaticMeshComponent* MeshComponent = nullptr;
+
+    /** 3D 文字标签组件（显示 ui_label_content） */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体", meta=(AllowPrivateAccess="true"))
+    UTextRenderComponent* LabelComponent = nullptr;
 
 private:
-    // ── 组件 ─────────────────────────────────────────────────────────────
-
-    /** 网格体组件 */
-    UPROPERTY(VisibleAnywhere, Category="孪生体")
-    UStaticMeshComponent* MeshComponent = nullptr;
+    // ── 同步组件 ─────────────────────────────────────────────────────────────
 
     /** 同步组件（复用老插件） */
     UPROPERTY()
@@ -102,6 +191,12 @@ private:
     /** 根据 UE 路径加载 StaticMesh */
     bool LoadMeshFromPath(const FString& MeshPath);
 
+    /** 把当前的材质全部存下 */
+    void CacheOriginalMaterials();
+
+    /** 还原材质 */
+    void RestoreOriginalMaterials();
+
     /** 从 JSON 接口数据中驱动三大能力 */
     void ApplySpatialFromSnapshot(const TSharedPtr<FJsonObject>& SpatialObj);
     void ApplyVisualFromSnapshot(const TSharedPtr<FJsonObject>& VisualObj);
@@ -111,15 +206,37 @@ private:
     /** 当前材质变体缓存 */
     FString CurrentMaterialVariant;
 
-    /** 动态材质实例 */
-    UPROPERTY()
-    UMaterialInstanceDynamic* DynMaterial = nullptr;
+    /** 当前动画状态缓存 */
+    FString CurrentAnimState;
 
-    /** 材质变体颜色表 */
-    FLinearColor ColorNormal  = FLinearColor(0.8f, 0.8f, 0.8f, 1.0f);
-    FLinearColor ColorFault   = FLinearColor(1.0f, 0.15f, 0.15f, 1.0f);
-    FLinearColor ColorAlarm   = FLinearColor(1.0f, 0.7f, 0.0f, 1.0f);
-    FLinearColor ColorOffline = FLinearColor(0.3f, 0.3f, 0.3f, 1.0f);
+    /** 当前特效状态缓存 */
+    FString CurrentFxTrigger;
+
+    /** 当前标签文字缓存（防止重复刷新）*/
+    FString CurrentLabelContent;
+
+    // ── 程序化动画状态 ────────────────────────────────────────────────
+    /** 内置动画配方字典（state名 → 执行配方）*/
+    TMap<FString, FAnimRecipe> AnimLibrary;
+
+    /** 动画计时器 */
+    float  AnimTimer = 0.0f;
+
+    /** 动画各自的基准動画开始时的位置和旋转（用于计算相对偏移） */
+    FVector  AnimBaseLocation  = FVector::ZeroVector;
+    FRotator AnimBaseRotation  = FRotator::ZeroRotator;
+
+    /** 当前活跃的动画配方 */
+    FAnimRecipe ActiveRecipe;
+
+    /** 动画是否正在运行 */
+    bool bAnimRunning = false;
+
+    /** 动画内部立即切换动画状态 */
+    void PlayAnimationState(const FString& StateName);
+
+    /** 初始化动画配方字典 */
+    void InitAnimLibrary();
 
     /** 插值目标值 */
     FVector TargetLocation = FVector::ZeroVector;

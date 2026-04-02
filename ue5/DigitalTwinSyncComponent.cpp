@@ -9,6 +9,7 @@
 //   ApplyState → 分发到 Spatial / Visual / Behavior 三个子处理函数
 // ============================================================================
 
+#include "test0316.h"
 #include "DigitalTwinSyncComponent.h"
 #include "GameFramework/Actor.h"
 #include "Components/MeshComponent.h"
@@ -256,7 +257,9 @@ void UDigitalTwinSyncComponent::OnHttpResponseReceived(
         }
     }
 
-    // ── 时间戳更新：仅记录，始终执行坐标应用 ─────────────────────────────────
+    // ── 时间戳更新：仅记录最新时间戳，始终执行状态应用 ────────────────────
+    // 注意：这里不再有“未变则跳过”逻辑！原先的时间戳对比导致后端没有新操作时
+    // UE 会永远跳过坐标应用导致模型不动
     double NewTimestamp = 0.0;
     if (JsonObject->TryGetNumberField(TEXT("timestamp"), NewTimestamp))
     {

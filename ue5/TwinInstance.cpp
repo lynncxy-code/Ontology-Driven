@@ -19,14 +19,27 @@
 
 ATwinInstance::ATwinInstance()
 {
-    PrimaryActorTick.bCanEverTick = false; // 不需要 Tick，由 SceneManager 推送状态
+    // Tick 默认关闭，只有动画进行时才开启，节省性能
+    PrimaryActorTick.bCanEverTick = true;
+    PrimaryActorTick.bStartWithTickEnabled = false;
 
     // 创建默认的 StaticMeshComponent 作为根组件
     MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TwinMesh"));
     RootComponent = MeshComponent;
 
-    // ⚠️ 修复：不在构造函数里隐藏组件
-    // 可见性由 InitializeTwin / ApplyRepresentableFromSnapshot 控制
+    // 创建 3D 文字标签组件，默认隐藏
+    LabelComponent = CreateDefaultSubobject<UTextRenderComponent>(TEXT("TwinLabel"));
+    LabelComponent->SetupAttachment(MeshComponent);
+    LabelComponent->SetRelativeLocation(FVector(0.f, 0.f, LabelZOffset)); // 默认 20cm 高
+    // 恢复默认朝向 (之前为了测试曾改过 180)
+    LabelComponent->SetRelativeRotation(FRotator(0.f, 0.f, 0.f));
+    LabelComponent->SetHorizontalAlignment(EHTA_Center);                   // 水平居中
+
+    LabelComponent->SetVerticalAlignment(EVRTA_TextCenter);                // 垂直居中
+    LabelComponent->SetWorldSize(LabelWorldSize);                          // 字体大小
+    LabelComponent->SetTextRenderColor(LabelColor);                        // 文字颜色
+    LabelComponent->SetVisibility(false);                                  // 初始隐藏
+    LabelComponent->SetText(FText::GetEmpty());
 }
 
 // ── BeginPlay ────────────────────────────────────────────────────────────────
@@ -34,6 +47,138 @@ ATwinInstance::ATwinInstance()
 void ATwinInstance::BeginPlay()
 {
     Super::BeginPlay();
+    InitAnimLibrary();
+}
+
+void ATwinInstance::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+
+    // ── 3D文字始终朝向相机 (Billboarding) ──
+    if (LabelComponent && LabelComponent->IsVisible())
+    {
+        if (APlayerCameraManager* CamManager = GetWorld()->GetFirstPlayerController()->PlayerCameraManager)
+        {
+            FVector CamLoc = CamManager->GetCameraLocation();
+            FVector TextLoc = LabelComponent->GetComponentLocation();
+            
+            // 计算 LookAt 旋转
+            FRotator LookAtRot = UKismetMathLibrary::FindLookAtRotation(TextLoc, CamLoc);
+            
+            // 只需要水平环绕相机（Yaw），强行把 Pitch 和 Roll 锁定为 0，防止文字趴在地上或者竖直歪曲
+            FRotator BillboardRot(0.f, LookAtRot.Yaw, 0.f);
+            
+            // 如果你发现文字刚好是左右镜像反的，可以改成 BillboardRot.Yaw += 180.f; 但纯 LookAt 一般是正的！
+            LabelComponent->SetWorldRotation(BillboardRot);
+        }
+    }
+
+    if (!bAnimRunning) return;
+
+    AnimTimer += DeltaTime;
+    float Duration = ActiveRecipe.Duration;
+    if (Duration <= 0.f) return;
+
+    // 计算动画进度 Alpha（0.0−1.0）
+    float RawAlpha = FMath::Fmod(AnimTimer, Duration) / Duration;
+
+    // PingPong：偶数循环就反过来
+    float Alpha = RawAlpha;
+    if (ActiveRecipe.bPingPong)
+    {
+        int32 CycleIndex = FMath::FloorToInt(AnimTimer / Duration);
+        if (CycleIndex % 2 == 1) Alpha = 1.0f - RawAlpha;
+    }
+
+    // 平滑曲线（SmoothStep）让动画两端更自然
+    float SmoothAlpha = FMath::SmoothStep(0.f, 1.f, Alpha);
+
+    // 应用位移
+    if (!ActiveRecipe.TranslationDelta.IsNearlyZero())
+    {
+        FVector NewLoc = AnimBaseLocation + ActiveRecipe.TranslationDelta * SmoothAlpha;
+        SetActorLocation(NewLoc);
+    }
+
+    // 应用旋转
+    if (!ActiveRecipe.RotationDelta.IsNearlyZero())
+    {
+        FRotator Delta = ActiveRecipe.RotationDelta * SmoothAlpha;
+        FRotator NewRot = AnimBaseRotation + Delta;
+        SetActorRotation(NewRot);
+    }
+
+    // 如果不循环且时间到达，停止
+    if (!ActiveRecipe.bLoop && AnimTimer >= Duration)
+    {
+        bAnimRunning = false;
+        SetActorEnableCollision(true);
+        // 如果文字没显示，才真正关闭 Tick
+        if (!LabelComponent || !LabelComponent->IsVisible())
+        {
+            SetActorTickEnabled(false);
+        }
+    }
+}
+
+// 初始化动画配方字典
+void ATwinInstance::InitAnimLibrary()
+{
+    AnimLibrary.Empty();
+
+    // idle: 停止，无动画
+    AnimLibrary.Add(TEXT("idle"),
+        FAnimRecipe(FVector::ZeroVector, FRotator::ZeroRotator, 0.f, false, false));
+
+    // translate: X轴平移 100cm，循环往返，3秒一霿
+    AnimLibrary.Add(TEXT("translate"),
+        FAnimRecipe(FVector(100.f, 0.f, 0.f), FRotator::ZeroRotator, 3.0f, true, true));
+
+    // jump: Z轴上弹 15cm，循环往返，1秒一霿
+    AnimLibrary.Add(TEXT("jump"),
+        FAnimRecipe(FVector(0.f, 0.f, 15.f), FRotator::ZeroRotator, 1.0f, true, true));
+
+    // flip: Y轴封转 180°，循环往返，1.5秒一霿
+    AnimLibrary.Add(TEXT("flip"),
+        FAnimRecipe(FVector::ZeroVector, FRotator(180.f, 0.f, 0.f), 1.5f, true, true));
+}
+
+// 立即切换并播放动画状态
+void ATwinInstance::PlayAnimationState(const FString& StateName)
+{
+    const FAnimRecipe* Found = AnimLibrary.Find(StateName);
+    if (!Found)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[孪生体] 未知动画状态: %s"), *StateName);
+        return;
+    }
+
+    // idle 返回初始位置并关闭 Tick
+    if (StateName == TEXT("idle"))
+    {
+        bAnimRunning = false;
+        if (!LabelComponent || !LabelComponent->IsVisible())
+        {
+            SetActorTickEnabled(false);
+        }
+        // 归位
+        SetActorLocation(AnimBaseLocation);
+        SetActorRotation(AnimBaseRotation);
+        UE_LOG(LogTemp, Log, TEXT("[孪生体] 动画归位: %s"), *InstanceId);
+        return;
+    }
+
+    // 记录当前状态作为基准点
+    AnimBaseLocation = GetActorLocation();
+    AnimBaseRotation = GetActorRotation();
+    AnimTimer        = 0.0f;
+    ActiveRecipe     = *Found;
+    bAnimRunning     = true;
+
+    // 开启 Tick
+    SetActorTickEnabled(true);
+
+    UE_LOG(LogTemp, Log, TEXT("[孪生体] 动画切换: %s → %s"), *InstanceId, *StateName);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -70,16 +215,10 @@ void ATwinInstance::InitializeTwin(
         LoadMeshFromPath(AssetPath);
     }
 
-    // ── 2. 创建动态材质 ──────────────────────────────────────────────────
+    // ── 2. 缓存原始材质 ──────────────────────────────────────────────────
     if (MeshComponent->GetStaticMesh() && MeshComponent->GetNumMaterials() > 0)
     {
-        UMaterialInterface* BaseMat = MeshComponent->GetMaterial(0);
-        if (BaseMat)
-        {
-            DynMaterial = UMaterialInstanceDynamic::Create(BaseMat, this);
-            MeshComponent->SetMaterial(0, DynMaterial);
-            UE_LOG(LogTemp, Log, TEXT("[孪生体] 动态材质已创建"));
-        }
+        CacheOriginalMaterials();
     }
 
     bInitialized = true;
@@ -163,6 +302,7 @@ bool ATwinInstance::LoadMeshFromPath(const FString& MeshPath)
     if (Mesh)
     {
         MeshComponent->SetStaticMesh(Mesh);
+        CacheOriginalMaterials();
         UE_LOG(LogTemp, Log, TEXT("[孪生体] ✅ 资产加载成功: %s"), *MeshPath);
         return true;
     }
@@ -189,13 +329,23 @@ bool ATwinInstance::LoadMeshFromPath(const FString& MeshPath)
 
 void ATwinInstance::ApplyRepresentableFromSnapshot(const TSharedPtr<FJsonObject>& RepObj)
 {
-    // ── 可见性 ───────────────────────────────────────────────────────────
+    // ── 依 PRD 规范：控制场景存在性（加载/卸载资源） ────────────
     bool bVisible = true;
     RepObj->TryGetBoolField(TEXT("is_visible"), bVisible);
-    SetActorHiddenInGame(!bVisible);      // Actor 级别的显隐
-    MeshComponent->SetVisibility(bVisible, true); // Component 级别（递归）
-    UE_LOG(LogTemp, Log, TEXT("[孪生体] 可见性设置: %s → %s"),
-           *InstanceId, bVisible ? TEXT("可见") : TEXT("隐藏"));
+    
+    if (!bVisible && MeshComponent->GetStaticMesh() != nullptr)
+    {
+        // 从场景卸载不占内存资源
+        MeshComponent->SetStaticMesh(nullptr);
+        UE_LOG(LogTemp, Log, TEXT("[孪生体] 已卸载资产: %s"), *InstanceId);
+    }
+    else if (bVisible && MeshComponent->GetStaticMesh() == nullptr && bInitialized)
+    {
+        // 重新加载并进入场景
+        LoadMeshFromPath(AssetPath);
+        UE_LOG(LogTemp, Log, TEXT("[孪生体] 重新加载进入场景: %s"), *InstanceId);
+    }
+    // 强制把原先在这的 SetActorHiddenInGame 移除，交由 I3D_Visual 去处理纯粹的显隐
 
     // ── 资产热更换检测 ────────────────────────────────────────────────────
     FString NewAssetId;
@@ -233,6 +383,11 @@ void ATwinInstance::ApplySpatialFromSnapshot(const TSharedPtr<FJsonObject>& Spat
     SpatialObj->TryGetNumberField(TEXT("rotation_y"), ry);
     SpatialObj->TryGetNumberField(TEXT("rotation_z"), rz);
 
+    // [PRD B.3] 严格校验与钳位：Rotation 兜底取模，防止前端脏数据浮点溢出
+    rx = FMath::Fmod(rx, 360.0);
+    ry = FMath::Fmod(ry, 360.0);
+    rz = FMath::Fmod(rz, 360.0);
+
     double sx = 1, sy = 1, sz = 1;
     SpatialObj->TryGetNumberField(TEXT("scale_x"), sx);
     SpatialObj->TryGetNumberField(TEXT("scale_y"), sy);
@@ -240,10 +395,12 @@ void ATwinInstance::ApplySpatialFromSnapshot(const TSharedPtr<FJsonObject>& Spat
 
     FVector NewLoc = FVector(tx, ty, tz);
     FRotator NewRot = FRotator(ry, rz, rx);   // Pitch=Y, Yaw=Z, Roll=X
+    
+    // [PRD B.3] 严格校验与钳位：Scale 下限死锁为 0.001，防止纯 0 导致负体积断言崩溃
     FVector NewScale = FVector(
-        FMath::Max(0.01, sx),
-        FMath::Max(0.01, sy),
-        FMath::Max(0.01, sz)
+        FMath::Max(0.001, sx),
+        FMath::Max(0.001, sy),
+        FMath::Max(0.001, sz)
     );
 
     SetActorLocation(NewLoc);
@@ -252,51 +409,117 @@ void ATwinInstance::ApplySpatialFromSnapshot(const TSharedPtr<FJsonObject>& Spat
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// I3D_Visual — 视觉表达
+// 视觉表达与行为表现
 // ═══════════════════════════════════════════════════════════════════════════
+
+void ATwinInstance::CacheOriginalMaterials()
+{
+    if (!MeshComponent) return;
+    OriginalMaterials.Empty();
+    for (int32 i = 0; i < MeshComponent->GetNumMaterials(); ++i)
+    {
+        OriginalMaterials.Add(MeshComponent->GetMaterial(i));
+    }
+}
+
+void ATwinInstance::RestoreOriginalMaterials()
+{
+    if (!MeshComponent) return;
+    for (int32 i = 0; i < OriginalMaterials.Num(); ++i)
+    {
+        if (i < MeshComponent->GetNumMaterials())
+        {
+            MeshComponent->SetMaterial(i, OriginalMaterials[i]);
+        }
+    }
+}
 
 void ATwinInstance::ApplyVisualFromSnapshot(const TSharedPtr<FJsonObject>& VisualObj)
 {
+    // ── 材质变体 (material_variant) ──────────────────────────────────────
     FString MaterialVariant;
-    if (!VisualObj->TryGetStringField(TEXT("material_variant"), MaterialVariant)) return;
-    if (MaterialVariant == CurrentMaterialVariant) return;
-    CurrentMaterialVariant = MaterialVariant;
+    if (VisualObj->TryGetStringField(TEXT("material_variant"), MaterialVariant) && MaterialVariant != CurrentMaterialVariant)
+    {
+        CurrentMaterialVariant = MaterialVariant;
+        
+        UE_LOG(LogTemp, Log, TEXT("[孪生体] 改变视觉状态: %s → %s"), *InstanceId, *MaterialVariant);
+        
+        if (MaterialVariant == TEXT("normal"))
+        {
+            RestoreOriginalMaterials();
+        }
+        else
+        {
+            // 交给蓝图处理字典映射
+            OnMaterialVariantChanged(MaterialVariant);
+        }
+    }
 
-    if (!DynMaterial) return;
-
-    FLinearColor NewColor = ColorNormal;
-    if (MaterialVariant == TEXT("fault") || MaterialVariant == TEXT("alert"))
-        NewColor = ColorFault;
-    else if (MaterialVariant == TEXT("alarm") || MaterialVariant == TEXT("wireframe"))
-        NewColor = ColorAlarm;
-    else if (MaterialVariant == TEXT("offline") || MaterialVariant == TEXT("gray"))
-        NewColor = ColorOffline;
-
-    DynMaterial->SetVectorParameterValue(TEXT("BaseColor"), NewColor);
-    UE_LOG(LogTemp, Log, TEXT("[孪生体] 材质变体: %s → %s"), *InstanceId, *MaterialVariant);
+    // ── 可见性 (is_visible) 控制纯渲染显隐 ────────────────────────────
+    bool bVisualVisible = true;
+    if (VisualObj->TryGetBoolField(TEXT("is_visible"), bVisualVisible))
+    {
+        SetActorHiddenInGame(!bVisualVisible);
+    }
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// I3D_Behavioral — 动态行为
-// ═══════════════════════════════════════════════════════════════════════════
 
 void ATwinInstance::ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& BehaviorObj)
 {
     FString AnimState;
-    if (BehaviorObj->TryGetStringField(TEXT("animation_state"), AnimState))
+    if (BehaviorObj->TryGetStringField(TEXT("animation_state"), AnimState) && AnimState != CurrentAnimState)
     {
-        UE_LOG(LogTemp, Verbose, TEXT("[孪生体] 动画状态: %s → %s"), *InstanceId, *AnimState);
+        CurrentAnimState = AnimState;
+        // C++ 直接驱动程序化动画，不再依赖蓝图
+        PlayAnimationState(AnimState);
+        UE_LOG(LogTemp, Log, TEXT("[孪生体] 动画状态: %s → %s"), *InstanceId, *AnimState);
     }
 
     FString FxTrigger;
-    if (BehaviorObj->TryGetStringField(TEXT("fx_trigger"), FxTrigger))
+    if (BehaviorObj->TryGetStringField(TEXT("fx_trigger"), FxTrigger) && FxTrigger != CurrentFxTrigger)
     {
-        UE_LOG(LogTemp, Verbose, TEXT("[孪生体] 特效触发: %s → %s"), *InstanceId, *FxTrigger);
+        CurrentFxTrigger = FxTrigger;
+        OnFxTriggered(FxTrigger);  // 抛出给蓝图实现
+        UE_LOG(LogTemp, Log, TEXT("[孪生体] 特效触发: %s → %s"), *InstanceId, *FxTrigger);
     }
 
     FString LabelContent;
-    if (BehaviorObj->TryGetStringField(TEXT("ui_label_content"), LabelContent))
+    if (BehaviorObj->TryGetStringField(TEXT("ui_label_content"), LabelContent) && LabelContent != CurrentLabelContent)
     {
-        UE_LOG(LogTemp, Verbose, TEXT("[孪生体] UI标签: %s → %s"), *InstanceId, *LabelContent);
+        CurrentLabelContent = LabelContent;
+
+        if (LabelComponent)
+        {
+            if (LabelContent.IsEmpty())
+            {
+                // 空内容就隐藏标签
+                LabelComponent->SetVisibility(false);
+                LabelComponent->SetText(FText::GetEmpty());
+                if (!bAnimRunning)
+                {
+                    SetActorTickEnabled(false);
+                }
+            }
+            else
+            {
+                // 应用最新字体配置（用户在编辑器设置后生效）
+                LabelComponent->SetRelativeLocation(FVector(0.f, 0.f, LabelZOffset));
+                LabelComponent->SetWorldSize(LabelWorldSize);
+                LabelComponent->SetTextRenderColor(LabelColor);
+
+                // 如果用户指定了字体，就应用它（支持中文）
+                if (LabelFont)
+                {
+                    LabelComponent->SetFont(LabelFont);
+                }
+
+                LabelComponent->SetText(FText::FromString(LabelContent));
+                LabelComponent->SetVisibility(true);
+                
+                // 开启 Tick 以便每帧更新朝向
+                SetActorTickEnabled(true);
+            }
+        }
+
+        UE_LOG(LogTemp, Log, TEXT("[孪生体] UI标签更新: %s → \"%s\""), *InstanceId, *LabelContent);
     }
 }

@@ -46,7 +46,7 @@ class UMaterialInstanceDynamic;
  */
 UCLASS(ClassGroup=(DigitalTwin), meta=(BlueprintSpawnableComponent),
        DisplayName="数字孪生同步组件")
-class TEST0305_API UDigitalTwinSyncComponent : public UActorComponent
+class TEST0316_API UDigitalTwinSyncComponent : public UActorComponent
 {
     GENERATED_BODY()
 
@@ -156,8 +156,6 @@ private:
 
     /** 发起一次 HTTP GET 请求 */
     void SendHttpRequest();
-
-    /** HTTP 响应回调（运行在 Game Thread） */
     void OnHttpResponseReceived(FHttpRequestPtr Request,
                                 FHttpResponsePtr Response,
                                 bool bWasSuccessful);

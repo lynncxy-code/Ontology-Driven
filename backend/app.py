@@ -718,6 +718,27 @@ def get_dataset_graph(ds_id):
     return jsonify(ds["graph_data"])
 
 
+@app.route('/api/v2/ontology/datasets/<ds_id>', methods=['DELETE'])
+def delete_dataset(ds_id):
+    """删除指定的数据集，如果删除的是当前激活的，则退回至 Demo"""
+    global _datasets, _active_dataset_id, _object_types
+    if ds_id == "demo":
+        return jsonify({"error": "内置数据集无法删除"}), 400
+
+    ds_index = next((i for i, d in enumerate(_datasets) if d["id"] == ds_id), None)
+    if ds_index is None:
+        return jsonify({"error": f"找不到数据集: {ds_id}"}), 404
+
+    _datasets.pop(ds_index)
+
+    # 如果删除的是当前激活项，重置为 demo
+    if _active_dataset_id == ds_id:
+        _active_dataset_id = "demo"
+        _object_types = {k: dict(v) for k, v in OBJECT_TYPES.items()}
+
+    return jsonify({"status": "ok", "active": _active_dataset_id})
+
+
 # ═══════════════════════════════════════════════════════════════
 # 知识图谱 Mock 数据（ontology_graph.html 用）
 # ═══════════════════════════════════════════════════════════════

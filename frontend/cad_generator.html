@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAD 一键成模 | OntoTwin Nexus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f8f9fa;
+            --surface: #ffffff;
+            --surface-subtle: #f1f3f5;
+            --border: #e9ecef;
+            --border-strong: #dee2e6;
+            --text: #212529;
+            --text-muted: #6c757d;
+            --text-soft: #adb5bd;
+            --shadow: 0 18px 40px rgba(17, 17, 17, 0.04);
+            --radius-xl: 24px;
+            --radius-lg: 18px;
+            --radius-md: 14px;
+            --radius-sm: 10px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            min-height: 100%;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body.embedded-mode {
+            background: #fafaf7;
+        }
+
+        .page {
+            min-height: 100vh;
+            overflow-y: auto;
+        }
+
+        .container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .page-header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 18px 24px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .page-header-main {
+            min-width: 0;
+        }
+
+        .page-title-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: var(--surface-subtle);
+            border: 1px solid var(--border);
+            font-size: 10px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--text-soft);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 19px;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            margin: 6px 0 0;
+            max-width: 680px;
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--text-muted);
+        }
+
+        .hero-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            appearance: none;
+            border: 1px solid transparent;
+            background: var(--surface-subtle);
+            color: #4b5563;
+            border-radius: 8px;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 1;
+            cursor: pointer;
+            transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+        }
+
+        .btn:hover {
+            background: #ecece6;
+            color: var(--text);
+            border-color: var(--border-strong);
+        }
+
+        .btn:active {
+            background: #e5e5df;
+        }
+
+        .btn[hidden] {
+            display: none;
+        }
+
+        .page-body {
+            padding: 20px 24px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.9fr);
+            gap: 20px;
+        }
+
+        .panel {
+            padding: 24px;
+        }
+
+        .panel-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .panel-title {
+            margin: 0;
+            font-size: 20px;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+        }
+
+        .panel-desc {
+            margin: 8px 0 0;
+            font-size: 14px;
+            line-height: 1.7;
+            color: var(--text-muted);
+        }
+
+        .settings-bar {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 20px;
+            padding: 14px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .settings-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .settings-group label {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .settings-input {
+            width: 80px;
+            padding: 8px 12px;
+            border: 1px solid var(--border-strong);
+            border-radius: 8px;
+            font-size: 14px;
+            background: #ffffff;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .settings-input:focus {
+            border-color: #111111;
+        }
+
+        .upload-area {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 320px;
+            padding: 36px;
+            border: 1.5px dashed var(--border-strong);
+            border-radius: 22px;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfbf8 100%);
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+        }
+
+        .upload-area:hover,
+        .upload-area.is-dragover {
+            border-color: #111111;
+            background: #f5f5f0;
+            transform: translateY(-1px);
+        }
+
+        .upload-area input {
+            display: none;
+        }
+
+        .upload-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 20px;
+            background: #111111;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 18px;
+        }
+
+        .upload-title {
+            margin: 0;
+            font-size: 22px;
+            letter-spacing: -0.02em;
+        }
+
+        .upload-subtitle {
+            margin: 10px 0 0;
+            max-width: 520px;
+            font-size: 14px;
+            line-height: 1.8;
+            color: var(--text-muted);
+        }
+
+        .upload-footnote {
+            margin-top: 18px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: var(--surface-subtle);
+            border: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .meta-card {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .metric {
+            padding: 16px;
+            border-radius: var(--radius-md);
+            background: var(--surface-subtle);
+            border: 1px solid var(--border);
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: var(--text-soft);
+            margin-bottom: 8px;
+        }
+
+        .metric-value {
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+        }
+
+        /* UE pull block */
+        .ue-pull-block {
+            background: var(--surface-subtle);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
+        }
+        .ue-pull-label {
+            font-size: 11px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-soft);
+            margin-bottom: 8px;
+        }
+        .ue-pull-url {
+            display: flex;
+            align-items: center;
+            background: #111111;
+            color: #ffffff;
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 12px;
+            word-break: break-all;
+            cursor: pointer;
+            user-select: all;
+            transition: opacity 0.15s;
+        }
+        .ue-pull-url:hover { opacity: 0.85; }
+        .ue-pull-hint {
+            font-size: 12px;
+            color: var(--text-soft);
+            margin-top: 8px;
+            line-height: 1.6;
+        }
+
+        /* JSON viewer */
+        .json-viewer-block {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+        }
+        .json-viewer-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .json-viewer-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+        .json-readonly-badge {
+            font-size: 10px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-soft);
+            border: 1px solid var(--border-strong);
+            border-radius: 4px;
+            padding: 2px 6px;
+        }
+        .json-viewer-pre {
+            margin: 0;
+            background: #111111;
+            color: #c9d1d9;
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.65;
+            overflow: auto;
+            max-height: 340px;
+            white-space: pre;
+        }
+        .json-viewer-pre .jv-key  { color: #79c0ff; }
+        .json-viewer-pre .jv-str  { color: #a5d6ff; }
+        .json-viewer-pre .jv-num  { color: #f2cc60; }
+        .json-viewer-pre .jv-bool { color: #ff7b72; }
+        .json-viewer-pre .jv-null { color: #ff7b72; }
+        .json-viewer-pre .jv-empty{ color: #6a6a62; font-style: italic; }
+
+        .status {
+            display: none;
+            padding: 18px 20px;
+        }
+
+        .status.is-visible {
+            display: block;
+        }
+
+        .status-shell {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .status-badge {
+            width: 40px;
+            height: 40px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #111111;
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .status[data-state="error"] .status-badge {
+            background: #555555;
+        }
+
+        .status[data-state="loading"] .status-badge {
+            background: #2a2a2a;
+        }
+
+        .status-title {
+            margin: 0;
+            font-size: 16px;
+            letter-spacing: -0.02em;
+        }
+
+        .status-text {
+            margin: 6px 0 0;
+            font-size: 14px;
+            line-height: 1.8;
+            color: var(--text-muted);
+        }
+
+        .status-extra {
+            margin-top: 12px;
+            padding: 12px 14px;
+            border-radius: var(--radius-md);
+            background: var(--surface-subtle);
+            border: 1px solid var(--border);
+            font-size: 13px;
+            line-height: 1.8;
+            color: var(--text-muted);
+        }
+
+        .status-extra code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 12px;
+            color: var(--text);
+        }
+
+        .preview {
+            padding: 24px;
+        }
+
+        .preview-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+
+        .legend {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .legend-swatch {
+            width: 14px;
+            height: 14px;
+            border-radius: 4px;
+            border: 1px solid rgba(17, 17, 17, 0.18);
+            background: #111111;
+        }
+
+        .legend-swatch.instances {
+            background: #8e8e86;
+            border-radius: 999px;
+        }
+
+        .preview-shell {
+            border: 1px solid var(--border);
+            border-radius: 22px;
+            background: linear-gradient(180deg, #fdfdf9 0%, #f7f7f3 100%);
+            padding: 14px;
+        }
+
+        #preview-stage {
+            height: 560px;
+            border-radius: 18px;
+            overflow: hidden;
+            background: #fbfbf7;
+        }
+
+        #preview-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .is-hidden {
+            display: none;
+        }
+
+        @media (max-width: 1080px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .page-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .hero-actions {
+                justify-content: flex-start;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .page-header {
+                padding: 16px;
+            }
+
+            .page-body {
+                padding: 16px;
+            }
+
+            .panel,
+            .preview {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 18px;
+            }
+
+            .subtitle {
+                font-size: 11px;
+            }
+
+            .meta-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .upload-area {
+                min-height: 280px;
+                padding: 24px;
+            }
+
+            #preview-stage {
+                height: 420px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="container">
+            <header class="page-header">
+                <div class="page-header-main">
+                    <div class="page-title-row">
+                        <h1>CAD 一键成模</h1>
+                        <div class="eyebrow">MODULE 3 · PART A</div>
+                    </div>
+                    <p class="subtitle">上传 DXF 图纸后自动识别墙体路径与柱体实例，生成可直接用于 Unreal Engine 场景接入的结构化 JSON。</p>
+                </div>
+                <div class="hero-actions">
+                    <button class="btn" id="reuploadBtn" onclick="resetUpload()" hidden>重新导入 DXF</button>
+                    <button class="btn" id="saveBtn" onclick="saveJson()" hidden>导出 JSON →</button>
+                </div>
+            </header>
+
+            <div class="page-body">
+                <section class="layout">
+                <div class="card panel" id="import-panel">
+                    <div class="panel-head" id="import-header">
+                        <div>
+                            <h2 class="panel-title">导入 DXF 图纸</h2>
+                            <p class="panel-desc">配置基础构件参数后，点击或拖拽上传。上传后此区域将被折叠以展示预览。</p>
+                        </div>
+                    </div>
+
+                    <div class="settings-bar" id="settings-bar">
+                        <div class="settings-group">
+                            <label for="wallHeightInput">默认墙高 (mm)</label>
+                            <input type="number" id="wallHeightInput" class="settings-input" value="4500" step="100">
+                        </div>
+                        <div class="settings-group">
+                            <label for="wallThicknessInput">默认墙厚 (mm)</label>
+                            <input type="number" id="wallThicknessInput" class="settings-input" value="240" step="10">
+                        </div>
+                        <button class="btn" id="applyParamsBtn" onclick="reparseIfUploaded()" hidden style="margin-left: auto; padding: 8px 14px; font-size: 13px;">确认修改</button>
+                    </div>
+
+                    <label class="upload-area" id="dropzone" for="file-upload">
+                        <input type="file" id="file-upload" accept=".dxf" onchange="handleFileChange(event)">
+                        <div class="upload-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path>
+                                <path d="M14 3v5h5"></path>
+                                <path d="M12 17v-6"></path>
+                                <path d="M9.5 13.5 12 11l2.5 2.5"></path>
+                            </svg>
+                        </div>
+                        <h3 class="upload-title">点击或拖拽上传 DXF 文件</h3>
+                        <p class="upload-subtitle">默认识别图层 <code>1.21-墙体</code> 的多线段轮廓，以及 <code>1.20-柱子</code> 的图块坐标。若图层命名不一致，系统会在解析结果中给出诊断信息。</p>
+                        <div class="upload-footnote">DXF in · JSON out · Preview ready</div>
+                        <div class="upload-footnote">DXF in · JSON out · Preview ready</div>
+                    </label>
+
+                    <div id="overview-content" class="is-hidden" style="margin-top: 24px;">
+                        <h3 class="panel-title" style="font-size: 16px; margin-bottom: 16px;">解析概览</h3>
+                        <div class="meta-grid">
+                            <div class="metric">
+                                <div class="metric-label">墙体路径</div>
+                                <div class="metric-value" id="wall-count">--</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">柱体实例</div>
+                                <div class="metric-value" id="column-count">--</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">图层数量</div>
+                                <div class="metric-value" id="layer-count">--</div>
+                            </div>
+                        </div>
+
+                        <div class="ue-pull-block" style="margin-top: 16px;">
+                            <div class="ue-pull-label">UE5 数据拉取地址</div>
+                            <div class="ue-pull-url" id="ue-pull-url" title="点击全选复制">
+                                <span id="ue-pull-url-text">http://127.0.0.1:5000/api/v2/cad/latest</span>
+                            </div>
+                            <div class="ue-pull-hint">在 <strong>ATwinCADDispatcher</strong> 的 Details 面板中将 "API 地址" 填入此 URL，点击「🚀 一键生成全部」即可。</div>
+                        </div>
+                    </div>
+                </div>
+
+                <aside class="card panel meta-card" style="height: 600px; display: flex; flex-direction: column;">
+                    <div class="json-viewer-block" style="flex: 1; display: flex; flex-direction: column;">
+                        <div class="json-viewer-head">
+                            <span class="json-viewer-title">CAD 引擎数据帧</span>
+                            <span class="json-readonly-badge">READ ONLY</span>
+                        </div>
+                        <pre class="json-viewer-pre" id="json-viewer" style="flex: 1; max-height: none;"><span class="jv-empty">尚未上传图纸</span></pre>
+                    </div>
+                </aside>
+            </section>
+
+
+
+                <section class="card preview is-hidden" id="preview-card">
+                    <div class="preview-head">
+                        <div>
+                            <h2 class="panel-title">平面预览</h2>
+                            <p class="panel-desc">解析结果按工程坐标系自动缩放并居中展示，可快速确认轮廓与实例位置。</p>
+                        </div>
+                        <div class="legend">
+                            <div class="legend-item"><span class="legend-swatch"></span><span>墙体路径</span></div>
+                            <div class="legend-item"><span class="legend-swatch instances"></span><span>柱体实例</span></div>
+                        </div>
+                    </div>
+                    <div class="preview-shell">
+                        <div id="preview-stage">
+                            <canvas id="preview-canvas"></canvas>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const query = new URLSearchParams(window.location.search);
+        if (query.get('nexus') === 'true') {
+            document.body.classList.add('embedded-mode');
+        }
+
+        let currentJson = null;
+        let currentFile = null;
+
+        const saveBtn = document.getElementById('saveBtn');
+        const reuploadBtn = document.getElementById('reuploadBtn');
+        const importPanel = document.getElementById('import-panel');
+        const importHeader = document.getElementById('import-header');
+        const overviewContent = document.getElementById('overview-content');
+        const applyParamsBtn = document.getElementById('applyParamsBtn');
+        const previewCard = document.getElementById('preview-card');
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('file-upload');
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function updateMetrics(data) {
+            let wallCount = 0;
+            let columnCount = 0;
+            (data.entities || []).forEach((entity) => {
+                if (entity.generate_type === 'PROCEDURAL_WALL') wallCount += 1;
+                if (entity.generate_type === 'INSTANCE') columnCount += 1;
+            });
+
+            const layerCount = data.debug_info && Array.isArray(data.debug_info.found_layers)
+                ? data.debug_info.found_layers.length
+                : 0;
+
+            document.getElementById('wall-count').textContent = wallCount;
+            document.getElementById('column-count').textContent = columnCount;
+            document.getElementById('layer-count').textContent = layerCount;
+
+            return { wallCount, columnCount, layerCount };
+        }
+
+        function resetMetrics() {
+            document.getElementById('wall-count').textContent = '--';
+            document.getElementById('column-count').textContent = '--';
+            document.getElementById('layer-count').textContent = '--';
+        }
+
+        function handleFileChange(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            currentFile = file;
+            uploadFile(file);
+        }
+
+        function reparseIfUploaded() {
+            if (currentFile) {
+                uploadFile(currentFile);
+            }
+        }
+
+        async function uploadFile(file) {
+            applyParamsBtn.disabled = true;
+            applyParamsBtn.textContent = '解析中...';
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            // Append form config parameters
+            const wallHeight = document.getElementById('wallHeightInput').value;
+            const wallThickness = document.getElementById('wallThicknessInput').value;
+            formData.append('wall_height', wallHeight);
+            formData.append('wall_thickness', wallThickness);
+
+            try {
+                const response = await fetch('/api/v2/cad/parse', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || '解析失败');
+                }
+
+                currentJson = data;
+                saveBtn.hidden = false;
+                reuploadBtn.hidden = false;
+                applyParamsBtn.hidden = false;
+                applyParamsBtn.disabled = false;
+                applyParamsBtn.textContent = '确认修改';
+                importHeader.classList.add('is-hidden');
+                dropzone.classList.add('is-hidden');
+                overviewContent.classList.remove('is-hidden');
+
+                const { wallCount, columnCount } = updateMetrics(data);
+                const foundLayers = data.debug_info && Array.isArray(data.debug_info.found_layers)
+                    ? data.debug_info.found_layers
+                    : [];
+
+                // 更新 JSON 只读查看器
+                renderJsonViewer(data);
+
+                // 更新 UE 拉取地址（动态反映当前 host）
+                document.getElementById('ue-pull-url-text').textContent =
+                    `${location.protocol}//${location.host}/api/v2/cad/latest`;
+
+                drawPreview(data);
+            } catch (error) {
+                currentJson = null;
+                previewCard.classList.add('is-hidden');
+                saveBtn.hidden = true;
+                applyParamsBtn.disabled = false;
+                applyParamsBtn.textContent = '确认修改';
+                resetMetrics();
+                document.getElementById('json-viewer').innerHTML = '<span class="jv-empty">解析失败，暂无数据</span>';
+                alert(error.message || '图纸解析出现异常，请检查文件与图层命名。');
+            }
+        }
+
+        function drawPreview(data) {
+            previewCard.classList.remove('is-hidden');
+            requestAnimationFrame(() => renderCanvas(data));
+        }
+
+        function renderCanvas(data) {
+            const stage = document.getElementById('preview-stage');
+            const canvas = document.getElementById('preview-canvas');
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            const width = stage.clientWidth;
+            const height = stage.clientHeight;
+
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, width, height);
+
+            let minX = Infinity;
+            let minY = Infinity;
+            let maxX = -Infinity;
+            let maxY = -Infinity;
+
+            (data.entities || []).forEach((entity) => {
+                if (entity.generate_type === 'PROCEDURAL_WALL' && entity.data && Array.isArray(entity.data.path)) {
+                    entity.data.path.forEach((point) => {
+                        minX = Math.min(minX, point[0]);
+                        maxX = Math.max(maxX, point[0]);
+                        minY = Math.min(minY, point[1]);
+                        maxY = Math.max(maxY, point[1]);
+                    });
+                }
+
+                if (entity.generate_type === 'INSTANCE' && entity.data && entity.data.transform && Array.isArray(entity.data.transform.loc)) {
+                    const [x, y] = entity.data.transform.loc;
+                    minX = Math.min(minX, x);
+                    maxX = Math.max(maxX, x);
+                    minY = Math.min(minY, y);
+                    maxY = Math.max(maxY, y);
+                }
+            });
+
+            if (minX === Infinity) {
+                ctx.fillStyle = '#6a6a62';
+                ctx.font = '14px Inter';
+                ctx.fillText('未检测到可预览的几何数据。', 24, 32);
+                return;
+            }
+
+            const padding = 76;
+            const drawingWidth = maxX - minX;
+            const drawingHeight = maxY - minY;
+            const scale = Math.min(
+                (width - padding * 2) / (drawingWidth || 1),
+                (height - padding * 2) / (drawingHeight || 1),
+                20
+            );
+
+            const centerX = (minX + maxX) / 2;
+            const centerY = (minY + maxY) / 2;
+            const tx = (x) => width / 2 + (x - centerX) * scale;
+            const ty = (y) => height / 2 - (y - centerY) * scale;
+
+            ctx.strokeStyle = '#e7e7e0';
+            ctx.lineWidth = 1;
+            const gridSize = 48;
+            for (let x = 0; x <= width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+            for (let y = 0; y <= height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+
+            (data.entities || []).forEach((entity) => {
+                if (entity.generate_type === 'PROCEDURAL_WALL' && entity.data && Array.isArray(entity.data.path) && entity.data.path.length) {
+                    ctx.strokeStyle = '#111111';
+                    ctx.lineWidth = 2.4;
+                    ctx.beginPath();
+                    entity.data.path.forEach((point, index) => {
+                        if (index === 0) ctx.moveTo(tx(point[0]), ty(point[1]));
+                        else ctx.lineTo(tx(point[0]), ty(point[1]));
+                    });
+                    ctx.stroke();
+                }
+
+                if (entity.generate_type === 'INSTANCE' && entity.data && entity.data.transform && Array.isArray(entity.data.transform.loc)) {
+                    const [x, y] = entity.data.transform.loc;
+                    ctx.fillStyle = '#8e8e86';
+                    ctx.beginPath();
+                    ctx.arc(tx(x), ty(y), 4.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+        }
+
+        // ── JSON 语法高亮渲染 ────────────────────────────────────────────
+        function syntaxHighlight(json) {
+            return json
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/("[^"\n]*?")\s*:/g, '<span class="jv-key">$1</span>:')
+                .replace(/:\s*("[^"\n]*?")/g, ': <span class="jv-str">$1</span>')
+                .replace(/:\s*(-?\d+\.?\d*(?:[eE][+-]?\d+)?)/g, ': <span class="jv-num">$1</span>')
+                .replace(/:\s*(true|false)/g, ': <span class="jv-bool">$1</span>')
+                .replace(/:\s*(null)/g, ': <span class="jv-null">$1</span>');
+        }
+
+        function renderJsonViewer(data) {
+            const viewer = document.getElementById('json-viewer');
+            // 展示元数据 + 前 3 条实体的概要，避免巨型 JSON 卡顿渲染
+            const preview = {
+                _meta: data._meta || {},
+                entity_count: (data.entities || []).length,
+                entities_preview: (data.entities || []).slice(0, 3)
+            };
+            viewer.innerHTML = syntaxHighlight(JSON.stringify(preview, null, 2));
+        }
+
+        // ── 重新导入 ──────────────────────────────────────────────
+        function resetUpload() {
+            fileInput.value = '';
+            currentJson = null;
+            currentFile = null;
+            saveBtn.hidden = true;
+            reuploadBtn.hidden = true;
+            applyParamsBtn.hidden = true;
+            importHeader.classList.remove('is-hidden');
+            dropzone.classList.remove('is-hidden');
+            overviewContent.classList.add('is-hidden');
+            previewCard.classList.add('is-hidden');
+            resetMetrics();
+            document.getElementById('json-viewer').innerHTML = '<span class="jv-empty">尚未上传图纸</span>';
+        }
+
+        // ── 导出 JSON 到本地文件 ─────────────────────────────────────────
+        function saveJson() {
+            if (!currentJson) return;
+            const content = JSON.stringify(currentJson, null, 2);
+            const blob = new Blob([content], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'twinscene_parse_result.json';
+            // 必须 append 到 DOM 才能在所有浏览器里可靠触发下载
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        ['dragenter', 'dragover'].forEach((eventName) => {
+            dropzone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                dropzone.classList.add('is-dragover');
+            });
+        });
+
+        ['dragleave', 'dragend', 'drop'].forEach((eventName) => {
+            dropzone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                dropzone.classList.remove('is-dragover');
+            });
+        });
+
+        dropzone.addEventListener('drop', (event) => {
+            if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length) {
+                currentFile = event.dataTransfer.files[0];
+                uploadFile(currentFile);
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            if (currentJson) {
+                drawPreview(currentJson);
+            }
+        });
+    </script>
+</body>
+</html>

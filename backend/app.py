@@ -73,6 +73,10 @@ def serve_ontology_graph():
 def serve_coming_soon():
     return app.send_static_file('coming_soon.html')
 
+@app.route('/cad_generator')
+def serve_cad_generator():
+    return app.send_static_file('cad_generator.html')
+
 
 # ═══════════════════════════════════════════════════════════════
 # 旧版 1.x API（兼容保留）
@@ -737,6 +741,101 @@ def delete_dataset(ds_id):
         _object_types = {k: dict(v) for k, v in OBJECT_TYPES.items()}
 
     return jsonify({"status": "ok", "active": _active_dataset_id})
+
+
+# ═══════════════════════════════════════════════════════════════
+# CAD 自动化生成 API (DXF -> JSON)
+# ═══════════════════════════════════════════════════════════════
+
+# 服务端内存缓存：最近一次解析结果（供 UE5 通过 HTTP 拉取）
+_cad_latest_result = None
+_cad_latest_filename = None
+_cad_latest_timestamp = None
+
+@app.route('/api/v2/cad/parse', methods=['POST'])
+def parse_cad_dxf():
+    global _cad_latest_result, _cad_latest_filename, _cad_latest_timestamp
+
+    if 'file' not in request.files:
+        return jsonify({"error": "未检测到上传文件"}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "文件名为空"}), 400
+
+    if not file.filename.lower().endswith('.dxf'):
+        return jsonify({"error": "仅支持 .dxf 文件格式。原生 DWG 请先用 CAD 等工具另存为 DXF"}), 400
+
+    try:
+        import parser_dxf
+        import tempfile
+        import datetime
+
+        _, temp_path = tempfile.mkstemp(suffix='.dxf')
+        file.save(temp_path)
+
+        wall_height = float(request.form.get('wall_height', 4500.0))
+        wall_thickness = float(request.form.get('wall_thickness', 240.0))
+
+        result_json = parser_dxf.parse_dxf_to_json(
+            temp_path, 
+            wall_height=wall_height, 
+            wall_thickness=wall_thickness
+        )
+        os.remove(temp_path)
+
+        if result_json is None:
+            return jsonify({"error": "解析 DXF 文件失败，可能文件损坏或格式不支持"}), 500
+
+        # ── 缓存到后端内存，供 UE5 拉取 ─────────────────────────────
+        _cad_latest_result = result_json
+        _cad_latest_filename = file.filename
+        _cad_latest_timestamp = datetime.datetime.now().isoformat()
+
+        # 给响应加入元信息，方便前端展示
+        result_json["_meta"] = {
+            "source_file": file.filename,
+            "parsed_at": _cad_latest_timestamp,
+            "pull_url": "/api/v2/cad/latest"
+        }
+
+        return jsonify(result_json)
+
+    except Exception as e:
+        return jsonify({"error": f"解析失败: {str(e)}"}), 500
+
+
+@app.route('/api/v2/cad/latest', methods=['GET'])
+def get_cad_latest():
+    """
+    获取最近一次解析的 CAD JSON 数据。
+    UE5 端配置该 URL 后即可直接 HTTP GET 拉取，无需本地文件路径。
+    返回格式与 /api/v2/cad/parse 完全一致。
+    """
+    if _cad_latest_result is None:
+        return jsonify({"error": "尚未上传并解析任何 DXF 图纸"}), 404
+    return jsonify(_cad_latest_result)
+
+
+@app.route('/api/v2/cad/status', methods=['GET'])
+def get_cad_status():
+    """返回当前缓存状态（文件名、时间、实体数量），供前端轮询确认。"""
+    if _cad_latest_result is None:
+        return jsonify({"has_data": False})
+
+    entities = _cad_latest_result.get("entities", [])
+    wall_count = sum(1 for e in entities if e.get("generate_type") == "PROCEDURAL_WALL")
+    col_count = sum(1 for e in entities if e.get("generate_type") == "INSTANCE")
+
+    return jsonify({
+        "has_data": True,
+        "source_file": _cad_latest_filename,
+        "parsed_at": _cad_latest_timestamp,
+        "entity_count": len(entities),
+        "wall_count": wall_count,
+        "column_count": col_count,
+        "pull_url": "/api/v2/cad/latest"
+    })
 
 
 # ═══════════════════════════════════════════════════════════════

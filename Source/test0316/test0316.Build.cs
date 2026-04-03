@@ -8,7 +8,7 @@ public class test0316 : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Niagara", "UMG", "Json", "JsonUtilities", "HTTP" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Niagara", "UMG", "Json", "JsonUtilities", "HTTP", "RealtimeMeshComponent" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 

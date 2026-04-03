@@ -26,6 +26,20 @@ ATwinInstance::ATwinInstance()
     // 创建默认的 StaticMeshComponent 作为根组件
     MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TwinMesh"));
     RootComponent = MeshComponent;
+
+    // 创建 3D 文字标签组件，默认隐藏
+    LabelComponent = CreateDefaultSubobject<UTextRenderComponent>(TEXT("TwinLabel"));
+    LabelComponent->SetupAttachment(MeshComponent);
+    LabelComponent->SetRelativeLocation(FVector(0.f, 0.f, LabelZOffset)); // 默认 20cm 高
+    // 恢复默认朝向 (之前为了测试曾改过 180)
+    LabelComponent->SetRelativeRotation(FRotator(0.f, 0.f, 0.f));
+    LabelComponent->SetHorizontalAlignment(EHTA_Center);                   // 水平居中
+
+    LabelComponent->SetVerticalAlignment(EVRTA_TextCenter);                // 垂直居中
+    LabelComponent->SetWorldSize(LabelWorldSize);                          // 字体大小
+    LabelComponent->SetTextRenderColor(LabelColor);                        // 文字颜色
+    LabelComponent->SetVisibility(false);                                  // 初始隐藏
+    LabelComponent->SetText(FText::GetEmpty());
 }
 
 // ── BeginPlay ────────────────────────────────────────────────────────────────
@@ -39,6 +53,25 @@ void ATwinInstance::BeginPlay()
 void ATwinInstance::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
+
+    // ── 3D文字始终朝向相机 (Billboarding) ──
+    if (LabelComponent && LabelComponent->IsVisible())
+    {
+        if (APlayerCameraManager* CamManager = GetWorld()->GetFirstPlayerController()->PlayerCameraManager)
+        {
+            FVector CamLoc = CamManager->GetCameraLocation();
+            FVector TextLoc = LabelComponent->GetComponentLocation();
+            
+            // 计算 LookAt 旋转
+            FRotator LookAtRot = UKismetMathLibrary::FindLookAtRotation(TextLoc, CamLoc);
+            
+            // 只需要水平环绕相机（Yaw），强行把 Pitch 和 Roll 锁定为 0，防止文字趴在地上或者竖直歪曲
+            FRotator BillboardRot(0.f, LookAtRot.Yaw, 0.f);
+            
+            // 如果你发现文字刚好是左右镜像反的，可以改成 BillboardRot.Yaw += 180.f; 但纯 LookAt 一般是正的！
+            LabelComponent->SetWorldRotation(BillboardRot);
+        }
+    }
 
     if (!bAnimRunning) return;
 
@@ -80,7 +113,11 @@ void ATwinInstance::Tick(float DeltaTime)
     {
         bAnimRunning = false;
         SetActorEnableCollision(true);
-        SetActorTickEnabled(false);
+        // 如果文字没显示，才真正关闭 Tick
+        if (!LabelComponent || !LabelComponent->IsVisible())
+        {
+            SetActorTickEnabled(false);
+        }
     }
 }
 
@@ -120,7 +157,10 @@ void ATwinInstance::PlayAnimationState(const FString& StateName)
     if (StateName == TEXT("idle"))
     {
         bAnimRunning = false;
-        SetActorTickEnabled(false);
+        if (!LabelComponent || !LabelComponent->IsVisible())
+        {
+            SetActorTickEnabled(false);
+        }
         // 归位
         SetActorLocation(AnimBaseLocation);
         SetActorRotation(AnimBaseRotation);
@@ -443,8 +483,43 @@ void ATwinInstance::ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& B
     }
 
     FString LabelContent;
-    if (BehaviorObj->TryGetStringField(TEXT("ui_label_content"), LabelContent))
+    if (BehaviorObj->TryGetStringField(TEXT("ui_label_content"), LabelContent) && LabelContent != CurrentLabelContent)
     {
-        UE_LOG(LogTemp, Verbose, TEXT("[孪生体] UI标签: %s → %s"), *InstanceId, *LabelContent);
+        CurrentLabelContent = LabelContent;
+
+        if (LabelComponent)
+        {
+            if (LabelContent.IsEmpty())
+            {
+                // 空内容就隐藏标签
+                LabelComponent->SetVisibility(false);
+                LabelComponent->SetText(FText::GetEmpty());
+                if (!bAnimRunning)
+                {
+                    SetActorTickEnabled(false);
+                }
+            }
+            else
+            {
+                // 应用最新字体配置（用户在编辑器设置后生效）
+                LabelComponent->SetRelativeLocation(FVector(0.f, 0.f, LabelZOffset));
+                LabelComponent->SetWorldSize(LabelWorldSize);
+                LabelComponent->SetTextRenderColor(LabelColor);
+
+                // 如果用户指定了字体，就应用它（支持中文）
+                if (LabelFont)
+                {
+                    LabelComponent->SetFont(LabelFont);
+                }
+
+                LabelComponent->SetText(FText::FromString(LabelContent));
+                LabelComponent->SetVisibility(true);
+                
+                // 开启 Tick 以便每帧更新朝向
+                SetActorTickEnabled(true);
+            }
+        }
+
+        UE_LOG(LogTemp, Log, TEXT("[孪生体] UI标签更新: %s → \"%s\""), *InstanceId, *LabelContent);
     }
 }

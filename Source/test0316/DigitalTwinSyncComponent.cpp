@@ -9,8 +9,8 @@
 //   ApplyState → 分发到 Spatial / Visual / Behavior 三个子处理函数
 // ============================================================================
 
-#include "test0316.h"
 #include "DigitalTwinSyncComponent.h"
+#include "test0316.h"
 #include "GameFramework/Actor.h"
 #include "Components/MeshComponent.h"
 #include "Components/TextBlock.h"          // UMG 文字控件

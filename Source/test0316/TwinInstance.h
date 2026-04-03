@@ -19,6 +19,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "Dom/JsonObject.h"
 #include "TwinInstance.generated.h"
 
@@ -106,6 +107,24 @@ public:
     UPROPERTY()
     TArray<UMaterialInterface*> OriginalMaterials;
 
+    // ── 3D 文字标签配置 ──────────────────────────────────────────────────────
+
+    /** 标签字体（在 Details 面板中拖入已导入的 Font 资产，支持中文） */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="标签字体"))
+    UFont* LabelFont = nullptr;
+
+    /** 标签文字大小（世界坐标单位，默认 8cm） */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="文字大小"))
+    float LabelWorldSize = 8.0f;
+
+    /** 标签颜色 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="文字颜色"))
+    FColor LabelColor = FColor::White;
+
+    /** 相对模型原点的 Z 轴偏移（cm），默认 20cm */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="标签高度偏移"))
+    float LabelZOffset = 20.0f;
+
     /** 当从 Web 接收到全新的动画指令（平移/跳跃/翻转）时抛出，供美术在蓝图中实现运镜或 Timeline */
     UFUNCTION(BlueprintImplementableEvent, Category="孪生体|行为事件", meta=(DisplayName="当触发新动画状态时"))
     void OnAnimationStateChanged(const FString& NewAnimState);
@@ -148,6 +167,10 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体", meta=(AllowPrivateAccess="true"))
     UStaticMeshComponent* MeshComponent = nullptr;
 
+    /** 3D 文字标签组件（显示 ui_label_content） */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体", meta=(AllowPrivateAccess="true"))
+    UTextRenderComponent* LabelComponent = nullptr;
+
 private:
     // ── 同步组件 ─────────────────────────────────────────────────────────────
 
@@ -188,6 +211,9 @@ private:
 
     /** 当前特效状态缓存 */
     FString CurrentFxTrigger;
+
+    /** 当前标签文字缓存（防止重复刷新）*/
+    FString CurrentLabelContent;
 
     // ── 程序化动画状态 ────────────────────────────────────────────────
     /** 内置动画配方字典（state名 → 执行配方）*/

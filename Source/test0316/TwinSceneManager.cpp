@@ -429,7 +429,10 @@ ATwinInstance* ATwinSceneManager::SpawnTwinInstance(
 
     // ── Spawn ATwinInstance ──────────────────────────────────────────────
     FActorSpawnParameters SpawnParams;
-    SpawnParams.Name = FName(*FString::Printf(TEXT("Twin_%s"), *InstanceId));
+    // 不设置 SpawnParams.Name —— 让 UE 自动生成 UObject 名称，
+    // 避免上次 PIE 结束后 GC 待销毁 Actor 导致的同名冲突崩溃。
+    // Actor 的可读标识通过下方 SetActorLabel 提供。
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
     UClass* SpawnClass = InstanceClass ? InstanceClass.Get() : ATwinInstance::StaticClass();
 

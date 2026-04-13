@@ -63,7 +63,7 @@ ATwinStructureBuilder* ATwinCADDispatcher::EnsureStructureBuilder()
     }
 
     FActorSpawnParameters Params;
-    Params.Name = FName(TEXT("CAD_StructureBuilder"));
+    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
     StructureBuilder = World->SpawnActor<ATwinStructureBuilder>(
         ATwinStructureBuilder::StaticClass(),
         FVector::ZeroVector, FRotator::ZeroRotator, Params);
@@ -96,7 +96,7 @@ ATwinColumnPlacer* ATwinCADDispatcher::EnsureColumnPlacer()
     }
 
     FActorSpawnParameters Params;
-    Params.Name = FName(TEXT("CAD_ColumnPlacer"));
+    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
     ColumnPlacer = World->SpawnActor<ATwinColumnPlacer>(
         ATwinColumnPlacer::StaticClass(),
         FVector::ZeroVector, FRotator::ZeroRotator, Params);

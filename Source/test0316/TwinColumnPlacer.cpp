@@ -54,11 +54,10 @@ UStaticMesh* ATwinColumnPlacer::ResolveMesh(const FString& MeshId)
     if (DefaultColumnMesh)
         return DefaultColumnMesh;
 
-    // ── 终极 Fallback：使用用户指定的 SM_Pole_01 占位 ─────────
-    UStaticMesh* FallbackMesh = Cast<UStaticMesh>(StaticLoadObject(
-        UStaticMesh::StaticClass(),
-        nullptr,
-        TEXT("/Game/WarehouseProps_Bundle/Models/SM_Pole_01.SM_Pole_01")));
+    // ── 终极 Fallback：使用 FSoftObjectPath 加载 SM_Pole_01 ─────────
+    FSoftObjectPath PolePath(TEXT("/Game/WarehouseProps_Bundle/Models/SM_Pole_01.SM_Pole_01"));
+    UObject* LoadedObj = PolePath.TryLoad();
+    UStaticMesh* FallbackMesh = Cast<UStaticMesh>(LoadedObj);
 
     if (FallbackMesh)
     {
@@ -68,7 +67,18 @@ UStaticMesh* ATwinColumnPlacer::ResolveMesh(const FString& MeshId)
         return FallbackMesh;
     }
 
-    UE_LOG(LogTemp, Error, TEXT("[立柱摆放器] 找不到目标 Mesh，且备用网格 SM_Pole_01 也未找到！请检查路径。"));
+    // 再尝试引擎自带的基础圆柱体
+    FSoftObjectPath CylinderPath(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+    UStaticMesh* EngineCylinder = Cast<UStaticMesh>(CylinderPath.TryLoad());
+    if (EngineCylinder)
+    {
+        UE_LOG(LogTemp, Warning,
+               TEXT("[立柱摆放器] MeshId=%s 未配置，使用引擎默认圆柱体占位"),
+               *MeshId);
+        return EngineCylinder;
+    }
+
+    UE_LOG(LogTemp, Error, TEXT("[立柱摆放器] 找不到目标 Mesh，所有 Fallback 均失败！请在 Dispatcher 中设置默认立柱网格。"));
     return nullptr;
 }
 
@@ -178,12 +188,11 @@ void ATwinColumnPlacer::ClearAllInstances()
     {
         if (Pair.Value && IsValid(Pair.Value))
         {
+            // 只清除实例，不销毁组件，保持 Actor 状态完整性以便下次重用
             Pair.Value->ClearInstances();
-            Pair.Value->DestroyComponent();
         }
     }
-    HISMRegistry.Empty();
-
+    // 保留 HISMRegistry 缓存，重新生成时可直接复用已有组件
     UE_LOG(LogTemp, Log, TEXT("[立柱摆放器] 已清除所有立柱实例"));
 }
 

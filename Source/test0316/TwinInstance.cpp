@@ -27,19 +27,7 @@ ATwinInstance::ATwinInstance()
     MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TwinMesh"));
     RootComponent = MeshComponent;
 
-    // 创建 3D 文字标签组件，默认隐藏
-    LabelComponent = CreateDefaultSubobject<UTextRenderComponent>(TEXT("TwinLabel"));
-    LabelComponent->SetupAttachment(MeshComponent);
-    LabelComponent->SetRelativeLocation(FVector(0.f, 0.f, LabelZOffset)); // 默认 20cm 高
-    // 恢复默认朝向 (之前为了测试曾改过 180)
-    LabelComponent->SetRelativeRotation(FRotator(0.f, 0.f, 0.f));
-    LabelComponent->SetHorizontalAlignment(EHTA_Center);                   // 水平居中
-
-    LabelComponent->SetVerticalAlignment(EVRTA_TextCenter);                // 垂直居中
-    LabelComponent->SetWorldSize(LabelWorldSize);                          // 字体大小
-    LabelComponent->SetTextRenderColor(LabelColor);                        // 文字颜色
-    LabelComponent->SetVisibility(false);                                  // 初始隐藏
-    LabelComponent->SetText(FText::GetEmpty());
+    // 头顶标签已迁移到 TwinLabelComponent，在 BeginPlay 中动态创建
 }
 
 // ── BeginPlay ────────────────────────────────────────────────────────────────
@@ -48,30 +36,24 @@ void ATwinInstance::BeginPlay()
 {
     Super::BeginPlay();
     InitAnimLibrary();
+
+    // ── 创建头顶标签组件（NAME_None 让 UE 自动生成唯一名称，避免跨 PIE GC 时序冲突）──
+    LabelComp = NewObject<UTwinLabelComponent>(this, UTwinLabelComponent::StaticClass(), NAME_None);
+    if (LabelComp)
+    {
+        LabelComp->ZOffset    = LabelZOffset;
+        LabelComp->bBillboard = true;
+        LabelComp->RegisterComponent();
+        LabelComp->SetLabelVisible(false);  // 初始隐藏，等待后端推送 ui_label_content
+    }
 }
 
 void ATwinInstance::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
-    // ── 3D文字始终朝向相机 (Billboarding) ──
-    if (LabelComponent && LabelComponent->IsVisible())
-    {
-        if (APlayerCameraManager* CamManager = GetWorld()->GetFirstPlayerController()->PlayerCameraManager)
-        {
-            FVector CamLoc = CamManager->GetCameraLocation();
-            FVector TextLoc = LabelComponent->GetComponentLocation();
-            
-            // 计算 LookAt 旋转
-            FRotator LookAtRot = UKismetMathLibrary::FindLookAtRotation(TextLoc, CamLoc);
-            
-            // 只需要水平环绕相机（Yaw），强行把 Pitch 和 Roll 锁定为 0，防止文字趴在地上或者竖直歪曲
-            FRotator BillboardRot(0.f, LookAtRot.Yaw, 0.f);
-            
-            // 如果你发现文字刚好是左右镜像反的，可以改成 BillboardRot.Yaw += 180.f; 但纯 LookAt 一般是正的！
-            LabelComponent->SetWorldRotation(BillboardRot);
-        }
-    }
+
+    // Billboard 已由 TwinLabelComponent 内部 Tick 管理
 
     if (!bAnimRunning) return;
 
@@ -113,8 +95,8 @@ void ATwinInstance::Tick(float DeltaTime)
     {
         bAnimRunning = false;
         SetActorEnableCollision(true);
-        // 如果文字没显示，才真正关闭 Tick
-        if (!LabelComponent || !LabelComponent->IsVisible())
+        // 如果标签没显示，才真正关闭 Tick
+        if (!LabelComp || !LabelComp->GetLabelData().Title.Len())
         {
             SetActorTickEnabled(false);
         }
@@ -157,7 +139,7 @@ void ATwinInstance::PlayAnimationState(const FString& StateName)
     if (StateName == TEXT("idle"))
     {
         bAnimRunning = false;
-        if (!LabelComponent || !LabelComponent->IsVisible())
+        if (!LabelComp || !LabelComp->GetLabelData().Title.Len())
         {
             SetActorTickEnabled(false);
         }
@@ -487,13 +469,11 @@ void ATwinInstance::ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& B
     {
         CurrentLabelContent = LabelContent;
 
-        if (LabelComponent)
+        if (LabelComp)
         {
             if (LabelContent.IsEmpty())
             {
-                // 空内容就隐藏标签
-                LabelComponent->SetVisibility(false);
-                LabelComponent->SetText(FText::GetEmpty());
+                LabelComp->SetLabelVisible(false);
                 if (!bAnimRunning)
                 {
                     SetActorTickEnabled(false);
@@ -501,21 +481,13 @@ void ATwinInstance::ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& B
             }
             else
             {
-                // 应用最新字体配置（用户在编辑器设置后生效）
-                LabelComponent->SetRelativeLocation(FVector(0.f, 0.f, LabelZOffset));
-                LabelComponent->SetWorldSize(LabelWorldSize);
-                LabelComponent->SetTextRenderColor(LabelColor);
+                FTwinLabelData Data;
+                Data.Title  = LabelContent;
+                Data.Status = TEXT("");     // TwinInstance 标签暂无状态色，用默认描边
+                LabelComp->SetLabelData(Data);
+                LabelComp->SetLabelVisible(true);
 
-                // 如果用户指定了字体，就应用它（支持中文）
-                if (LabelFont)
-                {
-                    LabelComponent->SetFont(LabelFont);
-                }
-
-                LabelComponent->SetText(FText::FromString(LabelContent));
-                LabelComponent->SetVisibility(true);
-                
-                // 开启 Tick 以便每帧更新朝向
+                // 开启 Tick 以便动画继续运行
                 SetActorTickEnabled(true);
             }
         }

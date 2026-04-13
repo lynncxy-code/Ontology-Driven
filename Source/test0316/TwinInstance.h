@@ -19,8 +19,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Components/StaticMeshComponent.h"
-#include "Components/TextRenderComponent.h"
 #include "Dom/JsonObject.h"
+#include "TwinLabelComponent.h"
 #include "TwinInstance.generated.h"
 
 class UDigitalTwinSyncComponent;
@@ -107,21 +107,9 @@ public:
     UPROPERTY()
     TArray<UMaterialInterface*> OriginalMaterials;
 
-    // ── 3D 文字标签配置 ──────────────────────────────────────────────────────
+    // ── 头顶标签配置（统一 TwinLabelComponent 方案）───────────────────────
 
-    /** 标签字体（在 Details 面板中拖入已导入的 Font 资产，支持中文） */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="标签字体"))
-    UFont* LabelFont = nullptr;
-
-    /** 标签文字大小（世界坐标单位，默认 8cm） */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="文字大小"))
-    float LabelWorldSize = 8.0f;
-
-    /** 标签颜色 */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="文字颜色"))
-    FColor LabelColor = FColor::White;
-
-    /** 相对模型原点的 Z 轴偏移（cm），默认 20cm */
+    /** 标签距离模型原点的 Z 轴偏移（cm） */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="标签高度偏移"))
     float LabelZOffset = 20.0f;
 
@@ -167,9 +155,9 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体", meta=(AllowPrivateAccess="true"))
     UStaticMeshComponent* MeshComponent = nullptr;
 
-    /** 3D 文字标签组件（显示 ui_label_content） */
+    /** 头顶标签组件（统一样式，显示 ui_label_content） */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体", meta=(AllowPrivateAccess="true"))
-    UTextRenderComponent* LabelComponent = nullptr;
+    UTwinLabelComponent* LabelComp = nullptr;
 
 private:
     // ── 同步组件 ─────────────────────────────────────────────────────────────

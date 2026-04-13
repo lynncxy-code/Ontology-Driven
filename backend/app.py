@@ -77,6 +77,154 @@ def serve_coming_soon():
 def serve_cad_generator():
     return app.send_static_file('cad_generator.html')
 
+@app.route('/floor_pulse')
+def serve_floor_pulse():
+    return app.send_static_file('floor_pulse.html')
+
+
+# ═══════════════════════════════════════════════════════════════
+# 数字脉搏 — OntoTwin Middleware 代理接口
+# 默认对接 localhost:5001（可通过环境变量 ONTOTWIN_MIDDLEWARE_URL 覆盖）
+# 运行中转站时请指定不同端口：ONTOTWIN_PORT=5001 python app.py
+# ═══════════════════════════════════════════════════════════════
+
+MIDDLEWARE_BASE_URL = os.environ.get('ONTOTWIN_MIDDLEWARE_URL', 'http://127.0.0.1:5001')
+
+# ── Mock Override State ──
+_fp_mock_enabled = False
+_fp_mock_snapshot = {} # instanceId -> item dict
+_fp_mock_events = []
+_fp_mock_event_id = 9000000
+
+@app.route('/api/v2/floor_pulse/mock/toggle', methods=['POST'])
+def toggle_fp_mock():
+    global _fp_mock_enabled, _fp_mock_snapshot, _fp_mock_events, _fp_mock_event_id
+    data = request.json or {}
+    _fp_mock_enabled = data.get("enabled", False)
+    if not _fp_mock_enabled:
+        _fp_mock_snapshot.clear()
+        _fp_mock_events.clear()
+    return jsonify({"enabled": _fp_mock_enabled})
+
+@app.route('/api/v2/floor_pulse/mock/move', methods=['POST'])
+def fp_mock_move():
+    global _fp_mock_event_id
+    if not _fp_mock_enabled:
+        return jsonify({"error": "模拟开关未打开"}), 400
+    
+    data = request.json or {}
+    instance_id = data.get("instanceId")
+    ws_id = data.get("workstationId")
+    ws_name = data.get("workstationName")
+    if not instance_id or not ws_id:
+        return jsonify({"error": "Missing params"}), 400
+
+    import datetime
+    now_iso = datetime.datetime.utcnow().isoformat() + 'Z'
+    _fp_mock_event_id += 1
+
+    # 休息区 WS-00 → idle，其他工位 → working
+    status = "idle" if ws_id == "WS-00" else "working"
+
+    # 构造事件
+    event = {
+        "messageType": "event",
+        "eventId": _fp_mock_event_id,
+        "eventType": "state_changed",
+        "instanceId": instance_id,
+        "entityType": "human",
+        "version": 999,
+        "occurredAt": now_iso,
+        "from": None,
+        "to": {
+            "workstationId": ws_id,
+            "workstationName": ws_name,
+            "status": status
+        }
+    }
+    _fp_mock_events.append(event)
+    
+    # 更新快照缓存
+    if instance_id not in _fp_mock_snapshot:
+        _fp_mock_snapshot[instance_id] = {}
+    _fp_mock_snapshot[instance_id]["workstationId"] = ws_id
+    _fp_mock_snapshot[instance_id]["workstationName"] = ws_name
+    _fp_mock_snapshot[instance_id]["status"] = status
+
+    return jsonify({"status": "ok", "eventId": _fp_mock_event_id})
+
+@app.route('/api/v2/floor_pulse/snapshot')
+def proxy_floor_pulse_snapshot():
+    """代理拉取中转站快照，注入服务端时间戳"""
+    import datetime
+    try:
+        resp = http_requests.get(f'{MIDDLEWARE_BASE_URL}/api/ue/snapshot', timeout=5)
+        data = resp.json()
+        
+        # 注入 Mock 覆写
+        if _fp_mock_enabled:
+            for item in data.get("items", []):
+                iid = item.get("instanceId")
+                if iid in _fp_mock_snapshot:
+                    if "state" not in item: item["state"] = {}
+                    item["state"]["workstationId"] = _fp_mock_snapshot[iid]["workstationId"]
+                    item["state"]["workstationName"] = _fp_mock_snapshot[iid]["workstationName"]
+            if _fp_mock_events:
+                data["latestEventId"] = _fp_mock_event_id
+
+        data['_proxy_fetched_at'] = datetime.datetime.utcnow().isoformat() + 'Z'
+        data['_middleware_url'] = MIDDLEWARE_BASE_URL
+        return jsonify(data), resp.status_code
+    except http_requests.exceptions.ConnectionError:
+        return jsonify({
+            'error': 'middleware_unreachable',
+            'message': f'无法连接到中转站 {MIDDLEWARE_BASE_URL}，请确认中转站已启动',
+            'middleware_url': MIDDLEWARE_BASE_URL
+        }), 503
+    except Exception as e:
+        return jsonify({'error': str(e), 'middleware_url': MIDDLEWARE_BASE_URL}), 503
+
+@app.route('/api/v2/floor_pulse/events')
+def proxy_floor_pulse_events():
+    """代理拉取中转站增量事件"""
+    after_event_id = request.args.get('afterEventId', '0')
+    try:
+        resp = http_requests.get(
+            f'{MIDDLEWARE_BASE_URL}/api/ue/events',
+            params={'afterEventId': after_event_id},
+            timeout=5
+        )
+        data = resp.json()
+        
+        # 注入 Mock 事件
+        if _fp_mock_enabled:
+            try:
+                after_id = int(after_event_id)
+                new_mocks = [e for e in _fp_mock_events if e["eventId"] > after_id]
+                if new_mocks:
+                    if "items" not in data: data["items"] = []
+                    data["items"].extend(new_mocks)
+                    data["items"].sort(key=lambda x: x["eventId"])
+                    data["isLive"] = True
+                    data["queryRange"] = { "afterEventId": after_id, "latestEventId": _fp_mock_event_id }
+            except:
+                pass
+
+        return jsonify(data), resp.status_code
+    except http_requests.exceptions.ConnectionError:
+        return jsonify({'error': 'middleware_unreachable'}), 503
+    except Exception as e:
+        return jsonify({'error': str(e)}), 503
+
+@app.route('/api/v2/floor_pulse/health')
+def proxy_floor_pulse_health():
+    """代理查询中转站健康状态"""
+    try:
+        resp = http_requests.get(f'{MIDDLEWARE_BASE_URL}/health', timeout=3)
+        return jsonify(resp.json()), resp.status_code
+    except Exception:
+        return jsonify({'status': 'unreachable'}), 503
+
 
 # ═══════════════════════════════════════════════════════════════
 # 旧版 1.x API（兼容保留）

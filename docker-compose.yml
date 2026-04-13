@@ -7,3 +7,5 @@ services:
     volumes:
       - ./backend:/app
       - ./frontend:/frontend
+    environment:
+      - ONTOTWIN_MIDDLEWARE_URL=http://host.docker.internal:5001

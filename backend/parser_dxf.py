@@ -59,6 +59,7 @@ def parse_dxf_to_json(file_path, wall_height=4500, wall_thickness=240):
     col_layer = "1.20-柱子"
     for entity in msp.query(f'INSERT[layer=="{col_layer}"]'):
         loc = entity.dxf.insert
+        block_name = entity.dxf.name # Dynamically retrieve the block name from DXF
         rot = entity.dxf.get('rotation', 0.0)
         scale_x = entity.dxf.get('xscale', 1.0)
         scale_y = entity.dxf.get('yscale', 1.0)
@@ -69,7 +70,7 @@ def parse_dxf_to_json(file_path, wall_height=4500, wall_thickness=240):
             "layer": col_layer,
             "generate_type": "INSTANCE",
             "data": {
-                "mesh_id": "SM_Std_Column_500",
+                "mesh_id": block_name,
                 "transform": { 
                     "loc": [loc.x, loc.y, loc.z], 
                     "rot": [0, 0, rot], 

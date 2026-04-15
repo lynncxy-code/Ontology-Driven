@@ -452,8 +452,9 @@ void UPCBWorkerSyncComponent::RefreshLabel()
     }
 
     FTwinLabelData Data;
-    // 主标题："FW-01 张明"
-    Data.Title    = FString::Printf(TEXT("%s 张明"), *InstanceId);
+    // 主标题："FW-01 张明"（WorkerName 来自 metadata.name，空时兜底显示 InstanceId）
+    const FString DisplayName = WorkerName.IsEmpty() ? InstanceId : WorkerName;
+    Data.Title    = FString::Printf(TEXT("%s %s"), *InstanceId, *DisplayName);
     // 副标题：工位 + 状态，如 "X300 驱动板工位, 正常工作"
     Data.Subtitle = FString::Printf(TEXT("%s, %s"), *WorkstationName, *StatusText);
     Data.Status   = WorkerStatus;

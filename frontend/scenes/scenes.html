@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>场景管理 — OntoTwin Lite</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <style>
+        :root {
+            --bg-base: #fafafa;
+            --bg-panel: #ffffff;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f8f9fa;
+            --bg-input: #f3f4f6;
+            --border: #e5e7eb;
+            --border-focus: #111827;
+            --accent-primary: #111827;
+            --accent-danger: #ef4444;
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --text-main: #111827;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Microsoft YaHei', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,.05);
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg-base);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            -webkit-font-smoothing: antialiased;
+        }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+
+        /* ── Header ── */
+        header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 20px;
+            height: 52px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        header a { color: var(--text-secondary); text-decoration: none; font-size: 13px; }
+        header a:hover { color: var(--text-main); }
+        header .sep { color: var(--text-muted); }
+        header .title { font-weight: 600; font-size: 14px; }
+
+        /* ── Three-panel layout ── */
+        #app {
+            display: grid;
+            grid-template-columns: 240px 1fr 260px;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .panel {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-right: 1px solid var(--border);
+        }
+        .panel:last-child { border-right: none; }
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .panel-header h2 { font-size: 13px; font-weight: 600; }
+        .panel-body { flex: 1; overflow-y: auto; padding: 12px; }
+
+        /* ── Buttons ── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 12px;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: opacity .15s;
+        }
+        .btn:hover { opacity: .8; }
+        .btn:disabled { opacity: .4; cursor: not-allowed; }
+        .btn-primary { background: var(--accent-primary); color: #fff; }
+        .btn-success { background: var(--accent-success); color: #fff; }
+        .btn-danger  { background: var(--accent-danger);  color: #fff; }
+        .btn-ghost   { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+
+        /* ── Scene list ── */
+        .scene-card {
+            padding: 10px 12px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            margin-bottom: 6px;
+            border: 1px solid transparent;
+            background: var(--bg-card);
+            transition: border-color .15s, background .15s;
+        }
+        .scene-card:hover { background: var(--bg-card-hover); }
+        .scene-card.active { border-color: var(--accent-primary); background: #f0f0f0; }
+        .scene-card .name { font-size: 13px; font-weight: 500; }
+        .scene-card .meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+        /* ── Instance list ── */
+        .inst-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            margin-bottom: 8px;
+            background: var(--bg-card);
+        }
+        .inst-row .inst-info { flex: 1; min-width: 0; }
+        .inst-row .inst-name { font-size: 13px; font-weight: 500; }
+        .inst-row .inst-type { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
+        .inst-row .inst-coords { font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono); margin-top: 3px; }
+
+        /* ── Asset library ── */
+        .asset-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 9px 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            margin-bottom: 6px;
+            background: var(--bg-card);
+        }
+        .asset-card .asset-name { font-size: 12px; font-weight: 500; }
+        .asset-card .asset-meta { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); }
+
+        /* ── Modal ── */
+        .modal-mask {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,.3);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 100;
+        }
+        .modal {
+            background: var(--bg-panel);
+            border-radius: var(--radius-md);
+            padding: 24px;
+            width: 420px;
+            max-width: 95vw;
+            box-shadow: 0 20px 40px rgba(0,0,0,.12);
+        }
+        .modal h3 { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+        .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+        /* ── Form elements ── */
+        .field { margin-bottom: 14px; }
+        .field label { display: block; font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 5px; }
+        .field input, .field select {
+            width: 100%;
+            padding: 7px 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-family: var(--font-ui);
+            background: var(--bg-input);
+            color: var(--text-main);
+            outline: none;
+            transition: border-color .15s;
+        }
+        .field input:focus, .field select:focus { border-color: var(--border-focus); background: #fff; }
+        .field-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+        /* ── Export result ── */
+        .export-result {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: var(--radius-sm);
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            font-size: 12px;
+        }
+        .export-result a { color: var(--accent-success); font-weight: 500; }
+        .export-result.error { background: #fef2f2; border-color: #fecaca; }
+        .export-result.error { color: var(--accent-danger); }
+
+        /* ── Empty/loading states ── */
+        .empty { text-align: center; color: var(--text-muted); font-size: 13px; padding: 32px 0; }
+        .tag {
+            display: inline-block;
+            padding: 1px 7px;
+            border-radius: 99px;
+            font-size: 10px;
+            font-weight: 500;
+            background: #f3f4f6;
+            color: var(--text-secondary);
+            margin-left: 6px;
+        }
+        .tag.static   { background: #eff6ff; color: #3b82f6; }
+        .tag.dynamic  { background: #fef3c7; color: #d97706; }
+        .tag.graspable { background: #f0fdf4; color: #059669; }
+
+        /* ── Detail placeholder ── */
+        .detail-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            font-size: 13px;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <a href="/">← OntoTwin</a>
+    <span class="sep">/</span>
+    <span class="title">场景管理</span>
+</header>
+
+<div id="app">
+    <!-- ── Left: Scene List ── -->
+    <section class="panel">
+        <div class="panel-header">
+            <h2>场景 <span class="tag">{{ scenes.length }}</span></h2>
+            <button class="btn btn-primary" @click="showCreateScene = true">+ 新建</button>
+        </div>
+        <div class="panel-body">
+            <div v-if="scenes.length === 0" class="empty">暂无场景</div>
+            <div
+                v-for="s in scenes" :key="s.id"
+                class="scene-card"
+                :class="{ active: selectedScene && selectedScene.id === s.id }"
+                @click="selectScene(s.id)"
+            >
+                <div class="name">{{ s.display_name }}</div>
+                <div class="meta">{{ s.id }}</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Center: Scene Detail ── -->
+    <section class="panel">
+        <template v-if="selectedScene">
+            <div class="panel-header">
+                <h2>{{ selectedScene.display_name }}</h2>
+                <button
+                    class="btn btn-success"
+                    :disabled="exporting || !selectedScene.instance_ids || selectedScene.instance_ids.length === 0"
+                    @click="exportScene"
+                >
+                    {{ exporting ? '导出中…' : '导出 USD' }}
+                </button>
+            </div>
+            <div class="panel-body">
+                <!-- Bounds -->
+                <div style="font-size:12px; color: var(--text-secondary); margin-bottom:14px; font-family: var(--font-mono);">
+                    边界 X[{{ selectedScene.bounds?.x[0] }}, {{ selectedScene.bounds?.x[1] }}]
+                    Y[{{ selectedScene.bounds?.y[0] }}, {{ selectedScene.bounds?.y[1] }}]
+                    Z[{{ selectedScene.bounds?.z[0] }}, {{ selectedScene.bounds?.z[1] }}] m
+                </div>
+
+                <!-- Export result -->
+                <div v-if="exportResult" class="export-result" :class="{ error: exportResult.error }">
+                    <template v-if="exportResult.error">{{ exportResult.error }}</template>
+                    <template v-else>
+                        导出成功 v{{ exportResult.export_version }}，{{ exportResult.stats.prim_count }} prims
+                        <span v-if="exportResult.stats.warnings.length">，{{ exportResult.stats.warnings.length }} 警告</span>
+                        — <a :href="exportResult.download_url" target="_blank">下载 {{ exportResult.file_path.split('/').pop() }}</a>
+                    </template>
+                </div>
+
+                <!-- Instance list -->
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+                    <span style="font-size:13px; font-weight:600;">实例 <span class="tag">{{ sceneInstances.length }}</span></span>
+                    <button class="btn btn-ghost" @click="showAddInstance = true">+ 添加实例</button>
+                </div>
+
+                <div v-if="sceneInstances.length === 0" class="empty">拖入右侧资产，或点击"添加实例"</div>
+
+                <div v-for="inst in sceneInstances" :key="inst.id" class="inst-row">
+                    <div class="inst-info">
+                        <div class="inst-name">
+                            {{ inst.display_name }}
+                            <span class="tag" :class="inst.physics.collision_type">{{ inst.physics.collision_type }}</span>
+                        </div>
+                        <div class="inst-type">{{ inst.file_number }}</div>
+                        <div class="inst-coords">
+                            T {{ fmt3(inst.transform.translation) }}
+                            R {{ fmt3(inst.transform.rotation) }}
+                        </div>
+                    </div>
+                    <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" @click="removeInstance(inst.id)">移除</button>
+                </div>
+            </div>
+        </template>
+
+        <div v-else class="detail-empty">
+            <span style="font-size:28px;">📦</span>
+            <span>从左侧选择或新建场景</span>
+        </div>
+    </section>
+
+    <!-- ── Right: Asset Library ── -->
+    <section class="panel">
+        <div class="panel-header">
+            <h2>资产库</h2>
+            <button class="btn btn-ghost" style="font-size:11px;" @click="loadAssets">刷新</button>
+        </div>
+        <div class="panel-body">
+            <div v-if="assets.length === 0" class="empty">暂无资产</div>
+            <div v-for="a in assets" :key="a.file_number" class="asset-card">
+                <div>
+                    <div class="asset-name">{{ a.display_name }}</div>
+                    <div class="asset-meta">{{ a.file_number }}</div>
+                </div>
+                <button
+                    class="btn btn-ghost"
+                    style="padding:4px 8px; font-size:11px;"
+                    :disabled="!selectedScene"
+                    @click="quickAddInstance(a)"
+                    title="快速添加到当前场景"
+                >添加</button>
+            </div>
+        </div>
+    </section>
+
+<!-- ── Create Scene Modal ── -->
+<div class="modal-mask" v-if="showCreateScene" @click.self="showCreateScene = false">
+    <div class="modal">
+        <h3>新建场景</h3>
+        <div class="field">
+            <label>场景 ID（英文，唯一）</label>
+            <input v-model="newScene.id" placeholder="warehouse_demo_02" />
+        </div>
+        <div class="field">
+            <label>显示名称</label>
+            <input v-model="newScene.display_name" placeholder="仓库演示 02" />
+        </div>
+        <div class="field">
+            <label>边界 X（最小 / 最大，单位 m）</label>
+            <div class="field-row">
+                <input v-model.number="newScene.bounds_x_min" type="number" step="0.5" placeholder="-3" />
+                <input v-model.number="newScene.bounds_x_max" type="number" step="0.5" placeholder="3" />
+            </div>
+        </div>
+        <div class="field">
+            <label>边界 Y</label>
+            <div class="field-row">
+                <input v-model.number="newScene.bounds_y_min" type="number" step="0.5" placeholder="-3" />
+                <input v-model.number="newScene.bounds_y_max" type="number" step="0.5" placeholder="3" />
+            </div>
+        </div>
+        <div class="field">
+            <label>边界 Z</label>
+            <div class="field-row">
+                <input v-model.number="newScene.bounds_z_min" type="number" step="0.5" placeholder="0" />
+                <input v-model.number="newScene.bounds_z_max" type="number" step="0.5" placeholder="3" />
+            </div>
+        </div>
+        <div class="actions">
+            <button class="btn btn-ghost" @click="showCreateScene = false">取消</button>
+            <button class="btn btn-primary" @click="createScene">创建</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Add Instance Modal ── -->
+<div class="modal-mask" v-if="showAddInstance" @click.self="showAddInstance = false">
+    <div class="modal">
+        <h3>添加实例到场景</h3>
+        <div class="field">
+            <label>选择实例</label>
+            <select v-model="addInst.instance_id">
+                <option value="">— 请选择 —</option>
+                <option v-for="i in availableInstances" :key="i.id" :value="i.id">
+                    {{ i.display_name }} ({{ i.file_number }})
+                </option>
+            </select>
+        </div>
+        <div class="actions">
+            <button class="btn btn-ghost" @click="showAddInstance = false">取消</button>
+            <button class="btn btn-primary" :disabled="!addInst.instance_id" @click="addInstanceToScene">添加</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Quick Add (from asset library) Modal ── -->
+<div class="modal-mask" v-if="showQuickAdd" @click.self="showQuickAdd = false">
+    <div class="modal">
+        <h3>快速添加实例：{{ quickAddAsset?.display_name }}</h3>
+        <div class="field">
+            <label>实例 ID（英文，唯一）</label>
+            <input v-model="quickAddForm.id" :placeholder="quickAddAsset?.file_number + '_001'" />
+        </div>
+        <div class="field">
+            <label>显示名称</label>
+            <input v-model="quickAddForm.display_name" :placeholder="quickAddAsset?.display_name" />
+        </div>
+        <div class="field">
+            <label>位置 X / Y / Z（m）</label>
+            <div class="field-row">
+                <input v-model.number="quickAddForm.tx" type="number" step="0.1" placeholder="0" />
+                <input v-model.number="quickAddForm.ty" type="number" step="0.1" placeholder="0" />
+                <input v-model.number="quickAddForm.tz" type="number" step="0.1" placeholder="0" />
+            </div>
+        </div>
+        <div class="field">
+            <label>物理类型</label>
+            <select v-model="quickAddForm.collision_type">
+                <option value="static">static（静态）</option>
+                <option value="dynamic">dynamic（动态）</option>
+                <option value="graspable">graspable（可抓取）</option>
+            </select>
+        </div>
+        <div class="actions">
+            <button class="btn btn-ghost" @click="showQuickAdd = false">取消</button>
+            <button class="btn btn-primary" @click="submitQuickAdd">创建并添加</button>
+        </div>
+    </div>
+</div>
+
+</div><!-- /#app -->
+
+<script src="/scenes/scenes.js"></script>
+</body>
+</html>

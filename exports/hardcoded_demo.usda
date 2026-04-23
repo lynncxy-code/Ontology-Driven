@@ -1,0 +1,181 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "World" (
+    customData = {
+        dictionary ontology = {
+            string datasetId = "standard_practice"
+            string exportTimestamp = "2026-04-21T07:19:51Z"
+            int exportVersion = 1
+            string sourceScene = "hardcoded_demo"
+        }
+    }
+)
+{
+    def Xform "Robots"
+    {
+        def Xform "franka_001" (
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
+            customData = {
+                dictionary ontology = {
+                    string datasetId = "standard_practice"
+                    string exportTimestamp = "2026-04-21T07:19:51Z"
+                    int exportVersion = 1
+                    string fileNumber = "franka"
+                    string instanceId = "franka_001"
+                    string[] interfaces = ["I3D_Representable", "I3D_Spatial", "I3D_PhysicsHint"]
+                    string objectTypeRid = "ri.obj.robot"
+                    string sourceScene = "hardcoded_demo"
+                }
+            }
+            prepend references = @../assets/usd_cache/franka.usd@
+        )
+        {
+            float3 xformOp:rotateXYZ = (0, 0, 0)
+            float3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (0, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+        }
+    }
+
+    def Xform "Shelves"
+    {
+        def Xform "shelf_001" (
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
+            customData = {
+                dictionary ontology = {
+                    string datasetId = "standard_practice"
+                    string exportTimestamp = "2026-04-21T07:19:51Z"
+                    int exportVersion = 1
+                    string fileNumber = "shelf"
+                    string instanceId = "shelf_001"
+                    string[] interfaces = ["I3D_Representable", "I3D_Spatial", "I3D_PhysicsHint"]
+                    string objectTypeRid = "ri.obj.shelf"
+                    string sourceScene = "hardcoded_demo"
+                }
+            }
+            prepend references = @../assets/usd_cache/shelf.usd@
+        )
+        {
+            float3 xformOp:rotateXYZ = (0, 0, 90)
+            float3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (1.5, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+        }
+
+        def Xform "shelf_002" (
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
+            customData = {
+                dictionary ontology = {
+                    string datasetId = "standard_practice"
+                    string exportTimestamp = "2026-04-21T07:19:51Z"
+                    int exportVersion = 1
+                    string fileNumber = "shelf"
+                    string instanceId = "shelf_002"
+                    string[] interfaces = ["I3D_Representable", "I3D_Spatial", "I3D_PhysicsHint"]
+                    string objectTypeRid = "ri.obj.shelf"
+                    string sourceScene = "hardcoded_demo"
+                }
+            }
+            prepend references = @../assets/usd_cache/shelf.usd@
+        )
+        {
+            float3 xformOp:rotateXYZ = (0, 0, 0)
+            float3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (-1.5, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+        }
+    }
+
+    def Xform "Boxes"
+    {
+        def Xform "box_large_001" (
+            prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsMeshCollisionAPI"]
+            customData = {
+                dictionary ontology = {
+                    string datasetId = "standard_practice"
+                    string exportTimestamp = "2026-04-21T07:19:51Z"
+                    int exportVersion = 1
+                    string fileNumber = "box_large"
+                    string instanceId = "box_large_001"
+                    string[] interfaces = ["I3D_Representable", "I3D_Spatial", "I3D_PhysicsHint"]
+                    string objectTypeRid = "ri.obj.box"
+                    string sourceScene = "hardcoded_demo"
+                }
+                dictionary physics = {
+                    double frictionHint = 0.5
+                }
+            }
+            prepend references = @../assets/usd_cache/box_large.usd@
+        )
+        {
+            uniform token physics:approximation = "none"
+            float physics:mass = 2
+            float3 xformOp:rotateXYZ = (0, 0, 0)
+            float3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (-0.5, 0.5, 0.15)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+        }
+
+        def Xform "box_medium_001" (
+            prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsMeshCollisionAPI"]
+            customData = {
+                dictionary ontology = {
+                    string datasetId = "standard_practice"
+                    string exportTimestamp = "2026-04-21T07:19:51Z"
+                    int exportVersion = 1
+                    string fileNumber = "box_medium"
+                    string instanceId = "box_medium_001"
+                    string[] interfaces = ["I3D_Representable", "I3D_Spatial", "I3D_PhysicsHint"]
+                    string objectTypeRid = "ri.obj.box"
+                    string sourceScene = "hardcoded_demo"
+                }
+                dictionary physics = {
+                    double frictionHint = 0.5
+                }
+            }
+            prepend references = @../assets/usd_cache/box_medium.usd@
+        )
+        {
+            uniform token physics:approximation = "none"
+            float physics:mass = 0.8
+            float3 xformOp:rotateXYZ = (0, 0, 0)
+            float3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (0, 0.5, 0.1)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+        }
+
+        def Xform "box_small_001" (
+            prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsMeshCollisionAPI"]
+            customData = {
+                dictionary ontology = {
+                    string datasetId = "standard_practice"
+                    string exportTimestamp = "2026-04-21T07:19:51Z"
+                    int exportVersion = 1
+                    string fileNumber = "box_small"
+                    string instanceId = "box_small_001"
+                    string[] interfaces = ["I3D_Representable", "I3D_Spatial", "I3D_PhysicsHint"]
+                    string objectTypeRid = "ri.obj.box"
+                    string sourceScene = "hardcoded_demo"
+                }
+                dictionary physics = {
+                    double frictionHint = 0.6
+                }
+            }
+            prepend references = @../assets/usd_cache/box_small.usd@
+        )
+        {
+            uniform token physics:approximation = "none"
+            float physics:mass = 0.3
+            float3 xformOp:rotateXYZ = (0, 0, 0)
+            float3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (0.5, 0.5, 0.05)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+        }
+    }
+}
+

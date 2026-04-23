@@ -71,7 +71,7 @@
                     <div class="flex items-center gap-3">
                         <label class="w-12 text-xs font-medium text-gray-500 shrink-0">实体 ID</label>
                         <select v-model="spawnForm.instanceId" :disabled="!spawnForm.objectTypeRid"
-                                class="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm font-mono outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition disabled:bg-gray-50 disabled:text-gray-400">
+                                class="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition disabled:bg-gray-50 disabled:text-gray-400">
                             <option value="">-- 选择可用编号 --</option>
                             <option v-for="id in availableInstanceIds" :key="id" :value="id">{{ id }}</option>
                         </select>

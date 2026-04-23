@@ -1,0 +1,127 @@
+#usda 1.0
+(
+    defaultPrim = "MI_big_shelf"
+    upAxis = "Z"
+)
+
+def Material "MI_big_shelf" (
+    assetInfo = {
+        asset identifier = @../../../../tmp/digital_twin_aircraft/assets/usd_cache/shelf.usda@
+        string name = "MI_big_shelf"
+        dictionary unreal = {
+            string assetType = "MaterialInstanceConstant"
+            string contentPath = "/Game/WH_Construction_Set/Materials/Instances/MI_big_shelf.MI_big_shelf"
+            string engineVersion = "5.6.1-44394996+++UE5+Release-5.6"
+            string exportTime = "2026.04.22-19.10.53"
+        }
+        string version = "8FEF2D08ADBA25ED3E1C4BE75367827AFF1809F8"
+    }
+)
+{
+    token inputs:stPrimvarName = "st"
+    token outputs:surface.connect = </MI_big_shelf/SurfaceShader.outputs:surface>
+    token outputs:unreal:surface.connect = </MI_big_shelf/UnrealShader.outputs:out>
+
+    def Shader "UnrealShader"
+    {
+        uniform token info:implementationSource = "sourceAsset"
+        uniform asset info:unreal:sourceAsset = @/Game/WH_Construction_Set/Materials/Instances/MI_big_shelf.MI_big_shelf@
+        token outputs:out
+    }
+
+    def Shader "SurfaceShader"
+    {
+        uniform token info:id = "UsdPreviewSurface"
+        float inputs:anisotropy = 0
+        color3f inputs:diffuseColor.connect = </MI_big_shelf/diffuseTexture.outputs:rgb>
+        color3f inputs:emissiveColor.connect = </MI_big_shelf/emissiveTexture.outputs:rgb>
+        float inputs:metallic.connect = </MI_big_shelf/metallicTexture.outputs:r>
+        normal3f inputs:normal.connect = </MI_big_shelf/normalTexture.outputs:rgb>
+        float inputs:occlusion = 1
+        float inputs:opacity.connect = </MI_big_shelf/opacityTexture.outputs:r>
+        float inputs:roughness.connect = </MI_big_shelf/roughnessTexture.outputs:r>
+        float inputs:specular = 0.49803925
+        normal3f inputs:tangent = (1, -0.49803925, 0.49803925)
+        token outputs:surface
+    }
+
+    def Shader "PrimvarReader"
+    {
+        uniform token info:id = "UsdPrimvarReader_float2"
+        string inputs:varname.connect = </MI_big_shelf.inputs:stPrimvarName>
+        token outputs:result
+    }
+
+    def Shader "diffuseTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (0, 0, 0, 1)
+        asset inputs:file = @Textures/MI_big_shelf_BaseColor.png@
+        token inputs:sourceColorSpace = "sRGB"
+        float2 inputs:st.connect = </MI_big_shelf/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        color3f outputs:rgb
+    }
+
+    def Shader "metallicTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (0, 0, 0, 1)
+        asset inputs:file = @Textures/MI_big_shelf_Metallic.png@
+        token inputs:sourceColorSpace = "raw"
+        float2 inputs:st.connect = </MI_big_shelf/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        float outputs:r
+    }
+
+    def Shader "roughnessTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (0.5, 0.5, 0.5, 1)
+        asset inputs:file = @Textures/MI_big_shelf_Roughness.png@
+        token inputs:sourceColorSpace = "raw"
+        float2 inputs:st.connect = </MI_big_shelf/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        float outputs:r
+    }
+
+    def Shader "emissiveTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (0, 0, 0, 1)
+        asset inputs:file = @Textures/MI_big_shelf_EmissiveColor.exr@
+        token inputs:sourceColorSpace = "raw"
+        float2 inputs:st.connect = </MI_big_shelf/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        color3f outputs:rgb
+    }
+
+    def Shader "opacityTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (1, 1, 1, 1)
+        asset inputs:file = @Textures/MI_big_shelf_OpacityMask.png@
+        token inputs:sourceColorSpace = "raw"
+        float2 inputs:st.connect = </MI_big_shelf/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        float outputs:r
+    }
+
+    def Shader "normalTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (0, 0, 1, 1)
+        asset inputs:file = @Textures/MI_big_shelf_Normal.png@
+        token inputs:sourceColorSpace = "raw"
+        float2 inputs:st.connect = </MI_big_shelf/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        normal3f outputs:rgb
+    }
+}
+

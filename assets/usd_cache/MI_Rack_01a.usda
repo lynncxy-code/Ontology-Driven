@@ -1,0 +1,125 @@
+#usda 1.0
+(
+    defaultPrim = "MI_Rack_01a"
+    upAxis = "Z"
+)
+
+def Material "MI_Rack_01a" (
+    assetInfo = {
+        asset identifier = @../../../../tmp/digital_twin_aircraft/assets/usd_cache/shelf.usda@
+        string name = "MI_Rack_01a"
+        dictionary unreal = {
+            string assetType = "MaterialInstanceConstant"
+            string contentPath = "/Game/WarehouseProps_Bundle/Materials/MI_Rack_01a.MI_Rack_01a"
+            string engineVersion = "5.6.1-44394996+++UE5+Release-5.6"
+            string exportTime = "2026.04.22-19.00.30"
+        }
+        string version = "7C9B761D179014B00DF77613233B2ED7DC956B6F"
+    }
+)
+{
+    token inputs:stPrimvarName = "st"
+    token outputs:surface.connect = </MI_Rack_01a/SurfaceShader.outputs:surface>
+    token outputs:unreal:surface.connect = </MI_Rack_01a/UnrealShader.outputs:out>
+
+    def Shader "UnrealShader"
+    {
+        uniform token info:implementationSource = "sourceAsset"
+        uniform asset info:unreal:sourceAsset = @/Game/WarehouseProps_Bundle/Materials/MI_Rack_01a.MI_Rack_01a@
+        token outputs:out
+    }
+
+    def Shader "SurfaceShader"
+    {
+        uniform token info:id = "UsdPreviewSurface"
+        float inputs:anisotropy = 0
+        color3f inputs:diffuseColor.connect = </MI_Rack_01a/diffuseTexture.outputs:rgb>
+        float inputs:metallic.connect = </MI_Rack_01a/metallicTexture.outputs:r>
+        normal3f inputs:normal.connect = </MI_Rack_01a/normalTexture.outputs:rgb>
+        float inputs:occlusion.connect = </MI_Rack_01a/occlusionTexture.outputs:r>
+        float inputs:opacity.connect = </MI_Rack_01a/opacityTexture.outputs:r>
+        float inputs:roughness.connect = </MI_Rack_01a/roughnessTexture.outputs:r>
+        float inputs:specular = 0.49803925
+        token outputs:surface
+    }
+
+    def Shader "PrimvarReader"
+    {
+        uniform token info:id = "UsdPrimvarReader_float2"
+        string inputs:varname.connect = </MI_Rack_01a.inputs:stPrimvarName>
+        token outputs:result
+    }
+
+    def Shader "diffuseTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (0, 0, 0, 1)
+        asset inputs:file = @Textures/MI_Rack_01a_BaseColor.png@
+        token inputs:sourceColorSpace = "sRGB"
+        float2 inputs:st.connect = </MI_Rack_01a/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        color3f outputs:rgb
+    }
+
+    def Shader "metallicTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (0, 0, 0, 1)
+        asset inputs:file = @Textures/MI_Rack_01a_Metallic.png@
+        token inputs:sourceColorSpace = "raw"
+        float2 inputs:st.connect = </MI_Rack_01a/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        float outputs:r
+    }
+
+    def Shader "roughnessTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (0.5, 0.5, 0.5, 1)
+        asset inputs:file = @Textures/MI_Rack_01a_Roughness.png@
+        token inputs:sourceColorSpace = "raw"
+        float2 inputs:st.connect = </MI_Rack_01a/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        float outputs:r
+    }
+
+    def Shader "opacityTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (1, 1, 1, 1)
+        asset inputs:file = @Textures/MI_Rack_01a_OpacityMask.png@
+        token inputs:sourceColorSpace = "raw"
+        float2 inputs:st.connect = </MI_Rack_01a/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        float outputs:r
+    }
+
+    def Shader "normalTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (0, 0, 1, 1)
+        asset inputs:file = @Textures/MI_Rack_01a_Normal.png@
+        token inputs:sourceColorSpace = "raw"
+        float2 inputs:st.connect = </MI_Rack_01a/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        normal3f outputs:rgb
+    }
+
+    def Shader "occlusionTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (1, 1, 1, 1)
+        asset inputs:file = @Textures/MI_Rack_01a_AmbientOcclusion.png@
+        token inputs:sourceColorSpace = "raw"
+        float2 inputs:st.connect = </MI_Rack_01a/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        float outputs:r
+    }
+}
+

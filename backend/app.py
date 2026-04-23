@@ -2224,5 +2224,15 @@ def get_graph_data():
 
 
 
+# ============ OntoTwin Lite 模块（新增，不影响现有路由）============
+try:
+    from lite.models.db import init_db
+    from lite.api import register_lite_routes
+    init_db()
+    register_lite_routes(app)
+except Exception as _lite_err:
+    print(f"[Lite] 模块加载失败: {_lite_err}")
+# ================================================================
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)

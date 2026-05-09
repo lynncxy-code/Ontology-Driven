@@ -270,7 +270,7 @@
                     :disabled="exporting || !selectedScene.instance_ids || selectedScene.instance_ids.length === 0"
                     @click="exportScene"
                 >
-                    {{ exporting ? '导出中…' : '导出 USD' }}
+                    {{ exporting ? '保存中…' : '保存并预览' }}
                 </button>
             </div>
             <div class="panel-body">
@@ -311,7 +311,10 @@
                             R {{ fmt3(inst.transform.rotation) }}
                         </div>
                     </div>
-                    <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" @click="removeInstance(inst.id)">移除</button>
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <button class="btn btn-ghost" style="padding:4px 8px; font-size:11px;" @click="openEditInstance(inst)">编辑</button>
+                        <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" @click="removeInstance(inst.id)">移除</button>
+                    </div>
                 </div>
             </div>
         </template>
@@ -402,6 +405,57 @@
         <div class="actions">
             <button class="btn btn-ghost" @click="showAddInstance = false">取消</button>
             <button class="btn btn-primary" :disabled="!addInst.instance_id" @click="addInstanceToScene">添加</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Edit Instance Modal ── -->
+<div class="modal-mask" v-if="showEditInstance" @click.self="showEditInstance = false">
+    <div class="modal">
+        <h3>编辑实例：{{ editForm.id }}</h3>
+        <div class="field">
+            <label>位置 X / Y / Z（m）</label>
+            <div class="field-row">
+                <input v-model.number="editForm.tx" type="number" step="0.1" />
+                <input v-model.number="editForm.ty" type="number" step="0.1" />
+                <input v-model.number="editForm.tz" type="number" step="0.1" />
+            </div>
+        </div>
+        <div class="field">
+            <label>旋转 X / Y / Z（度）</label>
+            <div class="field-row">
+                <input v-model.number="editForm.rx" type="number" step="1" />
+                <input v-model.number="editForm.ry" type="number" step="1" />
+                <input v-model.number="editForm.rz" type="number" step="1" />
+            </div>
+        </div>
+        <div class="field">
+            <label>缩放 X / Y / Z</label>
+            <div class="field-row">
+                <input v-model.number="editForm.sx" type="number" step="0.1" />
+                <input v-model.number="editForm.sy" type="number" step="0.1" />
+                <input v-model.number="editForm.sz" type="number" step="0.1" />
+            </div>
+        </div>
+        <div class="field">
+            <label>物理类型</label>
+            <select v-model="editForm.collision_type">
+                <option value="static">static（静态，不动）</option>
+                <option value="dynamic">dynamic（动态，受重力）</option>
+                <option value="graspable">graspable（可抓取，精确碰撞）</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>质量 mass（kg，留空则按体积自动估算）</label>
+            <input v-model.number="editForm.mass" type="number" step="0.1" placeholder="例如 0.5" />
+        </div>
+        <div class="field">
+            <label>摩擦系数 friction</label>
+            <input v-model.number="editForm.friction" type="number" step="0.05" min="0" max="2" />
+        </div>
+        <div class="actions">
+            <button class="btn btn-ghost" @click="showEditInstance = false">取消</button>
+            <button class="btn btn-primary" @click="submitEditInstance">保存</button>
         </div>
     </div>
 </div>

@@ -78,7 +78,7 @@ def scene_export(scene_id):
     # 5. 调用导出器
     _EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
     fmt = opts.get("format", "usda")
-    out_file = _EXPORTS_DIR / f"{scene_id}_v{version}.{fmt}"
+    out_file = _EXPORTS_DIR / f"{scene_id}.{fmt}"
 
     try:
         from lite.services.usd_exporter import export_scene_to_usd

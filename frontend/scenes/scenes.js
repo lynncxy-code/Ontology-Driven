@@ -14,6 +14,7 @@ const api = {
     instances: {
         list:   () => axios.get(`${API_BASE}/instances`),
         create: (data) => axios.post(`${API_BASE}/instances`, data),
+        update: (id, data) => axios.put(`${API_BASE}/instances/${id}`, data),
     },
     assets: {
         list: () => axios.get(`${API_BASE}/assets`),
@@ -48,6 +49,10 @@ createApp({
             showQuickAdd:   false,
             quickAddAsset:  null,
             quickAddForm:   { id: '', display_name: '', tx: 0, ty: 0, tz: 0, collision_type: 'static' },
+
+            showEditInstance: false,
+            editForm: { id: '', tx: 0, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0, sx: 1, sy: 1, sz: 1,
+                        collision_type: 'static', mass: null, friction: 0.5 },
         };
     },
 
@@ -177,6 +182,46 @@ createApp({
                 await this.selectScene(this.selectedScene.id);
             } catch (err) {
                 alert('创建失败：' + (err.response?.data?.error?.message || err.message));
+            }
+        },
+
+        // ── Edit Instance ───────────────────────────────────────
+        openEditInstance(inst) {
+            const t = inst.transform?.translation || [0, 0, 0];
+            const r = inst.transform?.rotation    || [0, 0, 0];
+            const s = inst.transform?.scale       || [1, 1, 1];
+            const p = inst.physics || {};
+            this.editForm = {
+                id: inst.id,
+                tx: t[0], ty: t[1], tz: t[2],
+                rx: r[0], ry: r[1], rz: r[2],
+                sx: s[0], sy: s[1], sz: s[2],
+                collision_type: p.collision_type || 'static',
+                mass:           p.mass,
+                friction:       p.friction ?? 0.5,
+            };
+            this.showEditInstance = true;
+        },
+
+        async submitEditInstance() {
+            const f = this.editForm;
+            try {
+                await api.instances.update(f.id, {
+                    transform: {
+                        translation: [f.tx, f.ty, f.tz],
+                        rotation:    [f.rx, f.ry, f.rz],
+                        scale:       [f.sx, f.sy, f.sz],
+                    },
+                    physics: {
+                        collision_type: f.collision_type,
+                        mass:           f.mass === '' ? null : f.mass,
+                        friction:       f.friction,
+                    },
+                });
+                this.showEditInstance = false;
+                await this.loadSceneInstances();
+            } catch (err) {
+                alert('更新失败：' + (err.response?.data?.error?.message || err.message));
             }
         },
 

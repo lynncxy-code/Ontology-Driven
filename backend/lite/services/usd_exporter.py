@@ -41,6 +41,11 @@ def export_scene_to_usd(
     world = UsdGeom.Xform.Define(stage, "/World")
     stage.SetDefaultPrim(world.GetPrim())
 
+    # 根据 bounds 生成地板 + 视觉墙（M4：训练侧需要 ground collider）
+    bounds = scene_data.get("bounds")
+    if bounds:
+        _add_environment(stage, bounds)
+
     # 场景级 customData
     world.GetPrim().SetCustomDataByKey("ontology", {
         "sourceScene": scene_data["id"],
@@ -94,6 +99,52 @@ def export_scene_to_usd(
 
 
 # ── 内部辅助 ─────────────────────────────────────────────────────
+
+def _add_environment(stage: Usd.Stage, bounds: dict):
+    """根据 bounds（米）生成 1 个静态地板 + 4 面薄墙（仅视觉）。
+
+    地板带 CollisionAPI（机器人/物体踩在上面），墙不带（避免卡住机器人）。
+    USD 单位为 cm，bounds 单位为 m，需 ×100。
+    """
+    bx_min, bx_max = bounds["x"]
+    by_min, by_max = bounds["y"]
+    bz_min, bz_max = bounds["z"]
+
+    UsdGeom.Xform.Define(stage, "/World/Environment")
+
+    # 地板：5 cm 厚，顶面在 z=bz_min
+    sx_cm = (bx_max - bx_min) * 100
+    sy_cm = (by_max - by_min) * 100
+    cx_cm = (bx_min + bx_max) / 2 * 100
+    cy_cm = (by_min + by_max) / 2 * 100
+    floor_thick = 5.0
+    floor = UsdGeom.Cube.Define(stage, "/World/Environment/Ground")
+    floor.CreateSizeAttr(1.0)
+    floor.AddTranslateOp().Set(Gf.Vec3d(cx_cm, cy_cm, bz_min * 100 - floor_thick / 2))
+    floor.AddScaleOp().Set(Gf.Vec3f(sx_cm, sy_cm, floor_thick))
+    floor.CreateDisplayColorAttr([(0.55, 0.55, 0.58)])
+    UsdPhysics.CollisionAPI.Apply(floor.GetPrim())
+
+    # 4 面墙：1 cm 厚，仅视觉，不加 collision
+    wall_thick = 1.0
+    wall_height_cm = (bz_max - bz_min) * 100
+    wall_center_z = (bz_min + bz_max) / 2 * 100
+    wall_color = [(0.85, 0.85, 0.88)]
+    wall_specs = [
+        ("WallNorth", cx_cm, by_max * 100 + wall_thick / 2, sx_cm,        wall_thick),
+        ("WallSouth", cx_cm, by_min * 100 - wall_thick / 2, sx_cm,        wall_thick),
+        ("WallEast",  bx_max * 100 + wall_thick / 2, cy_cm, wall_thick,   sy_cm),
+        ("WallWest",  bx_min * 100 - wall_thick / 2, cy_cm, wall_thick,   sy_cm),
+    ]
+    for name, x, y, sx, sy in wall_specs:
+        wall = UsdGeom.Cube.Define(stage, f"/World/Environment/{name}")
+        wall.CreateSizeAttr(1.0)
+        wall.AddTranslateOp().Set(Gf.Vec3d(x, y, wall_center_z))
+        wall.AddScaleOp().Set(Gf.Vec3f(sx, sy, wall_height_cm))
+        wall.CreateDisplayColorAttr(wall_color)
+
+
+
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")

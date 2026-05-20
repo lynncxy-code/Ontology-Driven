@@ -645,6 +645,7 @@ function buildEntityTable() {
     ...State.previewData.polylines.map(e => ({...e, _type:'polyline'})),
   ];
   all.forEach(ent => {
+    if (!State.layerVisible[ent.layer]) return;
     if (State.entityChecked[ent.id] === undefined) State.entityChecked[ent.id] = true;
     const isInsert = ent._type === 'insert';
     const pos = isInsert ? ent.position : ent.points[0];
@@ -680,12 +681,12 @@ function highlightTableRow(id) {
 function _buildExportPayload() {
   const ents = [];
   State.previewData.inserts.forEach(ins => {
-    if (!State.entityChecked[ins.id]) return;
+    if (!State.layerVisible[ins.layer] || !State.entityChecked[ins.id]) return;
     ents.push({ ...ins, asset_path: State.entityAssets[ins.id] || ins.block_name, export: true });
   });
   const polys = [];
   State.previewData.polylines.forEach(p => {
-    if (!State.entityChecked[p.id]) return;
+    if (!State.layerVisible[p.layer] || !State.entityChecked[p.id]) return;
     polys.push({ ...p, generate_type: State.entityTypes[p.id] || p.generate_type, export: true });
   });
   return {
@@ -759,7 +760,7 @@ function downloadCSV() {
   if (!State.previewData || !State.matrix) return;
   let csv = '设备ID,块名,图层,CAD_X,CAD_Y,UE_X,UE_Y,UE_Z,旋转角,UE资产路径\n';
   State.previewData.inserts.forEach(ins => {
-    if (!State.entityChecked[ins.id]) return;
+    if (!State.layerVisible[ins.layer] || !State.entityChecked[ins.id]) return;
     const ue = CoordTransform.applyTransform(State.matrix, ins.position);
     csv += `${ins.attribs.EQUIP_ID||''},${ins.block_name},${ins.layer},${ins.position[0]},${ins.position[1]},${ue[0]},${ue[1]},0,${ins.rotation},${State.entityAssets[ins.id]||''}\n`;
   });

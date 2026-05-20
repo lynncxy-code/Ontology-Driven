@@ -95,8 +95,8 @@ body.embedded-mode{background:#fafaf7}
       <h1>坐标标定工作台</h1>
       <span class="eyebrow" id="modeBadge">CAD MODE</span>
       <div class="mode-tabs" style="margin-left:16px">
-        <button class="mode-tab active" id="modeTabCad" onclick="switchMode('dxf')">📐 CAD 标定</button>
-        <button class="mode-tab" id="modeTabImg" onclick="switchMode('image')">🖼 图片标定</button>
+        <button class="mode-tab active" id="modeTabCad" onclick="switchMode('dxf')">CAD 标定</button>
+        <button class="mode-tab" id="modeTabImg" onclick="switchMode('image')">图片标定</button>
       </div>
     </div>
     <div style="display:flex;gap:8px">
@@ -143,7 +143,7 @@ body.embedded-mode{background:#fafaf7}
             <div class="section-title">实体列表与资产映射</div>
             <div style="overflow-x:auto;max-height:calc(100vh - 240px);overflow-y:auto">
               <table class="entity-table" id="entityTable">
-                <thead><tr><th>☑</th><th>类型</th><th>名称</th><th>编号</th><th>构件</th><th>UE X</th><th>UE Y</th><th>资产路径</th></tr></thead>
+                <thead><tr><th>选择</th><th>类型</th><th>名称</th><th>编号</th><th>构件</th><th>UE X</th><th>UE Y</th><th>资产路径</th></tr></thead>
                 <tbody id="entityBody"></tbody>
               </table>
             </div>
@@ -152,10 +152,10 @@ body.embedded-mode{background:#fafaf7}
           <div class="step-panel" id="step4">
             <div class="section-title">导出预览</div>
             <p class="hint" style="margin-top:0;margin-bottom:8px">点击刷新预览查看变换结果，导出 JSON 调用后端接口</p>
-            <button class="btn btn-sm" onclick="buildExportPreview()" style="width:100%;margin-bottom:8px">🔄 刷新预览</button>
+            <button class="btn btn-sm" onclick="buildExportPreview()" style="width:100%;margin-bottom:8px">刷新预览</button>
             <div style="display:flex;gap:8px">
-              <button class="btn btn-primary btn-sm" onclick="exportJSON()" style="flex:1">📄 导出 JSON</button>
-              <button class="btn btn-sm" onclick="downloadCSV()" style="flex:1">📊 下载 CSV</button>
+              <button class="btn btn-primary btn-sm" onclick="exportJSON()" style="flex:1">导出 JSON</button>
+              <button class="btn btn-sm" onclick="downloadCSV()" style="flex:1">下载 CSV</button>
             </div>
             <div class="export-preview" id="exportPreview">点击"刷新预览"查看结果</div>
           </div>
@@ -192,7 +192,7 @@ body.embedded-mode{background:#fafaf7}
             <div id="markerList"></div>
             <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
               <div class="section-title">导出</div>
-              <button class="btn btn-primary btn-sm" onclick="imgDownloadCSV()" style="width:100%">📊 下载坐标表 CSV</button>
+              <button class="btn btn-primary btn-sm" onclick="imgDownloadCSV()" style="width:100%">下载坐标表 CSV</button>
               <p class="hint">图片模式仅输出坐标表 CSV，不生成场景 JSON</p>
             </div>
           </div>
@@ -507,7 +507,7 @@ function renderLayerList() {
     div.className = 'layer-item';
     div.innerHTML = `<span class="layer-swatch" style="background:${l.color}"></span>
       <span>${l.name} (${l.entity_count})</span>
-      <span class="layer-toggle" data-layer="${l.name}" onclick="toggleLayer(this)">${State.layerVisible[l.name]?'👁':'🚫'}</span>`;
+      <span class="layer-toggle" data-layer="${l.name}" onclick="toggleLayer(this)">${State.layerVisible[l.name]?'ON':'OFF'}</span>`;
     el.appendChild(div);
   });
 }
@@ -515,7 +515,7 @@ function renderLayerList() {
 function toggleLayer(el) {
   const name = el.dataset.layer;
   State.layerVisible[name] = !State.layerVisible[name];
-  el.textContent = State.layerVisible[name] ? '👁' : '🚫';
+  el.textContent = State.layerVisible[name] ? 'ON' : 'OFF';
   draw();
 }
 
@@ -582,9 +582,9 @@ function renderMetrics() {
   const mp = document.getElementById('metricsPanel');
   mp.style.display = '';
   let statusClass, statusText;
-  if (m.rmse < 50) { statusClass='status-ok'; statusText='✅ 合格'; }
-  else if (m.rmse < 200) { statusClass='status-warn'; statusText='⚠️ 偏大'; }
-  else { statusClass='status-err'; statusText='❌ 不可用'; }
+  if (m.rmse < 50) { statusClass='status-ok'; statusText='合格'; }
+  else if (m.rmse < 200) { statusClass='status-warn'; statusText='偏大'; }
+  else { statusClass='status-err'; statusText='不可用'; }
   mp.innerHTML = `<div class="metrics-card">
     <div class="rmse-label">RMSE 残差</div>
     <div class="rmse-big">${m.rmse} <small style="font-size:14px;color:var(--text-soft)">cm</small></div>
@@ -613,7 +613,7 @@ function buildEntityTable() {
     tr.dataset.id = ent.id;
     tr.innerHTML = `
       <td><input type="checkbox" ${State.entityChecked[ent.id]?'checked':''} onchange="State.entityChecked['${ent.id}']=this.checked"></td>
-      <td>${isInsert ? '🔧' : '🧱'}</td>
+      <td>${isInsert ? 'INSERT' : 'POLY'}</td>
       <td style="font-weight:500">${isInsert ? ent.block_name : ent.layer}</td>
       <td style="font-size:10px;color:var(--text-muted)">${(ent.attribs&&ent.attribs.EQUIP_ID)||''}</td>
       <td>${isInsert ? 'INSTANCE' : `<select onchange="State.entityTypes['${ent.id}']=this.value"><option ${gt==='PROCEDURAL_WALL'?'selected':''}>PROCEDURAL_WALL</option><option ${gt==='PROCEDURAL_FLOOR'?'selected':''}>PROCEDURAL_FLOOR</option></select>`}</td>
@@ -895,9 +895,9 @@ function imgRenderMetrics() {
   const mp = document.getElementById('imgMetricsPanel');
   mp.style.display = '';
   let statusClass, statusText;
-  if (m.rmse < 50) { statusClass='status-ok'; statusText='✅ 合格'; }
-  else if (m.rmse < 200) { statusClass='status-warn'; statusText='⚠️ 偏大'; }
-  else { statusClass='status-err'; statusText='❌ 不可用'; }
+  if (m.rmse < 50) { statusClass='status-ok'; statusText='合格'; }
+  else if (m.rmse < 200) { statusClass='status-warn'; statusText='偏大'; }
+  else { statusClass='status-err'; statusText='不可用'; }
   mp.innerHTML = `<div class="metrics-card">
     <div class="rmse-label">RMSE 残差</div>
     <div class="rmse-big">${m.rmse} <small style="font-size:14px;color:var(--text-soft)">cm</small></div>

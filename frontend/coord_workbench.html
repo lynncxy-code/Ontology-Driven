@@ -89,6 +89,9 @@ body.embedded-mode{background:#fafaf7}
 .marker-row .del-btn:hover{background:#fee2e2}
 .copy-btn{cursor:pointer;color:var(--text-soft);display:inline-flex;align-items:center;padding:2px;border-radius:4px;transition:all 0.15s}
 .copy-btn:hover{color:var(--accent);background:var(--accent-light)}
+.zoom-controls { position:absolute; bottom:16px; right:16px; display:flex; flex-direction:column; gap:4px; background:var(--surface); padding:4px; border-radius:6px; border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,.05); z-index:10; }
+.zoom-controls button { background:transparent; border:none; width:28px; height:28px; border-radius:4px; cursor:pointer; font-weight:600; font-size:16px; color:var(--text); transition:background 0.15s; display:flex; align-items:center; justify-content:center; }
+.zoom-controls button:hover { background:var(--surface-subtle); color:var(--accent); }
 </style>
 </head>
 <body>
@@ -109,6 +112,11 @@ body.embedded-mode{background:#fafaf7}
   <div class="wb-body">
     <div class="canvas-area">
       <canvas id="mainCanvas"></canvas>
+      <div class="zoom-controls">
+        <button onclick="zoomCanvas(1.25)" title="放大">+</button>
+        <button onclick="zoomCanvas(0.8)" title="缩小">−</button>
+        <button onclick="fitView()" title="居中自适应" style="font-size:14px">⛶</button>
+      </div>
       <div class="canvas-info" id="canvasInfo">缩放: 100% | 鼠标: —</div>
     </div>
     <div class="panel-area">
@@ -322,8 +330,12 @@ function s2w(sx, sy) {
 
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
-  const factor = e.deltaY > 0 ? 0.9 : 1.1;
-  camScale = Math.max(0.01, Math.min(100, camScale * factor));
+  const zoomSpeed = 0.0015;
+  const factor = Math.exp(-e.deltaY * zoomSpeed);
+  const [wx, wy] = s2w(e.offsetX, e.offsetY);
+  camScale = Math.max(0.00001, Math.min(10000, camScale * factor));
+  camX = wx - (e.offsetX - canvas.width / devicePixelRatio / 2) / camScale;
+  camY = wy - (e.offsetY - canvas.height / devicePixelRatio / 2) / camScale;
   draw();
   updateCanvasInfo(e);
 }, {passive:false});
@@ -367,15 +379,30 @@ function updateCanvasInfo(e) {
 }
 
 function fitView() {
-  if (!State.previewData) return;
-  const b = State.previewData.bounds;
   const cw = canvas.width / devicePixelRatio;
   const ch = canvas.height / devicePixelRatio;
-  const dw = b.max[0]-b.min[0] || 1;
-  const dh = b.max[1]-b.min[1] || 1;
-  camScale = Math.min(cw / dw, ch / dh) * 0.85;
-  camX = (b.min[0]+b.max[0]) / 2;
-  camY = (b.min[1]+b.max[1]) / 2;
+  if (State.mode === 'dxf' && State.previewData) {
+    const b = State.previewData.bounds;
+    const dw = b.max[0]-b.min[0] || 1;
+    const dh = b.max[1]-b.min[1] || 1;
+    camScale = Math.max(0.00001, Math.min(cw / dw, ch / dh) * 0.85);
+    camX = (b.min[0]+b.max[0]) / 2;
+    camY = (b.min[1]+b.max[1]) / 2;
+  } else if (State.mode === 'image' && imgState.imageObj) {
+    camScale = Math.max(0.00001, Math.min(cw / imgState.imgW, ch / imgState.imgH) * 0.95);
+    camX = imgState.imgW / 2;
+    camY = imgState.imgH / 2;
+  }
+  draw();
+  updateCanvasInfo({offsetX: cw/2, offsetY: ch/2});
+}
+
+function zoomCanvas(factor) {
+  const cw = canvas.width / devicePixelRatio;
+  const ch = canvas.height / devicePixelRatio;
+  camScale = Math.max(0.00001, Math.min(10000, camScale * factor));
+  draw();
+  updateCanvasInfo({offsetX: cw/2, offsetY: ch/2});
 }
 
 function draw() {
@@ -841,13 +868,9 @@ function imgHandleUpload(e) {
       document.getElementById('imgAnchorPanel').style.display = '';
       document.querySelector('#imgPanels .upload-zone').style.display = 'none';
       document.getElementById('btnReset').style.display = '';
-      // Fit view to image
-      const cw = canvas.width / devicePixelRatio;
-      const ch = canvas.height / devicePixelRatio;
-      camScale = Math.min(cw / imgState.imgW, ch / imgState.imgH) * 0.9;
       camX = imgState.imgW / 2;
       camY = imgState.imgH / 2;
-      draw();
+      fitView();
     };
     img.src = ev.target.result;
   };

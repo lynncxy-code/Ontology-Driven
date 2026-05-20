@@ -196,6 +196,7 @@ body.embedded-mode{background:#fafaf7}
             <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
               <div class="section-title">导出</div>
               <button class="btn btn-primary btn-sm" onclick="imgDownloadCSV()" style="width:100%">下载坐标表 CSV</button>
+              <button class="btn btn-sm" onclick="importToInstanceLib()" style="width:100%;margin-top:8px">导入至实例库</button>
               <p class="hint">图片模式仅输出坐标表 CSV，不生成场景 JSON</p>
             </div>
           </div>
@@ -922,7 +923,7 @@ function imgRenderMetrics() {
 
 // ── Image Markers ──
 function imgAddMarker(wx, wy) {
-  imgState.markers.push({ pixelXY: [Math.round(wx), Math.round(wy)], name: '', deviceId: '' });
+  imgState.markers.push({ pixelXY: [Math.round(wx), Math.round(wy)], name: '', deviceId: '', type: 'INSTANCE' });
   imgRenderMarkerList();
   draw();
 }
@@ -935,8 +936,13 @@ function imgRenderMarkerList() {
     const div = document.createElement('div');
     div.className = 'marker-row';
     div.innerHTML = `<span class="marker-idx">#${i+1}</span>
-      <input type="text" value="${m.name}" placeholder="设备名称" onchange="imgState.markers[${i}].name=this.value">
-      <input type="text" value="${m.deviceId}" placeholder="ID" style="max-width:60px" onchange="imgState.markers[${i}].deviceId=this.value">
+      <input type="text" value="${m.name}" placeholder="设备名称" style="max-width:70px" onchange="imgState.markers[${i}].name=this.value">
+      <input type="text" value="${m.deviceId}" placeholder="ID" style="max-width:45px" onchange="imgState.markers[${i}].deviceId=this.value">
+      <select onchange="imgState.markers[${i}].type=this.value" style="max-width:70px; font-size:11px; padding:4px; border:1px solid var(--border-strong); border-radius:4px;">
+        <option ${m.type==='INSTANCE'?'selected':''}>INSTANCE</option>
+        <option ${m.type==='PROCEDURAL_WALL'?'selected':''}>PROCEDURAL_WALL</option>
+        <option ${m.type==='PROCEDURAL_FLOOR'?'selected':''}>PROCEDURAL_FLOOR</option>
+      </select>
       <span class="marker-coords">UE(${ue[0]}, ${ue[1]})
         ${imgState.matrix ? `<span class="copy-btn" title="复制 UE 坐标" onclick="copyText('${ue[0]}, ${ue[1]}', this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span>` : ''}
       </span>
@@ -955,10 +961,10 @@ function imgDownloadCSV() {
   if (!imgState.matrix || imgState.markers.length === 0) {
     alert('请先完成标定并标注至少一个设备'); return;
   }
-  let csv = '设备名称,设备ID,像素X,像素Y,UE_X,UE_Y\n';
+  let csv = '设备名称,设备ID,类型,像素X,像素Y,UE_X,UE_Y\n';
   imgState.markers.forEach(m => {
     const ue = CoordTransform.applyTransform(imgState.matrix, m.pixelXY);
-    csv += `${m.name},${m.deviceId},${m.pixelXY[0]},${m.pixelXY[1]},${ue[0]},${ue[1]}\n`;
+    csv += `${m.name},${m.deviceId},${m.type||'INSTANCE'},${m.pixelXY[0]},${m.pixelXY[1]},${ue[0]},${ue[1]}\n`;
   });
   const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -1034,6 +1040,14 @@ draw = function() {
     _origDraw();
   }
 };
+
+function importToInstanceLib() {
+  if (!imgState.matrix || imgState.markers.length === 0) {
+    alert('请先完成标定并标注至少一个设备');
+    return;
+  }
+  alert('已触发导入实例库流程（即将对接实例库API）');
+}
 </script>
 </body>
 </html>

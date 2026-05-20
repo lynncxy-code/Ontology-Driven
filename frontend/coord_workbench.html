@@ -84,8 +84,11 @@ body.embedded-mode{background:#fafaf7}
 .marker-row{display:flex;align-items:center;gap:6px;padding:8px;background:var(--surface-subtle);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12px}
 .marker-row .marker-idx{font-weight:700;color:#ea580c;width:20px}
 .marker-row input{flex:1;padding:4px 6px;border:1px solid var(--border-strong);border-radius:4px;font-size:12px}
-.marker-row .marker-coords{font-size:10px;color:var(--text-soft);font-family:monospace}
-.marker-row .del-btn{cursor:pointer;color:var(--danger);font-size:14px;padding:0 4px}
+.marker-row .marker-coords{font-size:10px;color:var(--text-soft);font-family:monospace;display:flex;align-items:center;gap:4px}
+.marker-row .del-btn{cursor:pointer;color:var(--danger);display:inline-flex;align-items:center;justify-content:center;padding:4px;border-radius:4px;transition:background 0.15s}
+.marker-row .del-btn:hover{background:#fee2e2}
+.copy-btn{cursor:pointer;color:var(--text-soft);display:inline-flex;align-items:center;padding:2px;border-radius:4px;transition:all 0.15s}
+.copy-btn:hover{color:var(--accent);background:var(--accent-light)}
 </style>
 </head>
 <body>
@@ -260,6 +263,14 @@ const State = {
   entityTypes: {},
   highlightId: null,
 };
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+    setTimeout(() => { btn.innerHTML = orig; }, 1500);
+  });
+}
 
 // ── Canvas ──
 const canvas = document.getElementById('mainCanvas');
@@ -542,7 +553,7 @@ function renderAnchorList() {
       <input type="number" value="${a.ueXY[0]}" onchange="updateAnchorUE(${i},0,this.value)" placeholder="X">
       <input type="number" value="${a.ueXY[1]}" onchange="updateAnchorUE(${i},1,this.value)" placeholder="Y">
       <span class="residual">${res !== null ? res+'cm' : ''}</span>
-      <span class="del-btn" onclick="deleteAnchor(${i})">✕</span>`;
+      <span class="del-btn" onclick="deleteAnchor(${i})" title="删除锚点"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span>`;
     el.appendChild(div);
   });
   document.getElementById('btnCalibrate').disabled = State.anchors.length < 2;
@@ -618,7 +629,9 @@ function buildEntityTable() {
       <td style="font-size:10px;color:var(--text-muted)">${(ent.attribs&&ent.attribs.EQUIP_ID)||''}</td>
       <td>${isInsert ? 'INSTANCE' : `<select onchange="State.entityTypes['${ent.id}']=this.value"><option ${gt==='PROCEDURAL_WALL'?'selected':''}>PROCEDURAL_WALL</option><option ${gt==='PROCEDURAL_FLOOR'?'selected':''}>PROCEDURAL_FLOOR</option></select>`}</td>
       <td style="font-family:monospace;font-size:10px">${ue[0]}</td>
-      <td style="font-family:monospace;font-size:10px">${ue[1]}</td>
+      <td style="font-family:monospace;font-size:10px">${ue[1]}
+        <span class="copy-btn" title="复制 UE 坐标" onclick="copyText('${ue[0]}, ${ue[1]}', this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span>
+      </td>
       <td>${isInsert ? `<input type="text" value="${State.entityAssets[ent.id]||''}" placeholder="SM_..." onchange="State.entityAssets['${ent.id}']=this.value">` : ''}</td>`;
     tr.addEventListener('mouseenter', () => { State.highlightId = ent.id; draw(); });
     tr.addEventListener('mouseleave', () => { State.highlightId = null; draw(); });
@@ -851,7 +864,7 @@ function imgRenderAnchorList() {
       <input type="number" value="${a.ueXY[0]}" onchange="imgUpdateAnchorUE(${i},0,this.value)" placeholder="X">
       <input type="number" value="${a.ueXY[1]}" onchange="imgUpdateAnchorUE(${i},1,this.value)" placeholder="Y">
       <span class="residual">${res !== null ? res+'cm' : ''}</span>
-      <span class="del-btn" onclick="imgDeleteAnchor(${i})">✕</span>`;
+      <span class="del-btn" onclick="imgDeleteAnchor(${i})" title="删除锚点"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span>`;
     el.appendChild(div);
   });
   document.getElementById('imgBtnCalibrate').disabled = imgState.anchors.length < 2;
@@ -924,8 +937,10 @@ function imgRenderMarkerList() {
     div.innerHTML = `<span class="marker-idx">#${i+1}</span>
       <input type="text" value="${m.name}" placeholder="设备名称" onchange="imgState.markers[${i}].name=this.value">
       <input type="text" value="${m.deviceId}" placeholder="ID" style="max-width:60px" onchange="imgState.markers[${i}].deviceId=this.value">
-      <span class="marker-coords">UE(${ue[0]},${ue[1]})</span>
-      <span class="del-btn" onclick="imgDeleteMarker(${i})">✕</span>`;
+      <span class="marker-coords">UE(${ue[0]}, ${ue[1]})
+        ${imgState.matrix ? `<span class="copy-btn" title="复制 UE 坐标" onclick="copyText('${ue[0]}, ${ue[1]}', this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span>` : ''}
+      </span>
+      <span class="del-btn" onclick="imgDeleteMarker(${i})" title="删除标注"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span>`;
     el.appendChild(div);
   });
 }

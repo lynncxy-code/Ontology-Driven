@@ -210,6 +210,19 @@ body.embedded-mode{background:#fafaf7}
 const query = new URLSearchParams(window.location.search);
 if (query.get('nexus') === 'true') document.body.classList.add('embedded-mode');
 
+let availableTypes = [];
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch('/api/v2/ontology/types');
+    if (res.ok) {
+      const data = await res.json();
+      availableTypes = data.map(d => d.name);
+    }
+  } catch (e) {
+    console.warn("Failed to load ontology types", e);
+  }
+});
+
 // ── Mock Data ──
 const MOCK_PREVIEW = {
   mode:"dxf",
@@ -923,7 +936,7 @@ function imgRenderMetrics() {
 
 // ── Image Markers ──
 function imgAddMarker(wx, wy) {
-  imgState.markers.push({ pixelXY: [Math.round(wx), Math.round(wy)], name: '', deviceId: '', type: 'INSTANCE' });
+  imgState.markers.push({ pixelXY: [Math.round(wx), Math.round(wy)], name: '', deviceId: '', type: '' });
   imgRenderMarkerList();
   draw();
 }
@@ -939,9 +952,8 @@ function imgRenderMarkerList() {
       <input type="text" value="${m.name}" placeholder="设备名称" style="max-width:70px" onchange="imgState.markers[${i}].name=this.value">
       <input type="text" value="${m.deviceId}" placeholder="ID" style="max-width:45px" onchange="imgState.markers[${i}].deviceId=this.value">
       <select onchange="imgState.markers[${i}].type=this.value" style="max-width:70px; font-size:11px; padding:4px; border:1px solid var(--border-strong); border-radius:4px;">
-        <option ${m.type==='INSTANCE'?'selected':''}>INSTANCE</option>
-        <option ${m.type==='PROCEDURAL_WALL'?'selected':''}>PROCEDURAL_WALL</option>
-        <option ${m.type==='PROCEDURAL_FLOOR'?'selected':''}>PROCEDURAL_FLOOR</option>
+        <option value="" disabled ${m.type===''?'selected':''}>type</option>
+        ${availableTypes.map(t => `<option value="${t}" ${m.type===t?'selected':''}>${t}</option>`).join('')}
       </select>
       <span class="marker-coords">UE(${ue[0]}, ${ue[1]})
         ${imgState.matrix ? `<span class="copy-btn" title="复制 UE 坐标" onclick="copyText('${ue[0]}, ${ue[1]}', this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span>` : ''}

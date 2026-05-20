@@ -77,9 +77,172 @@ def serve_coming_soon():
 def serve_cad_generator():
     return app.send_static_file('cad_generator.html')
 
+@app.route('/coord')
+def serve_coord_workbench():
+    return app.send_static_file('coord_workbench.html')
+
 @app.route('/floor_pulse')
 def serve_floor_pulse():
     return app.send_static_file('floor_pulse.html')
+
+
+# ═══════════════════════════════════════════════════════════════
+# PRD 2.9 — 坐标标定工作台 API（无状态）
+# ═══════════════════════════════════════════════════════════════
+
+import json as _json
+import tempfile
+from parser_dxf import extract_preview_data
+from coord_transform import calibrate as coord_calibrate, apply_transform as coord_apply
+
+_MAPPING_FILE = os.path.join(os.path.dirname(__file__), 'block_asset_mapping.json')
+
+@app.route('/api/v2/coord/preview', methods=['POST'])
+def coord_preview():
+    """DXF 上传解析，返回预览数据（仅 CAD 模式）"""
+    if 'file' not in request.files:
+        return jsonify({"error": "未检测到上传文件"}), 400
+    
+    f = request.files['file']
+    if not f.filename.lower().endswith('.dxf'):
+        return jsonify({"error": "仅支持 .dxf 文件"}), 400
+    
+    # 写入临时文件供 ezdxf 读取
+    tmp = tempfile.NamedTemporaryFile(suffix='.dxf', delete=False)
+    try:
+        f.save(tmp.name)
+        tmp.close()
+        result = extract_preview_data(tmp.name)
+        if 'error' in result:
+            return jsonify(result), 400
+        return jsonify(result)
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except:
+            pass
+
+
+@app.route('/api/v2/coord/calibrate', methods=['POST'])
+def coord_calibrate_api():
+    """锚点标定，返回仿射变换矩阵与精度指标"""
+    data = request.json
+    if not data or 'anchors' not in data:
+        return jsonify({"success": False, "error": "missing_anchors", "message": "请提供锚点数据"}), 400
+    
+    anchors = data['anchors']
+    if len(anchors) < 2:
+        return jsonify({"success": False, "error": "insufficient_anchors", "message": "至少需要 2 组锚点"}), 400
+    
+    try:
+        result = coord_calibrate(anchors)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"success": False, "error": "calibration_failed", "message": str(e)}), 400
+
+
+@app.route('/api/v2/coord/export', methods=['POST'])
+def coord_export():
+    """导出场景 JSON（CAD 模式），坐标经仿射变换"""
+    data = request.json
+    if not data:
+        return jsonify({"error": "请求体为空"}), 400
+    
+    matrix = data.get('transform_matrix')
+    entities_in = data.get('entities', [])
+    polylines_in = data.get('polylines', [])
+    wall_height = data.get('wall_height', 4500)
+    wall_thickness = data.get('wall_thickness', 240)
+    
+    if not matrix:
+        return jsonify({"error": "缺少 transform_matrix"}), 400
+    
+    out_entities = []
+    
+    # 处理 INSERT 实体
+    for ent in entities_in:
+        if not ent.get('export', True):
+            continue
+        pos = ent.get('position', [0, 0])
+        ue = coord_apply(matrix, pos)
+        out_entities.append({
+            "id": ent.get('id', ''),
+            "layer": ent.get('layer', ''),
+            "generate_type": "INSTANCE",
+            "data": {
+                "mesh_id": ent.get('asset_path', ent.get('block_name', '')),
+                "transform": {
+                    "loc": [ue[0], ue[1], 0],
+                    "rot": [0, 0, ent.get('rotation', 0)],
+                    "scale": [1, 1, 1]
+                },
+                "metadata": ent.get('attribs', {})
+            }
+        })
+    
+    # 处理 Polyline 实体
+    for p in polylines_in:
+        if not p.get('export', True):
+            continue
+        ue_pts = [coord_apply(matrix, pt) for pt in p.get('points', [])]
+        gt = p.get('generate_type', 'PROCEDURAL_WALL')
+        entry = {
+            "id": p.get('id', ''),
+            "layer": p.get('layer', ''),
+            "generate_type": gt,
+            "data": {"path": ue_pts}
+        }
+        if gt == 'PROCEDURAL_WALL':
+            entry["data"]["height"] = wall_height
+            entry["data"]["thickness"] = wall_thickness
+        out_entities.append(entry)
+    
+    output = {
+        "header": {
+            "version": "1.0",
+            "calibration": {
+                "matrix": matrix,
+                "anchor_count": data.get('anchor_count', 0)
+            }
+        },
+        "entities": out_entities
+    }
+    
+    return jsonify(output)
+
+
+@app.route('/api/v2/coord/mapping', methods=['GET'])
+def coord_mapping_get():
+    """读取块名→资产路径全局映射"""
+    try:
+        with open(_MAPPING_FILE, 'r', encoding='utf-8') as f:
+            mapping = _json.load(f)
+    except (FileNotFoundError, _json.JSONDecodeError):
+        mapping = {}
+    return jsonify(mapping)
+
+
+@app.route('/api/v2/coord/mapping', methods=['POST'])
+def coord_mapping_save():
+    """保存/合并块名→资产路径映射"""
+    data = request.json
+    if not data or not isinstance(data, dict):
+        return jsonify({"error": "请提供 JSON 对象"}), 400
+    
+    # 读取现有映射
+    try:
+        with open(_MAPPING_FILE, 'r', encoding='utf-8') as f:
+            mapping = _json.load(f)
+    except (FileNotFoundError, _json.JSONDecodeError):
+        mapping = {}
+    
+    # 合并新数据
+    mapping.update(data)
+    
+    with open(_MAPPING_FILE, 'w', encoding='utf-8') as f:
+        _json.dump(mapping, f, ensure_ascii=False, indent=2)
+    
+    return jsonify({"saved": True, "total_entries": len(mapping)})
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>坐标标定工作台 | OntoTwin Nexus</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="coord_transform.js"></script>
+<style>
+:root{--bg:#f8f9fa;--surface:#fff;--surface-subtle:#f1f3f5;--border:#e9ecef;--border-strong:#dee2e6;--text:#212529;--text-muted:#6c757d;--text-soft:#adb5bd;--accent:#2563eb;--accent-light:#dbeafe;--danger:#dc2626;--warning:#f59e0b;--success:#16a34a;--radius:14px;--shadow:0 18px 40px rgba(17,17,17,.04)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text);height:100%;overflow:hidden;-webkit-font-smoothing:antialiased}
+body.embedded-mode{background:#fafaf7}
+.workbench{display:flex;height:100vh;flex-direction:column}
+.wb-header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+.wb-header h1{font-size:18px;letter-spacing:-.02em}
+.wb-header .eyebrow{display:inline-flex;padding:2px 8px;border-radius:999px;background:var(--surface-subtle);border:1px solid var(--border);font-size:10px;font-family:monospace;letter-spacing:.04em;text-transform:uppercase;color:var(--text-soft);margin-left:10px}
+.wb-body{flex:1;display:flex;overflow:hidden}
+.canvas-area{flex:7;position:relative;background:#fbfbf7;border-right:1px solid var(--border);overflow:hidden}
+#mainCanvas{display:block;width:100%;height:100%;cursor:crosshair}
+.canvas-info{position:absolute;bottom:12px;left:12px;font-size:11px;color:var(--text-soft);background:rgba(255,255,255,.85);padding:4px 10px;border-radius:6px;font-family:monospace}
+.panel-area{flex:3;min-width:320px;max-width:420px;display:flex;flex-direction:column;background:var(--surface);overflow:hidden}
+.step-bar{display:flex;border-bottom:1px solid var(--border);background:var(--surface-subtle)}
+.step-tab{flex:1;padding:10px 6px;text-align:center;font-size:11px;font-weight:600;color:var(--text-soft);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s}
+.step-tab.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--surface)}
+.step-tab.done{color:var(--success)}
+.step-tab.disabled{pointer-events:none;opacity:.5}
+.step-content{flex:1;overflow-y:auto;padding:20px}
+.step-panel{display:none}
+.step-panel.active{display:block}
+/* Upload */
+.upload-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;border:1.5px dashed var(--border-strong);border-radius:18px;background:linear-gradient(180deg,#fff 0%,#fbfbf8 100%);cursor:pointer;transition:all .18s;padding:30px;text-align:center}
+.upload-zone:hover{border-color:#111;background:#f5f5f0}
+.upload-zone input{display:none}
+.upload-zone h3{font-size:16px;margin:12px 0 6px}
+.upload-zone p{font-size:12px;color:var(--text-muted);line-height:1.6}
+.upload-icon{width:48px;height:48px;border-radius:14px;background:#111;color:#fff;display:flex;align-items:center;justify-content:center}
+/* Layer list */
+.layer-list{margin-top:16px}
+.layer-item{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12px;color:var(--text-muted)}
+.layer-swatch{width:12px;height:12px;border-radius:3px;flex-shrink:0}
+.layer-toggle{margin-left:auto;cursor:pointer;font-size:11px;color:var(--text-soft)}
+/* Anchor list */
+.anchor-row{display:flex;align-items:center;gap:6px;padding:8px;background:var(--surface-subtle);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12px}
+.anchor-row .idx{font-weight:700;color:var(--accent);width:20px}
+.anchor-row input{width:70px;padding:4px 6px;border:1px solid var(--border-strong);border-radius:4px;font-size:12px;font-family:monospace}
+.anchor-row .residual{font-size:11px;color:var(--text-soft);margin-left:auto;min-width:60px;text-align:right}
+.anchor-row .del-btn{cursor:pointer;color:var(--danger);font-size:14px;padding:0 4px}
+.anchor-row.warn{background:#fef9c3;border-color:#fbbf24}
+/* Metrics card */
+.metrics-card{background:var(--surface-subtle);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:12px}
+.metrics-card .rmse-big{font-size:28px;font-weight:700;letter-spacing:-.03em}
+.metrics-card .rmse-label{font-size:11px;color:var(--text-soft);margin-bottom:4px}
+.metrics-card .status-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
+.status-ok{background:#dcfce7;color:#166534}
+.status-warn{background:#fef9c3;color:#854d0e}
+.status-err{background:#fee2e2;color:#991b1b}
+.scale-info{margin-top:8px;font-size:11px;color:var(--text-muted)}
+/* Entity table */
+.entity-table{width:100%;border-collapse:collapse;font-size:11px}
+.entity-table th{text-align:left;padding:6px 4px;border-bottom:2px solid var(--border);color:var(--text-muted);font-weight:600;position:sticky;top:0;background:var(--surface)}
+.entity-table td{padding:5px 4px;border-bottom:1px solid var(--border)}
+.entity-table tr:hover{background:var(--accent-light)}
+.entity-table tr.highlighted{background:#bfdbfe}
+.entity-table input[type=text]{width:100%;padding:3px 5px;border:1px solid var(--border);border-radius:4px;font-size:11px}
+.entity-table select{padding:2px;font-size:11px;border:1px solid var(--border);border-radius:4px}
+/* Export */
+.export-preview{background:#111;color:#c9d1d9;border-radius:var(--radius);padding:14px;font-family:monospace;font-size:11px;line-height:1.6;max-height:350px;overflow:auto;white-space:pre;margin-top:12px}
+/* Buttons */
+.btn{appearance:none;border:1px solid transparent;background:var(--surface-subtle);color:#4b5563;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;transition:all .18s}
+.btn:hover{background:#ecece6;color:var(--text);border-color:var(--border-strong)}
+.btn-primary{background:#111;color:#fff;border-color:#111}
+.btn-primary:hover{background:#333}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed}
+.btn-sm{padding:6px 12px;font-size:12px}
+.hint{font-size:11px;color:var(--text-soft);margin-top:8px;line-height:1.5}
+.section-title{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text)}
+</style>
+</head>
+<body>
+<div class="workbench">
+  <header class="wb-header">
+    <div style="display:flex;align-items:center"><h1>坐标标定工作台</h1><span class="eyebrow">CAD MODE · PROTOTYPE</span></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-sm" id="btnReset" onclick="resetAll()" style="display:none">重新开始</button>
+    </div>
+  </header>
+  <div class="wb-body">
+    <div class="canvas-area">
+      <canvas id="mainCanvas"></canvas>
+      <div class="canvas-info" id="canvasInfo">缩放: 100% | 鼠标: —</div>
+    </div>
+    <div class="panel-area">
+      <div class="step-bar">
+        <div class="step-tab active" data-step="1" onclick="goToStep(1)">① 上传</div>
+        <div class="step-tab disabled" data-step="2" onclick="goToStep(2)">② 标定</div>
+        <div class="step-tab disabled" data-step="3" onclick="goToStep(3)">③ 实体</div>
+        <div class="step-tab disabled" data-step="4" onclick="goToStep(4)">④ 导出</div>
+      </div>
+      <div class="step-content">
+        <!-- STEP 1 -->
+        <div class="step-panel active" id="step1">
+          <label class="upload-zone" for="fileInput">
+            <input type="file" id="fileInput" accept=".dxf" onchange="handleUpload(event)">
+            <div class="upload-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 17v-6"/><path d="M9.5 13.5 12 11l2.5 2.5"/></svg></div>
+            <h3>上传 DXF 文件</h3>
+            <p>点击或拖拽上传，系统将自动解析图元<br><small>支持真实 DXF 解析，无后端时自动使用 Mock 数据</small></p>
+          </label>
+          <div id="layerPanel" style="display:none">
+            <div class="section-title" style="margin-top:16px">图层列表</div>
+            <div id="layerList" class="layer-list"></div>
+            <button class="btn btn-primary btn-sm" style="margin-top:14px;width:100%" onclick="goToStep(2)">继续 → 锚点标定</button>
+          </div>
+        </div>
+        <!-- STEP 2 -->
+        <div class="step-panel" id="step2">
+          <div class="section-title">锚点标定</div>
+          <p class="hint" style="margin-top:0;margin-bottom:12px">在左侧画布上点击已知位置放置锚点，然后在下方填写该点的 UE 世界坐标（cm）</p>
+          <div id="anchorList"></div>
+          <button class="btn btn-primary btn-sm" id="btnCalibrate" style="margin-top:10px;width:100%" onclick="doCalibrate()" disabled>计算变换（至少 2 个锚点）</button>
+          <div id="metricsPanel" style="display:none"></div>
+          <button class="btn btn-primary btn-sm" id="btnToStep3" style="margin-top:10px;width:100%;display:none" onclick="goToStep(3)">继续 → 实体列表</button>
+        </div>
+        <!-- STEP 3 -->
+        <div class="step-panel" id="step3">
+          <div class="section-title">实体列表与资产映射</div>
+          <div style="overflow-x:auto;max-height:calc(100vh - 240px);overflow-y:auto">
+            <table class="entity-table" id="entityTable">
+              <thead><tr><th>☑</th><th>类型</th><th>名称</th><th>编号</th><th>构件</th><th>UE X</th><th>UE Y</th><th>资产路径</th></tr></thead>
+              <tbody id="entityBody"></tbody>
+            </table>
+          </div>
+          <button class="btn btn-primary btn-sm" style="margin-top:14px;width:100%" onclick="goToStep(4)">继续 → 导出</button>
+        </div>
+        <!-- STEP 4 -->
+        <div class="step-panel" id="step4">
+          <div class="section-title">导出预览</div>
+          <p class="hint" style="margin-top:0;margin-bottom:8px">点击刷新预览查看变换结果，导出 JSON 调用后端接口</p>
+          <button class="btn btn-sm" onclick="buildExportPreview()" style="width:100%;margin-bottom:8px">🔄 刷新预览</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="exportJSON()" style="flex:1">📄 导出 JSON</button>
+            <button class="btn btn-sm" onclick="downloadCSV()" style="flex:1">📊 下载 CSV</button>
+          </div>
+          <div class="export-preview" id="exportPreview">点击"刷新预览"查看结果</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+// ── Embedded mode ──
+const query = new URLSearchParams(window.location.search);
+if (query.get('nexus') === 'true') document.body.classList.add('embedded-mode');
+
+// ── Mock Data ──
+const MOCK_PREVIEW = {
+  mode:"dxf",
+  bounds:{min:[0,0],max:[30000,20000]},
+  polylines:[
+    {id:"w1",layer:"1.21-墙体",points:[[0,0],[30000,0]],closed:false,generate_type:"PROCEDURAL_WALL"},
+    {id:"w2",layer:"1.21-墙体",points:[[30000,0],[30000,20000]],closed:false,generate_type:"PROCEDURAL_WALL"},
+    {id:"w3",layer:"1.21-墙体",points:[[30000,20000],[0,20000]],closed:false,generate_type:"PROCEDURAL_WALL"},
+    {id:"w4",layer:"1.21-墙体",points:[[0,20000],[0,0]],closed:false,generate_type:"PROCEDURAL_WALL"},
+    {id:"w5",layer:"1.21-墙体",points:[[15000,0],[15000,20000]],closed:false,generate_type:"PROCEDURAL_WALL"},
+    {id:"w6",layer:"1.21-墙体",points:[[0,10000],[15000,10000]],closed:false,generate_type:"PROCEDURAL_WALL"},
+    {id:"f1",layer:"4.10-地坪",points:[[0,0],[15000,0],[15000,10000],[0,10000]],closed:true,generate_type:"PROCEDURAL_FLOOR"},
+  ],
+  inserts:[
+    {id:"e1",block_name:"CNC_Machine",layer:"设备-加工",position:[3000,5000],rotation:0,scale_uniform:true,attribs:{EQUIP_ID:"CNC-001",MODEL:"KJ-2000"}},
+    {id:"e2",block_name:"CNC_Machine",layer:"设备-加工",position:[7000,5000],rotation:0,scale_uniform:true,attribs:{EQUIP_ID:"CNC-002",MODEL:"KJ-2000"}},
+    {id:"e3",block_name:"CNC_Machine",layer:"设备-加工",position:[11000,5000],rotation:0,scale_uniform:true,attribs:{EQUIP_ID:"CNC-003",MODEL:"KJ-2000"}},
+    {id:"e4",block_name:"Conveyor_Belt",layer:"设备-仓储",position:[3000,15000],rotation:90,scale_uniform:true,attribs:{EQUIP_ID:"CB-001"}},
+    {id:"e5",block_name:"Conveyor_Belt",layer:"设备-仓储",position:[7000,15000],rotation:90,scale_uniform:true,attribs:{EQUIP_ID:"CB-002"}},
+    {id:"e6",block_name:"Conveyor_Belt",layer:"设备-仓储",position:[11000,15000],rotation:90,scale_uniform:true,attribs:{EQUIP_ID:"CB-003"}},
+    {id:"e7",block_name:"AGV_Station",layer:"设备-仓储",position:[22000,5000],rotation:0,scale_uniform:true,attribs:{EQUIP_ID:"AGV-001"}},
+    {id:"e8",block_name:"AGV_Station",layer:"设备-仓储",position:[22000,10000],rotation:0,scale_uniform:true,attribs:{EQUIP_ID:"AGV-002"}},
+    {id:"e9",block_name:"AGV_Station",layer:"设备-仓储",position:[22000,15000],rotation:0,scale_uniform:true,attribs:{EQUIP_ID:"AGV-003"}},
+    {id:"e10",block_name:"Column_500",layer:"1.20-柱子",position:[0,0],rotation:0,scale_uniform:true,attribs:{}},
+    {id:"e11",block_name:"Column_500",layer:"1.20-柱子",position:[15000,0],rotation:0,scale_uniform:true,attribs:{}},
+    {id:"e12",block_name:"Column_500",layer:"1.20-柱子",position:[30000,0],rotation:0,scale_uniform:true,attribs:{}},
+    {id:"e13",block_name:"Column_500",layer:"1.20-柱子",position:[0,20000],rotation:0,scale_uniform:true,attribs:{}},
+    {id:"e14",block_name:"Column_500",layer:"1.20-柱子",position:[30000,20000],rotation:0,scale_uniform:true,attribs:{}},
+  ],
+  layers:[
+    {name:"1.21-墙体",color:"#374151",entity_count:6},
+    {name:"4.10-地坪",color:"#8b5cf6",entity_count:1},
+    {name:"设备-加工",color:"#ea580c",entity_count:3},
+    {name:"设备-仓储",color:"#0891b2",entity_count:6},
+    {name:"1.20-柱子",color:"#6b7280",entity_count:5},
+  ]
+};
+
+let LAYER_COLORS = {};
+MOCK_PREVIEW.layers.forEach(l => LAYER_COLORS[l.name] = l.color);
+
+// ── State ──
+const State = {
+  previewData: null,
+  anchors: [],        // {cadXY, ueXY, canvasXY}
+  matrix: null,
+  metrics: null,
+  currentStep: 1,
+  layerVisible: {},
+  entityChecked: {},
+  entityAssets: {},
+  entityTypes: {},
+  highlightId: null,
+};
+
+// ── Canvas ──
+const canvas = document.getElementById('mainCanvas');
+const ctx = canvas.getContext('2d');
+let camX = 0, camY = 0, camScale = 1;
+let isDragging = false, dragStartX = 0, dragStartY = 0, camStartX = 0, camStartY = 0;
+
+function resizeCanvas() {
+  const r = canvas.parentElement.getBoundingClientRect();
+  canvas.width = r.width * devicePixelRatio;
+  canvas.height = r.height * devicePixelRatio;
+  canvas.style.width = r.width + 'px';
+  canvas.style.height = r.height + 'px';
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  draw();
+}
+window.addEventListener('resize', resizeCanvas);
+setTimeout(resizeCanvas, 50);
+
+// World to screen
+function w2s(wx, wy) {
+  const sx = (wx - camX) * camScale + canvas.width / devicePixelRatio / 2;
+  const sy = (wy - camY) * camScale + canvas.height / devicePixelRatio / 2;
+  return [sx, sy];
+}
+// Screen to world
+function s2w(sx, sy) {
+  const wx = (sx - canvas.width / devicePixelRatio / 2) / camScale + camX;
+  const wy = (sy - canvas.height / devicePixelRatio / 2) / camScale + camY;
+  return [wx, wy];
+}
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY > 0 ? 0.9 : 1.1;
+  camScale = Math.max(0.01, Math.min(100, camScale * factor));
+  draw();
+  updateCanvasInfo(e);
+}, {passive:false});
+
+canvas.addEventListener('mousedown', e => {
+  if (e.button === 1 || (e.button === 0 && e.altKey)) {
+    isDragging = true; dragStartX = e.offsetX; dragStartY = e.offsetY;
+    camStartX = camX; camStartY = camY; canvas.style.cursor = 'grabbing'; return;
+  }
+  if (e.button === 0 && State.currentStep === 2) {
+    const [wx, wy] = s2w(e.offsetX, e.offsetY);
+    addAnchor(wx, wy);
+  }
+});
+canvas.addEventListener('mousemove', e => {
+  if (isDragging) {
+    camX = camStartX - (e.offsetX - dragStartX) / camScale;
+    camY = camStartY - (e.offsetY - dragStartY) / camScale;
+    draw();
+  }
+  updateCanvasInfo(e);
+  // Hover highlight for step 3
+  if (State.currentStep === 3 && State.previewData) {
+    const [wx,wy] = s2w(e.offsetX, e.offsetY);
+    let found = null;
+    for (const ins of State.previewData.inserts) {
+      const dx = ins.position[0]-wx, dy=ins.position[1]-wy;
+      if (Math.sqrt(dx*dx+dy*dy) < 800/camScale) { found=ins.id; break; }
+    }
+    if (found !== State.highlightId) { State.highlightId = found; draw(); highlightTableRow(found); }
+  }
+});
+canvas.addEventListener('mouseup', () => { isDragging = false; canvas.style.cursor = 'crosshair'; });
+canvas.addEventListener('mouseleave', () => { isDragging = false; canvas.style.cursor = 'crosshair'; });
+
+function updateCanvasInfo(e) {
+  const [wx,wy] = s2w(e.offsetX, e.offsetY);
+  document.getElementById('canvasInfo').textContent =
+    `缩放: ${(camScale*100).toFixed(0)}% | CAD: (${wx.toFixed(0)}, ${wy.toFixed(0)})`;
+}
+
+function fitView() {
+  if (!State.previewData) return;
+  const b = State.previewData.bounds;
+  const cw = canvas.width / devicePixelRatio;
+  const ch = canvas.height / devicePixelRatio;
+  const dw = b.max[0]-b.min[0] || 1;
+  const dh = b.max[1]-b.min[1] || 1;
+  camScale = Math.min(cw / dw, ch / dh) * 0.85;
+  camX = (b.min[0]+b.max[0]) / 2;
+  camY = (b.min[1]+b.max[1]) / 2;
+}
+
+function draw() {
+  const cw = canvas.width / devicePixelRatio;
+  const ch = canvas.height / devicePixelRatio;
+  ctx.clearRect(0, 0, cw, ch);
+  if (!State.previewData) return;
+  const d = State.previewData;
+
+  // Draw polylines
+  d.polylines.forEach(p => {
+    if (!State.layerVisible[p.layer]) return;
+    ctx.strokeStyle = LAYER_COLORS[p.layer] || '#666';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    p.points.forEach((pt, i) => {
+      const [sx,sy] = w2s(pt[0], pt[1]);
+      i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+    });
+    if (p.closed) ctx.closePath();
+    ctx.stroke();
+    if (p.closed) { ctx.fillStyle = (LAYER_COLORS[p.layer]||'#666') + '15'; ctx.fill(); }
+  });
+
+  // Draw inserts (cross + label)
+  d.inserts.forEach(ins => {
+    if (!State.layerVisible[ins.layer]) return;
+    const [sx, sy] = w2s(ins.position[0], ins.position[1]);
+    const color = LAYER_COLORS[ins.layer] || '#666';
+    const sz = Math.max(6, 12 * camScale);
+    ctx.strokeStyle = (State.highlightId === ins.id) ? '#2563eb' : color;
+    ctx.lineWidth = (State.highlightId === ins.id) ? 2.5 : 1.5;
+    ctx.beginPath(); ctx.moveTo(sx-sz,sy); ctx.lineTo(sx+sz,sy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx,sy-sz); ctx.lineTo(sx,sy+sz); ctx.stroke();
+    if (camScale > 0.015) {
+      ctx.font = '10px Inter,sans-serif'; ctx.fillStyle = color;
+      const label = ins.attribs.EQUIP_ID || ins.block_name;
+      ctx.fillText(label, sx+sz+3, sy-3);
+    }
+    // Show UE coords if calibrated
+    if (State.matrix && camScale > 0.02) {
+      const ue = CoordTransform.applyTransform(State.matrix, ins.position);
+      ctx.font = '9px monospace'; ctx.fillStyle = '#2563eb';
+      ctx.fillText(`(${ue[0]}, ${ue[1]})`, sx+sz+3, sy+10);
+    }
+  });
+
+  // Draw anchors
+  State.anchors.forEach((a, i) => {
+    const [sx, sy] = w2s(a.cadXY[0], a.cadXY[1]);
+    ctx.beginPath(); ctx.arc(sx, sy, 8, 0, Math.PI*2);
+    ctx.fillStyle = '#dc262644'; ctx.fill();
+    ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.font = 'bold 11px Inter'; ctx.fillStyle = '#dc2626';
+    ctx.fillText(`#${i+1}`, sx+12, sy-4);
+  });
+}
+
+// ── Step Navigation ──
+function goToStep(n) {
+  if (n > 1 && !State.previewData) return;
+  if (n > 2 && !State.matrix) return;
+  if (n < State.currentStep && n === 2 && State.currentStep >= 3) {
+    if (!confirm('重新标定将刷新所有实体的 UE 坐标，已填写的资产映射将保留。确认回退？')) return;
+  }
+  State.currentStep = n;
+  document.querySelectorAll('.step-tab').forEach(t => {
+    const s = parseInt(t.dataset.step);
+    t.classList.toggle('active', s === n);
+    t.classList.toggle('done', s < n);
+    t.classList.toggle('disabled', s > n && !(s <= getMaxStep()));
+  });
+  document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('step'+n).classList.add('active');
+  // Enable clickable tabs
+  for (let i = 1; i <= getMaxStep(); i++) {
+    document.querySelector(`.step-tab[data-step="${i}"]`).classList.remove('disabled');
+  }
+  if (n === 3) buildEntityTable();
+  if (n === 2) { canvas.style.cursor = 'crosshair'; }
+  else { canvas.style.cursor = 'default'; }
+  draw();
+}
+
+function getMaxStep() {
+  if (State.matrix) return 4;
+  if (State.previewData) return 2;
+  return 1;
+}
+
+// ── Step 1: Upload ──
+async function handleUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  // 尝试调用后端真实 API
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const resp = await fetch('/api/v2/coord/preview', { method: 'POST', body: formData });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (!data.error) {
+        State.previewData = data;
+        LAYER_COLORS = {};
+        data.layers.forEach(l => LAYER_COLORS[l.name] = l.color);
+        applyPreviewData();
+        return;
+      }
+    }
+  } catch(err) {
+    console.warn('后端 API 不可用，使用 Mock 数据:', err.message);
+  }
+  
+  // Fallback to mock
+  State.previewData = MOCK_PREVIEW;
+  LAYER_COLORS = {};
+  MOCK_PREVIEW.layers.forEach(l => LAYER_COLORS[l.name] = l.color);
+  applyPreviewData();
+}
+
+function applyPreviewData() {
+  State.previewData.layers.forEach(l => State.layerVisible[l.name] = true);
+  renderLayerList();
+  document.getElementById('layerPanel').style.display = 'block';
+  document.querySelector('.upload-zone').style.display = 'none';
+  document.getElementById('btnReset').style.display = '';
+  fitView(); draw();
+  // 加载已保存的资产映射
+  loadMappings();
+}
+
+async function loadMappings() {
+  try {
+    const resp = await fetch('/api/v2/coord/mapping');
+    if (resp.ok) {
+      const mapping = await resp.json();
+      Object.entries(mapping).forEach(([blockName, assetPath]) => {
+        // 找到所有同名块，预填资产路径
+        if (State.previewData) {
+          State.previewData.inserts.forEach(ins => {
+            if (ins.block_name === blockName && !State.entityAssets[ins.id]) {
+              State.entityAssets[ins.id] = assetPath;
+            }
+          });
+        }
+      });
+    }
+  } catch(e) { /* ignore */ }
+}
+
+function renderLayerList() {
+  const el = document.getElementById('layerList');
+  el.innerHTML = '';
+  State.previewData.layers.forEach(l => {
+    const div = document.createElement('div');
+    div.className = 'layer-item';
+    div.innerHTML = `<span class="layer-swatch" style="background:${l.color}"></span>
+      <span>${l.name} (${l.entity_count})</span>
+      <span class="layer-toggle" data-layer="${l.name}" onclick="toggleLayer(this)">${State.layerVisible[l.name]?'👁':'🚫'}</span>`;
+    el.appendChild(div);
+  });
+}
+
+function toggleLayer(el) {
+  const name = el.dataset.layer;
+  State.layerVisible[name] = !State.layerVisible[name];
+  el.textContent = State.layerVisible[name] ? '👁' : '🚫';
+  draw();
+}
+
+// ── Step 2: Calibration ──
+function addAnchor(wx, wy) {
+  State.anchors.push({ cadXY: [Math.round(wx), Math.round(wy)], ueXY: [0, 0] });
+  renderAnchorList();
+  draw();
+}
+
+function renderAnchorList() {
+  const el = document.getElementById('anchorList');
+  el.innerHTML = '';
+  State.anchors.forEach((a, i) => {
+    const res = (State.metrics && State.metrics.perAnchorResiduals)
+      ? State.metrics.perAnchorResiduals[i] : null;
+    const maxRes = State.metrics ? Math.max(...State.metrics.perAnchorResiduals) : 0;
+    const isWorst = res !== null && res === maxRes && State.anchors.length >= 3;
+    const div = document.createElement('div');
+    div.className = 'anchor-row' + (isWorst ? ' warn' : '');
+    div.innerHTML = `<span class="idx">#${i+1}</span>
+      <span style="font-size:10px;color:var(--text-soft)">CAD(${a.cadXY[0]},${a.cadXY[1]})</span>
+      <span style="font-size:10px">UE:</span>
+      <input type="number" value="${a.ueXY[0]}" onchange="updateAnchorUE(${i},0,this.value)" placeholder="X">
+      <input type="number" value="${a.ueXY[1]}" onchange="updateAnchorUE(${i},1,this.value)" placeholder="Y">
+      <span class="residual">${res !== null ? res+'cm' : ''}</span>
+      <span class="del-btn" onclick="deleteAnchor(${i})">✕</span>`;
+    el.appendChild(div);
+  });
+  document.getElementById('btnCalibrate').disabled = State.anchors.length < 2;
+  document.getElementById('btnCalibrate').textContent =
+    State.anchors.length < 2 ? '计算变换（至少 2 个锚点）' : `计算变换（${State.anchors.length} 个锚点）`;
+}
+
+function updateAnchorUE(idx, axis, val) {
+  State.anchors[idx].ueXY[axis] = parseFloat(val) || 0;
+  if (State.matrix) doCalibrate(); // auto-recalc
+}
+
+function deleteAnchor(idx) {
+  State.anchors.splice(idx, 1);
+  if (State.anchors.length >= 2) doCalibrate();
+  else { State.matrix = null; State.metrics = null; document.getElementById('metricsPanel').style.display='none'; document.getElementById('btnToStep3').style.display='none'; }
+  renderAnchorList(); draw();
+}
+
+function doCalibrate() {
+  try {
+    const src = State.anchors.map(a => a.cadXY);
+    const dst = State.anchors.map(a => a.ueXY);
+    const result = CoordTransform.calibrate(src, dst);
+    State.matrix = result.matrix;
+    State.metrics = result;
+    renderMetrics();
+    renderAnchorList();
+    draw();
+  } catch(e) {
+    alert('标定失败: ' + e.message);
+  }
+}
+
+function renderMetrics() {
+  const m = State.metrics;
+  const mp = document.getElementById('metricsPanel');
+  mp.style.display = '';
+  let statusClass, statusText;
+  if (m.rmse < 50) { statusClass='status-ok'; statusText='✅ 合格'; }
+  else if (m.rmse < 200) { statusClass='status-warn'; statusText='⚠️ 偏大'; }
+  else { statusClass='status-err'; statusText='❌ 不可用'; }
+  mp.innerHTML = `<div class="metrics-card">
+    <div class="rmse-label">RMSE 残差</div>
+    <div class="rmse-big">${m.rmse} <small style="font-size:14px;color:var(--text-soft)">cm</small></div>
+    <span class="status-badge ${statusClass}">${statusText}</span>
+    <div class="scale-info">缩放 X: ${m.scaleX} | Y: ${m.scaleY} | 一致性: ${m.scaleConsistencyPct}%</div>
+  </div>`;
+  document.getElementById('btnToStep3').style.display = (m.rmse < 200) ? '' : 'none';
+}
+
+// ── Step 3: Entity Table ──
+function buildEntityTable() {
+  if (!State.previewData || !State.matrix) return;
+  const tbody = document.getElementById('entityBody');
+  tbody.innerHTML = '';
+  const all = [
+    ...State.previewData.inserts.map(e => ({...e, _type:'insert'})),
+    ...State.previewData.polylines.map(e => ({...e, _type:'polyline'})),
+  ];
+  all.forEach(ent => {
+    if (State.entityChecked[ent.id] === undefined) State.entityChecked[ent.id] = true;
+    const isInsert = ent._type === 'insert';
+    const pos = isInsert ? ent.position : ent.points[0];
+    const ue = CoordTransform.applyTransform(State.matrix, pos);
+    const gt = State.entityTypes[ent.id] || ent.generate_type || 'INSTANCE';
+    const tr = document.createElement('tr');
+    tr.dataset.id = ent.id;
+    tr.innerHTML = `
+      <td><input type="checkbox" ${State.entityChecked[ent.id]?'checked':''} onchange="State.entityChecked['${ent.id}']=this.checked"></td>
+      <td>${isInsert ? '🔧' : '🧱'}</td>
+      <td style="font-weight:500">${isInsert ? ent.block_name : ent.layer}</td>
+      <td style="font-size:10px;color:var(--text-muted)">${(ent.attribs&&ent.attribs.EQUIP_ID)||''}</td>
+      <td>${isInsert ? 'INSTANCE' : `<select onchange="State.entityTypes['${ent.id}']=this.value"><option ${gt==='PROCEDURAL_WALL'?'selected':''}>PROCEDURAL_WALL</option><option ${gt==='PROCEDURAL_FLOOR'?'selected':''}>PROCEDURAL_FLOOR</option></select>`}</td>
+      <td style="font-family:monospace;font-size:10px">${ue[0]}</td>
+      <td style="font-family:monospace;font-size:10px">${ue[1]}</td>
+      <td>${isInsert ? `<input type="text" value="${State.entityAssets[ent.id]||''}" placeholder="SM_..." onchange="State.entityAssets['${ent.id}']=this.value">` : ''}</td>`;
+    tr.addEventListener('mouseenter', () => { State.highlightId = ent.id; draw(); });
+    tr.addEventListener('mouseleave', () => { State.highlightId = null; draw(); });
+    tbody.appendChild(tr);
+  });
+}
+
+function highlightTableRow(id) {
+  document.querySelectorAll('#entityBody tr').forEach(tr => {
+    tr.classList.toggle('highlighted', tr.dataset.id === id);
+    if (tr.dataset.id === id) tr.scrollIntoView({block:'nearest'});
+  });
+}
+
+// ── Step 4: Export ──
+function _buildExportPayload() {
+  const ents = [];
+  State.previewData.inserts.forEach(ins => {
+    if (!State.entityChecked[ins.id]) return;
+    ents.push({ ...ins, asset_path: State.entityAssets[ins.id] || ins.block_name, export: true });
+  });
+  const polys = [];
+  State.previewData.polylines.forEach(p => {
+    if (!State.entityChecked[p.id]) return;
+    polys.push({ ...p, generate_type: State.entityTypes[p.id] || p.generate_type, export: true });
+  });
+  return {
+    transform_matrix: State.matrix,
+    entities: ents,
+    polylines: polys,
+    wall_height: 4500,
+    wall_thickness: 240,
+    anchor_count: State.anchors.length
+  };
+}
+
+function buildExportPreview() {
+  if (!State.previewData || !State.matrix) return;
+  // 前端本地组装预览
+  const payload = _buildExportPayload();
+  const entities = [];
+  payload.entities.forEach(ins => {
+    const ue = CoordTransform.applyTransform(State.matrix, ins.position);
+    entities.push({
+      id: ins.id, layer: ins.layer, generate_type: 'INSTANCE',
+      data: { mesh_id: ins.asset_path, transform: { loc: [ue[0], ue[1], 0], rot: [0, 0, ins.rotation], scale: [1,1,1] }, metadata: ins.attribs }
+    });
+  });
+  payload.polylines.forEach(p => {
+    const pts = p.points.map(pt => CoordTransform.applyTransform(State.matrix, pt));
+    entities.push({ id: p.id, layer: p.layer, generate_type: p.generate_type, data: { path: pts, height: 4500, thickness: 240 } });
+  });
+  const output = {
+    header: { version:'1.0', calibration: { matrix: State.matrix, rmse_cm: State.metrics.rmse, anchor_count: State.anchors.length }},
+    entities
+  };
+  document.getElementById('exportPreview').textContent = JSON.stringify(output, null, 2);
+}
+
+async function exportJSON() {
+  if (!State.previewData || !State.matrix) return;
+  const payload = _buildExportPayload();
+  try {
+    const resp = await fetch('/api/v2/coord/export', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'scene_export.json'; a.click();
+    document.getElementById('exportPreview').textContent = JSON.stringify(data, null, 2);
+    // 提示保存映射
+    if (confirm('导出成功！是否保存当前资产映射？')) saveMappings();
+  } catch(e) {
+    alert('导出失败: ' + e.message);
+  }
+}
+
+async function saveMappings() {
+  const mapping = {};
+  if (State.previewData) {
+    State.previewData.inserts.forEach(ins => {
+      if (State.entityAssets[ins.id]) mapping[ins.block_name] = State.entityAssets[ins.id];
+    });
+  }
+  if (Object.keys(mapping).length === 0) return;
+  try {
+    await fetch('/api/v2/coord/mapping', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(mapping)
+    });
+  } catch(e) { console.warn('映射保存失败:', e); }
+}
+
+function downloadCSV() {
+  if (!State.previewData || !State.matrix) return;
+  let csv = '设备ID,块名,图层,CAD_X,CAD_Y,UE_X,UE_Y,UE_Z,旋转角,UE资产路径\n';
+  State.previewData.inserts.forEach(ins => {
+    if (!State.entityChecked[ins.id]) return;
+    const ue = CoordTransform.applyTransform(State.matrix, ins.position);
+    csv += `${ins.attribs.EQUIP_ID||''},${ins.block_name},${ins.layer},${ins.position[0]},${ins.position[1]},${ue[0]},${ue[1]},0,${ins.rotation},${State.entityAssets[ins.id]||''}\n`;
+  });
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'coord_export.csv'; a.click();
+}
+
+function resetAll() {
+  State.previewData = null; State.anchors = []; State.matrix = null; State.metrics = null;
+  State.currentStep = 1; State.highlightId = null;
+  document.getElementById('layerPanel').style.display = 'none';
+  document.querySelector('.upload-zone').style.display = '';
+  document.getElementById('btnReset').style.display = 'none';
+  document.getElementById('metricsPanel').style.display = 'none';
+  document.getElementById('btnToStep3').style.display = 'none';
+  document.getElementById('anchorList').innerHTML = '';
+  document.getElementById('fileInput').value = '';
+  goToStep(1); draw();
+}
+</script>
+</body>
+</html>

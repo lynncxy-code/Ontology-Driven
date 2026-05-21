@@ -159,6 +159,11 @@ def extract_preview_data(file_path):
     poly_counter = 0
     insert_counter = 0
 
+    import math
+
+    # 未处理实体类型计数器
+    unhandled_types = {}
+
     for entity in msp:
         etype = entity.dxftype()
         layer = entity.dxf.get('layer', '0')
@@ -172,13 +177,11 @@ def extract_preview_data(file_path):
         
         # 初始化图层统计
         if layer not in layer_stats:
-            # 尝试读取图层颜色
             color = '#666666'
             try:
                 layer_obj = doc.layers.get(layer)
                 if layer_obj:
                     ci = layer_obj.color
-                    # AutoCAD color index -> hex (简化映射)
                     color_map = {
                         1:'#ff0000', 2:'#ffff00', 3:'#00ff00', 4:'#00ffff',
                         5:'#0000ff', 6:'#ff00ff', 7:'#ffffff', 8:'#808080',
@@ -190,16 +193,14 @@ def extract_preview_data(file_path):
                 pass
             layer_stats[layer] = {'color': color, 'entity_count': 0}
         
-        # LWPOLYLINE
+        # ── LWPOLYLINE ──
         if etype == 'LWPOLYLINE':
             points = [[round(p[0], 2), round(p[1], 2)] for p in entity.get_points(format='xy')]
             if len(points) < 2:
                 continue
-            
             total_points += len(points)
             closed = entity.closed
             generate_type = 'PROCEDURAL_FLOOR' if closed else 'PROCEDURAL_WALL'
-            
             poly_counter += 1
             polylines.append({
                 'id': f'poly_{poly_counter:03d}',
@@ -212,12 +213,11 @@ def extract_preview_data(file_path):
             for p in points:
                 all_x.append(p[0]); all_y.append(p[1])
         
-        # LINE
+        # ── LINE ──
         elif etype == 'LINE':
             start = entity.dxf.start
             end = entity.dxf.end
             points = [[round(start.x, 2), round(start.y, 2)], [round(end.x, 2), round(end.y, 2)]]
-            
             poly_counter += 1
             polylines.append({
                 'id': f'poly_{poly_counter:03d}',
@@ -229,20 +229,150 @@ def extract_preview_data(file_path):
             layer_stats[layer]['entity_count'] += 1
             all_x.extend([points[0][0], points[1][0]])
             all_y.extend([points[0][1], points[1][1]])
-        
-        # INSERT (Block Reference)
+
+        # ── CIRCLE ──（离散为 36 段多边形）
+        elif etype == 'CIRCLE':
+            cx = entity.dxf.center.x
+            cy = entity.dxf.center.y
+            r = entity.dxf.radius
+            seg = 36
+            points = []
+            for i in range(seg):
+                angle = 2 * math.pi * i / seg
+                points.append([round(cx + r * math.cos(angle), 2), round(cy + r * math.sin(angle), 2)])
+            total_points += len(points)
+            poly_counter += 1
+            polylines.append({
+                'id': f'poly_{poly_counter:03d}',
+                'layer': layer,
+                'points': points,
+                'closed': True,
+                'generate_type': 'PROCEDURAL_FLOOR'
+            })
+            layer_stats[layer]['entity_count'] += 1
+            all_x.extend([cx - r, cx + r])
+            all_y.extend([cy - r, cy + r])
+
+        # ── ARC ──（离散为线段）
+        elif etype == 'ARC':
+            cx = entity.dxf.center.x
+            cy = entity.dxf.center.y
+            r = entity.dxf.radius
+            start_angle = math.radians(entity.dxf.start_angle)
+            end_angle = math.radians(entity.dxf.end_angle)
+            if end_angle <= start_angle:
+                end_angle += 2 * math.pi
+            sweep = end_angle - start_angle
+            seg = max(8, int(sweep / (2 * math.pi) * 36))
+            points = []
+            for i in range(seg + 1):
+                angle = start_angle + sweep * i / seg
+                points.append([round(cx + r * math.cos(angle), 2), round(cy + r * math.sin(angle), 2)])
+            total_points += len(points)
+            poly_counter += 1
+            polylines.append({
+                'id': f'poly_{poly_counter:03d}',
+                'layer': layer,
+                'points': points,
+                'closed': False,
+                'generate_type': 'PROCEDURAL_WALL'
+            })
+            layer_stats[layer]['entity_count'] += 1
+            for p in points:
+                all_x.append(p[0]); all_y.append(p[1])
+
+        # ── ELLIPSE ──（离散为多边形）
+        elif etype == 'ELLIPSE':
+            try:
+                cx = entity.dxf.center.x
+                cy = entity.dxf.center.y
+                major_axis = entity.dxf.major_axis
+                ratio = entity.dxf.ratio
+                a = math.sqrt(major_axis.x ** 2 + major_axis.y ** 2)
+                b = a * ratio
+                rot = math.atan2(major_axis.y, major_axis.x)
+                start_param = entity.dxf.get('start_param', 0.0)
+                end_param = entity.dxf.get('end_param', 2 * math.pi)
+                if end_param <= start_param:
+                    end_param += 2 * math.pi
+                seg = 36
+                points = []
+                for i in range(seg + 1):
+                    t = start_param + (end_param - start_param) * i / seg
+                    lx = a * math.cos(t)
+                    ly = b * math.sin(t)
+                    px = cx + lx * math.cos(rot) - ly * math.sin(rot)
+                    py = cy + lx * math.sin(rot) + ly * math.cos(rot)
+                    points.append([round(px, 2), round(py, 2)])
+                is_full = abs(end_param - start_param - 2 * math.pi) < 0.01
+                total_points += len(points)
+                poly_counter += 1
+                polylines.append({
+                    'id': f'poly_{poly_counter:03d}',
+                    'layer': layer,
+                    'points': points,
+                    'closed': is_full,
+                    'generate_type': 'PROCEDURAL_FLOOR' if is_full else 'PROCEDURAL_WALL'
+                })
+                layer_stats[layer]['entity_count'] += 1
+                for p in points:
+                    all_x.append(p[0]); all_y.append(p[1])
+            except Exception:
+                unhandled_types[etype] = unhandled_types.get(etype, 0) + 1
+
+        # ── SPLINE ──（通过 ezdxf flattening 离散）
+        elif etype == 'SPLINE':
+            try:
+                points = [[round(p.x, 2), round(p.y, 2)] for p in entity.flattening(0.5)]
+                if len(points) < 2:
+                    continue
+                closed = entity.closed
+                total_points += len(points)
+                poly_counter += 1
+                polylines.append({
+                    'id': f'poly_{poly_counter:03d}',
+                    'layer': layer,
+                    'points': points,
+                    'closed': closed,
+                    'generate_type': 'PROCEDURAL_FLOOR' if closed else 'PROCEDURAL_WALL'
+                })
+                layer_stats[layer]['entity_count'] += 1
+                for p in points:
+                    all_x.append(p[0]); all_y.append(p[1])
+            except Exception:
+                unhandled_types[etype] = unhandled_types.get(etype, 0) + 1
+
+        # ── POLYLINE（重量级 2D/3D 多段线）──
+        elif etype == 'POLYLINE':
+            try:
+                points = [[round(v.dxf.location.x, 2), round(v.dxf.location.y, 2)] for v in entity.vertices]
+                if len(points) < 2:
+                    continue
+                closed = entity.is_closed
+                total_points += len(points)
+                poly_counter += 1
+                polylines.append({
+                    'id': f'poly_{poly_counter:03d}',
+                    'layer': layer,
+                    'points': points,
+                    'closed': closed,
+                    'generate_type': 'PROCEDURAL_FLOOR' if closed else 'PROCEDURAL_WALL'
+                })
+                layer_stats[layer]['entity_count'] += 1
+                for p in points:
+                    all_x.append(p[0]); all_y.append(p[1])
+            except Exception:
+                unhandled_types[etype] = unhandled_types.get(etype, 0) + 1
+
+        # ── INSERT (Block Reference) ──
         elif etype == 'INSERT':
             loc = entity.dxf.insert
             block_name = entity.dxf.name
             rotation = entity.dxf.get('rotation', 0.0)
             xscale = entity.dxf.get('xscale', 1.0)
             yscale = entity.dxf.get('yscale', 1.0)
-            
-            # 缩放一致性判断
             max_s = max(abs(xscale), abs(yscale))
             scale_uniform = (abs(xscale - yscale) / max_s <= 0.05) if max_s > 0 else True
-            
-            # 提取 ATTRIB
             attribs = {}
             try:
                 for attrib in entity.attribs:
@@ -252,7 +382,6 @@ def extract_preview_data(file_path):
                         attribs[tag] = val
             except:
                 pass
-            
             insert_counter += 1
             inserts.append({
                 'id': f'insert_{insert_counter:03d}',
@@ -265,6 +394,15 @@ def extract_preview_data(file_path):
             })
             layer_stats[layer]['entity_count'] += 1
             all_x.append(loc.x); all_y.append(loc.y)
+
+        # ── 未处理的实体类型 ──
+        else:
+            unhandled_types[etype] = unhandled_types.get(etype, 0) + 1
+            layer_stats[layer]['entity_count'] += 1
+
+    # 将未处理类型汇总为警告
+    for utype, count in unhandled_types.items():
+        warnings.append(f"未渲染的实体类型: {utype} x {count} 个")
 
     # Douglas-Peucker 降采样（如果总点数超限）
     if total_points > _MAX_POLYLINE_POINTS:

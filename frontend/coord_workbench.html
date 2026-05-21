@@ -145,6 +145,7 @@ body.embedded-mode{background:#fafaf7}
                 <span class="copy-btn" onclick="toggleAllLayers()" title="切换全显/全隐"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></span>
               </div>
               <div id="layerList" class="layer-list" style="display:none; margin-top:8px;"></div>
+              <div id="parseWarnings" style="display:none; margin-top:8px; padding:8px; background:#fffbeb; border:1px solid #fbbf24; border-radius:6px; max-height:100px; overflow-y:auto;"></div>
               <button class="btn btn-primary btn-sm" style="margin-top:14px;width:100%" onclick="goToStep(2)">继续 → 锚点标定</button>
             </div>
           </div>
@@ -627,6 +628,16 @@ function applyPreviewData() {
   document.getElementById('layerPanel').style.display = 'block';
   document.querySelector('.upload-zone').style.display = 'none';
   document.getElementById('btnReset').style.display = '';
+  // 显示后端警告
+  const ws = State.previewData.warnings || [];
+  const warnEl = document.getElementById('parseWarnings');
+  if (ws.length > 0) {
+    warnEl.style.display = 'block';
+    warnEl.innerHTML = ws.map(w => `<div style="font-size:11px;color:#b45309;padding:2px 0;">&#9888; ${w}</div>`).join('');
+  } else {
+    warnEl.style.display = 'none';
+    warnEl.innerHTML = '';
+  }
   fitView(); draw();
   // 加载已保存的资产映射
   loadMappings();

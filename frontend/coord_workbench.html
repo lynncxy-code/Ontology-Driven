@@ -457,12 +457,46 @@ function drawGrid(cw, ch) {
     }
   }
 
-  // 原点十字丝
+  // X/Y 坐标轴 + 方向箭头 + 标注
   const [ox, oy] = w2s(0, 0);
-  ctx.strokeStyle = 'rgba(80,160,220,0.45)';
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(ox - 8, oy); ctx.lineTo(ox + 8, oy); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(ox, oy - 8); ctx.lineTo(ox, oy + 8); ctx.stroke();
+  const axisLen = 60; // 箭头长度 px
+  const arrowSize = 6;
+
+  // X 轴（向右，红色）
+  ctx.strokeStyle = 'rgba(220,60,60,0.55)';
+  ctx.fillStyle = 'rgba(220,60,60,0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + axisLen, oy); ctx.stroke();
+  // 箭头
+  ctx.beginPath();
+  ctx.moveTo(ox + axisLen, oy);
+  ctx.lineTo(ox + axisLen - arrowSize, oy - arrowSize * 0.6);
+  ctx.lineTo(ox + axisLen - arrowSize, oy + arrowSize * 0.6);
+  ctx.closePath(); ctx.fill();
+  // 标注
+  ctx.font = 'bold 11px Inter,sans-serif';
+  ctx.fillText('X', ox + axisLen + 4, oy + 4);
+
+  // Y 轴（向下，绿色）
+  ctx.strokeStyle = 'rgba(60,180,80,0.55)';
+  ctx.fillStyle = 'rgba(60,180,80,0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy + axisLen); ctx.stroke();
+  // 箭头
+  ctx.beginPath();
+  ctx.moveTo(ox, oy + axisLen);
+  ctx.lineTo(ox - arrowSize * 0.6, oy + axisLen - arrowSize);
+  ctx.lineTo(ox + arrowSize * 0.6, oy + axisLen - arrowSize);
+  ctx.closePath(); ctx.fill();
+  // 标注
+  ctx.fillText('Y', ox - 4, oy + axisLen + 14);
+
+  // 原点标记
+  ctx.fillStyle = 'rgba(80,160,220,0.6)';
+  ctx.font = '10px Inter,sans-serif';
+  ctx.fillText('O', ox - 14, oy - 6);
+  ctx.beginPath(); ctx.arc(ox, oy, 3, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(80,160,220,0.5)'; ctx.fill();
 
   ctx.restore();
 }

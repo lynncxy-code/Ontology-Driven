@@ -94,11 +94,11 @@ def parse_dxf_to_json(file_path, wall_height=4500, wall_thickness=240):
 # PRD 2.9: 坐标标定工作台 — 预览数据提取
 # ═══════════════════════════════════════════════════════════════
 
-# 强制过滤的实体类型（纯文字/填充/视口，确实无几何意义）
-_FILTERED_TYPES = {'TEXT', 'MTEXT', 'HATCH', 'TOLERANCE', 'VIEWPORT'}
+# 强制过滤的实体类型（纯标注/文字/填充/视口，无设备几何意义）
+_FILTERED_TYPES = {'DIMENSION', 'TEXT', 'MTEXT', 'HATCH', 'TOLERANCE', 'VIEWPORT'}
 
-# 需要炸开（explode）提取内部几何的复合实体类型
-_EXPLODE_TYPES = {'DIMENSION', 'LEADER', 'MULTILEADER', 'MLINE'}
+# 需要提取定义点的复合实体类型
+_EXPLODE_TYPES = {'LEADER', 'MULTILEADER', 'MLINE'}
 
 # Douglas-Peucker 降采样最大点数
 _MAX_POLYLINE_POINTS = 20000
@@ -195,51 +195,30 @@ def extract_preview_data(file_path):
                     pass
                 layer_stats[layer] = {'color': color, 'entity_count': 0}
 
-            # 提取 DIMENSION 的定义点
-            if etype == 'DIMENSION':
-                try:
-                    # defpoint 是标注测量的实际位置
-                    dp = entity.dxf.defpoint
-                    text_val = entity.dxf.get('text', '')
-                    insert_counter += 1
-                    inserts.append({
-                        'id': f'insert_{insert_counter:03d}',
-                        'block_name': f'DIM_{text_val}' if text_val else 'DIMENSION',
-                        'layer': layer,
-                        'position': [round(dp.x, 2), round(dp.y, 2)],
-                        'rotation': 0.0,
-                        'scale_uniform': True,
-                        'attribs': {'EQUIP_ID': text_val} if text_val else {}
-                    })
-                    layer_stats[layer]['entity_count'] += 1
-                    all_x.append(dp.x); all_y.append(dp.y)
-                except Exception:
+            # LEADER / MULTILEADER / MLINE — 提取插入点
+            try:
+                if hasattr(entity.dxf, 'insert'):
+                    loc = entity.dxf.insert
+                elif hasattr(entity, 'vertices') and len(list(entity.vertices)) > 0:
+                    v = list(entity.vertices)[0]
+                    loc = type('P', (), {'x': v[0], 'y': v[1]})()
+                else:
                     unhandled_types[etype] = unhandled_types.get(etype, 0) + 1
-            else:
-                # LEADER / MULTILEADER / MLINE — 提取插入点
-                try:
-                    if hasattr(entity.dxf, 'insert'):
-                        loc = entity.dxf.insert
-                    elif hasattr(entity, 'vertices') and len(list(entity.vertices)) > 0:
-                        v = list(entity.vertices)[0]
-                        loc = type('P', (), {'x': v[0], 'y': v[1]})()
-                    else:
-                        unhandled_types[etype] = unhandled_types.get(etype, 0) + 1
-                        continue
-                    insert_counter += 1
-                    inserts.append({
-                        'id': f'insert_{insert_counter:03d}',
-                        'block_name': etype,
-                        'layer': layer,
-                        'position': [round(loc.x, 2), round(loc.y, 2)],
-                        'rotation': 0.0,
-                        'scale_uniform': True,
-                        'attribs': {}
-                    })
-                    layer_stats[layer]['entity_count'] += 1
-                    all_x.append(loc.x); all_y.append(loc.y)
-                except Exception:
-                    unhandled_types[etype] = unhandled_types.get(etype, 0) + 1
+                    continue
+                insert_counter += 1
+                inserts.append({
+                    'id': f'insert_{insert_counter:03d}',
+                    'block_name': etype,
+                    'layer': layer,
+                    'position': [round(loc.x, 2), round(loc.y, 2)],
+                    'rotation': 0.0,
+                    'scale_uniform': True,
+                    'attribs': {}
+                })
+                layer_stats[layer]['entity_count'] += 1
+                all_x.append(loc.x); all_y.append(loc.y)
+            except Exception:
+                unhandled_types[etype] = unhandled_types.get(etype, 0) + 1
             continue
         
         # 初始化图层统计

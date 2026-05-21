@@ -318,16 +318,16 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 setTimeout(resizeCanvas, 50);
 
-// World to screen
+// World to screen (Y 翻转: CAD的Y向上 → 屏幕的Y向下)
 function w2s(wx, wy) {
   const sx = (wx - camX) * camScale + canvas.width / devicePixelRatio / 2;
-  const sy = (wy - camY) * camScale + canvas.height / devicePixelRatio / 2;
+  const sy = -(wy - camY) * camScale + canvas.height / devicePixelRatio / 2;
   return [sx, sy];
 }
 // Screen to world
 function s2w(sx, sy) {
   const wx = (sx - canvas.width / devicePixelRatio / 2) / camScale + camX;
-  const wy = (sy - canvas.height / devicePixelRatio / 2) / camScale + camY;
+  const wy = -(sy - canvas.height / devicePixelRatio / 2) / camScale + camY;
   return [wx, wy];
 }
 
@@ -338,7 +338,7 @@ canvas.addEventListener('wheel', e => {
   const [wx, wy] = s2w(e.offsetX, e.offsetY);
   camScale = Math.max(0.00001, Math.min(10000, camScale * factor));
   camX = wx - (e.offsetX - canvas.width / devicePixelRatio / 2) / camScale;
-  camY = wy - (e.offsetY - canvas.height / devicePixelRatio / 2) / camScale;
+  camY = wy + (e.offsetY - canvas.height / devicePixelRatio / 2) / camScale;
   draw();
   updateCanvasInfo(e);
 }, {passive:false});
@@ -357,7 +357,7 @@ canvas.addEventListener('mousedown', canvas._origMousedown);
 canvas.addEventListener('mousemove', e => {
   if (isDragging) {
     camX = camStartX - (e.offsetX - dragStartX) / camScale;
-    camY = camStartY - (e.offsetY - dragStartY) / camScale;
+    camY = camStartY + (e.offsetY - dragStartY) / camScale;
     draw();
   }
   updateCanvasInfo(e);
@@ -477,19 +477,19 @@ function drawGrid(cw, ch) {
   ctx.font = 'bold 11px Inter,sans-serif';
   ctx.fillText('X', ox + axisLen + 4, oy + 4);
 
-  // Y 轴（向下，绿色）
+  // Y 轴（向上，绿色）
   ctx.strokeStyle = 'rgba(60,180,80,0.55)';
   ctx.fillStyle = 'rgba(60,180,80,0.7)';
   ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy + axisLen); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - axisLen); ctx.stroke();
   // 箭头
   ctx.beginPath();
-  ctx.moveTo(ox, oy + axisLen);
-  ctx.lineTo(ox - arrowSize * 0.6, oy + axisLen - arrowSize);
-  ctx.lineTo(ox + arrowSize * 0.6, oy + axisLen - arrowSize);
+  ctx.moveTo(ox, oy - axisLen);
+  ctx.lineTo(ox - arrowSize * 0.6, oy - axisLen + arrowSize);
+  ctx.lineTo(ox + arrowSize * 0.6, oy - axisLen + arrowSize);
   ctx.closePath(); ctx.fill();
   // 标注
-  ctx.fillText('Y', ox - 4, oy + axisLen + 14);
+  ctx.fillText('Y', ox - 4, oy - axisLen - 6);
 
   // 原点标记
   ctx.fillStyle = 'rgba(80,160,220,0.6)';

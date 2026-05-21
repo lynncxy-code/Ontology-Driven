@@ -428,18 +428,55 @@ def extract_preview_data(file_path):
                         attribs[tag] = val
             except:
                 pass
+
+            # 计算块几何变换后的实际中心点
+            visual_x, visual_y = loc.x, loc.y
+            try:
+                block_def = doc.blocks.get(block_name)
+                if block_def:
+                    bxs, bys = [], []
+                    for be in block_def:
+                        bt = be.dxftype()
+                        if bt == 'LWPOLYLINE':
+                            for bp in be.get_points(format='xy'):
+                                bxs.append(bp[0]); bys.append(bp[1])
+                        elif bt == 'LINE':
+                            bxs.extend([be.dxf.start.x, be.dxf.end.x])
+                            bys.extend([be.dxf.start.y, be.dxf.end.y])
+                        elif bt == 'CIRCLE':
+                            bxs.append(be.dxf.center.x); bys.append(be.dxf.center.y)
+                        elif bt == 'ARC':
+                            bxs.append(be.dxf.center.x); bys.append(be.dxf.center.y)
+                    if bxs and bys:
+                        bcx = (min(bxs) + max(bxs)) / 2.0
+                        bcy = (min(bys) + max(bys)) / 2.0
+                        rad = math.radians(rotation)
+                        cos_r, sin_r = math.cos(rad), math.sin(rad)
+                        # 先缩放
+                        sx = bcx * xscale
+                        sy = bcy * yscale
+                        # 再旋转
+                        rx = sx * cos_r - sy * sin_r
+                        ry = sx * sin_r + sy * cos_r
+                        # 再平移
+                        visual_x = loc.x + rx
+                        visual_y = loc.y + ry
+            except:
+                pass
+
             insert_counter += 1
             inserts.append({
                 'id': f'insert_{insert_counter:03d}',
                 'block_name': block_name,
                 'layer': layer,
-                'position': [round(loc.x, 2), round(loc.y, 2)],
+                'position': [round(visual_x, 2), round(visual_y, 2)],
+                'raw_insert': [round(loc.x, 2), round(loc.y, 2)],
                 'rotation': round(rotation, 2),
                 'scale_uniform': scale_uniform,
                 'attribs': attribs
             })
             layer_stats[layer]['entity_count'] += 1
-            all_x.append(loc.x); all_y.append(loc.y)
+            all_x.append(visual_x); all_y.append(visual_y)
 
         # ── 未处理的实体类型 ──
         else:

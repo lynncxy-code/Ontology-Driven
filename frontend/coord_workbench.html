@@ -37,7 +37,8 @@ body.embedded-mode{background:#fafaf7}
 .upload-icon{width:48px;height:48px;border-radius:14px;background:#111;color:#fff;display:flex;align-items:center;justify-content:center}
 /* Layer list */
 .layer-list{margin-top:16px; max-height:calc(100vh - 260px); overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--border-strong) transparent}
-.layer-item{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12px;color:var(--text-muted)}
+.layer-item{display:flex;align-items:center;gap:8px;padding:6px 2px;margin-bottom:2px;font-size:12px;color:var(--text-muted);border-bottom:2px solid transparent;transition:all .15s}
+.layer-item.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;background:var(--surface-subtle)}
 .layer-swatch{width:12px;height:12px;border-radius:3px;flex-shrink:0}
 .layer-toggle{margin-left:auto;cursor:pointer;font-size:11px;color:var(--text-soft)}
 /* Anchor list */
@@ -403,6 +404,7 @@ canvas.addEventListener('mouseup', e => {
     }
   } else if (e.button === 0 && !State.highlightId && State.highlightLayer) {
     State.highlightLayer = null;
+    renderLayerList(); // 更新列表的取消高亮状态
     draw();
   }
 });
@@ -734,8 +736,9 @@ function renderLayerList() {
   const el = document.getElementById('layerList');
   el.innerHTML = '';
   State.previewData.layers.forEach(l => {
+    const isActive = State.highlightLayer === l.name;
     const div = document.createElement('div');
-    div.className = 'layer-item';
+    div.className = 'layer-item' + (isActive ? ' active' : '');
     div.innerHTML = `<span class="layer-swatch" style="background:${l.color}"></span>
       <span style="cursor:pointer;flex:1;" onclick="focusLayer('${l.name}')" title="点击定位到该图层">${l.name} (${l.entity_count})</span>
       <span class="layer-toggle" data-layer="${l.name}" onclick="toggleLayer(this)" style="cursor:pointer; display:flex; align-items:center;">${State.layerVisible[l.name]?ICON_EYE_ON:ICON_EYE_OFF}</span>`;
@@ -782,6 +785,7 @@ function focusLayer(layerName) {
       camY = (minY + maxY) / 2;
     }
   }
+  renderLayerList(); // 更新列表的高亮状态
   draw();
 }
 

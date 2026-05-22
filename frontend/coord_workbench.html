@@ -390,17 +390,36 @@ canvas.addEventListener('mouseup', e => {
   
   // Click on instance
   if (e.button === 0 && State.highlightId) {
-    if (State.currentStep < 3 && State.matrix) {
-      goToStep(3);
-    }
-    if (State.currentStep === 3) {
-      const tr = document.querySelector(`tr[data-id="${State.highlightId}"]`);
-      if (tr) {
-        tr.scrollIntoView({behavior: 'smooth', block: 'center'});
-        tr.style.transition = 'background-color 0.3s';
-        tr.style.backgroundColor = '#fde68a';
-        setTimeout(() => { tr.style.backgroundColor = ''; }, 1500);
+    const ins = State.previewData.inserts.find(i => i.id === State.highlightId);
+    
+    if (State.currentStep === 1 && ins) {
+      // 在图层列表步骤：高亮该实例所属的图层
+      if (State.highlightLayer !== ins.layer) {
+        focusLayer(ins.layer);
       }
+      // 滚动到对应图层行
+      setTimeout(() => {
+        const layerItems = Array.from(document.querySelectorAll('.layer-item'));
+        const item = layerItems.find(el => el.textContent.includes(ins.layer));
+        if (item) {
+          item.scrollIntoView({behavior: 'smooth', block: 'center'});
+          item.style.transition = 'background-color 0.3s';
+          item.style.backgroundColor = '#fde68a';
+          setTimeout(() => { item.style.backgroundColor = ''; }, 1500);
+        }
+      }, 50);
+    } else if (State.matrix) {
+      // 如果已标定，且不在图层步骤：跳转到实体列表并定位
+      if (State.currentStep < 3) goToStep(3);
+      setTimeout(() => {
+        const tr = document.querySelector(`tr[data-id="${State.highlightId}"]`);
+        if (tr) {
+          tr.scrollIntoView({behavior: 'smooth', block: 'center'});
+          tr.style.transition = 'background-color 0.3s';
+          tr.style.backgroundColor = '#fde68a';
+          setTimeout(() => { tr.style.backgroundColor = ''; }, 1500);
+        }
+      }, 50);
     }
   } else if (e.button === 0 && !State.highlightId && State.highlightLayer) {
     State.highlightLayer = null;

@@ -577,7 +577,7 @@ function draw() {
     } else {
       ctx.globalAlpha = 1.0;
       ctx.lineWidth = isTarget ? 3.0 : 1.5;
-      if (isTarget) ctx.strokeStyle = '#2563eb';
+      if (isTarget) ctx.strokeStyle = '#111';
     }
     
     ctx.beginPath();
@@ -604,7 +604,7 @@ function draw() {
     const color = LAYER_COLORS[ins.layer] || '#666';
     const sz = Math.max(6, 12 * camScale);
     
-    ctx.strokeStyle = (State.highlightId === ins.id) ? '#2563eb' : color;
+    ctx.strokeStyle = (State.highlightId === ins.id) ? '#111' : color;
     
     if (isOther && State.highlightId !== ins.id) {
       ctx.globalAlpha = 0.15;
@@ -612,7 +612,7 @@ function draw() {
     } else {
       ctx.globalAlpha = 1.0;
       ctx.lineWidth = (State.highlightId === ins.id || isTarget) ? 2.5 : 1.5;
-      if (isTarget && State.highlightId !== ins.id) ctx.strokeStyle = '#2563eb';
+      if (isTarget && State.highlightId !== ins.id) ctx.strokeStyle = '#111';
     }
     
     ctx.beginPath(); ctx.moveTo(sx-sz,sy); ctx.lineTo(sx+sz,sy); ctx.stroke();
@@ -626,7 +626,7 @@ function draw() {
     // Show UE coords if calibrated
     if (State.matrix && camScale > 0.02) {
       const ue = CoordTransform.applyTransform(State.matrix, ins.position);
-      ctx.font = '9px monospace'; ctx.fillStyle = '#2563eb';
+      ctx.font = '9px monospace'; ctx.fillStyle = '#111';
       ctx.fillText(`(${ue[0]}, ${ue[1]})`, sx+sz+3, sy+10);
     }
     ctx.globalAlpha = 1.0;

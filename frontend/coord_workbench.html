@@ -362,18 +362,50 @@ canvas.addEventListener('mousemove', e => {
     draw();
   }
   updateCanvasInfo(e);
-  // Hover highlight for step 3
-  if (State.currentStep === 3 && State.previewData) {
+  // Hover highlight for instances
+  if (State.previewData) {
     const [wx,wy] = s2w(e.offsetX, e.offsetY);
     let found = null;
     for (const ins of State.previewData.inserts) {
+      if (!State.layerVisible[ins.layer]) continue;
       const dx = ins.position[0]-wx, dy=ins.position[1]-wy;
       if (Math.sqrt(dx*dx+dy*dy) < 800/camScale) { found=ins.id; break; }
     }
-    if (found !== State.highlightId) { State.highlightId = found; draw(); highlightTableRow(found); }
+    if (found !== State.highlightId) { 
+      State.highlightId = found; 
+      draw(); 
+      if (State.currentStep === 3) highlightTableRow(found); 
+    }
   }
 });
-canvas.addEventListener('mouseup', () => { isDragging = false; canvas.style.cursor = 'crosshair'; });
+canvas.addEventListener('mouseup', e => { 
+  if (isDragging) {
+    isDragging = false; 
+    canvas.style.cursor = 'crosshair'; 
+    return;
+  }
+  isDragging = false; 
+  canvas.style.cursor = 'crosshair'; 
+  
+  // Click on instance
+  if (e.button === 0 && State.highlightId) {
+    if (State.currentStep < 3 && State.matrix) {
+      goToStep(3);
+    }
+    if (State.currentStep === 3) {
+      const tr = document.querySelector(`tr[data-id="${State.highlightId}"]`);
+      if (tr) {
+        tr.scrollIntoView({behavior: 'smooth', block: 'center'});
+        tr.style.transition = 'background-color 0.3s';
+        tr.style.backgroundColor = '#fde68a';
+        setTimeout(() => { tr.style.backgroundColor = ''; }, 1500);
+      }
+    }
+  } else if (e.button === 0 && !State.highlightId && State.highlightLayer) {
+    State.highlightLayer = null;
+    draw();
+  }
+});
 canvas.addEventListener('mouseleave', () => { isDragging = false; canvas.style.cursor = 'crosshair'; });
 
 function updateCanvasInfo(e) {
@@ -513,8 +545,20 @@ function draw() {
   // Draw polylines
   d.polylines.forEach(p => {
     if (!State.layerVisible[p.layer]) return;
+    
+    const isTarget = State.highlightLayer === p.layer;
+    const isOther = State.highlightLayer && !isTarget;
+    
     ctx.strokeStyle = LAYER_COLORS[p.layer] || '#666';
-    ctx.lineWidth = 1.5;
+    if (isOther) {
+      ctx.globalAlpha = 0.15;
+      ctx.lineWidth = 1.0;
+    } else {
+      ctx.globalAlpha = 1.0;
+      ctx.lineWidth = isTarget ? 3.0 : 1.5;
+      if (isTarget) ctx.strokeStyle = '#2563eb';
+    }
+    
     ctx.beginPath();
     p.points.forEach((pt, i) => {
       const [sx,sy] = w2s(pt[0], pt[1]);
@@ -522,19 +566,37 @@ function draw() {
     });
     if (p.closed) ctx.closePath();
     ctx.stroke();
-    if (p.closed) { ctx.fillStyle = (LAYER_COLORS[p.layer]||'#666') + '15'; ctx.fill(); }
+    if (p.closed) { 
+      ctx.fillStyle = (LAYER_COLORS[p.layer]||'#666') + '15'; 
+      ctx.fill(); 
+    }
+    ctx.globalAlpha = 1.0;
   });
 
   // Draw inserts (cross + label)
   d.inserts.forEach(ins => {
     if (!State.layerVisible[ins.layer]) return;
+    
+    const isTarget = State.highlightLayer === ins.layer;
+    const isOther = State.highlightLayer && !isTarget;
     const [sx, sy] = w2s(ins.position[0], ins.position[1]);
     const color = LAYER_COLORS[ins.layer] || '#666';
     const sz = Math.max(6, 12 * camScale);
+    
     ctx.strokeStyle = (State.highlightId === ins.id) ? '#2563eb' : color;
-    ctx.lineWidth = (State.highlightId === ins.id) ? 2.5 : 1.5;
+    
+    if (isOther && State.highlightId !== ins.id) {
+      ctx.globalAlpha = 0.15;
+      ctx.lineWidth = 1.0;
+    } else {
+      ctx.globalAlpha = 1.0;
+      ctx.lineWidth = (State.highlightId === ins.id || isTarget) ? 2.5 : 1.5;
+      if (isTarget && State.highlightId !== ins.id) ctx.strokeStyle = '#2563eb';
+    }
+    
     ctx.beginPath(); ctx.moveTo(sx-sz,sy); ctx.lineTo(sx+sz,sy); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(sx,sy-sz); ctx.lineTo(sx,sy+sz); ctx.stroke();
+    
     if (camScale > 0.015) {
       ctx.font = '10px Inter,sans-serif'; ctx.fillStyle = color;
       const label = ins.attribs.EQUIP_ID || ins.block_name;
@@ -546,6 +608,7 @@ function draw() {
       ctx.font = '9px monospace'; ctx.fillStyle = '#2563eb';
       ctx.fillText(`(${ue[0]}, ${ue[1]})`, sx+sz+3, sy+10);
     }
+    ctx.globalAlpha = 1.0;
   });
 
   // Draw anchors
@@ -674,10 +737,52 @@ function renderLayerList() {
     const div = document.createElement('div');
     div.className = 'layer-item';
     div.innerHTML = `<span class="layer-swatch" style="background:${l.color}"></span>
-      <span>${l.name} (${l.entity_count})</span>
+      <span style="cursor:pointer;flex:1;" onclick="focusLayer('${l.name}')" title="点击定位到该图层">${l.name} (${l.entity_count})</span>
       <span class="layer-toggle" data-layer="${l.name}" onclick="toggleLayer(this)" style="cursor:pointer; display:flex; align-items:center;">${State.layerVisible[l.name]?ICON_EYE_ON:ICON_EYE_OFF}</span>`;
     el.appendChild(div);
   });
+}
+
+function focusLayer(layerName) {
+  if (!State.previewData) return;
+  // 自动打开图层显示
+  if (!State.layerVisible[layerName]) {
+    State.layerVisible[layerName] = true;
+    renderLayerList();
+  }
+  // 切换高亮状态
+  if (State.highlightLayer === layerName) {
+    State.highlightLayer = null;
+    fitView();
+  } else {
+    State.highlightLayer = layerName;
+    // 计算图层包围盒
+    let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+    State.previewData.polylines.forEach(p => {
+      if (p.layer === layerName) {
+        p.points.forEach(pt => {
+          if (pt[0]<minX) minX=pt[0]; if (pt[0]>maxX) maxX=pt[0];
+          if (pt[1]<minY) minY=pt[1]; if (pt[1]>maxY) maxY=pt[1];
+        });
+      }
+    });
+    State.previewData.inserts.forEach(ins => {
+      if (ins.layer === layerName) {
+        if (ins.position[0]<minX) minX=ins.position[0]; if (ins.position[0]>maxX) maxX=ins.position[0];
+        if (ins.position[1]<minY) minY=ins.position[1]; if (ins.position[1]>maxY) maxY=ins.position[1];
+      }
+    });
+    if (minX !== Infinity) {
+      const dw = (maxX - minX) || 1;
+      const dh = (maxY - minY) || 1;
+      const cw = canvas.width / devicePixelRatio;
+      const ch = canvas.height / devicePixelRatio;
+      camScale = Math.max(0.00001, Math.min(cw / dw, ch / dh) * 0.85);
+      camX = (minX + maxX) / 2;
+      camY = (minY + maxY) / 2;
+    }
+  }
+  draw();
 }
 
 function toggleLayer(el) {

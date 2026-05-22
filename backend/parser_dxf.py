@@ -1,6 +1,115 @@
 import ezdxf
 import uuid
 
+from coord_filter_rules import (
+    is_layer_blacklisted, is_block_blacklisted, classify_layer
+)
+
+
+def extract_block_candidates(file_path, mapping=None):
+    """
+    PRD 2.9.2 § 7 — 扫描 DXF 中所有 INSERT，按 block_name 分组后
+    依过滤规则筛选，输出候选 ObjectType 列表 + 过滤日志。
+
+    Args:
+        file_path: DXF 文件路径
+        mapping:   dict[block_name -> asset_id]，来自 block_asset_mapping.json，用于预填
+
+    Returns:
+        {
+            "summary": {...},
+            "candidates": [...],
+            "filtered_log": [...]
+        }
+    """
+    mapping = mapping or {}
+    doc = ezdxf.readfile(file_path)
+    msp = doc.modelspace()
+
+    # 收集每个 block_name 出现的图层与次数
+    blocks = {}  # name -> {count, layers: {layer: count}}
+    for ins in msp.query('INSERT'):
+        name = ins.dxf.name
+        layer = ins.dxf.layer
+        if name not in blocks:
+            blocks[name] = {'count': 0, 'layers': {}}
+        blocks[name]['count'] += 1
+        blocks[name]['layers'][layer] = blocks[name]['layers'].get(layer, 0) + 1
+
+    candidates = []
+    filtered_log = []
+    cnt_system = 0
+    cnt_xref = 0
+
+    for name, info in blocks.items():
+        # 1) block_name 黑名单
+        blocked, reason = is_block_blacklisted(name)
+        if blocked:
+            filtered_log.append({
+                'block_name': name,
+                'reason': reason,
+                'count': info['count']
+            })
+            if 'XREF' in reason:
+                cnt_xref += info['count']
+            else:
+                cnt_system += info['count']
+            continue
+
+        # 2) 取出现次数最多的图层作为 primary_layer
+        layers_sorted = sorted(info['layers'].items(), key=lambda x: -x[1])
+        primary_layer = layers_sorted[0][0]
+        layer_names = [l for l, _ in layers_sorted]
+
+        # 3) 图层黑名单
+        layer_blocked, layer_reason = is_layer_blacklisted(primary_layer)
+        if layer_blocked:
+            filtered_log.append({
+                'block_name': name,
+                'reason': f'主图层"{primary_layer}" — {layer_reason}',
+                'count': info['count']
+            })
+            if 'XREF' in layer_reason:
+                cnt_xref += info['count']
+            else:
+                cnt_system += info['count']
+            continue
+
+        # 4) 灰色地带分类
+        warn_color, warn_text, default_checked = classify_layer(primary_layer)
+
+        candidates.append({
+            'block_name': name,
+            'layers': layer_names,
+            'primary_layer': primary_layer,
+            'count': info['count'],
+            'suggested_name': name,
+            'suggested_rid': name,
+            'preset_asset_id': mapping.get(name),
+            'warning': warn_text,
+            'warning_color': warn_color,
+            'default_checked': default_checked,
+        })
+
+    # 按出现次数降序，方便用户优先处理高频块
+    candidates.sort(key=lambda x: -x['count'])
+    filtered_log.sort(key=lambda x: -x['count'])
+
+    total_inserts = sum(b['count'] for b in blocks.values())
+    return {
+        'summary': {
+            'total_inserts': total_inserts,
+            'unique_block_names': len(blocks),
+            'filtered_system_blocks': cnt_system,
+            'filtered_xref_blocks': cnt_xref,
+            'candidates': len(candidates),
+        },
+        'candidates': candidates,
+        'filtered_log': filtered_log,
+        'dxf_encoding': doc.encoding,
+    }
+
+
 def parse_dxf_to_json(file_path, wall_height=4500, wall_thickness=240):
     try:
         doc = ezdxf.readfile(file_path)

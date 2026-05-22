@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Test-Path \"D:\\\\tmp\\\\digital_twin_aircraft\\\\docs\\\\TRAINING_GUIDE.md\")",
+      "Bash(ls \"D:\\\\tmp\\\\PRD\\\\files2\")",
+      "PowerShell(Head)",
+      "PowerShell(Get-WmiObject -Class Win32_VideoController)",
+      "PowerShell(wmic path win32_VideoController get Name, AdapterRAM)",
+      "PowerShell(Get-CimInstance -ClassName Win32_VideoController)",
+      "PowerShell(nvidia-smi)",
+      "WebFetch(domain:isaac-sim.github.io)",
+      "PowerShell(wsl --status 2>&1)",
+      "PowerShell(wsl --list --verbose 2>&1)",
+      "WebFetch(domain:github.com)",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import app; print\\('app import OK'\\); print\\([r.rule for r in app.app.url_map.iter_rules\\(\\) if 'datasets' in r.rule]\\)\")",
+      "Bash(python app.py)",
+      "Bash(curl -s http://127.0.0.1:5000/api/v2/ontology/datasets)",
+      "Bash(python -c \"import flask; print\\('flask', flask.__version__\\)\")",
+      "Bash(taskkill //F //IM python.exe)",
+      "Bash(curl -s -X POST http://127.0.0.1:5000/api/v2/ontology/datasets -H \"Content-Type: application/json\" -d '{\"name\":\"我的工厂本体\",\"activate\":true}')",
+      "Bash(curl -s -w \"HTTP %{http_code}\\\\n\" -X POST http://127.0.0.1:5000/api/v2/ontology/datasets -H \"Content-Type: application/json\" -d '{\"name\":\"我的工厂本体\",\"activate\":false}')",
+      "Bash(curl -s -w \"HTTP %{http_code}\\\\n\" -X POST http://127.0.0.1:5000/api/v2/ontology/datasets -H \"Content-Type: application/json\" -d '{\"name\":\"\",\"activate\":true}')",
+      "Bash(curl -s http://127.0.0.1:5000/api/v2/ontology/types)",
+      "Bash(curl -s -X POST http://127.0.0.1:5000/api/v2/ontology/datasets -H \"Content-Type: application/json\" --data @/tmp/t1.json)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" -X POST http://127.0.0.1:5000/api/v2/ontology/datasets -H \"Content-Type: application/json\" --data @/tmp/t2.json)",
+      "Bash(curl -s -X POST http://127.0.0.1:5000/api/v2/ontology/datasets -H \"Content-Type: application/json\" --data @/tmp/t3.json)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('_object_types size:', len\\(d\\)\\)\")",
+      "Bash(curl -s -X POST http://127.0.0.1:5000/api/v2/coord/types/scan -F file=@D:/tmp/digital_twin_aircraft/backend/新块.dxf)",
+      "Bash(curl -s -X POST http://127.0.0.1:5000/api/v2/coord/types/scan -F file=@D:/tmp/digital_twin_aircraft/backend/新块.dxf -o D:/tmp/digital_twin_aircraft/backend/scan_result.json)",
+      "Bash(curl -s -X POST http://127.0.0.1:5000/api/v2/coord/types/scan -F file=@D:/tmp/digital_twin_aircraft/backend/realtest.dxf -o D:/tmp/digital_twin_aircraft/backend/scan_result.json)",
+      "Bash(python)"
+    ]
+  }
+}

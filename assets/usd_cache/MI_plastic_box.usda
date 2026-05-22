@@ -1,0 +1,102 @@
+#usda 1.0
+(
+    defaultPrim = "MI_plastic_box"
+    upAxis = "Z"
+)
+
+def Material "MI_plastic_box" (
+    assetInfo = {
+        asset identifier = @../../../../tmp/digital_twin_aircraft/assets/usd_cache/plasticbasket.usda@
+        string name = "MI_plastic_box"
+        dictionary unreal = {
+            string assetType = "MaterialInstanceConstant"
+            string contentPath = "/Game/WH_Construction_Set/Materials/Instances/MI_plastic_box.MI_plastic_box"
+            string engineVersion = "5.6.1-44394996+++UE5+Release-5.6"
+            string exportTime = "2026.04.23-15.36.15"
+        }
+        string version = "F87C802C8D9AF004FB131264D3E12B1DA4E3E057"
+    }
+)
+{
+    token inputs:stPrimvarName = "st"
+    token outputs:surface.connect = </MI_plastic_box/SurfaceShader.outputs:surface>
+    token outputs:unreal:surface.connect = </MI_plastic_box/UnrealShader.outputs:out>
+
+    def Shader "UnrealShader"
+    {
+        uniform token info:implementationSource = "sourceAsset"
+        uniform asset info:unreal:sourceAsset = @/Game/WH_Construction_Set/Materials/Instances/MI_plastic_box.MI_plastic_box@
+        token outputs:out
+    }
+
+    def Shader "SurfaceShader"
+    {
+        uniform token info:id = "UsdPreviewSurface"
+        float inputs:anisotropy = 0
+        color3f inputs:diffuseColor.connect = </MI_plastic_box/diffuseTexture.outputs:rgb>
+        color3f inputs:emissiveColor = (0, 0, 0)
+        float inputs:metallic = 0
+        normal3f inputs:normal.connect = </MI_plastic_box/normalTexture.outputs:rgb>
+        float inputs:occlusion.connect = </MI_plastic_box/occlusionTexture.outputs:r>
+        float inputs:roughness.connect = </MI_plastic_box/roughnessTexture.outputs:r>
+        float inputs:specular = 0.49803925
+        normal3f inputs:tangent = (1, -0.49803925, 0.49803925)
+        token outputs:surface
+    }
+
+    def Shader "PrimvarReader"
+    {
+        uniform token info:id = "UsdPrimvarReader_float2"
+        string inputs:varname.connect = </MI_plastic_box.inputs:stPrimvarName>
+        token outputs:result
+    }
+
+    def Shader "diffuseTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (0, 0, 0, 1)
+        asset inputs:file = @Textures/MI_plastic_box_BaseColor.png@
+        token inputs:sourceColorSpace = "sRGB"
+        float2 inputs:st.connect = </MI_plastic_box/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        color3f outputs:rgb
+    }
+
+    def Shader "roughnessTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (0.5, 0.5, 0.5, 1)
+        asset inputs:file = @Textures/MI_plastic_box_Roughness.png@
+        token inputs:sourceColorSpace = "raw"
+        float2 inputs:st.connect = </MI_plastic_box/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        float outputs:r
+    }
+
+    def Shader "normalTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (0, 0, 1, 1)
+        asset inputs:file = @Textures/MI_plastic_box_Normal.png@
+        token inputs:sourceColorSpace = "raw"
+        float2 inputs:st.connect = </MI_plastic_box/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        normal3f outputs:rgb
+    }
+
+    def Shader "occlusionTexture"
+    {
+        uniform token info:id = "UsdUVTexture"
+        float4 inputs:fallback = (1, 1, 1, 1)
+        asset inputs:file = @Textures/MI_plastic_box_AmbientOcclusion.png@
+        token inputs:sourceColorSpace = "raw"
+        float2 inputs:st.connect = </MI_plastic_box/PrimvarReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        float outputs:r
+    }
+}
+

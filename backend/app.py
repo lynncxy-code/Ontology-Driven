@@ -15,6 +15,7 @@ from ontology_parser import validate_files, parse_ontology_csvs
 # ── App Setup ───────────────────────────────────────────────────
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
 app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
+app.json.ensure_ascii = False  # 中文字符不转义为 \uXXXX，便于 2.9.2 调试（Flask 2.2+ 用法）
 CORS(app)
 
 @app.after_request
@@ -116,6 +117,44 @@ def coord_preview():
         if 'error' in result:
             return jsonify(result), 400
         return jsonify(result)
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except:
+            pass
+
+
+@app.route('/api/v2/coord/types/scan', methods=['POST'])
+def coord_types_scan():
+    """
+    PRD 2.9.2 § 4.4 — 扫描 DXF，返回候选 ObjectType 列表。
+    上传 file=<dxf>，返回 { summary, candidates, filtered_log, dxf_encoding }
+    """
+    if 'file' not in request.files:
+        return jsonify({"error": "未检测到上传文件"}), 400
+
+    f = request.files['file']
+    if not f.filename.lower().endswith('.dxf'):
+        return jsonify({"error": "仅支持 .dxf 文件"}), 400
+
+    # 读 block_asset_mapping.json 用于 preset_asset_id 预填
+    mapping = {}
+    if os.path.exists(_MAPPING_FILE):
+        try:
+            with open(_MAPPING_FILE, 'r', encoding='utf-8') as mf:
+                mapping = _json.load(mf) or {}
+        except Exception:
+            mapping = {}
+
+    tmp = tempfile.NamedTemporaryFile(suffix='.dxf', delete=False)
+    try:
+        f.save(tmp.name)
+        tmp.close()
+        from parser_dxf import extract_block_candidates
+        result = extract_block_candidates(tmp.name, mapping=mapping)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": f"DXF 解析失败: {str(e)}"}), 500
     finally:
         try:
             os.unlink(tmp.name)
@@ -949,6 +988,64 @@ def list_datasets():
             "is_active": ds["id"] == _active_dataset_id
         })
     return jsonify(result)
+
+
+@app.route('/api/v2/ontology/datasets', methods=['POST'])
+def create_empty_dataset():
+    """
+    新建空数据集（M0 — 为 2.9.2 提供合并目标）。
+    Body: { "name": str, "activate": bool (默认 false) }
+    """
+    global _datasets, _active_dataset_id, _object_types
+
+    import datetime
+    data = request.json or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "请提供数据集名称"}), 400
+
+    # 重名检测（PRD § 10.2 漏洞 11）
+    if any(ds["name"] == name for ds in _datasets):
+        return jsonify({
+            "error": "name_duplicated",
+            "message": f"已存在同名数据集: {name}",
+            "existing": [{"id": ds["id"], "name": ds["name"]}
+                         for ds in _datasets if ds["name"] == name]
+        }), 409
+
+    created_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    # 用毫秒级时间戳，避免同一秒内创建造成 id 冲突
+    ds_id = f"ds_{int(datetime.datetime.now().timestamp() * 1000)}"
+    # 极端情况下仍冲突，加后缀确保唯一
+    existing_ids = {d["id"] for d in _datasets}
+    if ds_id in existing_ids:
+        suffix = 1
+        while f"{ds_id}_{suffix}" in existing_ids:
+            suffix += 1
+        ds_id = f"{ds_id}_{suffix}"
+
+    new_ds = {
+        "id": ds_id,
+        "name": name,
+        "created_at": created_at,
+        "node_count": 0,
+        "link_count": 0,
+        "graph_data": {"nodes": [], "links": [], "categories": []}
+    }
+    _datasets.append(new_ds)
+
+    activated = False
+    if data.get("activate"):
+        _active_dataset_id = ds_id
+        _object_types = {}  # 空数据集激活 → _object_types 清空
+        activated = True
+
+    return jsonify({
+        "status": "ok",
+        "dataset_id": ds_id,
+        "name": name,
+        "activated": activated
+    })
 
 
 @app.route('/api/v2/ontology/publish', methods=['POST'])

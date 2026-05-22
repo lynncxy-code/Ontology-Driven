@@ -343,7 +343,33 @@
         <div id="datasets-panel" style="position: absolute; inset: 0; background: var(--bg-base); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 15;">
             <div style="background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 28px 36px; width: 560px; box-shadow: 0 4px 24px rgba(0,0,0,0.06);">
                 <h2 style="font-size:15px; font-weight:700; margin-bottom:6px;">我的数据集</h2>
-                <p style="font-size:13px; color: var(--text-secondary); margin-bottom:20px;">选中数据集后，语义图谱与本体配置中心将同步切换至该数据。</p>
+                <p style="font-size:13px; color: var(--text-secondary); margin-bottom:16px;">选中数据集后，语义图谱与本体配置中心将同步切换至该数据。</p>
+
+                <!-- M0: 新建空数据集 -->
+                <div style="margin-bottom:14px;">
+                    <button id="btn-new-empty-ds" onclick="toggleNewDatasetForm(true)"
+                            style="background:#fff; border:1.5px dashed #c4c4c4; color:#555; border-radius:8px; padding:10px 14px; font-size:13px; cursor:pointer; width:100%; transition:all .15s;"
+                            onmouseover="this.style.borderColor='#111'; this.style.color='#111';"
+                            onmouseout="this.style.borderColor='#c4c4c4'; this.style.color='#555';">
+                        + 新建空数据集
+                    </button>
+                    <div id="new-ds-form" style="display:none; margin-top:10px; padding:14px; background:#fafafa; border:1px solid #e5e7eb; border-radius:8px;">
+                        <input id="new-ds-name" type="text" placeholder="数据集名称，如：我的工厂本体" value="我的工厂本体"
+                               style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; box-sizing:border-box;"/>
+                        <label style="display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12px; color:#555; cursor:pointer;">
+                            <input id="new-ds-activate" type="checkbox" checked style="accent-color:#111;"/>
+                            创建后立即激活
+                        </label>
+                        <div style="display:flex; gap:8px; margin-top:12px; justify-content:flex-end;">
+                            <button onclick="toggleNewDatasetForm(false)"
+                                    style="background:transparent; border:1px solid #d1d5db; border-radius:5px; padding:6px 14px; font-size:12px; cursor:pointer; color:#555;">取消</button>
+                            <button id="btn-create-empty-ds" onclick="createEmptyDataset()"
+                                    style="background:#111; border:none; color:#fff; border-radius:5px; padding:6px 16px; font-size:12px; cursor:pointer;">创建</button>
+                        </div>
+                        <div id="new-ds-error" style="display:none; margin-top:8px; font-size:11px; color:#dc2626;"></div>
+                    </div>
+                </div>
+
                 <div id="datasets-list" style="display:flex; flex-direction:column; gap: 8px;">
                     <!-- 动态渲染 -->
                 </div>
@@ -968,6 +994,66 @@
             } catch (e) {
                 status.textContent = '❌ 网络错误: ' + e.message;
                 status.className = 'load-status error';
+            }
+        }
+
+        // ── M0: 新建空数据集 ─────────────────────────────────
+        function toggleNewDatasetForm(show) {
+            document.getElementById('btn-new-empty-ds').style.display = show ? 'none' : 'block';
+            document.getElementById('new-ds-form').style.display = show ? 'block' : 'none';
+            document.getElementById('new-ds-error').style.display = 'none';
+            if (show) {
+                setTimeout(() => document.getElementById('new-ds-name').focus(), 50);
+            }
+        }
+
+        async function createEmptyDataset() {
+            const nameInput = document.getElementById('new-ds-name');
+            const activateBox = document.getElementById('new-ds-activate');
+            const btn = document.getElementById('btn-create-empty-ds');
+            const errEl = document.getElementById('new-ds-error');
+            const name = nameInput.value.trim();
+
+            errEl.style.display = 'none';
+            if (!name) {
+                errEl.textContent = '请输入数据集名称';
+                errEl.style.display = 'block';
+                return;
+            }
+            btn.disabled = true;
+            btn.textContent = '创建中...';
+            try {
+                const res = await fetch('/api/v2/ontology/datasets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, activate: activateBox.checked })
+                });
+                // 兼容性兜底：若后端未重启（旧版无此路由）会返回 HTML 404 页
+                const contentType = res.headers.get('content-type') || '';
+                if (!contentType.includes('application/json')) {
+                    errEl.textContent = '后端未识别此接口（HTTP ' + res.status + '）。请确认 backend/app.py 已重启加载新路由。';
+                    errEl.style.display = 'block';
+                    return;
+                }
+                const data = await res.json();
+                if (!res.ok) {
+                    if (res.status === 409) {
+                        errEl.textContent = `已存在同名数据集"${name}"，请换一个名字`;
+                    } else {
+                        errEl.textContent = data.error || data.message || '创建失败';
+                    }
+                    errEl.style.display = 'block';
+                    return;
+                }
+                toggleNewDatasetForm(false);
+                nameInput.value = '我的工厂本体';
+                await loadDatasets();
+            } catch(e) {
+                errEl.textContent = '网络错误：' + e.message;
+                errEl.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '创建';
             }
         }
 

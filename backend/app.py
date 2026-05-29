@@ -162,6 +162,582 @@ def coord_types_scan():
             pass
 
 
+def _item_to_node(item, source_file=None):
+    """
+    把 commit 请求中的一个 item 转为数据集 node 格式（与 _project_dataset_to_object_types 的输入一致）。
+    PRD 2.9.2 § 9 — 平铺结构 + source 字段。
+    """
+    block_name = item.get("block_name") or item.get("rid")
+    name = (item.get("name") or block_name or "").strip()
+    return {
+        "rid": block_name,                      # rid 强制 = block_name
+        "name": name or block_name,
+        "category": item.get("category") or "Core",
+        "description": item.get("description") or (
+            f"由 CAD 解析自动创建（来源：{source_file}）" if source_file else ""
+        ),
+        "color": item.get("color") or "#0891b2",
+        "properties": item.get("properties") or [],
+        "injected_interfaces": item.get("injected_interfaces") or [
+            "I3D_Representable", "I3D_Spatial"
+        ],
+        "asset_id": (item.get("asset_id") or "").strip() or None,
+        "mock_instances": [],
+        "source": f"cad_auto:{source_file}" if source_file else item.get("source"),
+        "created_at": time.time(),
+    }
+
+
+def _write_back_asset_mapping(items):
+    """把 items 中非空 asset_id 回写至 block_asset_mapping.json。返回写入条数。"""
+    existing = {}
+    if os.path.exists(_MAPPING_FILE):
+        try:
+            with open(_MAPPING_FILE, 'r', encoding='utf-8') as f:
+                existing = _json.load(f) or {}
+        except Exception:
+            existing = {}
+    n = 0
+    for it in items:
+        bn = it.get("block_name") or it.get("rid")
+        ai = (it.get("asset_id") or "").strip()
+        if bn and ai:
+            existing[bn] = ai
+            n += 1
+    if n > 0:
+        try:
+            with open(_MAPPING_FILE, 'w', encoding='utf-8') as f:
+                _json.dump(existing, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"WARN: asset mapping 回写失败: {e}")
+    return n
+
+
+@app.route('/api/v2/coord/types/commit', methods=['POST'])
+def coord_types_commit():
+    """
+    PRD 2.9.2 § 10 — 提交审核结果，发布新数据集或合并到现有数据集。
+
+    Body: {
+        "source_file": "新块.dxf",
+        "mode": "publish" | "merge",
+        "items": [...],
+        "publish_options": { "name": "..." },
+        "merge_options":   { "target_dataset_id": "..." },
+        "conflict_strategy": "skip" | "overwrite",   // merge 模式
+        "force": bool                                // 跳过副作用警告
+    }
+    """
+    global _datasets, _active_dataset_id, _object_types
+
+    import datetime
+    data = request.json or {}
+    mode = data.get("mode", "publish")
+    items = data.get("items") or []
+    source_file = data.get("source_file") or ""
+    force = bool(data.get("force"))
+
+    if not items:
+        return jsonify({"error": "items 为空，请至少勾选一项"}), 400
+
+    if mode == "publish":
+        return _commit_publish(data, items, source_file, force)
+    elif mode == "merge":
+        return _commit_merge(data, items, source_file, force)
+    else:
+        return jsonify({"error": f"未知 mode: {mode}"}), 400
+
+
+def _commit_publish(data, items, source_file, force):
+    """publish 模式：新建数据集 + 默认激活 + 副作用检测。"""
+    global _datasets, _active_dataset_id, _object_types
+    import datetime
+
+    opts = data.get("publish_options") or {}
+    name = (opts.get("name") or "").strip()
+    if not name:
+        name = f"cad:{source_file or 'untitled'}"
+
+    # 重名检测（漏洞 11）
+    existing = [ds for ds in _datasets if ds["name"] == name]
+    if existing:
+        return jsonify({
+            "error": "name_duplicated",
+            "message": f"已存在同名数据集: {name}",
+            "existing": [{"id": ds["id"], "name": ds["name"]} for ds in existing]
+        }), 409
+
+    # 构建 nodes
+    nodes = [_item_to_node(it, source_file) for it in items]
+
+    # 副作用预检：若激活新集，当前 _object_types 中"将被全量替换"的 rid 集合
+    new_rid_set = {n["rid"] for n in nodes}
+    old_rid_set = set(_object_types.keys())
+    will_be_lost = old_rid_set - new_rid_set     # 被移除的
+    will_be_overwritten = old_rid_set & new_rid_set  # 被覆盖的（但定义可能改了）
+    affected_rids = list(will_be_lost) + list(will_be_overwritten)
+    dangling = _detect_dangling_refs(affected_rids)
+    if dangling and not force:
+        return jsonify({
+            "status": "pending_warnings",
+            "mode": "publish",
+            "dataset_name_to_create": name,
+            "warnings": {
+                "dangling_refs": dangling,
+                "summary": f"切换激活数据集会让 {sum(d['instance_count'] for d in dangling)} 个实例的类型引用悬空"
+            },
+            "hint": "确认后请用 force=true 重新提交"
+        })
+
+    # 真正写入
+    ds_id = f"ds_{int(datetime.datetime.now().timestamp() * 1000)}"
+    while any(d["id"] == ds_id for d in _datasets):
+        ds_id = ds_id + "_x"
+    new_ds = {
+        "id": ds_id,
+        "name": name,
+        "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "node_count": len(nodes),
+        "link_count": 0,
+        "graph_data": {"nodes": nodes, "links": [], "categories": []}
+    }
+    _datasets.append(new_ds)
+    _active_dataset_id = ds_id
+    _object_types = _project_dataset_to_object_types(new_ds)
+    mapping_n = _write_back_asset_mapping(items)
+
+    return jsonify({
+        "status": "ok",
+        "mode": "publish",
+        "dataset_id": ds_id,
+        "dataset_name": name,
+        "written_count": len(nodes),
+        "asset_mapping_updated": mapping_n,
+        "active_dataset_id": _active_dataset_id,
+        "hint": "若其他标签页正在浏览语义图谱总览，请手动刷新查看新数据集"
+    })
+
+
+def _commit_merge(data, items, source_file, force):
+    """merge 模式：追加/覆盖到目标数据集 + 同名冲突处理 + 副作用预检（仅当 target == active）。"""
+    global _datasets, _active_dataset_id, _object_types
+
+    opts = data.get("merge_options") or {}
+    target_id = opts.get("target_dataset_id")
+    strategy = data.get("conflict_strategy", "skip")  # skip | overwrite
+    if not target_id:
+        return jsonify({"error": "merge 模式必须提供 target_dataset_id"}), 400
+    if target_id == "demo":
+        return jsonify({"error": "Demo 数据集只读，不能合并"}), 400
+    target_ds = next((d for d in _datasets if d["id"] == target_id), None)
+    if not target_ds:
+        return jsonify({"error": f"找不到数据集: {target_id}"}), 404
+    if strategy not in ("skip", "overwrite"):
+        return jsonify({"error": f"未知 conflict_strategy: {strategy}"}), 400
+
+    # 构建新 nodes
+    new_nodes = [_item_to_node(it, source_file) for it in items]
+    new_rid_set = {n["rid"] for n in new_nodes}
+
+    # 找出目标集中已存在的同 rid（冲突）
+    target_nodes = (target_ds.get("graph_data") or {}).get("nodes", [])
+    existing_rids = {n.get("rid") for n in target_nodes if n.get("rid")}
+    collide = new_rid_set & existing_rids
+
+    # 副作用预检：仅当 target == active（合并会刷新 _object_types）
+    if target_id == _active_dataset_id and collide:
+        # 被覆盖的 rid 中，被实例引用且 strategy=overwrite 的需要警告
+        if strategy == "overwrite":
+            dangling = _detect_dangling_refs(list(collide))
+            if dangling and not force:
+                return jsonify({
+                    "status": "pending_warnings",
+                    "mode": "merge",
+                    "target_dataset_id": target_id,
+                    "warnings": {
+                        "dangling_refs": dangling,
+                        "summary": f"覆盖会影响 {sum(d['instance_count'] for d in dangling)} 个实例引用的类型定义"
+                    },
+                    "hint": "确认后请用 force=true 重新提交，或改用 conflict_strategy=skip"
+                })
+
+    # 真正合并
+    skipped = 0
+    overwritten = 0
+    added = 0
+    final_nodes = list(target_nodes)  # 复制
+    by_rid = {n.get("rid"): i for i, n in enumerate(final_nodes) if n.get("rid")}
+    for nn in new_nodes:
+        rid = nn["rid"]
+        if rid in by_rid:
+            if strategy == "skip":
+                skipped += 1
+            else:  # overwrite
+                final_nodes[by_rid[rid]] = nn
+                overwritten += 1
+        else:
+            final_nodes.append(nn)
+            by_rid[rid] = len(final_nodes) - 1
+            added += 1
+
+    target_ds["graph_data"]["nodes"] = final_nodes
+    target_ds["node_count"] = len(final_nodes)
+
+    # 若目标是当前激活的，刷新 _object_types
+    if target_id == _active_dataset_id:
+        _object_types = _project_dataset_to_object_types(target_ds)
+
+    mapping_n = _write_back_asset_mapping(items)
+
+    return jsonify({
+        "status": "ok",
+        "mode": "merge",
+        "target_dataset_id": target_id,
+        "target_dataset_name": target_ds["name"],
+        "added": added,
+        "overwritten": overwritten,
+        "skipped": skipped,
+        "asset_mapping_updated": mapping_n,
+        "active_dataset_id": _active_dataset_id,
+        "hint": "若其他标签页正在浏览语义图谱总览，请手动刷新查看更新"
+    })
+
+
+@app.route('/api/v2/coord/types/check_conflicts', methods=['POST'])
+def coord_types_check_conflicts():
+    """
+    PRD 2.9.2 § 8.4 — 给定将要写入的 rid 列表与目标数据集，返回冲突信息。
+
+    Body: {
+        "rids": ["SDT-0200-甲-3", "AGV", ...],     # 待写入的 rid 列表
+        "mode": "publish" | "merge",
+        "target_dataset_id": str   # 仅 merge 模式必填
+    }
+    Response: {
+        "in_target_dataset": [{"rid": ..., "old": {...}}],   # 仅 merge 有意义
+        "in_other_datasets": [{"rid": ..., "datasets": [{"id","name"}, ...]}]
+    }
+    """
+    data = request.json or {}
+    rids = data.get("rids") or []
+    mode = data.get("mode", "publish")
+    target_ds_id = data.get("target_dataset_id")
+
+    rid_set = set(rids)
+    in_target = []
+    in_other = {}  # rid -> [(ds_id, ds_name)]
+
+    for ds in _datasets:
+        graph = ds.get("graph_data") or {}
+        nodes = graph.get("nodes", []) if graph else []
+        # Demo 数据集走 OBJECT_TYPES（其 graph_data=None）
+        if ds["id"] == "demo":
+            for rid, ot in OBJECT_TYPES.items():
+                if rid in rid_set:
+                    in_other.setdefault(rid, []).append({"id": ds["id"], "name": ds["name"]})
+            continue
+        for node in nodes:
+            rid = node.get("rid")
+            if rid in rid_set:
+                if mode == "merge" and ds["id"] == target_ds_id:
+                    in_target.append({"rid": rid, "old": node})
+                else:
+                    in_other.setdefault(rid, []).append({"id": ds["id"], "name": ds["name"]})
+
+    return jsonify({
+        "in_target_dataset": in_target,
+        "in_other_datasets": [
+            {"rid": rid, "datasets": dss} for rid, dss in in_other.items()
+        ]
+    })
+
+
+@app.route('/api/v2/coord/types/check_coverage', methods=['POST'])
+def coord_types_check_coverage():
+    """
+    PRD 2.9.2 § 8.3.1 — "跳过此步"按钮的覆盖率检查。
+    给定 block_name 列表，返回激活数据集中覆盖了哪些 / 缺失哪些。
+
+    Body: { "block_names": ["SDT-0200-甲-3", ...] }
+    Response: { total, covered, missing, missing_samples }
+    """
+    data = request.json or {}
+    names = data.get("block_names") or []
+    covered = [n for n in names if n in _object_types]
+    missing = [n for n in names if n not in _object_types]
+    return jsonify({
+        "total": len(names),
+        "covered": len(covered),
+        "missing": len(missing),
+        "missing_samples": missing[:10],
+        "active_dataset_id": _active_dataset_id,
+    })
+
+
+def _derive_instance_id(item, rid):
+    """instance_id 推导：优先 attribs.EQUIP_ID；缺失则 <rid>-<6位hash>。"""
+    iid = (item.get("instance_id") or "").strip()
+    if iid:
+        return iid
+    attribs = item.get("attribs") or {}
+    eq = (attribs.get("EQUIP_ID") or attribs.get("equip_id") or "").strip()
+    if eq:
+        return eq
+    # hash 兜底
+    import hashlib
+    seed = f"{rid}|{item.get('cad_xy')}|{item.get('rotation')}"
+    h = hashlib.md5(seed.encode('utf-8')).hexdigest()[:6]
+    return f"{rid}-{h}"
+
+
+def _find_rid_in_other_datasets(rid):
+    """返回该 rid 所在的（非激活）数据集列表，用于三态校验。"""
+    hits = []
+    for ds in _datasets:
+        if ds["id"] == _active_dataset_id:
+            continue
+        graph = ds.get("graph_data") or {}
+        # Demo 走 OBJECT_TYPES 常量
+        if ds["id"] == "demo":
+            if rid in OBJECT_TYPES:
+                hits.append({"id": ds["id"], "name": ds["name"]})
+            continue
+        nodes = graph.get("nodes", []) if graph else []
+        if any(n.get("rid") == rid for n in nodes):
+            hits.append({"id": ds["id"], "name": ds["name"]})
+    return hits
+
+
+def _has_real_coord(raw_state):
+    """坐标是否已设置（任一非 0 视为已部署）"""
+    if not raw_state:
+        return False
+    for k in ("translation_x", "translation_y", "translation_z"):
+        if abs(float(raw_state.get(k) or 0)) > 1e-6:
+            return True
+    return False
+
+
+@app.route('/api/v2/coord/spawn_instances', methods=['POST'])
+def coord_spawn_instances():
+    """
+    PRD 2.9.1 — 批量把 CAD/图片实体投入 InstanceStore。
+
+    Body: {
+        "source_label": "新块.dxf" | "image:xxx.png",
+        "mode": "dxf" | "image",
+        "transform_matrix": [[a,b,tx],[c,d,ty]],
+        "items": [
+            {"block_name": str, "cad_xy": [x,y], "rotation": float,
+             "attribs": {"EQUIP_ID": ...}, "instance_id": str (可选, 覆盖推导)}
+        ],
+        "conflict_strategy": "update_coord" | "skip" | "duplicate",  # 默认 update_coord
+        "commit": bool   # false=dry-run，true=真写入
+    }
+    """
+    data = request.json or {}
+    items = data.get("items") or []
+    matrix = data.get("transform_matrix")
+    commit = bool(data.get("commit"))
+    mode = data.get("mode", "dxf")
+    source_label = data.get("source_label") or ""
+    strategy = data.get("conflict_strategy") or "update_coord"
+
+    if not items:
+        return jsonify({"error": "items 为空"}), 400
+    if not matrix:
+        return jsonify({"error": "缺少 transform_matrix（请先完成标定）"}), 400
+    if strategy not in ("update_coord", "skip", "duplicate"):
+        return jsonify({"error": f"未知 conflict_strategy: {strategy}"}), 400
+
+    to_create = []
+    to_update_coord_only = []
+    conflicts = []
+    errors = []
+    warnings = []
+
+    # 用于本批次内重名检测
+    batch_iids = set()
+    # 用于 duplicate 模式时的后缀计数
+    suffix_counter = {}
+
+    for item in items:
+        block_name = (item.get("block_name") or "").strip()
+        if not block_name:
+            errors.append({"item": item, "reason": "block_name 为空"})
+            continue
+
+        # 1) 三态校验
+        if block_name not in _object_types:
+            other_dss = _find_rid_in_other_datasets(block_name)
+            if other_dss:
+                errors.append({
+                    "block_name": block_name,
+                    "reason": "type_not_in_active_dataset",
+                    "found_in_datasets": other_dss,
+                    "hint": f"该类型存在于数据集 '{other_dss[0]['name']}'，请先激活该数据集"
+                })
+            else:
+                errors.append({
+                    "block_name": block_name,
+                    "reason": "type_not_found",
+                    "found_in_datasets": [],
+                    "hint": "请先在 2.9.2 中创建该类型"
+                })
+            continue
+
+        # 2) 应用变换矩阵
+        cad_xy = item.get("cad_xy")
+        if not cad_xy or len(cad_xy) < 2:
+            errors.append({"block_name": block_name, "reason": "cad_xy 缺失或非法"})
+            continue
+        try:
+            ue_xy = coord_apply(matrix, cad_xy)
+        except Exception as e:
+            errors.append({"block_name": block_name, "reason": f"变换失败: {e}"})
+            continue
+
+        # 3) 推导 instance_id
+        iid = _derive_instance_id(item, block_name)
+
+        # 4) 批内重名（自动 -2/-3 后缀）
+        original_iid = iid
+        if iid in batch_iids:
+            n = suffix_counter.get(original_iid, 1) + 1
+            while f"{original_iid}-{n}" in batch_iids:
+                n += 1
+            iid = f"{original_iid}-{n}"
+            suffix_counter[original_iid] = n
+            warnings.append({
+                "block_name": block_name, "original_id": original_iid, "renamed_to": iid,
+                "reason": "批内重名已自动重命名"
+            })
+        batch_iids.add(iid)
+
+        rotation = float(item.get("rotation") or 0.0)
+        record = {
+            "instance_id": iid,
+            "object_type_rid": block_name,
+            "translation_x": float(ue_xy[0]),
+            "translation_y": float(ue_xy[1]),
+            "translation_z": 0.0,
+            "rotation_z": rotation,
+            "cad_xy": cad_xy,
+        }
+
+        # ObjectType.asset_id 缺失警告
+        ot = _object_types.get(block_name) or {}
+        if not ot.get("asset_id"):
+            warnings.append({
+                "block_name": block_name, "instance_id": iid,
+                "reason": "asset_id 缺失，UE 不会渲染该实例"
+            })
+
+        # 5) 与 InstanceStore 现有实例的冲突分类
+        existing = instance_store._instances.get(iid)
+        if existing is None:
+            to_create.append(record)
+        else:
+            existing_rid = existing.get("object_type_rid")
+            if existing_rid != block_name:
+                errors.append({
+                    "block_name": block_name, "instance_id": iid,
+                    "reason": f"instance_id 已被类型 '{existing_rid}' 占用"
+                })
+                continue
+            # 同类型，看坐标是否已设置
+            if not _has_real_coord(existing.get("raw_state")):
+                # 视为 2.3.1 / MES 注册但未部署 → 补充坐标（非冲突）
+                to_update_coord_only.append(record)
+            else:
+                conflicts.append({**record, "existing": {
+                    "translation_x": existing["raw_state"].get("translation_x"),
+                    "translation_y": existing["raw_state"].get("translation_y"),
+                }})
+
+    # dry-run：返回预览不写
+    summary = {
+        "total": len(items),
+        "to_create": len(to_create),
+        "to_update_coord_only": len(to_update_coord_only),
+        "conflicts": len(conflicts),
+        "errors": len(errors),
+        "warnings": len(warnings),
+    }
+    if not commit:
+        return jsonify({
+            "status": "dry_run",
+            "summary": summary,
+            "to_create": to_create,
+            "to_update_coord_only": to_update_coord_only,
+            "conflicts": conflicts,
+            "errors": errors,
+            "warnings": warnings,
+        })
+
+    # 真写入
+    written_create = 0
+    written_update = 0
+    written_conflict = 0
+    skipped_conflict = 0
+    dup_records = []
+
+    def _coord_patch(rec):
+        return {
+            "translation_x": rec["translation_x"],
+            "translation_y": rec["translation_y"],
+            "translation_z": rec["translation_z"],
+            "rotation_z": rec["rotation_z"],
+        }
+
+    # 5.1 to_create — 全部 spawn
+    for rec in to_create:
+        instance_store.spawn(rec["instance_id"], rec["object_type_rid"], {
+            "x": rec["translation_x"], "y": rec["translation_y"], "z": rec["translation_z"]
+        })
+        instance_store.update_raw_state(rec["instance_id"], {"rotation_z": rec["rotation_z"]})
+        written_create += 1
+
+    # 5.2 to_update_coord_only — 补充坐标
+    for rec in to_update_coord_only:
+        instance_store.update_raw_state(rec["instance_id"], _coord_patch(rec))
+        written_update += 1
+
+    # 5.3 conflicts — 按策略处理
+    for rec in conflicts:
+        if strategy == "update_coord":
+            instance_store.update_raw_state(rec["instance_id"], _coord_patch(rec))
+            written_conflict += 1
+        elif strategy == "skip":
+            skipped_conflict += 1
+        elif strategy == "duplicate":
+            new_iid = rec["instance_id"]
+            n = 2
+            while new_iid in instance_store._instances:
+                new_iid = f"{rec['instance_id']}-{n}"; n += 1
+            instance_store.spawn(new_iid, rec["object_type_rid"], {
+                "x": rec["translation_x"], "y": rec["translation_y"], "z": rec["translation_z"]
+            })
+            instance_store.update_raw_state(new_iid, {"rotation_z": rec["rotation_z"]})
+            dup_records.append({"original_id": rec["instance_id"], "new_id": new_iid})
+
+    return jsonify({
+        "status": "ok",
+        "summary": {
+            **summary,
+            "written_create": written_create,
+            "written_update": written_update,
+            "written_conflict": written_conflict,
+            "skipped_conflict": skipped_conflict,
+            "duplicated": len(dup_records),
+        },
+        "duplicated": dup_records,
+        "source_label": source_label,
+        "mode": mode,
+        "hint": "实例已写入 InstanceStore，可在 /instance 页面查看；UE 端将于下次轮询同步显示"
+    })
+
+
 @app.route('/api/v2/coord/calibrate', methods=['POST'])
 def coord_calibrate_api():
     """锚点标定，返回仿射变换矩阵与精度指标"""
@@ -1037,7 +1613,7 @@ def create_empty_dataset():
     activated = False
     if data.get("activate"):
         _active_dataset_id = ds_id
-        _object_types = {}  # 空数据集激活 → _object_types 清空
+        _object_types = _project_dataset_to_object_types(new_ds)  # 空集 → {}
         activated = True
 
     return jsonify({
@@ -1073,6 +1649,56 @@ def publish_custom_graph():
     return jsonify({"status": "ok", "dataset_id": ds_id, "name": name})
 
 
+def _project_dataset_to_object_types(ds):
+    """
+    把数据集 ds 投影为 _object_types 字典并返回（不写全局，让调用方决定）。
+    PRD 2.9.2 § "node 自带字段优先 fallback old/默认" 规则。
+    """
+    # Demo / 内置 Demo（graph_data is None）→ 用 OBJECT_TYPES 常量
+    if ds.get("id") == "demo" or ds.get("graph_data") is None:
+        return {k: dict(v) for k, v in OBJECT_TYPES.items()}
+
+    new_types = {}
+    for node in ds["graph_data"].get("nodes", []):
+        rid = node.get("rid")
+        if not rid:
+            continue
+        old = _object_types.get(rid, {})  # 同名 rid 的现有定义（如果有）
+        new_types[rid] = {
+            "rid": rid,
+            "name":        node.get("name", rid),
+            "category":    node.get("category", "Core"),
+            "description": node.get("description", ""),
+            # ↓ 4 行修复：node 自带字段优先，fallback 到 old / 默认值
+            "color":               node.get("color")               or old.get("color", "#888888"),
+            "properties":          node.get("properties", []),
+            "injected_interfaces": node.get("injected_interfaces") or old.get("injected_interfaces", []),
+            "asset_id":            node.get("asset_id")            if node.get("asset_id") is not None else old.get("asset_id"),
+            "mock_instances":      node.get("mock_instances", [])  or old.get("mock_instances", []),
+            "source":              node.get("source"),  # 2.9.2 新增字段
+        }
+    return new_types
+
+
+def _detect_dangling_refs(removed_or_overwritten_rids):
+    """
+    检测 InstanceStore 中是否有实例引用了即将被移除或覆盖的 rid。
+    返回 [{rid, instance_count, instance_ids:[最多5个示例]}]
+    """
+    if not removed_or_overwritten_rids:
+        return []
+    rid_set = set(removed_or_overwritten_rids)
+    counter = {}
+    for iid, inst in instance_store._instances.items():
+        rid = inst.get("object_type_rid")
+        if rid in rid_set:
+            counter.setdefault(rid, []).append(iid)
+    return [
+        {"rid": rid, "instance_count": len(ids), "instance_ids": ids[:5]}
+        for rid, ids in counter.items()
+    ]
+
+
 @app.route('/api/v2/ontology/datasets/activate', methods=['POST'])
 def activate_dataset():
     """
@@ -1090,31 +1716,7 @@ def activate_dataset():
         return jsonify({"error": f"找不到数据集: {ds_id}"}), 404
 
     _active_dataset_id = ds_id
-
-    if ds_id == "demo" or ds.get("graph_data") is None:
-        # Demo 模式：用原始 OBJECT_TYPES
-        _object_types = {k: dict(v) for k, v in OBJECT_TYPES.items()}
-    else:
-        # 自定义数据集：将图谱节点写入 _object_types
-        new_types = {}
-        for node in ds["graph_data"]["nodes"]:
-            rid = node.get("rid")
-            if not rid:
-                continue
-            old = _object_types.get(rid, {})
-            new_types[rid] = {
-                "rid": rid,
-                "name": node.get("name", rid),
-                "category": node.get("category", "Core"),
-                "description": node.get("description", ""),
-                "color": old.get("color", "#888888"),
-                "properties": node.get("properties", []),
-                "injected_interfaces": old.get("injected_interfaces", []),
-                "asset_id": old.get("asset_id"),
-                "mock_instances": old.get("mock_instances", [])
-            }
-        _object_types = new_types
-
+    _object_types = _project_dataset_to_object_types(ds)
     return jsonify({"status": "ok", "active": _active_dataset_id})
 
 

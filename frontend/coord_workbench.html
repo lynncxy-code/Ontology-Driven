@@ -20,14 +20,20 @@ body.embedded-mode{background:#fafaf7}
 #mainCanvas{display:block;width:100%;height:100%;cursor:crosshair}
 .canvas-info{position:absolute;bottom:12px;left:12px;font-size:11px;color:var(--text-soft);background:rgba(255,255,255,.85);padding:4px 10px;border-radius:6px;font-family:monospace}
 .panel-area{flex:3;min-width:320px;max-width:420px;display:flex;flex-direction:column;background:var(--surface);overflow:hidden}
+/* 修复：cadPanels/imgPanels 必须 flex 列才能让内部 step-content 的 flex:1 生效 */
+#cadPanels,#imgPanels{flex:1;min-height:0;display:flex;flex-direction:column}
 .step-bar{display:flex;border-bottom:1px solid var(--border);background:var(--surface-subtle)}
 .step-tab{flex:1;padding:10px 6px;text-align:center;font-size:11px;font-weight:600;color:var(--text-soft);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s}
 .step-tab.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--surface)}
 .step-tab.done{color:var(--success)}
 .step-tab.disabled{pointer-events:none;opacity:.5}
-.step-content{flex:1;overflow-y:auto;padding:20px}
+.step-content{flex:1;overflow:hidden;padding:20px;display:flex;flex-direction:column}
 .step-panel{display:none}
-.step-panel.active{display:block}
+.step-panel.active{display:flex;flex-direction:column;flex:1;min-height:0}
+/* 每个 step 内的"主滚动区"统一 flex 占满 */
+#step2 > .audit-list,
+#step3 > #anchorList,
+#step4 > div[style*="overflow-y"]{flex:1;min-height:0;overflow-y:auto}
 /* Upload */
 .upload-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;border:1.5px dashed var(--border-strong);border-radius:18px;background:linear-gradient(180deg,#fff 0%,#fbfbf8 100%);cursor:pointer;transition:all .18s;padding:30px;text-align:center}
 .upload-zone:hover{border-color:#111;background:#f5f5f0}
@@ -76,6 +82,57 @@ body.embedded-mode{background:#fafaf7}
 .btn-sm{padding:6px 12px;font-size:12px}
 .hint{font-size:11px;color:var(--text-soft);margin-top:8px;line-height:1.5}
 .section-title{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text)}
+/* Type audit (Step 2) */
+.audit-summary{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--text-muted);background:var(--surface-subtle);padding:8px 10px;border-radius:8px;margin-bottom:10px}
+.audit-summary b{color:var(--text);font-weight:600}
+.audit-toolbar{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.audit-toolbar .audit-search{flex:1;padding:5px 8px;border:1px solid var(--border-strong);border-radius:6px;font-size:11px}
+.audit-toolbar .audit-tool-btn{padding:4px 10px;font-size:11px;border:1px solid var(--border-strong);background:var(--surface);border-radius:6px;cursor:pointer;color:var(--text-muted)}
+.audit-toolbar .audit-tool-btn:hover{color:var(--text);background:var(--surface-subtle)}
+.audit-list{border:1px solid var(--border);border-radius:8px}
+.audit-row{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px}
+.audit-row:last-child{border-bottom:none}
+.audit-row:hover{background:var(--surface-subtle)}
+.audit-row.warn-red{background:#fef2f2}
+.audit-row.warn-yellow{background:#fffbeb}
+.audit-row input[type=checkbox]{accent-color:var(--text);cursor:pointer;flex-shrink:0}
+.audit-row .a-name{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.audit-row .a-name input{padding:2px 5px;border:1px solid var(--border);border-radius:3px;font-size:11px;width:100%}
+.audit-row .a-meta{font-size:10px;color:var(--text-soft)}
+.audit-row .a-count{font-family:monospace;font-size:10px;color:var(--text-soft);min-width:32px;text-align:right}
+.audit-row .a-asset{width:120px}
+.audit-row .a-asset input{width:100%;padding:2px 5px;border:1px solid var(--border);border-radius:3px;font-size:11px}
+.audit-row .a-warn-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.warn-dot-red{background:#dc2626}
+.warn-dot-yellow{background:#f59e0b}
+.warn-dot-none{background:transparent}
+.audit-filter-log{margin-top:10px;font-size:11px;color:var(--text-muted);background:var(--surface-subtle);border-radius:6px;padding:8px 10px;cursor:pointer}
+.audit-filter-log-detail{display:none;margin-top:6px;max-height:140px;overflow-y:auto;font-size:10px;font-family:monospace;color:var(--text-soft)}
+/* 写入策略 */
+.write-strategy{margin-top:14px;padding:12px;background:var(--surface-subtle);border:1px solid var(--border);border-radius:8px}
+.write-strategy h4{font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text)}
+.write-strategy label.opt{display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 0;cursor:pointer}
+.write-strategy label.opt.disabled{cursor:not-allowed;opacity:.5}
+.write-strategy input[type=text],.write-strategy select{padding:5px 8px;border:1px solid var(--border-strong);border-radius:5px;font-size:12px;flex:1;min-width:0}
+.write-strategy .opt-inputs{padding-left:22px;margin-top:4px;display:flex;gap:6px;align-items:center}
+.demo-tip{margin-top:8px;padding:8px;background:#fef3c7;border:1px solid #fbbf24;border-radius:6px;font-size:11px;color:#92400e}
+/* 通用模态 */
+.modal-mask{position:fixed;inset:0;background:rgba(15,15,15,.45);display:flex;align-items:center;justify-content:center;z-index:1000}
+.modal-box{background:#fff;border-radius:12px;padding:22px 24px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 18px 50px rgba(0,0,0,.2)}
+.modal-box h3{font-size:15px;font-weight:700;margin-bottom:10px}
+.modal-box .modal-body{font-size:12px;color:var(--text);line-height:1.6}
+.modal-box .modal-footer{margin-top:18px;display:flex;gap:8px;justify-content:flex-end}
+.modal-row-list{margin:8px 0;max-height:200px;overflow-y:auto;background:#fafafa;border:1px solid var(--border);border-radius:6px;padding:8px}
+.modal-row-list .row{font-family:monospace;font-size:11px;padding:3px 0;border-bottom:1px dashed #e5e7eb}
+.modal-row-list .row:last-child{border-bottom:none}
+.modal-strategy{margin:10px 0;display:flex;flex-direction:column;gap:6px}
+.modal-strategy label{display:flex;gap:6px;align-items:center;font-size:12px;cursor:pointer}
+.success-panel{background:#dcfce7;border:1px solid #16a34a;border-radius:8px;padding:14px;margin-top:12px}
+.success-panel .succ-title{font-size:13px;font-weight:700;color:#166534;margin-bottom:6px}
+.success-panel .succ-summary{font-size:11px;color:#15803d;margin-bottom:10px}
+.success-panel .succ-hint{font-size:10px;color:#5d8a5d;margin-bottom:10px;font-style:italic}
+.success-panel .succ-actions{display:flex;gap:8px}
+.success-panel .succ-actions .btn{flex:1}
 /* Mode tabs */
 .mode-tabs{display:flex;gap:2px;background:var(--surface-subtle);border-radius:8px;padding:2px;margin-right:12px}
 .mode-tab{padding:5px 14px;font-size:12px;font-weight:600;border-radius:6px;cursor:pointer;border:none;background:transparent;color:var(--text-muted);transition:all .15s}
@@ -106,7 +163,10 @@ body.embedded-mode{background:#fafaf7}
         <button class="mode-tab" id="modeTabImg" onclick="switchMode('image')">图片标定</button>
       </div>
     </div>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;align-items:center">
+      <span id="activeDsBadge" style="font-size:11px;color:var(--text-muted);background:var(--surface-subtle);padding:4px 10px;border-radius:999px;border:1px solid var(--border);cursor:pointer" title="点击切换激活数据集" onclick="openDatasetPicker()">
+        📊 加载中...
+      </span>
       <button class="btn btn-sm" id="btnReset" onclick="resetAll()" style="display:none">重新开始</button>
     </div>
   </header>
@@ -125,9 +185,10 @@ body.embedded-mode{background:#fafaf7}
       <div id="cadPanels">
         <div class="step-bar">
           <div class="step-tab active" data-step="1" onclick="goToStep(1)">① 上传</div>
-          <div class="step-tab disabled" data-step="2" onclick="goToStep(2)">② 标定</div>
-          <div class="step-tab disabled" data-step="3" onclick="goToStep(3)">③ 实体</div>
-          <div class="step-tab disabled" data-step="4" onclick="goToStep(4)">④ 导出</div>
+          <div class="step-tab disabled" data-step="2" onclick="goToStep(2)">② 类型审核</div>
+          <div class="step-tab disabled" data-step="3" onclick="goToStep(3)">③ 标定</div>
+          <div class="step-tab disabled" data-step="4" onclick="goToStep(4)">④ 实体</div>
+          <div class="step-tab disabled" data-step="5" onclick="goToStep(5)">⑤ 导出</div>
         </div>
         <div class="step-content">
           <div class="step-panel active" id="step1">
@@ -147,18 +208,62 @@ body.embedded-mode{background:#fafaf7}
               </div>
               <div id="layerList" class="layer-list" style="margin-top:8px; flex:1; min-height:0;"></div>
               <div id="parseWarnings" style="display:none; margin-top:8px; font-size:11px; color:#b45309; cursor:pointer; user-select:none;" onclick="toggleWarningDetail(this)"></div>
-              <button class="btn btn-primary btn-sm" style="margin-top:14px;width:100%;flex-shrink:0" onclick="goToStep(2)">下一步：锚点标定</button>
+              <button class="btn btn-primary btn-sm" style="margin-top:14px;width:100%;flex-shrink:0" onclick="goToStep(2)">下一步：类型审核</button>
             </div>
           </div>
           <div class="step-panel" id="step2">
+            <div class="section-title">类型审核</div>
+            <p class="hint" style="margin-top:0;margin-bottom:10px">系统已自动过滤匿名块/XREF 外参/系统层。下表为待审核候选，勾选要建库的条目（可改名、填资产路径）。</p>
+            <div class="audit-summary" id="auditSummary">扫描中...</div>
+            <div class="audit-toolbar">
+              <input class="audit-search" id="auditSearch" placeholder="搜索块名 / 图层..." oninput="renderAuditList()"/>
+              <button class="audit-tool-btn" onclick="auditCheckAll(true)">全选</button>
+              <button class="audit-tool-btn" onclick="auditCheckAll(false)">全不选</button>
+            </div>
+            <div class="audit-list" id="auditList"></div>
+            <div class="audit-filter-log" id="auditFilterLog" onclick="toggleFilterLog()">▾ 系统已过滤 0 个块（点击查看明细）
+              <div class="audit-filter-log-detail" id="auditFilterLogDetail"></div>
+            </div>
+            <div class="write-strategy" id="writeStrategy">
+              <h4>写入策略</h4>
+              <label class="opt"><input type="radio" name="wsMode" value="publish" checked onchange="onStrategyChange()"/> 发布为新数据集并激活</label>
+              <div class="opt-inputs" id="wsPubInputs">
+                <span style="font-size:11px;color:var(--text-soft)">名称：</span>
+                <input type="text" id="wsPubName" placeholder="如：我的工厂本体"/>
+              </div>
+              <label class="opt" id="wsMergeLabel"><input type="radio" name="wsMode" value="merge" onchange="onStrategyChange()"/> 合并到现有工作数据集</label>
+              <div class="opt-inputs" id="wsMergeInputs" style="display:none">
+                <span style="font-size:11px;color:var(--text-soft)">目标：</span>
+                <select id="wsMergeTarget"><option>加载中...</option></select>
+                <span style="font-size:11px;color:var(--text-soft);margin-left:6px">同名冲突：</span>
+                <select id="wsConflictStrategy" style="flex:0 0 auto;width:90px">
+                  <option value="skip">跳过</option>
+                  <option value="overwrite">覆盖</option>
+                </select>
+              </div>
+              <div id="wsDemoTip" class="demo-tip" style="display:none">
+                ⚠ 当前激活的是只读 Demo，无可合并目标
+                <button class="btn btn-primary btn-sm" style="margin-top:6px;width:100%" onclick="quickCreateWorkDs()">立即新建空数据集"我的工厂本体"并激活</button>
+              </div>
+            </div>
+            <div id="commitArea" style="margin-top:10px">
+              <button class="btn btn-primary btn-sm" id="btnCommit" style="width:100%" onclick="doCommit()">提交（创建/合并类型）</button>
+              <div style="margin-top:6px;display:flex;justify-content:space-between;align-items:center">
+                <p class="hint" style="margin:0">提交后可继续标定，或前往语义图谱总览查看</p>
+                <a href="javascript:void(0)" onclick="skipAudit()" style="font-size:11px;color:var(--text-soft);text-decoration:underline">跳过此步</a>
+              </div>
+            </div>
+            <div id="commitSuccess" style="display:none"></div>
+          </div>
+          <div class="step-panel" id="step3">
             <div class="section-title">锚点标定</div>
             <p class="hint" style="margin-top:0;margin-bottom:12px">在左侧画布上点击已知位置放置锚点，然后在下方填写该点的 UE 世界坐标（cm）</p>
             <div id="anchorList"></div>
             <button class="btn btn-primary btn-sm" id="btnCalibrate" style="margin-top:10px;width:100%" onclick="doCalibrate()" disabled>计算变换（至少 2 个锚点）</button>
             <div id="metricsPanel" style="display:none"></div>
-            <button class="btn btn-primary btn-sm" id="btnToStep3" style="margin-top:10px;width:100%;display:none" onclick="goToStep(3)">下一步：实体列表</button>
+            <button class="btn btn-primary btn-sm" id="btnToStep4" style="margin-top:10px;width:100%;display:none" onclick="goToStep(4)">下一步：实体列表</button>
           </div>
-          <div class="step-panel" id="step3">
+          <div class="step-panel" id="step4">
             <div class="section-title">实体列表与资产映射</div>
             <div style="overflow-x:auto;max-height:calc(100vh - 240px);overflow-y:auto">
               <table class="entity-table" id="entityTable">
@@ -166,16 +271,17 @@ body.embedded-mode{background:#fafaf7}
                 <tbody id="entityBody"></tbody>
               </table>
             </div>
-            <button class="btn btn-primary btn-sm" style="margin-top:14px;width:100%" onclick="goToStep(4)">下一步：导出</button>
+            <button class="btn btn-primary btn-sm" style="margin-top:14px;width:100%" onclick="goToStep(5)">下一步：导出</button>
           </div>
-          <div class="step-panel" id="step4">
+          <div class="step-panel" id="step5">
             <div class="section-title">导出预览</div>
             <p class="hint" style="margin-top:0;margin-bottom:8px">点击刷新预览查看变换结果，导出 JSON 调用后端接口</p>
             <button class="btn btn-sm" onclick="buildExportPreview()" style="width:100%;margin-bottom:8px">刷新预览</button>
-            <div style="display:flex;gap:8px">
+            <div style="display:flex;gap:8px;margin-bottom:8px">
               <button class="btn btn-primary btn-sm" onclick="exportJSON()" style="flex:1">导出 JSON</button>
               <button class="btn btn-sm" onclick="downloadCSV()" style="flex:1">下载 CSV</button>
             </div>
+            <button class="btn btn-primary btn-sm" onclick="spawnInstances()" style="width:100%;background:#0891b2;border-color:#0891b2">★ 投入实例库（创建/更新坐标）</button>
             <div class="export-preview" id="exportPreview">点击"刷新预览"查看结果</div>
           </div>
         </div>
@@ -237,6 +343,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   } catch (e) {
     console.warn("Failed to load ontology types", e);
   }
+  // M4: 加载激活数据集，刷新 header 与写入策略 UI
+  loadActiveDataset(true);
 });
 
 // ── Mock Data ──
@@ -292,6 +400,16 @@ const State = {
   entityAssets: {},
   entityTypes: {},
   highlightId: null,
+  // M2 类型审核状态
+  scanResult: null,           // {summary, candidates, filtered_log, ...}
+  auditChecked: {},           // block_name -> bool
+  auditName: {},              // block_name -> 用户编辑后的 name
+  auditAsset: {},             // block_name -> 用户编辑后的 asset_id
+  lastUploadedFile: null,     // File 对象，供 scan 等接口复用
+  // M4 commit UI 状态
+  activeDsId: null,
+  activeDsName: null,
+  datasetList: [],
 };
 
 function copyText(text, btn) {
@@ -350,7 +468,7 @@ canvas._origMousedown = function(e) {
     isDragging = true; dragStartX = e.offsetX; dragStartY = e.offsetY;
     camStartX = camX; camStartY = camY; canvas.style.cursor = 'grabbing'; return;
   }
-  if (e.button === 0 && State.currentStep === 2) {
+  if (e.button === 0 && State.currentStep === 3) {
     const [wx, wy] = s2w(e.offsetX, e.offsetY);
     addAnchor(wx, wy);
   }
@@ -375,7 +493,7 @@ canvas.addEventListener('mousemove', e => {
     if (found !== State.highlightId) { 
       State.highlightId = found; 
       draw(); 
-      if (State.currentStep === 3) highlightTableRow(found); 
+      if (State.currentStep === 4) highlightTableRow(found);
     }
   }
 });
@@ -410,7 +528,7 @@ canvas.addEventListener('mouseup', e => {
       }, 50);
     } else if (State.matrix) {
       // 如果已标定，且不在图层步骤：跳转到实体列表并定位
-      if (State.currentStep < 3) goToStep(3);
+      if (State.currentStep < 4) goToStep(4);
       setTimeout(() => {
         const tr = document.querySelector(`tr[data-id="${State.highlightId}"]`);
         if (tr) {
@@ -644,10 +762,11 @@ function draw() {
 }
 
 // ── Step Navigation ──
+// 步骤含义: 1=上传  2=类型审核  3=标定  4=实体  5=导出
 function goToStep(n) {
   if (n > 1 && !State.previewData) return;
-  if (n > 2 && !State.matrix) return;
-  if (n < State.currentStep && n === 2 && State.currentStep >= 3) {
+  if (n > 3 && !State.matrix) return;  // step4 实体表 / step5 导出 都需要先完成标定
+  if (n < State.currentStep && n === 3 && State.currentStep >= 4) {
     if (!confirm('重新标定将刷新所有实体的 UE 坐标，已填写的资产映射将保留。确认回退？')) return;
   }
   State.currentStep = n;
@@ -663,15 +782,16 @@ function goToStep(n) {
   for (let i = 1; i <= getMaxStep(); i++) {
     document.querySelector(`.step-tab[data-step="${i}"]`).classList.remove('disabled');
   }
-  if (n === 3) buildEntityTable();
-  if (n === 2) { canvas.style.cursor = 'crosshair'; }
+  if (n === 2) renderAuditList();
+  if (n === 4) buildEntityTable();
+  if (n === 3) { canvas.style.cursor = 'crosshair'; }
   else { canvas.style.cursor = 'default'; }
   draw();
 }
 
 function getMaxStep() {
-  if (State.matrix) return 4;
-  if (State.previewData) return 2;
+  if (State.matrix) return 5;
+  if (State.previewData) return 3;
   return 1;
 }
 
@@ -679,12 +799,14 @@ function getMaxStep() {
 async function handleUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
-  
-  // 尝试调用后端真实 API
+  State.lastUploadedFile = file;
+
+  // 1) 调 /coord/preview 取图层 + 几何
+  let usedMock = false;
   try {
-    const formData = new FormData();
-    formData.append('file', file);
-    const resp = await fetch('/api/v2/coord/preview', { method: 'POST', body: formData });
+    const fd = new FormData();
+    fd.append('file', file);
+    const resp = await fetch('/api/v2/coord/preview', { method: 'POST', body: fd });
     if (resp.ok) {
       const data = await resp.json();
       if (!data.error) {
@@ -692,18 +814,609 @@ async function handleUpload(e) {
         LAYER_COLORS = {};
         data.layers.forEach(l => LAYER_COLORS[l.name] = l.color);
         applyPreviewData();
-        return;
+      } else {
+        usedMock = true;
       }
+    } else {
+      usedMock = true;
     }
   } catch(err) {
-    console.warn('后端 API 不可用，使用 Mock 数据:', err.message);
+    console.warn('preview API 不可用，使用 Mock 数据:', err.message);
+    usedMock = true;
   }
-  
-  // Fallback to mock
-  State.previewData = MOCK_PREVIEW;
-  LAYER_COLORS = {};
-  MOCK_PREVIEW.layers.forEach(l => LAYER_COLORS[l.name] = l.color);
-  applyPreviewData();
+  if (usedMock) {
+    State.previewData = MOCK_PREVIEW;
+    LAYER_COLORS = {};
+    MOCK_PREVIEW.layers.forEach(l => LAYER_COLORS[l.name] = l.color);
+    applyPreviewData();
+  }
+
+  // 2) 并发触发 2.9.2 类型审核扫描（不阻塞 UI；用户进入 step2 时再渲染）
+  fetchTypeScan(file);
+}
+
+// 2.9.2 — 异步拉取候选类型列表
+async function fetchTypeScan(file) {
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const resp = await fetch('/api/v2/coord/types/scan', { method: 'POST', body: fd });
+    if (!resp.ok) {
+      console.warn('类型审核 scan 返回非 2xx:', resp.status);
+      State.scanResult = null;
+      return;
+    }
+    State.scanResult = await resp.json();
+    // 初始化审核态：default_checked / suggested_name / preset_asset_id
+    State.auditChecked = {};
+    State.auditName = {};
+    State.auditAsset = {};
+    (State.scanResult.candidates || []).forEach(c => {
+      State.auditChecked[c.block_name] = c.default_checked;
+      State.auditName[c.block_name] = c.suggested_name;
+      State.auditAsset[c.block_name] = c.preset_asset_id || '';
+    });
+    // 若用户已切到 step2，立即刷新
+    if (State.currentStep === 2) renderAuditList();
+  } catch(err) {
+    console.warn('类型审核 scan 异常:', err.message);
+    State.scanResult = null;
+  }
+}
+
+// ── Step 2: Type Audit (M2 — 仅展示，M3 接入 commit) ──
+function renderAuditList() {
+  const summaryEl = document.getElementById('auditSummary');
+  const listEl = document.getElementById('auditList');
+  const filterLogEl = document.getElementById('auditFilterLog');
+  const filterDetailEl = document.getElementById('auditFilterLogDetail');
+
+  if (!State.scanResult) {
+    summaryEl.textContent = '类型审核扫描中（或未上传 DXF）...';
+    listEl.innerHTML = '';
+    filterLogEl.firstChild && (filterLogEl.firstChild.textContent = '');
+    return;
+  }
+  const s = State.scanResult.summary || {};
+  const cands = State.scanResult.candidates || [];
+  const checkedCount = cands.filter(c => State.auditChecked[c.block_name]).length;
+  summaryEl.innerHTML = `
+    <span>共 <b>${s.unique_block_names}</b> 个唯一块，过滤 <b>${(s.filtered_system_blocks||0)+(s.filtered_xref_blocks||0)}</b> 个 INSERT</span>
+    <span>候选 <b>${s.candidates}</b> 项</span>
+    <span>已勾选 <b id="auditCheckedCnt">${checkedCount}</b></span>
+  `;
+
+  const kw = (document.getElementById('auditSearch')?.value || '').trim().toLowerCase();
+  listEl.innerHTML = '';
+  for (const c of cands) {
+    if (kw) {
+      const hay = (c.block_name + ' ' + (c.primary_layer||'')).toLowerCase();
+      if (!hay.includes(kw)) continue;
+    }
+    const wc = c.warning_color;
+    const rowCls = wc === 'red' ? 'warn-red' : (wc === 'yellow' ? 'warn-yellow' : '');
+    const dotCls = wc === 'red' ? 'warn-dot-red' : (wc === 'yellow' ? 'warn-dot-yellow' : 'warn-dot-none');
+    const checked = State.auditChecked[c.block_name] ? 'checked' : '';
+    const nameVal = (State.auditName[c.block_name] ?? c.suggested_name) || '';
+    const assetVal = State.auditAsset[c.block_name] ?? '';
+    const warnText = c.warning ? `<span style="color:#b45309" title="${c.warning}">⚠</span>` : '';
+    const row = document.createElement('div');
+    row.className = `audit-row ${rowCls}`;
+    row.innerHTML = `
+      <input type="checkbox" ${checked} onchange="auditToggleCheck('${escapeQ(c.block_name)}', this.checked)"/>
+      <span class="a-warn-dot ${dotCls}" title="${c.warning || ''}"></span>
+      <div class="a-name">
+        <input type="text" value="${escapeAttr(nameVal)}" placeholder="name"
+               onchange="State.auditName['${escapeQ(c.block_name)}']=this.value"/>
+        <span class="a-meta">${escapeHTML(c.block_name)} · ${escapeHTML(c.primary_layer)} ${warnText}</span>
+      </div>
+      <span class="a-count">×${c.count}</span>
+      <span class="a-asset"><input type="text" value="${escapeAttr(assetVal)}" placeholder="asset_id (可选)"
+            onchange="State.auditAsset['${escapeQ(c.block_name)}']=this.value"/></span>
+    `;
+    listEl.appendChild(row);
+  }
+
+  // 过滤日志摘要
+  const fl = State.scanResult.filtered_log || [];
+  filterLogEl.childNodes[0].nodeValue = `▾ 系统已过滤 ${fl.length} 个块（点击查看明细）`;
+  if (!filterDetailEl.dataset.rendered) {
+    filterDetailEl.innerHTML = fl.map(f =>
+      `${escapeHTML(f.block_name)} × ${f.count} — ${escapeHTML(f.reason)}`
+    ).join('<br>');
+    filterDetailEl.dataset.rendered = '1';
+  }
+
+  // 同时刷新写入策略 UI（确保激活集状态最新）
+  refreshStrategyUI();
+}
+
+// ── M4: 当前激活数据集 / 写入策略 / commit 流程 ──
+async function loadActiveDataset(silentRefresh) {
+  try {
+    const res = await fetch('/api/v2/ontology/datasets');
+    if (!res.ok) return;
+    State.datasetList = await res.json();
+    const active = State.datasetList.find(d => d.is_active);
+    State.activeDsId = active ? active.id : null;
+    State.activeDsName = active ? active.name : '(未知)';
+    const badge = document.getElementById('activeDsBadge');
+    if (badge) badge.textContent = `📊 当前激活：${State.activeDsName}`;
+    if (!silentRefresh) refreshStrategyUI();
+  } catch(e) {
+    console.warn('loadActiveDataset 失败:', e);
+  }
+}
+
+function refreshStrategyUI() {
+  const isDemo = State.activeDsId === 'demo' || !State.activeDsId;
+  // 默认值
+  const pubNameEl = document.getElementById('wsPubName');
+  if (pubNameEl && !pubNameEl.value) {
+    pubNameEl.value = '我的工厂本体';
+  }
+  // merge 选项可用性
+  const mergeLabel = document.getElementById('wsMergeLabel');
+  const demoTip = document.getElementById('wsDemoTip');
+  const mergeRadio = mergeLabel?.querySelector('input');
+  const targetSel = document.getElementById('wsMergeTarget');
+  const otherDs = (State.datasetList || []).filter(d => d.id !== 'demo');
+  if (isDemo || otherDs.length === 0) {
+    mergeLabel?.classList.add('disabled');
+    if (mergeRadio) mergeRadio.disabled = true;
+    if (demoTip) demoTip.style.display = isDemo ? 'block' : 'none';
+    // 强制 publish
+    const pubRadio = document.querySelector('input[name="wsMode"][value="publish"]');
+    if (pubRadio) pubRadio.checked = true;
+    document.getElementById('wsPubInputs').style.display = 'flex';
+    document.getElementById('wsMergeInputs').style.display = 'none';
+  } else {
+    mergeLabel?.classList.remove('disabled');
+    if (mergeRadio) mergeRadio.disabled = false;
+    if (demoTip) demoTip.style.display = 'none';
+    // 默认改为 merge 到当前激活集
+    if (targetSel) {
+      targetSel.innerHTML = otherDs.map(d =>
+        `<option value="${d.id}" ${d.is_active?'selected':''}>${escapeHTML(d.name)}</option>`
+      ).join('');
+    }
+    // 智能默认：active 不是 Demo → 默认 merge
+    const curSel = document.querySelector('input[name="wsMode"]:checked');
+    if (!curSel || curSel.value === 'publish') {
+      const mr = document.querySelector('input[name="wsMode"][value="merge"]');
+      if (mr) mr.checked = true;
+      document.getElementById('wsPubInputs').style.display = 'none';
+      document.getElementById('wsMergeInputs').style.display = 'flex';
+    }
+  }
+}
+
+function onStrategyChange() {
+  const m = document.querySelector('input[name="wsMode"]:checked')?.value;
+  document.getElementById('wsPubInputs').style.display = m === 'publish' ? 'flex' : 'none';
+  document.getElementById('wsMergeInputs').style.display = m === 'merge' ? 'flex' : 'none';
+}
+
+async function quickCreateWorkDs() {
+  const name = '我的工厂本体';
+  try {
+    const res = await fetch('/api/v2/ontology/datasets', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({name, activate: true})
+    });
+    if (res.ok) {
+      await loadActiveDataset();
+      alert(`已新建并激活数据集"${name}"，已切换为合并模式`);
+    } else {
+      const err = await res.json();
+      alert('新建失败：' + (err.message || err.error));
+    }
+  } catch(e) {
+    alert('网络错误：' + e.message);
+  }
+}
+
+function openDatasetPicker() {
+  if (!State.datasetList) return;
+  const lines = State.datasetList.map((d,i) => `${i+1}. ${d.name}${d.is_active?' ★激活':''}`).join('\n');
+  const idx = prompt('选择要激活的数据集（输入编号）：\n\n' + lines);
+  if (!idx) return;
+  const ds = State.datasetList[parseInt(idx) - 1];
+  if (!ds) return;
+  fetch('/api/v2/ontology/datasets/activate', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({dataset_id: ds.id})
+  }).then(() => loadActiveDataset());
+}
+
+// ── commit 主流程 ──
+function _collectCheckedItems() {
+  if (!State.scanResult) return [];
+  return (State.scanResult.candidates || [])
+    .filter(c => State.auditChecked[c.block_name])
+    .map(c => ({
+      block_name: c.block_name,
+      name: State.auditName[c.block_name] || c.suggested_name,
+      category: c.primary_layer,
+      asset_id: State.auditAsset[c.block_name] || '',
+    }));
+}
+
+async function doCommit(force) {
+  const items = _collectCheckedItems();
+  if (items.length === 0) {
+    alert('请至少勾选一项再提交');
+    return;
+  }
+  const mode = document.querySelector('input[name="wsMode"]:checked')?.value || 'publish';
+  const sourceFile = State.lastUploadedFile?.name || 'untitled.dxf';
+
+  const payload = { source_file: sourceFile, mode, items, force: !!force };
+  if (mode === 'publish') {
+    const name = document.getElementById('wsPubName').value.trim();
+    if (!name) { alert('请填写数据集名称'); return; }
+    payload.publish_options = { name };
+  } else {
+    const targetId = document.getElementById('wsMergeTarget').value;
+    if (!targetId) { alert('请选择合并目标'); return; }
+    payload.merge_options = { target_dataset_id: targetId };
+    payload.conflict_strategy = document.getElementById('wsConflictStrategy').value;
+  }
+
+  // 不带 force 时先 check_conflicts 走一遍弹窗（M4 简化版：仅 merge 弹窗，publish 走信息提示）
+  if (!force) {
+    const rids = items.map(it => it.block_name);
+    const cfRes = await fetch('/api/v2/coord/types/check_conflicts', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({rids, mode, target_dataset_id: payload.merge_options?.target_dataset_id})
+    });
+    if (cfRes.ok) {
+      const cf = await cfRes.json();
+      if (mode === 'publish' && (cf.in_other_datasets||[]).length > 0) {
+        if (!confirmPublishOtherCollision(cf.in_other_datasets)) return;
+      } else if (mode === 'merge' && (cf.in_target_dataset||[]).length > 0) {
+        const choice = await confirmMergeConflict(cf.in_target_dataset);
+        if (!choice) return;
+        payload.conflict_strategy = choice;
+      }
+    }
+  }
+
+  // 真正 commit
+  const btn = document.getElementById('btnCommit');
+  btn.disabled = true; btn.textContent = '提交中...';
+  try {
+    const res = await fetch('/api/v2/coord/types/commit', {
+      method: 'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (res.status === 409 && data.error === 'name_duplicated') {
+      alert(`已存在同名数据集"${payload.publish_options.name}"，请改名或切换到合并模式`);
+      return;
+    }
+    if (data.status === 'pending_warnings') {
+      const ok = await confirmDanglingWarning(data.warnings, mode);
+      if (ok) await doCommit(true);  // 带 force 再提交
+      return;
+    }
+    if (!res.ok || data.error) {
+      alert('提交失败：' + (data.message || data.error || res.status));
+      return;
+    }
+    // 成功
+    await loadActiveDataset(true);
+    showCommitSuccess(data);
+  } catch(e) {
+    alert('网络错误：' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '提交（创建/合并类型）';
+  }
+}
+
+function confirmPublishOtherCollision(otherList) {
+  const lines = otherList.slice(0, 5).map(o =>
+    `· ${o.rid}  — 同名存在于：${o.datasets.map(d => d.name).join('、')}`
+  ).join('\n');
+  return confirm(`以下 rid 在其他数据集里也存在，新发布集允许有同名：\n\n${lines}\n\n激活新数据集后，_object_types 会以新定义为准。继续？`);
+}
+
+function confirmMergeConflict(targetList) {
+  // 返回 Promise<string|null>: 'skip' / 'overwrite' / null（取消）
+  return new Promise(resolve => {
+    const lines = targetList.slice(0, 8).map(c => `· ${c.rid}`).join('\n');
+    const mask = document.createElement('div'); mask.className = 'modal-mask';
+    mask.innerHTML = `
+      <div class="modal-box">
+        <h3>检测到 ${targetList.length} 个同名 ObjectType</h3>
+        <div class="modal-body">
+          以下 rid 在目标数据集中已存在：
+          <div class="modal-row-list">${escapeHTML(lines).replace(/\n/g,'<br>')}</div>
+          <div class="modal-strategy">
+            <label><input type="radio" name="mcs" value="skip" checked/> 全部跳过（保留目标集中的老定义）</label>
+            <label><input type="radio" name="mcs" value="overwrite"/> 全部覆盖（用 CAD 新定义替换）</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-sm" id="mcCancel">取消</button>
+          <button class="btn btn-primary btn-sm" id="mcOk">确认</button>
+        </div>
+      </div>`;
+    document.body.appendChild(mask);
+    mask.querySelector('#mcCancel').onclick = () => { mask.remove(); resolve(null); };
+    mask.querySelector('#mcOk').onclick = () => {
+      const v = mask.querySelector('input[name="mcs"]:checked').value;
+      mask.remove(); resolve(v);
+    };
+  });
+}
+
+function confirmDanglingWarning(warnings, mode) {
+  return new Promise(resolve => {
+    const refs = warnings.dangling_refs || [];
+    const rows = refs.slice(0, 10).map(r =>
+      `· ${escapeHTML(r.rid)}  — 被 ${r.instance_count} 个实例引用（如：${r.instance_ids.join(', ')}）`
+    ).join('<br>');
+    const mask = document.createElement('div'); mask.className = 'modal-mask';
+    mask.innerHTML = `
+      <div class="modal-box">
+        <h3>⚠ 副作用警告</h3>
+        <div class="modal-body">
+          <p>${escapeHTML(warnings.summary || '此操作可能让现有实例的类型引用悬空。')}</p>
+          <div class="modal-row-list">${rows}</div>
+          <p style="font-size:11px;color:var(--text-soft);margin-top:6px">${mode === 'publish' ? '建议改用"合并到工作集"模式以避免切换。' : '建议改用"跳过冲突项"策略。'}</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-sm" id="dwCancel">取消</button>
+          <button class="btn btn-primary btn-sm" id="dwOk">仍要继续</button>
+        </div>
+      </div>`;
+    document.body.appendChild(mask);
+    mask.querySelector('#dwCancel').onclick = () => { mask.remove(); resolve(false); };
+    mask.querySelector('#dwOk').onclick = () => { mask.remove(); resolve(true); };
+  });
+}
+
+// PRD § 8.3.1 — "跳过此步"先做覆盖率检查
+async function skipAudit() {
+  if (!State.scanResult) {
+    if (confirm('未拿到候选列表（可能扫描失败）。仍要跳过吗？')) goToStep(3);
+    return;
+  }
+  const blockNames = (State.scanResult.candidates || []).map(c => c.block_name);
+  try {
+    const res = await fetch('/api/v2/coord/types/check_coverage', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({block_names: blockNames})
+    });
+    const cov = await res.json();
+    if (cov.missing === 0) {
+      goToStep(3);  // 全覆盖，无需提醒
+      return;
+    }
+    const fullMissing = cov.missing === cov.total;
+    const samples = (cov.missing_samples || []).map(s => '· ' + s).join('\n');
+    const msg = fullMissing
+      ? `激活数据集中找不到任何对应类型（${cov.total} 个全部缺失）。\n强烈建议先做类型审核。\n\n${samples}`
+      : `激活数据集中只覆盖了 ${cov.covered}/${cov.total} 个类型，缺失 ${cov.missing} 个：\n\n${samples}\n\n仍要跳过吗？`;
+    if (confirm(msg)) goToStep(3);
+  } catch(e) {
+    if (confirm('覆盖率检查失败：' + e.message + '\n\n仍要跳过吗？')) goToStep(3);
+  }
+}
+
+// ── PRD 2.9.1 — CAD 实体批量入实例库 ──
+function _collectSpawnItems() {
+  if (!State.previewData) return [];
+  return State.previewData.inserts
+    .filter(ins => State.layerVisible[ins.layer] && State.entityChecked[ins.id] !== false)
+    .map(ins => ({
+      block_name: ins.block_name,
+      cad_xy: ins.position,
+      rotation: ins.rotation || 0,
+      attribs: ins.attribs || {},
+    }));
+}
+
+async function spawnInstances() {
+  if (!State.matrix) {
+    alert('请先完成标定');
+    return;
+  }
+  const items = _collectSpawnItems();
+  if (items.length === 0) {
+    alert('没有勾选任何实体');
+    return;
+  }
+  const payload = {
+    source_label: State.lastUploadedFile?.name || 'untitled.dxf',
+    mode: 'dxf',
+    transform_matrix: State.matrix,
+    items,
+    conflict_strategy: 'update_coord',
+    commit: false,
+  };
+
+  // dry-run
+  let res, dry;
+  try {
+    res = await fetch('/api/v2/coord/spawn_instances', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    dry = await res.json();
+  } catch(e) {
+    alert('请求失败：' + e.message);
+    return;
+  }
+  if (!res.ok) {
+    alert('dry-run 失败：' + (dry.error || res.status));
+    return;
+  }
+
+  // 弹窗让用户选策略并确认
+  const choice = await spawnConfirmDialog(dry);
+  if (!choice) return;
+
+  // commit
+  payload.commit = true;
+  payload.conflict_strategy = choice.strategy;
+  try {
+    const r2 = await fetch('/api/v2/coord/spawn_instances', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const final = await r2.json();
+    if (!r2.ok) {
+      alert('提交失败：' + (final.error || r2.status));
+      return;
+    }
+    spawnSuccessDialog(final);
+  } catch(e) {
+    alert('提交异常：' + e.message);
+  }
+}
+
+function spawnConfirmDialog(dry) {
+  return new Promise(resolve => {
+    const s = dry.summary;
+    const errList = (dry.errors || []).slice(0, 8).map(e =>
+      `· ${escapeHTML(e.block_name||'(空)')} — ${escapeHTML(e.reason||'')} ${escapeHTML(e.hint||'')}`
+    ).join('<br>');
+    const conflictList = (dry.conflicts || []).slice(0, 8).map(c =>
+      `· ${escapeHTML(c.instance_id)} (新→${c.translation_x},${c.translation_y} 旧→${c.existing.translation_x},${c.existing.translation_y})`
+    ).join('<br>');
+    const warnList = (dry.warnings || []).slice(0, 8).map(w =>
+      `· ${escapeHTML(w.block_name||w.original_id||'')} — ${escapeHTML(w.reason||'')}`
+    ).join('<br>');
+    const conflictBlock = s.conflicts > 0 ? `
+        <div style="margin-top:10px"><b>🟡 冲突 ${s.conflicts}</b>（已部署的实例坐标不同）：
+          <div class="modal-row-list">${conflictList}</div>
+          <div class="modal-strategy">
+            <label><input type="radio" name="ssrt" value="update_coord" checked/> 更新坐标（推荐）</label>
+            <label><input type="radio" name="ssrt" value="skip"/> 跳过</label>
+            <label><input type="radio" name="ssrt" value="duplicate"/> 新建副本（-2 后缀）</label>
+          </div>
+        </div>` : '';
+
+    const mask = document.createElement('div'); mask.className = 'modal-mask';
+    mask.innerHTML = `
+      <div class="modal-box" style="max-width:640px">
+        <h3>即将投入 InstanceStore</h3>
+        <div class="modal-body">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;padding:8px 10px;background:var(--surface-subtle);border-radius:6px">
+            <span>🟢 新建 <b>${s.to_create}</b></span>
+            <span>🔵 补充坐标 <b>${s.to_update_coord_only}</b></span>
+            <span>🟡 冲突 <b>${s.conflicts}</b></span>
+            <span>🔴 错误 <b>${s.errors}</b></span>
+            <span>⚠ 提示 <b>${s.warnings}</b></span>
+          </div>
+          ${s.errors > 0 ? `<div style="margin-top:10px"><b>🔴 错误（这些条目不会写入）</b>：<div class="modal-row-list">${errList}</div></div>` : ''}
+          ${conflictBlock}
+          ${s.warnings > 0 ? `<div style="margin-top:10px"><b>⚠ 提示</b>：<div class="modal-row-list">${warnList}</div></div>` : ''}
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-sm" id="ssCancel">取消</button>
+          <button class="btn btn-primary btn-sm" id="ssOk">确认投入</button>
+        </div>
+      </div>`;
+    document.body.appendChild(mask);
+    mask.querySelector('#ssCancel').onclick = () => { mask.remove(); resolve(null); };
+    mask.querySelector('#ssOk').onclick = () => {
+      const sel = mask.querySelector('input[name="ssrt"]:checked');
+      const strategy = sel ? sel.value : 'update_coord';
+      mask.remove();
+      resolve({ strategy });
+    };
+  });
+}
+
+function spawnSuccessDialog(data) {
+  const s = data.summary;
+  const totalWritten = (s.written_create||0) + (s.written_update||0) + (s.written_conflict||0) + (s.duplicated||0);
+  const mask = document.createElement('div'); mask.className = 'modal-mask';
+  mask.innerHTML = `
+    <div class="modal-box">
+      <h3>✓ 已成功投入 ${totalWritten} 个实例</h3>
+      <div class="modal-body">
+        <div style="font-size:12px;line-height:1.8">
+          <div>新建: <b>${s.written_create}</b></div>
+          <div>补充坐标: <b>${s.written_update}</b></div>
+          <div>冲突已更新: <b>${s.written_conflict}</b></div>
+          <div>新建副本: <b>${s.duplicated}</b></div>
+          <div>跳过: <b>${s.skipped_conflict}</b></div>
+          <div>错误未处理: <b>${s.errors}</b></div>
+        </div>
+        <p style="margin-top:10px;font-size:11px;color:var(--text-soft)">${escapeHTML(data.hint||'')}</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary btn-sm" id="ssGoInstance">前往实例运维中心 ↗</button>
+        <button class="btn btn-sm" id="ssDone">关闭</button>
+      </div>
+    </div>`;
+  document.body.appendChild(mask);
+  mask.querySelector('#ssDone').onclick = () => mask.remove();
+  mask.querySelector('#ssGoInstance').onclick = () => {
+    const w = window.open('/instance', '_blank');
+    if (!w) {
+      // 弹窗被拦截 → 退回同窗口跳转
+      window.location.href = '/instance';
+    }
+  };
+}
+
+function showCommitSuccess(data) {
+  const el = document.getElementById('commitSuccess');
+  const wsEl = document.getElementById('writeStrategy');
+  const cmtEl = document.getElementById('commitArea');
+  wsEl.style.display = 'none';
+  cmtEl.style.display = 'none';
+  const summary = data.mode === 'publish'
+    ? `数据集"${escapeHTML(data.dataset_name)}"已创建并激活<br>写入 <b>${data.written_count}</b> 个 ObjectType，asset 回写 <b>${data.asset_mapping_updated}</b> 项`
+    : `已合并到"${escapeHTML(data.target_dataset_name)}"<br>新增 <b>${data.added}</b>，覆盖 <b>${data.overwritten}</b>，跳过 <b>${data.skipped}</b>；asset 回写 <b>${data.asset_mapping_updated}</b> 项`;
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="success-panel">
+      <div class="succ-title">✓ 提交成功</div>
+      <div class="succ-summary">${summary}</div>
+      <div class="succ-hint">${escapeHTML(data.hint || '')}</div>
+      <div class="succ-actions">
+        <button class="btn btn-sm" onclick="openInNewTab('/ontology_graph')">前往语义图谱总览 ↗</button>
+        <button class="btn btn-primary btn-sm" onclick="goToStep(3)">继续标定 →</button>
+      </div>
+    </div>`;
+}
+
+function auditToggleCheck(blockName, checked) {
+  State.auditChecked[blockName] = checked;
+  const el = document.getElementById('auditCheckedCnt');
+  if (el) {
+    const c = (State.scanResult?.candidates || []).filter(x => State.auditChecked[x.block_name]).length;
+    el.textContent = c;
+  }
+}
+
+function auditCheckAll(val) {
+  (State.scanResult?.candidates || []).forEach(c => {
+    State.auditChecked[c.block_name] = val;
+  });
+  renderAuditList();
+}
+
+function toggleFilterLog() {
+  const d = document.getElementById('auditFilterLogDetail');
+  d.style.display = d.style.display === 'block' ? 'none' : 'block';
+}
+
+// 简易转义（防止 block_name 含引号破坏 HTML）
+function escapeQ(s) { return String(s).replace(/'/g, "\\'"); }
+function escapeAttr(s) { return String(s).replace(/"/g, '&quot;'); }
+function escapeHTML(s) { return String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m])); }
+
+// 跨页跳转 helper：优先新标签页；被拦截则同窗口跳
+function openInNewTab(url) {
+  const w = window.open(url, '_blank');
+  if (!w) window.location.href = url;
 }
 
 function applyPreviewData() {
@@ -823,7 +1536,7 @@ function toggleAllLayers() {
   keys.forEach(k => State.layerVisible[k] = targetState);
   renderLayerList();
   draw();
-  if (State.currentStep === 3) buildEntityTable();
+  if (State.currentStep === 4) buildEntityTable();
 }
 
 function toggleLayerAccordion(el) {
@@ -887,7 +1600,7 @@ function updateAnchorUE(idx, axis, val) {
 function deleteAnchor(idx) {
   State.anchors.splice(idx, 1);
   if (State.anchors.length >= 2) doCalibrate();
-  else { State.matrix = null; State.metrics = null; document.getElementById('metricsPanel').style.display='none'; document.getElementById('btnToStep3').style.display='none'; }
+  else { State.matrix = null; State.metrics = null; document.getElementById('metricsPanel').style.display='none'; document.getElementById('btnToStep4').style.display='none'; }
   renderAnchorList(); draw();
 }
 
@@ -920,7 +1633,7 @@ function renderMetrics() {
     <span class="status-badge ${statusClass}">${statusText}</span>
     <div class="scale-info">缩放 X: ${m.scaleX} | Y: ${m.scaleY} | 一致性: ${m.scaleConsistencyPct}%</div>
   </div>`;
-  document.getElementById('btnToStep3').style.display = (m.rmse < 200) ? '' : 'none';
+  document.getElementById('btnToStep4').style.display = (m.rmse < 200) ? '' : 'none';
 }
 
 // ── Step 3: Entity Table ──
@@ -1061,13 +1774,26 @@ function resetAll() {
   if (State.mode === 'dxf') {
     State.previewData = null; State.anchors = []; State.matrix = null; State.metrics = null;
     State.currentStep = 1; State.highlightId = null;
+    // M2 类型审核状态清空
+    State.scanResult = null; State.auditChecked = {}; State.auditName = {}; State.auditAsset = {};
+    State.lastUploadedFile = null;
     document.getElementById('layerPanel').style.display = 'none';
     document.querySelector('#cadPanels .upload-zone').style.display = '';
     document.getElementById('btnReset').style.display = 'none';
     document.getElementById('metricsPanel').style.display = 'none';
-    document.getElementById('btnToStep3').style.display = 'none';
+    document.getElementById('btnToStep4').style.display = 'none';
     document.getElementById('anchorList').innerHTML = '';
     document.getElementById('fileInput').value = '';
+    // 清空审核 UI（防止旧数据残留）
+    const ad = document.getElementById('auditFilterLogDetail');
+    if (ad) { ad.innerHTML = ''; delete ad.dataset.rendered; }
+    // M4: 隐藏 commit 成功面板，恢复写入策略
+    const succ = document.getElementById('commitSuccess');
+    if (succ) { succ.style.display = 'none'; succ.innerHTML = ''; }
+    const ws = document.getElementById('writeStrategy');
+    if (ws) ws.style.display = '';
+    const ca = document.getElementById('commitArea');
+    if (ca) ca.style.display = '';
     goToStep(1); draw();
   } else {
     imgState.imageObj = null; imgState.imgW = 0; imgState.imgH = 0;
@@ -1296,7 +2022,7 @@ canvas._mdHandler = function(e) {
   if (e.button !== 0) return;
 
   if (State.mode === 'dxf') {
-    if (State.currentStep === 2) { const [wx,wy] = s2w(e.offsetX, e.offsetY); addAnchor(wx, wy); }
+    if (State.currentStep === 3) { const [wx,wy] = s2w(e.offsetX, e.offsetY); addAnchor(wx, wy); }
   } else {
     const [wx, wy] = s2w(e.offsetX, e.offsetY);
     if (imgState.currentStep === 1 && imgState.imageObj) { imgAddAnchor(wx, wy); }
@@ -1354,12 +2080,74 @@ draw = function() {
   }
 };
 
-function importToInstanceLib() {
+async function importToInstanceLib() {
   if (!imgState.matrix || imgState.markers.length === 0) {
     alert('请先完成标定并标注至少一个设备');
     return;
   }
-  alert('已触发导入实例库流程（即将对接实例库API）');
+  // 把 marker 转成 spawn_instances items
+  // 图片模式没有 block_name，用户在标注时下拉选了 type — 即 ObjectType.name
+  // 实例 id 用 deviceId（缺失则用 name+index）
+  const items = imgState.markers.map((m, i) => {
+    if (!m.type) return null;
+    return {
+      block_name: m.type,                 // 复用接口字段名，对应 ObjectType.rid
+      cad_xy: m.pixelXY,                  // 走变换后即 UE 坐标
+      rotation: 0,
+      attribs: m.deviceId ? {EQUIP_ID: m.deviceId} : {},
+      instance_id: m.deviceId || (m.name ? `${m.name}-${i+1}` : ''),
+    };
+  }).filter(Boolean);
+
+  if (items.length === 0) {
+    alert('每个标注请先在下拉里选 type');
+    return;
+  }
+
+  const payload = {
+    source_label: 'image:' + (document.getElementById('imgFileInput')?.files[0]?.name || 'untitled'),
+    mode: 'image',
+    transform_matrix: imgState.matrix,
+    items,
+    conflict_strategy: 'update_coord',
+    commit: false,
+  };
+
+  let res, dry;
+  try {
+    res = await fetch('/api/v2/coord/spawn_instances', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    dry = await res.json();
+  } catch(e) {
+    alert('请求失败：' + e.message);
+    return;
+  }
+  if (!res.ok) {
+    alert('dry-run 失败：' + (dry.error || res.status));
+    return;
+  }
+
+  const choice = await spawnConfirmDialog(dry);
+  if (!choice) return;
+
+  payload.commit = true;
+  payload.conflict_strategy = choice.strategy;
+  try {
+    const r2 = await fetch('/api/v2/coord/spawn_instances', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const final = await r2.json();
+    if (!r2.ok) {
+      alert('提交失败：' + (final.error || r2.status));
+      return;
+    }
+    spawnSuccessDialog(final);
+  } catch(e) {
+    alert('提交异常：' + e.message);
+  }
 }
 </script>
 </body>

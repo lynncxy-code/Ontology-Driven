@@ -30,3 +30,20 @@ Saved/
 DerivedDataCache/
 
 ue_project/
+
+# 大型二进制资产（模型、贴图、训练数据）— 不再提交，避免仓库膨胀
+*.dxf
+*.fbx
+*.glb
+*.gltf
+assets/usd_cache/
+exports/*_trajectory.json
+exports/*.usda
+exports/*.usd
+
+# Claude Code 本地状态
+.claude/settings.local.json
+.claude/worktrees/
+
+# SQLite 数据库（运行时生成）
+backend/lite/db/*.db

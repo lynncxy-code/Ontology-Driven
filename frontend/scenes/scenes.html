@@ -497,6 +497,12 @@
 
 </div><!-- /#app -->
 
+<script>
+    // Hide standalone header when embedded inside Nexus shell
+    if (new URLSearchParams(location.search).get('nexus') === 'true') {
+        document.querySelector('header').style.display = 'none';
+    }
+</script>
 <script src="/scenes/scenes.js"></script>
 </body>
 </html>

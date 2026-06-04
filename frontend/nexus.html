@@ -409,9 +409,7 @@
     <!-- 右侧容器 -->
     <main class="main-wrapper">
         <div class="topbar">
-            <div class="breadcrumb" id="breadcrumb">
-                OntoTwin Nexus 2.3 <span style="font-size:11px; opacity:0.4; margin:0 6px;">/</span> <span class="current" id="current-page-title">本体配置中心</span>
-            </div>
+            <div class="breadcrumb"></div>
             <div class="topbar-actions">
                 <div class="user-profile">AD</div>
             </div>
@@ -425,7 +423,9 @@
         function navigate(title, url, element) {
             if (url.startsWith('http') || !element) return;
             document.getElementById('main-frame').src = url;
-            document.getElementById('current-page-title').textContent = title;
+            // 面包屑已移除；标题改由各页自身展示
+            const cur = document.getElementById('current-page-title');
+            if (cur) cur.textContent = title;
             document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
             element.classList.add('active');
         }

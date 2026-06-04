@@ -86,6 +86,10 @@ def serve_coord_workbench():
 def serve_floor_pulse():
     return app.send_static_file('floor_pulse.html')
 
+@app.route('/scenes')
+def serve_scenes():
+    return app.send_static_file('scenes/scenes.html')
+
 
 # ═══════════════════════════════════════════════════════════════
 # PRD 2.9 — 坐标标定工作台 API（无状态）

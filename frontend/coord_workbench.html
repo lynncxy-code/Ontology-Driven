@@ -7,7 +7,27 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="coord_transform.js"></script>
 <style>
-:root{--bg:#f8f9fa;--surface:#fff;--surface-subtle:#f1f3f5;--border:#e9ecef;--border-strong:#dee2e6;--text:#212529;--text-muted:#6c757d;--text-soft:#adb5bd;--accent:#2563eb;--accent-light:#dbeafe;--danger:#dc2626;--warning:#f59e0b;--success:#16a34a;--radius:14px;--shadow:0 18px 40px rgba(17,17,17,.04)}
+:root{
+  /* ── 灰阶（结构色）── */
+  --ink:#1a1a1a;--ink-2:#5c5c5c;--ink-3:#8a8a8a;
+  --line:#e8e8e8;--line-2:#d4d4d4;
+  --bg:#fafafa;--bg-2:#fafafa;--bg-3:#f3f3f3;--on-ink:#fff;
+  /* ── 语义色（仅小面积）── */
+  --danger:#b42318;--danger-bg:#fef3f2;--danger-line:#fda29b;
+  --warn:#b54708;--warn-bg:#fffaeb;--warn-line:#fec84b;
+  --ok:#067647;--ok-bg:#ecfdf3;--ok-line:#a6f4c5;
+  --info:#363f72;--info-bg:#f8f9fc;--info-line:#b3b8db;
+  /* ── 圆角 / 间距 / 字号 / 阴影 ── */
+  --r-sm:6px;--r-md:8px;--r-lg:12px;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:20px;--s6:24px;--s8:32px;
+  --t-xs:11px;--t-sm:12px;--t-base:13px;--t-md:14px;--t-lg:16px;--t-xl:20px;
+  --shadow-pop:0 4px 16px rgba(20,20,20,.08);--shadow-modal:0 16px 48px rgba(20,20,20,.18);
+  /* ── 兼容旧 token 名（值已对齐黑白灰；蓝色退役）── */
+  --surface:#fff;--surface-subtle:#fafafa;--border:#e8e8e8;--border-strong:#d4d4d4;
+  --text:#1a1a1a;--text-muted:#5c5c5c;--text-soft:#8a8a8a;
+  --accent:#1a1a1a;--accent-light:#f3f3f3;--warning:#b54708;--success:#067647;
+  --radius:12px;--shadow:0 4px 16px rgba(20,20,20,.06)
+}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text);height:100%;overflow:hidden;-webkit-font-smoothing:antialiased}
 body.embedded-mode{background:#fafaf7}
@@ -19,7 +39,7 @@ body.embedded-mode{background:#fafaf7}
 .canvas-area{flex:7;position:relative;background:#fbfbf7;border-right:1px solid var(--border);overflow:hidden}
 #mainCanvas{display:block;width:100%;height:100%;cursor:crosshair}
 .canvas-info{position:absolute;bottom:12px;left:12px;font-size:11px;color:var(--text-soft);background:rgba(255,255,255,.85);padding:4px 10px;border-radius:6px;font-family:monospace}
-.panel-area{flex:3;min-width:320px;max-width:420px;display:flex;flex-direction:column;background:var(--surface);overflow:hidden}
+.panel-area{flex:4;min-width:400px;max-width:560px;display:flex;flex-direction:column;background:var(--surface);overflow:hidden}
 /* 修复：cadPanels/imgPanels 必须 flex 列才能让内部 step-content 的 flex:1 生效 */
 #cadPanels,#imgPanels{flex:1;min-height:0;display:flex;flex-direction:column}
 .step-bar{display:flex;border-bottom:1px solid var(--border);background:var(--surface-subtle)}
@@ -68,18 +88,34 @@ body.embedded-mode{background:#fafaf7}
 .entity-table th{text-align:left;padding:6px 4px;border-bottom:2px solid var(--border);color:var(--text-muted);font-weight:600;position:sticky;top:0;background:var(--surface)}
 .entity-table td{padding:5px 4px;border-bottom:1px solid var(--border)}
 .entity-table tr:hover{background:var(--accent-light)}
-.entity-table tr.highlighted{background:#bfdbfe}
+.entity-table tr.highlighted{background:var(--bg-3);box-shadow:inset 2px 0 0 var(--ink)}
 .entity-table input[type=text]{width:100%;padding:3px 5px;border:1px solid var(--border);border-radius:4px;font-size:11px}
 .entity-table select{padding:2px;font-size:11px;border:1px solid var(--border);border-radius:4px}
-/* Export */
-.export-preview{background:#111;color:#c9d1d9;border-radius:var(--radius);padding:14px;font-family:monospace;font-size:11px;line-height:1.6;max-height:350px;overflow:auto;white-space:pre;margin-top:12px}
+/* Export — 分组 / 折叠 / 预览 */
+.action-group{border:1px solid var(--line);border-radius:var(--r-md);padding:14px;margin-bottom:12px}
+.action-group-primary{background:var(--bg-2)}
+.action-group .ag-title{font-size:var(--t-base);font-weight:600;color:var(--ink);margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.action-group .ag-optional{font-size:var(--t-xs);font-weight:400;color:var(--ink-3);border:1px solid var(--line-2);border-radius:999px;padding:1px 8px}
+.action-group .ag-desc{font-size:var(--t-xs);color:var(--ink-3);line-height:1.5;margin-bottom:12px}
+.disclosure{border-top:1px solid var(--line);margin-top:4px;padding-top:10px}
+.disclosure-head{display:flex;align-items:center;gap:6px;font-size:var(--t-sm);color:var(--ink-2);cursor:pointer;user-select:none}
+.disclosure-head:hover{color:var(--ink)}
+.disclosure-head .disc-caret{transition:transform .15s;flex-shrink:0}
+.disclosure.open .disc-caret{transform:rotate(90deg)}
+.disclosure-body{margin-top:10px}
+.preview-bar{display:flex;align-items:center;justify-content:space-between;font-size:var(--t-xs);color:var(--ink-3);margin-bottom:6px}
+.export-preview{background:var(--bg-2);color:var(--ink-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;font-family:monospace;font-size:11px;line-height:1.6;max-height:320px;overflow:auto;white-space:pre}
 /* Buttons */
-.btn{appearance:none;border:1px solid transparent;background:var(--surface-subtle);color:#4b5563;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;transition:all .18s}
-.btn:hover{background:#ecece6;color:var(--text);border-color:var(--border-strong)}
-.btn-primary{background:#111;color:#fff;border-color:#111}
-.btn-primary:hover{background:#333}
-.btn-primary:disabled{opacity:.4;cursor:not-allowed}
-.btn-sm{padding:6px 12px;font-size:12px}
+.btn{appearance:none;border:1px solid var(--line-2);background:var(--bg);color:var(--ink);border-radius:var(--r-md);padding:8px 14px;font-size:var(--t-base);font-weight:500;cursor:pointer;transition:background .15s,border-color .15s}
+.btn:hover{background:var(--bg-3)}
+.btn-primary{background:var(--ink);color:var(--on-ink);border-color:var(--ink)}
+.btn-primary:hover{background:#000}
+.btn-primary:disabled,.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-ghost{border-color:transparent;background:transparent;color:var(--ink-2)}
+.btn-ghost:hover{background:var(--bg-3);color:var(--ink)}
+.btn-danger{border-color:var(--danger-line);background:var(--danger-bg);color:var(--danger)}
+.btn-danger:hover{background:#fde7e5}
+.btn-sm{padding:6px 10px;font-size:var(--t-sm)}
 .hint{font-size:11px;color:var(--text-soft);margin-top:8px;line-height:1.5}
 .section-title{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text)}
 /* Type audit (Step 2) */
@@ -93,21 +129,28 @@ body.embedded-mode{background:#fafaf7}
 .audit-row{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px}
 .audit-row:last-child{border-bottom:none}
 .audit-row:hover{background:var(--surface-subtle)}
-.audit-row.warn-red{background:#fef2f2}
-.audit-row.warn-yellow{background:#fffbeb}
+.audit-row.warn-red{background:var(--danger-bg)}
+.audit-row.warn-yellow{background:var(--warn-bg)}
 .audit-row input[type=checkbox]{accent-color:var(--text);cursor:pointer;flex-shrink:0}
 .audit-row .a-name{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .audit-row .a-name input{padding:2px 5px;border:1px solid var(--border);border-radius:3px;font-size:11px;width:100%}
 .audit-row .a-meta{font-size:10px;color:var(--text-soft)}
+.audit-row .a-warn-text{font-size:10px;line-height:1.4;color:var(--warn)}
+.audit-row.warn-red .a-warn-text{color:var(--danger)}
 .audit-row .a-count{font-family:monospace;font-size:10px;color:var(--text-soft);min-width:32px;text-align:right}
-.audit-row .a-asset{width:120px}
-.audit-row .a-asset input{width:100%;padding:2px 5px;border:1px solid var(--border);border-radius:3px;font-size:11px}
+.audit-row .a-asset{width:150px;flex-shrink:0}
+.audit-row .a-asset input{width:100%;padding:3px 6px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:11px}
 .audit-row .a-warn-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .warn-dot-red{background:#dc2626}
 .warn-dot-yellow{background:#f59e0b}
 .warn-dot-none{background:transparent}
 .audit-filter-log{margin-top:10px;font-size:11px;color:var(--text-muted);background:var(--surface-subtle);border-radius:6px;padding:8px 10px;cursor:pointer}
-.audit-filter-log-detail{display:none;margin-top:6px;max-height:140px;overflow-y:auto;font-size:10px;font-family:monospace;color:var(--text-soft)}
+.audit-filter-log-detail{display:none;margin-top:6px;max-height:160px;overflow-y:auto;font-size:11px;color:var(--ink-2)}
+.flog-row{display:flex;align-items:baseline;gap:8px;padding:4px 0;border-bottom:1px solid var(--line)}
+.flog-row:last-child{border-bottom:none}
+.flog-name{font-family:monospace;color:var(--ink);flex-shrink:0;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flog-count{font-family:monospace;color:var(--ink-3);font-size:10px;flex-shrink:0}
+.flog-reason{color:var(--ink-3);font-size:10px;margin-left:auto;text-align:right}
 /* 写入策略 */
 .write-strategy{margin-top:14px;padding:12px;background:var(--surface-subtle);border:1px solid var(--border);border-radius:8px}
 .write-strategy h4{font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text)}
@@ -115,7 +158,7 @@ body.embedded-mode{background:#fafaf7}
 .write-strategy label.opt.disabled{cursor:not-allowed;opacity:.5}
 .write-strategy input[type=text],.write-strategy select{padding:5px 8px;border:1px solid var(--border-strong);border-radius:5px;font-size:12px;flex:1;min-width:0}
 .write-strategy .opt-inputs{padding-left:22px;margin-top:4px;display:flex;gap:6px;align-items:center}
-.demo-tip{margin-top:8px;padding:8px;background:#fef3c7;border:1px solid #fbbf24;border-radius:6px;font-size:11px;color:#92400e}
+.demo-tip{margin-top:8px;padding:8px;background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:var(--r-sm);font-size:var(--t-xs);color:var(--warn)}
 /* 通用模态 */
 .modal-mask{position:fixed;inset:0;background:rgba(15,15,15,.45);display:flex;align-items:center;justify-content:center;z-index:1000}
 .modal-box{background:#fff;border-radius:12px;padding:22px 24px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 18px 50px rgba(0,0,0,.2)}
@@ -127,12 +170,47 @@ body.embedded-mode{background:#fafaf7}
 .modal-row-list .row:last-child{border-bottom:none}
 .modal-strategy{margin:10px 0;display:flex;flex-direction:column;gap:6px}
 .modal-strategy label{display:flex;gap:6px;align-items:center;font-size:12px;cursor:pointer}
-.success-panel{background:#dcfce7;border:1px solid #16a34a;border-radius:8px;padding:14px;margin-top:12px}
-.success-panel .succ-title{font-size:13px;font-weight:700;color:#166534;margin-bottom:6px}
-.success-panel .succ-summary{font-size:11px;color:#15803d;margin-bottom:10px}
-.success-panel .succ-hint{font-size:10px;color:#5d8a5d;margin-bottom:10px;font-style:italic}
+.success-panel{background:var(--ok-bg);border:1px solid var(--ok-line);border-left:2px solid var(--ok);border-radius:var(--r-sm);padding:12px 14px;margin-top:12px}
+.success-panel .succ-title{font-size:var(--t-base);font-weight:600;color:var(--ink);margin-bottom:6px}
+.success-panel .succ-summary{font-size:var(--t-xs);color:var(--ink-2);margin-bottom:8px;line-height:1.6}
+.success-panel .succ-hint{font-size:var(--t-xs);color:var(--ink-3);margin-bottom:10px}
 .success-panel .succ-actions{display:flex;gap:8px}
 .success-panel .succ-actions .btn{flex:1}
+.success-panel .succ-foot{margin-top:10px;font-size:var(--t-xs);color:var(--ink-3)}
+/* ═══ UI 组件库（ontotwin-ui skill）═══ */
+/* Toast */
+.ui-toast-wrap{position:fixed;top:16px;right:16px;z-index:1100;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.ui-toast{background:var(--ink);color:var(--on-ink);padding:10px 14px;border-radius:var(--r-md);font-size:var(--t-sm);box-shadow:var(--shadow-pop);max-width:360px;line-height:1.5;pointer-events:auto;animation:ui-toast-in .18s ease}
+.ui-toast.ok{background:var(--bg);color:var(--ink);border-left:2px solid var(--ok)}
+.ui-toast.err{background:var(--bg);color:var(--ink);border-left:2px solid var(--danger)}
+.ui-toast.warn{background:var(--bg);color:var(--ink);border-left:2px solid var(--warn)}
+@keyframes ui-toast-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+/* Modal */
+.ui-modal-mask{position:fixed;inset:0;background:rgba(20,20,20,.4);display:flex;align-items:center;justify-content:center;z-index:1000;animation:ui-fade .15s ease}
+@keyframes ui-fade{from{opacity:0}to{opacity:1}}
+.ui-modal{background:var(--bg);border-radius:var(--r-lg);box-shadow:var(--shadow-modal);width:min(520px,92vw);max-height:82vh;overflow:auto;padding:var(--s6)}
+.ui-modal h3{font-size:var(--t-lg);font-weight:600;margin-bottom:var(--s3);color:var(--ink)}
+.ui-modal .ui-modal-body{font-size:var(--t-sm);color:var(--ink-2);line-height:1.65}
+.ui-modal .ui-modal-foot{display:flex;gap:var(--s2);justify-content:flex-end;margin-top:var(--s5)}
+.ui-list{margin:var(--s2) 0;max-height:200px;overflow-y:auto;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:var(--s2)}
+.ui-list .ui-list-row{font-size:var(--t-xs);padding:3px 0;border-bottom:1px solid var(--line);color:var(--ink-2)}
+.ui-list .ui-list-row:last-child{border-bottom:none}
+.ui-choices{margin:var(--s3) 0;display:flex;flex-direction:column;gap:var(--s2)}
+.ui-choices label{display:flex;gap:var(--s2);align-items:flex-start;font-size:var(--t-sm);cursor:pointer;color:var(--ink)}
+.ui-choices label input{margin-top:2px;accent-color:var(--ink)}
+/* Dropdown */
+.ui-dropdown{position:absolute;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-pop);min-width:220px;max-height:320px;overflow-y:auto;padding:4px;z-index:1050}
+.ui-dd-item{padding:7px 10px;border-radius:var(--r-sm);font-size:var(--t-sm);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--ink)}
+.ui-dd-item:hover,.ui-dd-item.focus{background:var(--bg-3)}
+.ui-dd-item[aria-selected=true]{font-weight:600}
+.ui-dd-item .ui-dd-check{width:14px;height:14px;flex-shrink:0;color:var(--ink)}
+/* Tooltip */
+.ui-tip{position:fixed;z-index:1200;background:var(--ink);color:var(--on-ink);font-size:var(--t-xs);line-height:1.5;padding:6px 9px;border-radius:var(--r-sm);max-width:260px;box-shadow:var(--shadow-pop);pointer-events:none;opacity:0;transition:opacity .12s}
+.ui-tip.show{opacity:1}
+/* 状态点 */
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex-shrink:0}
+.dot-ok{background:var(--ok)} .dot-warn{background:var(--warn)} .dot-err{background:var(--danger)}
+.dot-info{background:var(--info)} .dot-muted{background:var(--ink-3)}
 /* Mode tabs */
 .mode-tabs{display:flex;gap:2px;background:var(--surface-subtle);border-radius:8px;padding:2px;margin-right:12px}
 .mode-tab{padding:5px 14px;font-size:12px;font-weight:600;border-radius:6px;cursor:pointer;border:none;background:transparent;color:var(--text-muted);transition:all .15s}
@@ -140,7 +218,7 @@ body.embedded-mode{background:#fafaf7}
 .mode-tab:hover:not(.active){color:var(--text)}
 /* Image marker */
 .marker-row{display:flex;align-items:center;gap:6px;padding:8px;background:var(--surface-subtle);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12px}
-.marker-row .marker-idx{font-weight:700;color:#ea580c;width:20px}
+.marker-row .marker-idx{font-weight:700;color:var(--ink);width:20px}
 .marker-row input{flex:1;padding:4px 6px;border:1px solid var(--border-strong);border-radius:4px;font-size:12px}
 .marker-row .marker-coords{font-size:10px;color:var(--text-soft);font-family:monospace;display:flex;align-items:center;gap:4px}
 .marker-row .del-btn{cursor:pointer;color:var(--danger);display:inline-flex;align-items:center;justify-content:center;padding:4px;border-radius:4px;transition:background 0.15s}
@@ -164,8 +242,8 @@ body.embedded-mode{background:#fafaf7}
       </div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <span id="activeDsBadge" style="font-size:11px;color:var(--text-muted);background:var(--surface-subtle);padding:4px 10px;border-radius:999px;border:1px solid var(--border);cursor:pointer" title="点击切换激活数据集" onclick="openDatasetPicker()">
-        📊 加载中...
+      <span id="activeDsBadge" style="font-size:11px;color:var(--text-muted);background:var(--surface-subtle);padding:4px 10px;border-radius:999px;border:1px solid var(--border);cursor:pointer" data-tip="点击切换激活数据集" onclick="openDatasetPicker()">
+        数据集：加载中…
       </span>
       <button class="btn btn-sm" id="btnReset" onclick="resetAll()" style="display:none">重新开始</button>
     </div>
@@ -174,9 +252,9 @@ body.embedded-mode{background:#fafaf7}
     <div class="canvas-area">
       <canvas id="mainCanvas"></canvas>
       <div class="zoom-controls">
-        <button onclick="zoomCanvas(1.25)" title="放大">+</button>
-        <button onclick="zoomCanvas(0.8)" title="缩小">−</button>
-        <button onclick="fitView()" title="居中自适应" style="font-size:14px">⛶</button>
+        <button onclick="zoomCanvas(1.25)" data-tip="放大">+</button>
+        <button onclick="zoomCanvas(0.8)" data-tip="缩小">−</button>
+        <button onclick="fitView()" data-tip="居中自适应"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/></svg></button>
       </div>
       <div class="canvas-info" id="canvasInfo">缩放: 100% | 鼠标: —</div>
     </div>
@@ -204,7 +282,7 @@ body.embedded-mode{background:#fafaf7}
                   <svg id="layerChevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.2s; transform:rotate(0deg)"><polyline points="6 9 12 15 18 9"></polyline></svg>
                   图层列表
                 </span>
-                <span class="copy-btn" onclick="toggleAllLayers()" title="切换全显/全隐"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></span>
+                <span class="copy-btn" onclick="toggleAllLayers()" data-tip="切换全显/全隐"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></span>
               </div>
               <div id="layerList" class="layer-list" style="margin-top:8px; flex:1; min-height:0;"></div>
               <div id="parseWarnings" style="display:none; margin-top:8px; font-size:11px; color:#b45309; cursor:pointer; user-select:none;" onclick="toggleWarningDetail(this)"></div>
@@ -221,7 +299,7 @@ body.embedded-mode{background:#fafaf7}
               <button class="audit-tool-btn" onclick="auditCheckAll(false)">全不选</button>
             </div>
             <div class="audit-list" id="auditList"></div>
-            <div class="audit-filter-log" id="auditFilterLog" onclick="toggleFilterLog()">▾ 系统已过滤 0 个块（点击查看明细）
+            <div class="audit-filter-log" id="auditFilterLog" onclick="toggleFilterLog()">系统已过滤 0 个块（点击查看明细）
               <div class="audit-filter-log-detail" id="auditFilterLogDetail"></div>
             </div>
             <div class="write-strategy" id="writeStrategy">
@@ -242,7 +320,7 @@ body.embedded-mode{background:#fafaf7}
                 </select>
               </div>
               <div id="wsDemoTip" class="demo-tip" style="display:none">
-                ⚠ 当前激活的是只读 Demo，无可合并目标
+                当前激活的是只读 Demo，无可合并目标
                 <button class="btn btn-primary btn-sm" style="margin-top:6px;width:100%" onclick="quickCreateWorkDs()">立即新建空数据集"我的工厂本体"并激活</button>
               </div>
             </div>
@@ -264,7 +342,7 @@ body.embedded-mode{background:#fafaf7}
             <button class="btn btn-primary btn-sm" id="btnToStep4" style="margin-top:10px;width:100%;display:none" onclick="goToStep(4)">下一步：实体列表</button>
           </div>
           <div class="step-panel" id="step4">
-            <div class="section-title">实体列表与资产映射</div>
+            <div class="section-title">实体列表与资产对应</div>
             <div style="overflow-x:auto;max-height:calc(100vh - 240px);overflow-y:auto">
               <table class="entity-table" id="entityTable">
                 <thead><tr><th>选择</th><th>类型</th><th>名称</th><th>编号</th><th>构件</th><th>UE X</th><th>UE Y</th><th>资产路径</th></tr></thead>
@@ -274,15 +352,40 @@ body.embedded-mode{background:#fafaf7}
             <button class="btn btn-primary btn-sm" style="margin-top:14px;width:100%" onclick="goToStep(5)">下一步：导出</button>
           </div>
           <div class="step-panel" id="step5">
-            <div class="section-title">导出预览</div>
-            <p class="hint" style="margin-top:0;margin-bottom:8px">点击刷新预览查看变换结果，导出 JSON 调用后端接口</p>
-            <button class="btn btn-sm" onclick="buildExportPreview()" style="width:100%;margin-bottom:8px">刷新预览</button>
-            <div style="display:flex;gap:8px;margin-bottom:8px">
-              <button class="btn btn-primary btn-sm" onclick="exportJSON()" style="flex:1">导出 JSON</button>
-              <button class="btn btn-sm" onclick="downloadCSV()" style="flex:1">下载 CSV</button>
+            <div class="section-title">导出与投入</div>
+            <p class="hint" style="margin-top:0;margin-bottom:14px">把标定好的实体投入实例库，或导出为文件。</p>
+
+            <!-- 主操作：投入实例库 -->
+            <div class="action-group action-group-primary">
+              <div class="ag-title">投入实例库</div>
+              <div class="ag-desc">将勾选的实体写入实例运维中心，UE 端即可见。</div>
+              <button class="btn btn-primary" onclick="spawnInstances()" style="width:100%">投入实例库</button>
             </div>
-            <button class="btn btn-primary btn-sm" onclick="spawnInstances()" style="width:100%;background:#0891b2;border-color:#0891b2">★ 投入实例库（创建/更新坐标）</button>
-            <div class="export-preview" id="exportPreview">点击"刷新预览"查看结果</div>
+
+            <!-- 次级操作：导出文件 -->
+            <div class="action-group">
+              <div class="ag-title">导出文件 <span class="ag-optional">可选</span></div>
+              <div class="ag-desc">生成场景描述文件，供后续 UE 构建使用。</div>
+              <div style="display:flex;gap:8px">
+                <button class="btn" onclick="exportJSON()" style="flex:1">导出 JSON</button>
+                <button class="btn" onclick="downloadCSV()" style="flex:1">下载 CSV</button>
+              </div>
+            </div>
+
+            <!-- 渐进披露：导出预览 -->
+            <div class="disclosure" id="previewDisclosure">
+              <div class="disclosure-head" onclick="toggleExportPreview()">
+                <svg class="disc-caret" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                <span>查看导出预览（JSON）</span>
+              </div>
+              <div class="disclosure-body" id="previewBody" style="display:none">
+                <div class="preview-bar">
+                  <span>预览</span>
+                  <button class="btn btn-sm btn-ghost" onclick="buildExportPreview()">刷新</button>
+                </div>
+                <div class="export-preview" id="exportPreview">点击"刷新"生成预览</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -307,7 +410,7 @@ body.embedded-mode{background:#fafaf7}
               <div id="imgAnchorList"></div>
               <button class="btn btn-primary btn-sm" id="imgBtnCalibrate" style="margin-top:10px;width:100%" onclick="imgDoCalibrate()" disabled>计算变换（至少 2 个锚点）</button>
               <div id="imgMetricsPanel" style="display:none"></div>
-              <button class="btn btn-primary btn-sm" id="imgBtnToStep2" style="margin-top:10px;width:100%;display:none" onclick="imgGoToStep(2)">继续 → 手动标注设备</button>
+              <button class="btn btn-primary btn-sm" id="imgBtnToStep2" style="margin-top:10px;width:100%;display:none" onclick="imgGoToStep(2)">下一步：手动标注设备</button>
             </div>
           </div>
           <!-- IMG STEP 2 -->
@@ -332,6 +435,232 @@ body.embedded-mode{background:#fafaf7}
 const query = new URLSearchParams(window.location.search);
 if (query.get('nexus') === 'true') document.body.classList.add('embedded-mode');
 
+/* ═══════════════════════════════════════════════════════════════
+   UI 组件库（ontotwin-ui skill）— toast / 模态 / 下拉 / tooltip
+   替代原生 alert / confirm / prompt / title
+   ═══════════════════════════════════════════════════════════════ */
+const UI = (() => {
+  // ---- Toast ----
+  let toastWrap = null;
+  function ensureToastWrap(){
+    if(!toastWrap){ toastWrap=document.createElement('div'); toastWrap.className='ui-toast-wrap'; document.body.appendChild(toastWrap); }
+    return toastWrap;
+  }
+  function toast(msg, type='', ms=2600){
+    const el=document.createElement('div');
+    el.className='ui-toast'+(type?' '+type:'');
+    el.textContent=msg;
+    ensureToastWrap().appendChild(el);
+    setTimeout(()=>{ el.style.transition='opacity .25s'; el.style.opacity='0'; setTimeout(()=>el.remove(),250); }, ms);
+  }
+
+  // ---- Modal（通用，返回控制句柄）----
+  // opts: {title, bodyHTML, actions:[{label, value, primary, danger}], onMount}
+  // 返回 Promise，resolve 为被点击 action 的 value（或 null=遮罩/Esc 关闭）
+  function modal(opts){
+    return new Promise(resolve=>{
+      const mask=document.createElement('div'); mask.className='ui-modal-mask';
+      const box=document.createElement('div'); box.className='ui-modal';
+      const actions=opts.actions||[{label:'确定',value:true,primary:true}];
+      box.innerHTML=`
+        ${opts.title?`<h3>${opts.title}</h3>`:''}
+        <div class="ui-modal-body">${opts.bodyHTML||''}</div>
+        <div class="ui-modal-foot"></div>`;
+      const foot=box.querySelector('.ui-modal-foot');
+      let primaryBtn=null;
+      actions.forEach(a=>{
+        const b=document.createElement('button');
+        b.className='btn btn-sm'+(a.primary?' btn-primary':'')+(a.danger?' btn-danger':'');
+        b.textContent=a.label;
+        b.onclick=()=>close(a.value);
+        foot.appendChild(b);
+        if(a.primary) primaryBtn=b;
+      });
+      mask.appendChild(box); document.body.appendChild(mask);
+      if(opts.onMount) opts.onMount(box);
+      const prevFocus=document.activeElement;
+      (box.querySelector('input,select,textarea')||primaryBtn||foot.lastChild)?.focus();
+      function close(v){ mask.remove(); document.removeEventListener('keydown',onKey); prevFocus&&prevFocus.focus&&prevFocus.focus(); resolve(v); }
+      function onKey(e){
+        if(e.key==='Escape') close(null);
+        else if(e.key==='Enter' && primaryBtn && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) { e.preventDefault(); primaryBtn.click(); }
+      }
+      mask.addEventListener('mousedown',e=>{ if(e.target===mask) close(null); });
+      document.addEventListener('keydown',onKey);
+    });
+  }
+
+  // ---- 便捷确认（替代 confirm）----
+  // 返回 Promise<boolean>
+  function confirm(opts){
+    if(typeof opts==='string') opts={bodyHTML:escapeHTMLSafe(opts)};
+    return modal({
+      title:opts.title||'请确认',
+      bodyHTML:opts.bodyHTML||'',
+      actions:[
+        {label:opts.cancelText||'取消',value:false},
+        {label:opts.confirmText||'确认',value:true,primary:!opts.danger,danger:opts.danger}
+      ]
+    }).then(v=>v===true);
+  }
+
+  // ---- 下拉选择（替代 prompt 选项）----
+  // anchorEl 锚点；items:[{label, value, selected, sub}]；返回 Promise<value|null>
+  function dropdown(anchorEl, items){
+    return new Promise(resolve=>{
+      document.querySelectorAll('.ui-dropdown').forEach(d=>d.remove());
+      const dd=document.createElement('div'); dd.className='ui-dropdown';
+      const r=anchorEl.getBoundingClientRect();
+      dd.style.top=(r.bottom+4)+'px'; dd.style.left=Math.min(r.left, window.innerWidth-240)+'px';
+      const checkSVG='<svg class="ui-dd-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+      items.forEach((it,i)=>{
+        const row=document.createElement('div'); row.className='ui-dd-item'; row.tabIndex=0;
+        row.setAttribute('aria-selected', it.selected?'true':'false');
+        row.innerHTML=`<span>${escapeHTMLSafe(it.label)}${it.sub?` <span style="color:var(--ink-3);font-size:11px">${escapeHTMLSafe(it.sub)}</span>`:''}</span>${it.selected?checkSVG:''}`;
+        row.onclick=()=>close(it.value);
+        row.onkeydown=e=>{ if(e.key==='Enter') close(it.value); };
+        dd.appendChild(row);
+      });
+      document.body.appendChild(dd);
+      const items_=dd.querySelectorAll('.ui-dd-item');
+      let idx=Math.max(0,[...items].findIndex(x=>x.selected)); items_[idx]?.classList.add('focus');
+      function close(v){ dd.remove(); document.removeEventListener('keydown',onKey); document.removeEventListener('mousedown',onOut); resolve(v); }
+      function onOut(e){ if(!dd.contains(e.target)&&e.target!==anchorEl) close(null); }
+      function onKey(e){
+        if(e.key==='Escape') close(null);
+        else if(e.key==='ArrowDown'){ e.preventDefault(); items_[idx]?.classList.remove('focus'); idx=(idx+1)%items_.length; items_[idx].classList.add('focus'); items_[idx].focus(); }
+        else if(e.key==='ArrowUp'){ e.preventDefault(); items_[idx]?.classList.remove('focus'); idx=(idx-1+items_.length)%items_.length; items_[idx].classList.add('focus'); items_[idx].focus(); }
+      }
+      setTimeout(()=>{ document.addEventListener('mousedown',onOut); document.addEventListener('keydown',onKey); },0);
+    });
+  }
+
+  // ---- Tooltip（替代原生 title；用 data-tip 属性）----
+  let tipEl=null;
+  function ensureTip(){ if(!tipEl){ tipEl=document.createElement('div'); tipEl.className='ui-tip'; document.body.appendChild(tipEl);} return tipEl; }
+  document.addEventListener('mouseover',e=>{
+    const t=e.target.closest&&e.target.closest('[data-tip]');
+    if(!t) return;
+    const tip=ensureTip(); tip.textContent=t.getAttribute('data-tip');
+    const r=t.getBoundingClientRect();
+    tip.style.left=Math.min(r.left, window.innerWidth-270)+'px';
+    tip.style.top=(r.bottom+6)+'px';
+    requestAnimationFrame(()=>tip.classList.add('show'));
+  });
+  document.addEventListener('mouseout',e=>{
+    if(e.target.closest&&e.target.closest('[data-tip]')) tipEl&&tipEl.classList.remove('show');
+  });
+
+  function escapeHTMLSafe(s){ return String(s==null?'':s).replace(/[<>&]/g,m=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[m])); }
+
+  return { toast, modal, confirm, dropdown };
+})();
+// 简短别名
+const toast = UI.toast;
+
+/* ═══════════════════════════════════════════════════════════════
+   会话缓存（IndexedDB）— 离开页面前存快照，回来自动恢复
+   解决：投产/跳转后回到工作台，解析与标定进度丢失
+   ═══════════════════════════════════════════════════════════════ */
+const SessionDB = (() => {
+  const DB='coordwb', STORE='session', KEY='current';
+  const TTL = 24*3600*1000;  // 24h
+  function open(){
+    return new Promise((res,rej)=>{
+      const r=indexedDB.open(DB,1);
+      r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains(STORE)) r.result.createObjectStore(STORE); };
+      r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+    });
+  }
+  async function save(obj){
+    try{ const db=await open(); db.transaction(STORE,'readwrite').objectStore(STORE).put({...obj,_ts:Date.now()},KEY); }
+    catch(e){ console.warn('会话保存失败',e); }
+  }
+  async function load(){
+    try{ const db=await open(); return await new Promise(res=>{ const rq=db.transaction(STORE,'readonly').objectStore(STORE).get(KEY); rq.onsuccess=()=>res(rq.result||null); rq.onerror=()=>res(null); }); }
+    catch(e){ return null; }
+  }
+  async function clear(){ try{ const db=await open(); db.transaction(STORE,'readwrite').objectStore(STORE).delete(KEY); }catch(e){} }
+  return { save, load, clear, TTL };
+})();
+
+let _saveTimer=null;
+function scheduleSave(){ clearTimeout(_saveTimer); _saveTimer=setTimeout(saveSession,1000); }
+function saveSession(){
+  if(!State.previewData && !imgState.imageObj) return;  // 无内容不存
+  SessionDB.save({
+    mode: State.mode,
+    cam: {x:camX,y:camY,s:camScale},
+    layerColors: LAYER_COLORS,
+    cad: {
+      previewData:State.previewData, scanResult:State.scanResult,
+      anchors:State.anchors, matrix:State.matrix, metrics:State.metrics,
+      currentStep:State.currentStep, layerVisible:State.layerVisible,
+      entityChecked:State.entityChecked, entityAssets:State.entityAssets, entityTypes:State.entityTypes,
+      auditChecked:State.auditChecked, auditName:State.auditName, auditAsset:State.auditAsset,
+      fileName: (State.lastUploadedFile && State.lastUploadedFile.name) || null,
+    },
+    img: {
+      src: imgState.imageObj ? imgState.imageObj.src : null,
+      imgW:imgState.imgW, imgH:imgState.imgH,
+      anchors:imgState.anchors, matrix:imgState.matrix, metrics:imgState.metrics,
+      markers:imgState.markers, currentStep:imgState.currentStep,
+    }
+  });
+}
+async function restoreSession(){
+  let snap;
+  try{ snap = await SessionDB.load(); }catch(e){ return; }
+  if(!snap || !snap._ts || (Date.now()-snap._ts) > SessionDB.TTL) return;
+  const hasCad = snap.cad && snap.cad.previewData;
+  const hasImg = snap.img && snap.img.src;
+  if(!hasCad && !hasImg) return;
+  try{
+    LAYER_COLORS = snap.layerColors || {};
+    if(snap.cam){ camX=snap.cam.x; camY=snap.cam.y; camScale=snap.cam.s; }
+    // 恢复图片模式
+    if(hasImg){
+      const im=snap.img;
+      await new Promise(r=>{ const img=new Image(); img.onload=()=>{imgState.imageObj=img;r();}; img.onerror=()=>r(); img.src=im.src; });
+      imgState.imgW=im.imgW; imgState.imgH=im.imgH;
+      imgState.anchors=im.anchors||[]; imgState.matrix=im.matrix||null; imgState.metrics=im.metrics||null;
+      imgState.markers=im.markers||[]; imgState.currentStep=im.currentStep||1;
+    }
+    // 恢复 CAD 模式
+    if(hasCad){
+      const c=snap.cad;
+      State.previewData=c.previewData; State.scanResult=c.scanResult;
+      State.anchors=c.anchors||[]; State.matrix=c.matrix||null; State.metrics=c.metrics||null;
+      State.layerVisible=c.layerVisible||{};
+      State.entityChecked=c.entityChecked||{}; State.entityAssets=c.entityAssets||{}; State.entityTypes=c.entityTypes||{};
+      State.auditChecked=c.auditChecked||{}; State.auditName=c.auditName||{}; State.auditAsset=c.auditAsset||{};
+      if(c.fileName) State.lastUploadedFile={name:c.fileName};
+    }
+    // 切到正确模式并重建界面
+    const mode = snap.mode || (hasCad?'dxf':'image');
+    if(mode==='image' && imgState.imageObj){
+      switchMode('image');
+      document.getElementById('imgAnchorPanel').style.display='';
+      document.querySelector('#imgPanels .upload-zone').style.display='none';
+      document.getElementById('btnReset').style.display='';
+      imgRenderAnchorList();
+      if(imgState.matrix){ imgRenderMetrics(); document.getElementById('imgBtnToStep2').style.display=''; }
+      imgGoToStep(imgState.currentStep||1);
+    } else if(hasCad){
+      renderLayerList();
+      document.getElementById('layerPanel').style.display='flex';
+      document.querySelector('#cadPanels .upload-zone').style.display='none';
+      document.getElementById('btnReset').style.display='';
+      if(State.anchors.length) renderAnchorList();
+      if(State.matrix) renderMetrics();
+      _applyStep(snap.cad.currentStep||1);
+    }
+    draw();
+    toast('已恢复上次进度（点右上"重新开始"可清空）', 'ok', 4200);
+  }catch(e){ console.warn('会话恢复失败',e); }
+}
+window.addEventListener('beforeunload', saveSession);
+
 let availableTypes = [];
 window.addEventListener('DOMContentLoaded', async () => {
   try {
@@ -345,6 +674,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
   // M4: 加载激活数据集，刷新 header 与写入策略 UI
   loadActiveDataset(true);
+  // U6: 自动恢复上次未完成的工作（若有）
+  restoreSession();
 });
 
 // ── Mock Data ──
@@ -428,6 +759,7 @@ let isDragging = false, dragStartX = 0, dragStartY = 0, camStartX = 0, camStartY
 
 function resizeCanvas() {
   const r = canvas.parentElement.getBoundingClientRect();
+  if (r.width < 1 || r.height < 1) return;  // 容器不可见时跳过
   canvas.width = r.width * devicePixelRatio;
   canvas.height = r.height * devicePixelRatio;
   canvas.style.width = r.width + 'px';
@@ -436,6 +768,12 @@ function resizeCanvas() {
   draw();
 }
 window.addEventListener('resize', resizeCanvas);
+// 容器尺寸变化（模式切换 / 面板宽度变化 / 布局变动）自动重算，避免画布拉伸或留白
+if (window.ResizeObserver) {
+  new ResizeObserver(() => resizeCanvas()).observe(canvas.parentElement);
+} else {
+  setTimeout(resizeCanvas, 50);
+}
 setTimeout(resizeCanvas, 50);
 
 // World to screen (Y 翻转: CAD的Y向上 → 屏幕的Y向下)
@@ -766,9 +1104,18 @@ function draw() {
 function goToStep(n) {
   if (n > 1 && !State.previewData) return;
   if (n > 3 && !State.matrix) return;  // step4 实体表 / step5 导出 都需要先完成标定
+  // 从实体/导出回退到标定：需异步确认（保持 goToStep 同步可调用）
   if (n < State.currentStep && n === 3 && State.currentStep >= 4) {
-    if (!confirm('重新标定将刷新所有实体的 UE 坐标，已填写的资产映射将保留。确认回退？')) return;
+    UI.confirm({
+      title: '回到标定',
+      bodyHTML: '重新标定会刷新所有实体的坐标，已填写的资产路径会保留。确认回退？'
+    }).then(ok => { if (ok) _applyStep(n); });
+    return;
   }
+  _applyStep(n);
+}
+
+function _applyStep(n) {
   State.currentStep = n;
   document.querySelectorAll('.step-tab').forEach(t => {
     const s = parseInt(t.dataset.step);
@@ -787,6 +1134,7 @@ function goToStep(n) {
   if (n === 3) { canvas.style.cursor = 'crosshair'; }
   else { canvas.style.cursor = 'default'; }
   draw();
+  scheduleSave();
 }
 
 function getMaxStep() {
@@ -881,8 +1229,8 @@ function renderAuditList() {
   const cands = State.scanResult.candidates || [];
   const checkedCount = cands.filter(c => State.auditChecked[c.block_name]).length;
   summaryEl.innerHTML = `
-    <span>共 <b>${s.unique_block_names}</b> 个唯一块，过滤 <b>${(s.filtered_system_blocks||0)+(s.filtered_xref_blocks||0)}</b> 个 INSERT</span>
-    <span>候选 <b>${s.candidates}</b> 项</span>
+    <span>共 <b>${s.unique_block_names}</b> 种图块，已过滤 <b>${(s.filtered_system_blocks||0)+(s.filtered_xref_blocks||0)}</b> 处无关引用</span>
+    <span>可建类型 <b>${s.candidates}</b> 个</span>
     <span>已勾选 <b id="auditCheckedCnt">${checkedCount}</b></span>
   `;
 
@@ -899,31 +1247,32 @@ function renderAuditList() {
     const checked = State.auditChecked[c.block_name] ? 'checked' : '';
     const nameVal = (State.auditName[c.block_name] ?? c.suggested_name) || '';
     const assetVal = State.auditAsset[c.block_name] ?? '';
-    const warnText = c.warning ? `<span style="color:#b45309" title="${c.warning}">⚠</span>` : '';
+    const warnLine = c.warning ? `<span class="a-warn-text">${escapeHTML(c.warning)}</span>` : '';
     const row = document.createElement('div');
     row.className = `audit-row ${rowCls}`;
     row.innerHTML = `
       <input type="checkbox" ${checked} onchange="auditToggleCheck('${escapeQ(c.block_name)}', this.checked)"/>
-      <span class="a-warn-dot ${dotCls}" title="${c.warning || ''}"></span>
+      <span class="a-warn-dot ${dotCls}"${c.warning?` data-tip="${escapeAttr(c.warning)}"`:''}></span>
       <div class="a-name">
-        <input type="text" value="${escapeAttr(nameVal)}" placeholder="name"
+        <input type="text" value="${escapeAttr(nameVal)}" placeholder="类型名称"
                onchange="State.auditName['${escapeQ(c.block_name)}']=this.value"/>
-        <span class="a-meta">${escapeHTML(c.block_name)} · ${escapeHTML(c.primary_layer)} ${warnText}</span>
+        <span class="a-meta">${escapeHTML(c.block_name)} · ${escapeHTML(c.primary_layer)}</span>
+        ${warnLine}
       </div>
       <span class="a-count">×${c.count}</span>
-      <span class="a-asset"><input type="text" value="${escapeAttr(assetVal)}" placeholder="asset_id (可选)"
+      <span class="a-asset"><input type="text" value="${escapeAttr(assetVal)}" placeholder="资产路径（可选）"
             onchange="State.auditAsset['${escapeQ(c.block_name)}']=this.value"/></span>
     `;
     listEl.appendChild(row);
   }
 
-  // 过滤日志摘要
+  // 过滤日志（这些块无法建为类型，给出明确原因）
   const fl = State.scanResult.filtered_log || [];
-  filterLogEl.childNodes[0].nodeValue = `▾ 系统已过滤 ${fl.length} 个块（点击查看明细）`;
+  filterLogEl.childNodes[0].nodeValue = `系统已自动过滤 ${fl.length} 个块（点击查看为何不能建为类型）`;
   if (!filterDetailEl.dataset.rendered) {
     filterDetailEl.innerHTML = fl.map(f =>
-      `${escapeHTML(f.block_name)} × ${f.count} — ${escapeHTML(f.reason)}`
-    ).join('<br>');
+      `<div class="flog-row"><span class="flog-name">${escapeHTML(f.block_name)}</span><span class="flog-count">×${f.count}</span><span class="flog-reason">${escapeHTML(f.reason)}</span></div>`
+    ).join('');
     filterDetailEl.dataset.rendered = '1';
   }
 
@@ -941,7 +1290,7 @@ async function loadActiveDataset(silentRefresh) {
     State.activeDsId = active ? active.id : null;
     State.activeDsName = active ? active.name : '(未知)';
     const badge = document.getElementById('activeDsBadge');
-    if (badge) badge.textContent = `📊 当前激活：${State.activeDsName}`;
+    if (badge) badge.textContent = `数据集：${State.activeDsName}`;
     if (!silentRefresh) refreshStrategyUI();
   } catch(e) {
     console.warn('loadActiveDataset 失败:', e);
@@ -1006,27 +1355,29 @@ async function quickCreateWorkDs() {
     });
     if (res.ok) {
       await loadActiveDataset();
-      alert(`已新建并激活数据集"${name}"，已切换为合并模式`);
+      toast(`已新建并激活数据集"${name}"，已切换为合并模式`, 'ok');
     } else {
       const err = await res.json();
-      alert('新建失败：' + (err.message || err.error));
+      toast('新建失败：' + (err.message || err.error), 'err');
     }
   } catch(e) {
-    alert('网络错误：' + e.message);
+    toast('网络错误：' + e.message, 'err');
   }
 }
 
-function openDatasetPicker() {
-  if (!State.datasetList) return;
-  const lines = State.datasetList.map((d,i) => `${i+1}. ${d.name}${d.is_active?' ★激活':''}`).join('\n');
-  const idx = prompt('选择要激活的数据集（输入编号）：\n\n' + lines);
-  if (!idx) return;
-  const ds = State.datasetList[parseInt(idx) - 1];
-  if (!ds) return;
-  fetch('/api/v2/ontology/datasets/activate', {
+async function openDatasetPicker() {
+  if (!State.datasetList || !State.datasetList.length) return;
+  const badge = document.getElementById('activeDsBadge');
+  const items = State.datasetList.map(d => ({
+    label: d.name, value: d.id, selected: d.is_active
+  }));
+  const chosen = await UI.dropdown(badge, items);
+  if (!chosen) return;
+  await fetch('/api/v2/ontology/datasets/activate', {
     method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({dataset_id: ds.id})
-  }).then(() => loadActiveDataset());
+    body: JSON.stringify({dataset_id: chosen})
+  });
+  loadActiveDataset();
 }
 
 // ── commit 主流程 ──
@@ -1043,9 +1394,11 @@ function _collectCheckedItems() {
 }
 
 async function doCommit(force) {
+  // 清掉上一次的成功横幅，避免叠加（可逆：编辑区始终在）
+  if (!force) { const sc = document.getElementById('commitSuccess'); if (sc) { sc.style.display='none'; sc.innerHTML=''; } }
   const items = _collectCheckedItems();
   if (items.length === 0) {
-    alert('请至少勾选一项再提交');
+    toast('请至少勾选一项再提交', 'warn');
     return;
   }
   const mode = document.querySelector('input[name="wsMode"]:checked')?.value || 'publish';
@@ -1054,11 +1407,11 @@ async function doCommit(force) {
   const payload = { source_file: sourceFile, mode, items, force: !!force };
   if (mode === 'publish') {
     const name = document.getElementById('wsPubName').value.trim();
-    if (!name) { alert('请填写数据集名称'); return; }
+    if (!name) { toast('请填写数据集名称', 'warn'); return; }
     payload.publish_options = { name };
   } else {
     const targetId = document.getElementById('wsMergeTarget').value;
-    if (!targetId) { alert('请选择合并目标'); return; }
+    if (!targetId) { toast('请选择合并目标', 'warn'); return; }
     payload.merge_options = { target_dataset_id: targetId };
     payload.conflict_strategy = document.getElementById('wsConflictStrategy').value;
   }
@@ -1073,7 +1426,7 @@ async function doCommit(force) {
     if (cfRes.ok) {
       const cf = await cfRes.json();
       if (mode === 'publish' && (cf.in_other_datasets||[]).length > 0) {
-        if (!confirmPublishOtherCollision(cf.in_other_datasets)) return;
+        if (!await confirmPublishOtherCollision(cf.in_other_datasets)) return;
       } else if (mode === 'merge' && (cf.in_target_dataset||[]).length > 0) {
         const choice = await confirmMergeConflict(cf.in_target_dataset);
         if (!choice) return;
@@ -1092,7 +1445,7 @@ async function doCommit(force) {
     });
     const data = await res.json();
     if (res.status === 409 && data.error === 'name_duplicated') {
-      alert(`已存在同名数据集"${payload.publish_options.name}"，请改名或切换到合并模式`);
+      toast(`已存在同名数据集"${payload.publish_options.name}"，请改名或切换到合并模式`, 'err');
       return;
     }
     if (data.status === 'pending_warnings') {
@@ -1101,86 +1454,75 @@ async function doCommit(force) {
       return;
     }
     if (!res.ok || data.error) {
-      alert('提交失败：' + (data.message || data.error || res.status));
+      toast('提交失败：' + (data.message || data.error || res.status), 'err');
       return;
     }
     // 成功
     await loadActiveDataset(true);
     showCommitSuccess(data);
   } catch(e) {
-    alert('网络错误：' + e.message);
+    toast('网络错误：' + e.message, 'err');
   } finally {
     btn.disabled = false; btn.textContent = '提交（创建/合并类型）';
   }
 }
 
 function confirmPublishOtherCollision(otherList) {
-  const lines = otherList.slice(0, 5).map(o =>
-    `· ${o.rid}  — 同名存在于：${o.datasets.map(d => d.name).join('、')}`
-  ).join('\n');
-  return confirm(`以下 rid 在其他数据集里也存在，新发布集允许有同名：\n\n${lines}\n\n激活新数据集后，_object_types 会以新定义为准。继续？`);
+  const rows = otherList.slice(0, 6).map(o =>
+    `<div class="ui-list-row">${escapeHTML(o.rid)} — 同名也存在于：${escapeHTML(o.datasets.map(d => d.name).join('、'))}</div>`
+  ).join('');
+  return UI.confirm({
+    title: '存在同名类型',
+    bodyHTML: `以下类型在其它数据集里也有同名，新建数据集允许重名、互不影响：
+      <div class="ui-list">${rows}</div>
+      <div style="color:var(--ink-3);font-size:var(--t-xs)">激活新数据集后，将以新定义为准。</div>`,
+    confirmText: '继续创建'
+  });
 }
 
 function confirmMergeConflict(targetList) {
   // 返回 Promise<string|null>: 'skip' / 'overwrite' / null（取消）
-  return new Promise(resolve => {
-    const lines = targetList.slice(0, 8).map(c => `· ${c.rid}`).join('\n');
-    const mask = document.createElement('div'); mask.className = 'modal-mask';
-    mask.innerHTML = `
-      <div class="modal-box">
-        <h3>检测到 ${targetList.length} 个同名 ObjectType</h3>
-        <div class="modal-body">
-          以下 rid 在目标数据集中已存在：
-          <div class="modal-row-list">${escapeHTML(lines).replace(/\n/g,'<br>')}</div>
-          <div class="modal-strategy">
-            <label><input type="radio" name="mcs" value="skip" checked/> 全部跳过（保留目标集中的老定义）</label>
-            <label><input type="radio" name="mcs" value="overwrite"/> 全部覆盖（用 CAD 新定义替换）</label>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-sm" id="mcCancel">取消</button>
-          <button class="btn btn-primary btn-sm" id="mcOk">确认</button>
-        </div>
-      </div>`;
-    document.body.appendChild(mask);
-    mask.querySelector('#mcCancel').onclick = () => { mask.remove(); resolve(null); };
-    mask.querySelector('#mcOk').onclick = () => {
-      const v = mask.querySelector('input[name="mcs"]:checked').value;
-      mask.remove(); resolve(v);
-    };
+  const rows = targetList.slice(0, 8).map(c => `<div class="ui-list-row">${escapeHTML(c.rid)}</div>`).join('');
+  return UI.modal({
+    title: `有 ${targetList.length} 个类型已存在`,
+    bodyHTML: `以下类型在目标数据集中已存在，请选择处理方式：
+      <div class="ui-list">${rows}</div>
+      <div class="ui-choices">
+        <label><input type="radio" name="mcs" value="skip" checked> 全部跳过（保留原有定义）</label>
+        <label><input type="radio" name="mcs" value="overwrite"> 全部覆盖（用新解析的定义替换）</label>
+      </div>`,
+    actions: [
+      { label: '取消', value: '__cancel' },
+      { label: '确认', value: '__ok', primary: true }
+    ]
+  }).then(v => {
+    if (v !== '__ok') return null;
+    const sel = document.querySelector('input[name="mcs"]:checked');
+    return sel ? sel.value : 'skip';
   });
 }
 
 function confirmDanglingWarning(warnings, mode) {
-  return new Promise(resolve => {
-    const refs = warnings.dangling_refs || [];
-    const rows = refs.slice(0, 10).map(r =>
-      `· ${escapeHTML(r.rid)}  — 被 ${r.instance_count} 个实例引用（如：${r.instance_ids.join(', ')}）`
-    ).join('<br>');
-    const mask = document.createElement('div'); mask.className = 'modal-mask';
-    mask.innerHTML = `
-      <div class="modal-box">
-        <h3>⚠ 副作用警告</h3>
-        <div class="modal-body">
-          <p>${escapeHTML(warnings.summary || '此操作可能让现有实例的类型引用悬空。')}</p>
-          <div class="modal-row-list">${rows}</div>
-          <p style="font-size:11px;color:var(--text-soft);margin-top:6px">${mode === 'publish' ? '建议改用"合并到工作集"模式以避免切换。' : '建议改用"跳过冲突项"策略。'}</p>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-sm" id="dwCancel">取消</button>
-          <button class="btn btn-primary btn-sm" id="dwOk">仍要继续</button>
-        </div>
-      </div>`;
-    document.body.appendChild(mask);
-    mask.querySelector('#dwCancel').onclick = () => { mask.remove(); resolve(false); };
-    mask.querySelector('#dwOk').onclick = () => { mask.remove(); resolve(true); };
-  });
+  const refs = warnings.dangling_refs || [];
+  const rows = refs.slice(0, 10).map(r =>
+    `<div class="ui-list-row">${escapeHTML(r.rid)} — 被 ${r.instance_count} 个实例使用（如 ${escapeHTML(r.instance_ids.join('、'))}）</div>`
+  ).join('');
+  return UI.modal({
+    title: '请注意：可能影响现有实例',
+    bodyHTML: `<p>${escapeHTML(warnings.summary || '此操作可能让现有实例找不到对应类型。')}</p>
+      <div class="ui-list">${rows}</div>
+      <div style="color:var(--ink-3);font-size:var(--t-xs)">${mode === 'publish' ? '建议改用"并入现有数据集"以避免切换。' : '或改用"跳过冲突项"策略。'}</div>`,
+    actions: [
+      { label: '取消', value: false },
+      { label: '仍要继续', value: true, danger: true }
+    ]
+  }).then(v => v === true);
 }
 
 // PRD § 8.3.1 — "跳过此步"先做覆盖率检查
 async function skipAudit() {
   if (!State.scanResult) {
-    if (confirm('未拿到候选列表（可能扫描失败）。仍要跳过吗？')) goToStep(3);
+    if (await UI.confirm({ title: '跳过类型审核', bodyHTML: '尚未拿到候选列表（可能扫描失败）。仍要跳过吗？' })) goToStep(3);
     return;
   }
   const blockNames = (State.scanResult.candidates || []).map(c => c.block_name);
@@ -1190,18 +1532,19 @@ async function skipAudit() {
       body: JSON.stringify({block_names: blockNames})
     });
     const cov = await res.json();
-    if (cov.missing === 0) {
-      goToStep(3);  // 全覆盖，无需提醒
-      return;
-    }
+    if (cov.missing === 0) { goToStep(3); return; }  // 全覆盖，无需提醒
     const fullMissing = cov.missing === cov.total;
-    const samples = (cov.missing_samples || []).map(s => '· ' + s).join('\n');
-    const msg = fullMissing
-      ? `激活数据集中找不到任何对应类型（${cov.total} 个全部缺失）。\n强烈建议先做类型审核。\n\n${samples}`
-      : `激活数据集中只覆盖了 ${cov.covered}/${cov.total} 个类型，缺失 ${cov.missing} 个：\n\n${samples}\n\n仍要跳过吗？`;
-    if (confirm(msg)) goToStep(3);
+    const samples = (cov.missing_samples || []).map(s => `<div class="ui-list-row">${escapeHTML(s)}</div>`).join('');
+    const ok = await UI.confirm({
+      title: fullMissing ? '当前数据集缺少全部类型' : '部分类型尚未建立',
+      bodyHTML: fullMissing
+        ? `当前数据集中找不到任何对应类型（共 ${cov.total} 个）。强烈建议先完成类型审核。<div class="ui-list">${samples}</div>`
+        : `当前数据集只覆盖了 ${cov.covered}/${cov.total} 个类型，缺失 ${cov.missing} 个：<div class="ui-list">${samples}</div>仍要跳过吗？`,
+      confirmText: '仍要跳过', danger: true
+    });
+    if (ok) goToStep(3);
   } catch(e) {
-    if (confirm('覆盖率检查失败：' + e.message + '\n\n仍要跳过吗？')) goToStep(3);
+    if (await UI.confirm({ title: '检查失败', bodyHTML: '覆盖率检查失败：' + escapeHTML(e.message) + '。仍要跳过吗？' })) goToStep(3);
   }
 }
 
@@ -1220,12 +1563,12 @@ function _collectSpawnItems() {
 
 async function spawnInstances() {
   if (!State.matrix) {
-    alert('请先完成标定');
+    toast('请先完成标定', 'warn');
     return;
   }
   const items = _collectSpawnItems();
   if (items.length === 0) {
-    alert('没有勾选任何实体');
+    toast('没有勾选任何实体', 'warn');
     return;
   }
   const payload = {
@@ -1246,11 +1589,11 @@ async function spawnInstances() {
     });
     dry = await res.json();
   } catch(e) {
-    alert('请求失败：' + e.message);
+    toast('请求失败：' + e.message, 'err');
     return;
   }
   if (!res.ok) {
-    alert('dry-run 失败：' + (dry.error || res.status));
+    toast('预检失败：' + (dry.error || res.status), 'err');
     return;
   }
 
@@ -1268,123 +1611,102 @@ async function spawnInstances() {
     });
     const final = await r2.json();
     if (!r2.ok) {
-      alert('提交失败：' + (final.error || r2.status));
+      toast('提交失败：' + (final.error || r2.status), 'err');
       return;
     }
     spawnSuccessDialog(final);
   } catch(e) {
-    alert('提交异常：' + e.message);
+    toast('提交异常：' + e.message, 'err');
   }
 }
 
 function spawnConfirmDialog(dry) {
-  return new Promise(resolve => {
-    const s = dry.summary;
-    const errList = (dry.errors || []).slice(0, 8).map(e =>
-      `· ${escapeHTML(e.block_name||'(空)')} — ${escapeHTML(e.reason||'')} ${escapeHTML(e.hint||'')}`
-    ).join('<br>');
-    const conflictList = (dry.conflicts || []).slice(0, 8).map(c =>
-      `· ${escapeHTML(c.instance_id)} (新→${c.translation_x},${c.translation_y} 旧→${c.existing.translation_x},${c.existing.translation_y})`
-    ).join('<br>');
-    const warnList = (dry.warnings || []).slice(0, 8).map(w =>
-      `· ${escapeHTML(w.block_name||w.original_id||'')} — ${escapeHTML(w.reason||'')}`
-    ).join('<br>');
-    const conflictBlock = s.conflicts > 0 ? `
-        <div style="margin-top:10px"><b>🟡 冲突 ${s.conflicts}</b>（已部署的实例坐标不同）：
-          <div class="modal-row-list">${conflictList}</div>
-          <div class="modal-strategy">
-            <label><input type="radio" name="ssrt" value="update_coord" checked/> 更新坐标（推荐）</label>
-            <label><input type="radio" name="ssrt" value="skip"/> 跳过</label>
-            <label><input type="radio" name="ssrt" value="duplicate"/> 新建副本（-2 后缀）</label>
-          </div>
-        </div>` : '';
-
-    const mask = document.createElement('div'); mask.className = 'modal-mask';
-    mask.innerHTML = `
-      <div class="modal-box" style="max-width:640px">
-        <h3>即将投入 InstanceStore</h3>
-        <div class="modal-body">
-          <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;padding:8px 10px;background:var(--surface-subtle);border-radius:6px">
-            <span>🟢 新建 <b>${s.to_create}</b></span>
-            <span>🔵 补充坐标 <b>${s.to_update_coord_only}</b></span>
-            <span>🟡 冲突 <b>${s.conflicts}</b></span>
-            <span>🔴 错误 <b>${s.errors}</b></span>
-            <span>⚠ 提示 <b>${s.warnings}</b></span>
-          </div>
-          ${s.errors > 0 ? `<div style="margin-top:10px"><b>🔴 错误（这些条目不会写入）</b>：<div class="modal-row-list">${errList}</div></div>` : ''}
-          ${conflictBlock}
-          ${s.warnings > 0 ? `<div style="margin-top:10px"><b>⚠ 提示</b>：<div class="modal-row-list">${warnList}</div></div>` : ''}
+  const s = dry.summary;
+  const errList = (dry.errors || []).slice(0, 8).map(e =>
+    `<div class="ui-list-row">${escapeHTML(e.block_name||'(空)')} — ${escapeHTML(e.reason||'')} ${escapeHTML(e.hint||'')}</div>`
+  ).join('');
+  const conflictList = (dry.conflicts || []).slice(0, 8).map(c =>
+    `<div class="ui-list-row">${escapeHTML(c.instance_id)}（新 ${c.translation_x},${c.translation_y} · 旧 ${c.existing.translation_x},${c.existing.translation_y}）</div>`
+  ).join('');
+  const warnList = (dry.warnings || []).slice(0, 8).map(w =>
+    `<div class="ui-list-row">${escapeHTML(w.block_name||w.original_id||'')} — ${escapeHTML(w.reason||'')}</div>`
+  ).join('');
+  const stat = (cls, label, n) => `<span style="display:inline-flex;align-items:center;gap:5px"><span class="dot ${cls}"></span>${label} <b>${n}</b></span>`;
+  const conflictBlock = s.conflicts > 0 ? `
+      <div style="margin-top:12px">冲突 ${s.conflicts}（已部署的实例坐标不同）：
+        <div class="ui-list">${conflictList}</div>
+        <div class="ui-choices">
+          <label><input type="radio" name="ssrt" value="update_coord" checked> 更新坐标（推荐）</label>
+          <label><input type="radio" name="ssrt" value="skip"> 跳过</label>
+          <label><input type="radio" name="ssrt" value="duplicate"> 新建副本（加 -2 后缀）</label>
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-sm" id="ssCancel">取消</button>
-          <button class="btn btn-primary btn-sm" id="ssOk">确认投入</button>
-        </div>
-      </div>`;
-    document.body.appendChild(mask);
-    mask.querySelector('#ssCancel').onclick = () => { mask.remove(); resolve(null); };
-    mask.querySelector('#ssOk').onclick = () => {
-      const sel = mask.querySelector('input[name="ssrt"]:checked');
-      const strategy = sel ? sel.value : 'update_coord';
-      mask.remove();
-      resolve({ strategy });
-    };
+      </div>` : '';
+  return UI.modal({
+    title: '即将投入实例运维中心',
+    bodyHTML: `
+      <div style="display:flex;gap:14px;flex-wrap:wrap;padding:10px 12px;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-sm)">
+        ${stat('dot-ok','新建',s.to_create)}
+        ${stat('dot-info','补充坐标',s.to_update_coord_only)}
+        ${stat('dot-warn','冲突',s.conflicts)}
+        ${stat('dot-err','错误',s.errors)}
+        ${stat('dot-muted','提示',s.warnings)}
+      </div>
+      ${s.errors > 0 ? `<div style="margin-top:12px">错误（这些条目不会写入）：<div class="ui-list">${errList}</div></div>` : ''}
+      ${conflictBlock}
+      ${s.warnings > 0 ? `<div style="margin-top:12px">提示：<div class="ui-list">${warnList}</div></div>` : ''}`,
+    actions: [
+      { label: '取消', value: null },
+      { label: '确认投入', value: '__ok', primary: true }
+    ]
+  }).then(v => {
+    if (v !== '__ok') return null;
+    const sel = document.querySelector('input[name="ssrt"]:checked');
+    return { strategy: sel ? sel.value : 'update_coord' };
   });
 }
 
 function spawnSuccessDialog(data) {
   const s = data.summary;
   const totalWritten = (s.written_create||0) + (s.written_update||0) + (s.written_conflict||0) + (s.duplicated||0);
-  const mask = document.createElement('div'); mask.className = 'modal-mask';
-  mask.innerHTML = `
-    <div class="modal-box">
-      <h3>✓ 已成功投入 ${totalWritten} 个实例</h3>
-      <div class="modal-body">
-        <div style="font-size:12px;line-height:1.8">
-          <div>新建: <b>${s.written_create}</b></div>
-          <div>补充坐标: <b>${s.written_update}</b></div>
-          <div>冲突已更新: <b>${s.written_conflict}</b></div>
-          <div>新建副本: <b>${s.duplicated}</b></div>
-          <div>跳过: <b>${s.skipped_conflict}</b></div>
-          <div>错误未处理: <b>${s.errors}</b></div>
-        </div>
-        <p style="margin-top:10px;font-size:11px;color:var(--text-soft)">${escapeHTML(data.hint||'')}</p>
+  UI.modal({
+    title: `已成功投入 ${totalWritten} 个实例`,
+    bodyHTML: `
+      <div style="line-height:1.9">
+        <div>新建：<b>${s.written_create}</b></div>
+        <div>补充坐标：<b>${s.written_update}</b></div>
+        <div>冲突已更新：<b>${s.written_conflict}</b></div>
+        <div>新建副本：<b>${s.duplicated}</b></div>
+        <div>跳过：<b>${s.skipped_conflict}</b></div>
+        <div>错误未处理：<b>${s.errors}</b></div>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-primary btn-sm" id="ssGoInstance">前往实例运维中心 ↗</button>
-        <button class="btn btn-sm" id="ssDone">关闭</button>
-      </div>
-    </div>`;
-  document.body.appendChild(mask);
-  mask.querySelector('#ssDone').onclick = () => mask.remove();
-  mask.querySelector('#ssGoInstance').onclick = () => {
-    const w = window.open('/instance', '_blank');
-    if (!w) {
-      // 弹窗被拦截 → 退回同窗口跳转
-      window.location.href = '/instance';
-    }
-  };
+      <p style="margin-top:10px;color:var(--ink-3);font-size:var(--t-xs)">${escapeHTML(data.hint||'')}</p>`,
+    actions: [
+      { label: '关闭', value: null },
+      { label: '前往实例运维中心', value: 'go', primary: true }
+    ]
+  }).then(v => { if (v === 'go') openInNewTab('/instance'); });
 }
 
 function showCommitSuccess(data) {
   const el = document.getElementById('commitSuccess');
-  const wsEl = document.getElementById('writeStrategy');
-  const cmtEl = document.getElementById('commitArea');
-  wsEl.style.display = 'none';
-  cmtEl.style.display = 'none';
+  // 不隐藏编辑区：成功后仍可继续勾选追加、或换数据集再提交（可逆）
   const summary = data.mode === 'publish'
-    ? `数据集"${escapeHTML(data.dataset_name)}"已创建并激活<br>写入 <b>${data.written_count}</b> 个 ObjectType，asset 回写 <b>${data.asset_mapping_updated}</b> 项`
-    : `已合并到"${escapeHTML(data.target_dataset_name)}"<br>新增 <b>${data.added}</b>，覆盖 <b>${data.overwritten}</b>，跳过 <b>${data.skipped}</b>；asset 回写 <b>${data.asset_mapping_updated}</b> 项`;
+    ? `数据集"${escapeHTML(data.dataset_name)}"已创建并激活<br>写入 <b>${data.written_count}</b> 个类型，记住资产对应 <b>${data.asset_mapping_updated}</b> 项`
+    : `已并入"${escapeHTML(data.target_dataset_name)}"<br>新增 <b>${data.added}</b>，覆盖 <b>${data.overwritten}</b>，跳过 <b>${data.skipped}</b>；记住资产对应 <b>${data.asset_mapping_updated}</b> 项`;
   el.style.display = 'block';
   el.innerHTML = `
     <div class="success-panel">
-      <div class="succ-title">✓ 提交成功</div>
+      <div class="succ-title">提交成功</div>
       <div class="succ-summary">${summary}</div>
       <div class="succ-hint">${escapeHTML(data.hint || '')}</div>
       <div class="succ-actions">
-        <button class="btn btn-sm" onclick="openInNewTab('/ontology_graph')">前往语义图谱总览 ↗</button>
-        <button class="btn btn-primary btn-sm" onclick="goToStep(3)">继续标定 →</button>
+        <button class="btn btn-sm" onclick="openInNewTab('/ontology_graph')">查看类型库</button>
+        <button class="btn btn-primary btn-sm" onclick="goToStep(3)">下一步：标定</button>
       </div>
+      <div class="succ-foot">如需补充类型，可继续在上方勾选后再次提交。</div>
     </div>`;
+  // 刷新写入策略：当前激活集已变（合并目标更新），让"再次提交"走正确分支
+  refreshStrategyUI();
 }
 
 function auditToggleCheck(blockName, checked) {
@@ -1432,7 +1754,7 @@ function applyPreviewData() {
     warnEl.style.display = 'block';
     warnEl._warnings = ws;
     warnEl._expanded = false;
-    warnEl.innerHTML = `&#9888; ${ws.length} 条解析提示 <span style="color:#888;font-size:10px">— 点击展开</span>`;
+    warnEl.innerHTML = `${ws.length} 条解析提示 <span style="color:#888;font-size:10px">— 点击展开</span>`;
   } else {
     warnEl.style.display = 'none';
     warnEl.innerHTML = '';
@@ -1440,6 +1762,7 @@ function applyPreviewData() {
   fitView(); draw();
   // 加载已保存的资产映射
   loadMappings();
+  scheduleSave();
 }
 
 async function loadMappings() {
@@ -1472,7 +1795,7 @@ function renderLayerList() {
     const div = document.createElement('div');
     div.className = 'layer-item' + (isActive ? ' active' : '');
     div.innerHTML = `<span class="layer-swatch" style="background:${l.color}"></span>
-      <span style="cursor:pointer;flex:1;" onclick="focusLayer('${l.name}')" title="点击定位到该图层">${l.name} (${l.entity_count})</span>
+      <span style="cursor:pointer;flex:1;" onclick="focusLayer('${l.name}')" data-tip="点击定位到该图层">${l.name} (${l.entity_count})</span>
       <span class="layer-toggle" data-layer="${l.name}" onclick="toggleLayer(this)" style="cursor:pointer; display:flex; align-items:center;">${State.layerVisible[l.name]?ICON_EYE_ON:ICON_EYE_OFF}</span>`;
     el.appendChild(div);
   });
@@ -1555,9 +1878,9 @@ function toggleWarningDetail(el) {
   if (!el._warnings) return;
   el._expanded = !el._expanded;
   if (el._expanded) {
-    el.innerHTML = `&#9888; ${el._warnings.length} 条解析提示 <span style="color:#888;font-size:10px">— 点击收起</span><div style="margin-top:4px;padding:6px;background:#fffbeb;border:1px solid #fbbf24;border-radius:4px;max-height:80px;overflow-y:auto;font-size:10px">${el._warnings.map(w => w).join('<br>')}</div>`;
+    el.innerHTML = `${el._warnings.length} 条解析提示 <span style="color:#888;font-size:10px">— 点击收起</span><div style="margin-top:4px;padding:6px;background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:var(--r-sm);max-height:80px;overflow-y:auto;font-size:10px">${el._warnings.map(w => w).join('<br>')}</div>`;
   } else {
-    el.innerHTML = `&#9888; ${el._warnings.length} 条解析提示 <span style="color:#888;font-size:10px">— 点击展开</span>`;
+    el.innerHTML = `${el._warnings.length} 条解析提示 <span style="color:#888;font-size:10px">— 点击展开</span>`;
   }
 }
 
@@ -1584,7 +1907,7 @@ function renderAnchorList() {
       <input type="number" value="${a.ueXY[0]}" onchange="updateAnchorUE(${i},0,this.value)" placeholder="X">
       <input type="number" value="${a.ueXY[1]}" onchange="updateAnchorUE(${i},1,this.value)" placeholder="Y">
       <span class="residual">${res !== null ? res+'cm' : ''}</span>
-      <span class="del-btn" onclick="deleteAnchor(${i})" title="删除锚点"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span>`;
+      <span class="del-btn" onclick="deleteAnchor(${i})" data-tip="删除锚点"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span>`;
     el.appendChild(div);
   });
   document.getElementById('btnCalibrate').disabled = State.anchors.length < 2;
@@ -1614,8 +1937,9 @@ function doCalibrate() {
     renderMetrics();
     renderAnchorList();
     draw();
+    scheduleSave();
   } catch(e) {
-    alert('标定失败: ' + e.message);
+    toast('标定失败：' + e.message, 'err');
   }
 }
 
@@ -1656,15 +1980,15 @@ function buildEntityTable() {
     tr.dataset.id = ent.id;
     tr.innerHTML = `
       <td><input type="checkbox" ${State.entityChecked[ent.id]?'checked':''} onchange="State.entityChecked['${ent.id}']=this.checked"></td>
-      <td>${isInsert ? 'INSERT' : 'POLY'}</td>
+      <td>${isInsert ? '设备' : '线'}</td>
       <td style="font-weight:500">${isInsert ? ent.block_name : ent.layer}</td>
       <td style="font-size:10px;color:var(--text-muted)">${(ent.attribs&&ent.attribs.EQUIP_ID)||''}</td>
       <td>${isInsert ? 'INSTANCE' : `<select onchange="State.entityTypes['${ent.id}']=this.value"><option ${gt==='PROCEDURAL_WALL'?'selected':''}>PROCEDURAL_WALL</option><option ${gt==='PROCEDURAL_FLOOR'?'selected':''}>PROCEDURAL_FLOOR</option></select>`}</td>
       <td style="font-family:monospace;font-size:10px">${ue[0]}</td>
       <td style="font-family:monospace;font-size:10px">${ue[1]}
-        <span class="copy-btn" title="复制 UE 坐标" onclick="copyText('${ue[0]}, ${ue[1]}', this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span>
+        <span class="copy-btn" data-tip="复制 UE 坐标" onclick="copyText('${ue[0]}, ${ue[1]}', this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span>
       </td>
-      <td>${isInsert ? `<input type="text" value="${State.entityAssets[ent.id]||''}" placeholder="SM_..." onchange="State.entityAssets['${ent.id}']=this.value">` : ''}</td>`;
+      <td>${isInsert ? `<input type="text" value="${State.entityAssets[ent.id]||''}" placeholder="资产路径" onchange="State.entityAssets['${ent.id}']=this.value">` : ''}</td>`;
     tr.addEventListener('mouseenter', () => { State.highlightId = ent.id; draw(); });
     tr.addEventListener('mouseleave', () => { State.highlightId = null; draw(); });
     tbody.appendChild(tr);
@@ -1698,6 +2022,14 @@ function _buildExportPayload() {
     wall_thickness: 240,
     anchor_count: State.anchors.length
   };
+}
+
+function toggleExportPreview() {
+  const disc = document.getElementById('previewDisclosure');
+  const body = document.getElementById('previewBody');
+  const open = disc.classList.toggle('open');
+  body.style.display = open ? 'block' : 'none';
+  if (open) buildExportPreview();  // 展开即生成最新预览
 }
 
 function buildExportPreview() {
@@ -1736,9 +2068,10 @@ async function exportJSON() {
     a.download = 'scene_export.json'; a.click();
     document.getElementById('exportPreview').textContent = JSON.stringify(data, null, 2);
     // 提示保存映射
-    if (confirm('导出成功！是否保存当前资产映射？')) saveMappings();
+    toast('导出成功', 'ok');
+    if (await UI.confirm({ title: '保存资产对应关系', bodyHTML: '是否记住本次"块名 → 资产路径"的对应关系，供下次自动预填？' })) saveMappings();
   } catch(e) {
-    alert('导出失败: ' + e.message);
+    toast('导出失败：' + e.message, 'err');
   }
 }
 
@@ -1771,6 +2104,7 @@ function downloadCSV() {
 }
 
 function resetAll() {
+  SessionDB.clear();  // U6: 重新开始即清掉会话缓存
   if (State.mode === 'dxf') {
     State.previewData = null; State.anchors = []; State.matrix = null; State.metrics = null;
     State.currentStep = 1; State.highlightId = null;
@@ -1858,6 +2192,7 @@ function imgHandleUpload(e) {
       camX = imgState.imgW / 2;
       camY = imgState.imgH / 2;
       fitView();
+      scheduleSave();
     };
     img.src = ev.target.result;
   };
@@ -1882,6 +2217,7 @@ function imgGoToStep(n) {
   }
   canvas.style.cursor = 'crosshair';
   draw();
+  scheduleSave();
 }
 
 // ── Image Anchors ──
@@ -1905,7 +2241,7 @@ function imgRenderAnchorList() {
       <input type="number" value="${a.ueXY[0]}" onchange="imgUpdateAnchorUE(${i},0,this.value)" placeholder="X">
       <input type="number" value="${a.ueXY[1]}" onchange="imgUpdateAnchorUE(${i},1,this.value)" placeholder="Y">
       <span class="residual">${res !== null ? res+'cm' : ''}</span>
-      <span class="del-btn" onclick="imgDeleteAnchor(${i})" title="删除锚点"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span>`;
+      <span class="del-btn" onclick="imgDeleteAnchor(${i})" data-tip="删除锚点"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span>`;
     el.appendChild(div);
   });
   document.getElementById('imgBtnCalibrate').disabled = imgState.anchors.length < 2;
@@ -1939,8 +2275,9 @@ function imgDoCalibrate() {
     imgRenderMetrics();
     imgRenderAnchorList();
     draw();
+    scheduleSave();
   } catch(e) {
-    alert('标定失败: ' + e.message);
+    toast('标定失败：' + e.message, 'err');
   }
 }
 
@@ -1983,9 +2320,9 @@ function imgRenderMarkerList() {
         ${availableTypes.map(t => `<option value="${t}" ${m.type===t?'selected':''}>${t}</option>`).join('')}
       </select>
       <span class="marker-coords">UE(${ue[0]}, ${ue[1]})
-        ${imgState.matrix ? `<span class="copy-btn" title="复制 UE 坐标" onclick="copyText('${ue[0]}, ${ue[1]}', this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span>` : ''}
+        ${imgState.matrix ? `<span class="copy-btn" data-tip="复制 UE 坐标" onclick="copyText('${ue[0]}, ${ue[1]}', this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span>` : ''}
       </span>
-      <span class="del-btn" onclick="imgDeleteMarker(${i})" title="删除标注"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span>`;
+      <span class="del-btn" onclick="imgDeleteMarker(${i})" data-tip="删除标注"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span>`;
     el.appendChild(div);
   });
 }
@@ -1998,7 +2335,7 @@ function imgDeleteMarker(idx) {
 // ── Image CSV Export ──
 function imgDownloadCSV() {
   if (!imgState.matrix || imgState.markers.length === 0) {
-    alert('请先完成标定并标注至少一个设备'); return;
+    toast('请先完成标定并标注至少一个设备', 'warn'); return;
   }
   let csv = '设备名称,设备ID,类型,像素X,像素Y,UE_X,UE_Y\n';
   imgState.markers.forEach(m => {
@@ -2066,7 +2403,7 @@ draw = function() {
       // UE coords label
       if (imgState.matrix) {
         const ue = CoordTransform.applyTransform(imgState.matrix, m.pixelXY);
-        ctx.font = '9px monospace'; ctx.fillStyle = '#2563eb';
+        ctx.font = '9px monospace'; ctx.fillStyle = '#1a1a1a';
         ctx.fillText(`(${ue[0]}, ${ue[1]})`, sx+11, sy+10);
       }
       // Name label
@@ -2082,7 +2419,7 @@ draw = function() {
 
 async function importToInstanceLib() {
   if (!imgState.matrix || imgState.markers.length === 0) {
-    alert('请先完成标定并标注至少一个设备');
+    toast('请先完成标定并标注至少一个设备', 'warn');
     return;
   }
   // 把 marker 转成 spawn_instances items
@@ -2100,7 +2437,7 @@ async function importToInstanceLib() {
   }).filter(Boolean);
 
   if (items.length === 0) {
-    alert('每个标注请先在下拉里选 type');
+    toast('每个标注请先选择类型', 'warn');
     return;
   }
 
@@ -2121,11 +2458,11 @@ async function importToInstanceLib() {
     });
     dry = await res.json();
   } catch(e) {
-    alert('请求失败：' + e.message);
+    toast('请求失败：' + e.message, 'err');
     return;
   }
   if (!res.ok) {
-    alert('dry-run 失败：' + (dry.error || res.status));
+    toast('预检失败：' + (dry.error || res.status), 'err');
     return;
   }
 
@@ -2141,12 +2478,12 @@ async function importToInstanceLib() {
     });
     const final = await r2.json();
     if (!r2.ok) {
-      alert('提交失败：' + (final.error || r2.status));
+      toast('提交失败：' + (final.error || r2.status), 'err');
       return;
     }
     spawnSuccessDialog(final);
   } catch(e) {
-    alert('提交异常：' + e.message);
+    toast('提交异常：' + e.message, 'err');
   }
 }
 </script>

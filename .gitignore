@@ -29,7 +29,10 @@ Intermediate/
 Saved/
 DerivedDataCache/
 
-ue_project/
+# ue_project 整体忽略，仅追踪 Plugins 下的插件源码
+# （Binaries/Intermediate 已被上方通用规则覆盖）
+ue_project/*
+!ue_project/Plugins/
 
 # 大型二进制资产（模型、贴图、训练数据）— 不再提交，避免仓库膨胀
 *.dxf

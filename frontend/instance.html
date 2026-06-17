@@ -103,7 +103,7 @@
             <!-- Instance List -->
             <div class="flex flex-col flex-1 min-h-0">
                 <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
-                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">存活实例清单 <span class="text-gray-400 font-mono ml-1">({{ instances.length }})</span></span>
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">存活实例清单 <span class="text-gray-400 font-mono ml-1">({{ filteredInstances.length }})</span></span>
                     <div class="flex items-center gap-2">
                         <button @click="openBatchDrawer" :disabled="instances.length === 0"
                                 class="text-[10px] font-medium text-indigo-600 hover:text-indigo-900 px-2 py-1 bg-indigo-50 border border-indigo-200 rounded shadow-sm hover:shadow transition disabled:opacity-40">
@@ -114,9 +114,17 @@
                         </button>
                     </div>
                 </div>
+                <!-- Type filter for instance list -->
+                <div class="flex-shrink-0 px-4 py-2 border-b border-gray-100 bg-white flex items-center gap-2">
+                    <label class="text-[10px] font-medium text-gray-400 uppercase tracking-wide">筛选</label>
+                    <select v-model="instanceTypeFilter" class="flex-1 text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-gray-400 transition bg-white">
+                        <option value="">全部类型</option>
+                        <option v-for="ot in readyTypes" :key="ot.rid" :value="ot.name">{{ ot.name }}</option>
+                    </select>
+                </div>
                 <div class="flex-1 overflow-y-auto p-4 space-y-2">
-                    <div v-if="instances.length === 0" class="text-center text-sm text-gray-400 py-10">当前无实例在役</div>
-                    <div v-for="inst in instances" :key="inst.id"
+                    <div v-if="filteredInstances.length === 0" class="text-center text-sm text-gray-400 py-10">当前无实例在役</div>
+                    <div v-for="inst in filteredInstances" :key="inst.id"
                          @click="selectInstance(inst)"
                          :class="[
                             'p-3 border rounded-lg cursor-pointer transition flex items-center gap-3',
@@ -397,19 +405,39 @@
 
             <!-- STEP 1: Select instances -->
             <template v-if="batchStep === 1">
-                <!-- Filter bar -->
-                <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
-                    <label class="text-xs text-gray-500 font-medium whitespace-nowrap">按类型筛选</label>
-                    <select v-model="batchTypeFilter" class="flex-1 text-sm border border-gray-300 rounded-md px-3 py-1.5 outline-none focus:border-indigo-500 transition">
-                        <option value="">全部类型</option>
-                        <option v-for="ot in readyTypes" :key="ot.rid" :value="ot.rid">{{ ot.name }}</option>
-                    </select>
-                    <span class="text-xs text-gray-400 whitespace-nowrap">已选 <span class="font-bold text-indigo-600">{{ batchSelectedIds.length }}</span> / {{ batchCandidates.length }}</span>
+                <!-- Filter bar: multi-select type + select all -->
+                <div class="px-6 py-3 border-b border-gray-100 flex-shrink-0">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs text-gray-500 font-medium">按类型筛选（可多选）</label>
+                        <span class="text-xs text-gray-400">已选 <span class="font-bold text-indigo-600">{{ batchSelectedIds.length }}</span> / {{ batchCandidates.length }}</span>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <label v-for="ot in readyTypes" :key="ot.rid"
+                               class="flex items-center gap-1.5 px-2.5 py-1 border rounded-md cursor-pointer transition text-xs select-none"
+                               :class="batchTypeFilter.includes(ot.rid) ? 'bg-gray-800 border-gray-800 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-400'">
+                            <input type="checkbox" :value="ot.rid" v-model="batchTypeFilter"
+                                   class="accent-gray-800 w-3.5 h-3.5 cursor-pointer" />
+                            {{ ot.name }}
+                        </label>
+                    </div>
                 </div>
 
                 <!-- Instance checkboxes -->
                 <div class="flex-1 overflow-y-auto px-6 py-4 space-y-2">
                     <div v-if="batchCandidates.length === 0" class="text-sm text-gray-400 text-center py-12">暂无实例可选</div>
+
+                    <!-- Select All -->
+                    <label v-if="batchCandidates.length > 0"
+                           class="flex items-center gap-3 p-2.5 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition select-none">
+                        <input type="checkbox"
+                               :checked="batchAllSelected"
+                               :indeterminate.prop="batchSomeSelected && !batchAllSelected"
+                               @change="toggleSelectAll"
+                               class="accent-gray-800 w-4 h-4 cursor-pointer" />
+                        <span class="text-xs font-semibold text-gray-600">全选当前列表</span>
+                        <span class="text-[10px] text-gray-400 ml-auto">{{ batchCandidates.filter(i => batchSelectedIds.includes(i.id)).length }} / {{ batchCandidates.length }}</span>
+                    </label>
+
                     <label v-for="inst in batchCandidates" :key="inst.id"
                            class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition hover:border-indigo-300"
                            :class="batchSelectedIds.includes(inst.id) ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200'">
@@ -426,15 +454,39 @@
                 <!-- Step 1 footer -->
                 <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
                     <button @click="closeBatchDrawer" class="text-sm px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition">取消</button>
-                    <button @click="batchNext" :disabled="batchSelectedIds.length === 0"
-                            class="text-sm px-5 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 disabled:opacity-40 transition">
-                        下一步：配置坐标（{{ batchSelectedIds.length }}）
+                    <button @click="batchNext" :disabled="batchSelectedIds.length === 0 || batchLoadingCoords"
+                            class="text-sm px-5 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 disabled:opacity-40 transition flex items-center gap-2">
+                            <svg v-if="batchLoadingCoords" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+                        {{ batchLoadingCoords ? '读取坐标中...' : `下一步：配置坐标（${batchSelectedIds.length}）` }}
                     </button>
                 </div>
             </template>
 
             <!-- STEP 2: Coordinate table -->
             <template v-if="batchStep === 2">
+                <!-- Batch fill toolbar -->
+                <div class="flex-shrink-0 px-6 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-3 flex-wrap">
+                    <span class="text-xs font-medium text-gray-500 whitespace-nowrap">批量填入</span>
+                    <label class="flex items-center gap-1 text-xs text-gray-500">
+                        X<input v-model.number="batchFill.x" type="number" class="w-14 text-center text-xs border border-gray-300 rounded px-1.5 py-1 font-mono outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-200 transition" placeholder="—" />
+                    </label>
+                    <label class="flex items-center gap-1 text-xs text-gray-500">
+                        Y<input v-model.number="batchFill.y" type="number" class="w-14 text-center text-xs border border-gray-300 rounded px-1.5 py-1 font-mono outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-200 transition" placeholder="—" />
+                    </label>
+                    <label class="flex items-center gap-1 text-xs text-gray-500">
+                        Z<input v-model.number="batchFill.z" type="number" class="w-14 text-center text-xs border border-gray-300 rounded px-1.5 py-1 font-mono outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-200 transition" placeholder="—" />
+                    </label>
+                    <label class="flex items-center gap-1 text-xs text-gray-500">
+                        旋转Z<input v-model.number="batchFill.rotZ" type="number" class="w-14 text-center text-xs border border-gray-300 rounded px-1.5 py-1 font-mono outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-200 transition" placeholder="—" />
+                    </label>
+                    <button @click="applyBatchFill"
+                            class="text-xs px-3 py-1.5 bg-gray-900 text-white rounded-md font-medium hover:bg-gray-800 transition disabled:opacity-40"
+                            :disabled="batchFill.x === '' && batchFill.y === '' && batchFill.z === '' && batchFill.rotZ === ''">
+                        应用到全部
+                    </button>
+                    <button @click="batchFill = { x:'', y:'', z:'', rotZ:'' }" class="text-xs text-gray-400 hover:text-gray-600 transition">清除</button>
+                </div>
+
                 <div class="flex-1 overflow-y-auto">
                     <table class="w-full text-sm">
                         <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
@@ -518,16 +570,37 @@ createApp({
 
         const spawnForm = ref({ objectTypeRid: '', instanceId: '', x: 0, y: 0, z: 0 });
 
+        // ── Instance list filter ─────────────────────────────────────────
+        const instanceTypeFilter = ref('');
+
+        const filteredInstances = computed(() => {
+            if (!instanceTypeFilter.value) return instances.value;
+            return instances.value.filter(i => i.object_type_name === instanceTypeFilter.value);
+        });
+
         // ── Batch deployment state ──────────────────────────────────────
         const showBatchDrawer = ref(false);
         const batchStep = ref(1);
-        const batchTypeFilter = ref('');
+        const batchTypeFilter = ref([]);
         const batchSelectedIds = ref([]);
         const batchRows = ref([]);         // [{id, objectTypeName, x, y, z, rotZ}]
         const batchDeploying = ref(false);
         const batchDone = ref(false);
         const batchProgress = ref({ current: 0, total: 0, ok: 0, fail: 0 });
         const batchRowResults = ref({});   // id -> 'ok' | 'err'
+
+        // Batch fill form (Scheme A)
+        const batchFill = ref({ x: '', y: '', z: '', rotZ: '' });
+        const batchLoadingCoords = ref(false);
+
+        // Select-all logic
+        const batchAllSelected = computed(() =>
+            batchCandidates.value.length > 0 &&
+            batchCandidates.value.every(i => batchSelectedIds.value.includes(i.id))
+        );
+        const batchSomeSelected = computed(() =>
+            batchCandidates.value.some(i => batchSelectedIds.value.includes(i.id))
+        );
 
         const readyTypes = computed(() => objectTypes.value.filter(t => t.has_representable));
 
@@ -536,12 +609,12 @@ createApp({
             return ot ? (ot.mock_instances || []) : [];
         });
 
-        // Batch: filter instances by selected ObjectType
+        // Batch: filter instances by selected ObjectTypes (multi-select)
         const batchCandidates = computed(() => {
-            if (!batchTypeFilter.value) return instances.value;
+            if (!batchTypeFilter.value.length) return instances.value;
             return instances.value.filter(i => {
                 const ot = objectTypes.value.find(t => t.name === i.object_type_name);
-                return ot && ot.rid === batchTypeFilter.value;
+                return ot && batchTypeFilter.value.includes(ot.rid);
             });
         });
 
@@ -598,13 +671,15 @@ createApp({
         // ── Batch deployment methods ────────────────────────────────────
         function openBatchDrawer() {
             batchStep.value = 1;
-            batchTypeFilter.value = '';
+            batchTypeFilter.value = [];
             batchSelectedIds.value = [];
             batchRows.value = [];
             batchDeploying.value = false;
             batchDone.value = false;
             batchProgress.value = { current: 0, total: 0, ok: 0, fail: 0 };
             batchRowResults.value = {};
+            batchFill.value = { x: '', y: '', z: '', rotZ: '' };
+            batchLoadingCoords.value = false;
             showBatchDrawer.value = true;
         }
 
@@ -614,12 +689,70 @@ createApp({
         }
 
         function batchNext() {
-            if (!batchSelectedIds.value.length) return;
-            batchRows.value = batchSelectedIds.value.map(id => {
-                const inst = instances.value.find(i => i.id === id);
-                return { id, objectTypeName: inst?.object_type_name || '—', x: 0, y: 0, z: 0, rotZ: 0 };
+            if (!batchSelectedIds.value.length || batchLoadingCoords.value) return;
+            batchLoadingCoords.value = true;
+            const selectedIds = batchSelectedIds.value;
+
+            // Wait for Vue to render the loading state before kicking off the network request
+            Vue.nextTick(async () => {
+                try {
+                    let snapData = null;
+                    try {
+                        const res = await axios.get('/api/v2/state/snapshots', { timeout: 5000 });
+                        snapData = res.data;
+                    } catch (_) { /* snapshot endpoint unavailable → defaults to 0 */ }
+
+                    const snapMap = {};
+                    if (snapData) {
+                        const list = snapData.snapshots || snapData.instances || snapData;
+                        (Array.isArray(list) ? list : Object.values(list)).forEach(s => {
+                            const iface = s.interfaces?.I3D_Spatial || {};
+                            snapMap[s.instanceId || s.instance_id || s.id] = iface;
+                        });
+                    }
+                    batchRows.value = selectedIds.map(id => {
+                        const inst = instances.value.find(i => i.id === id);
+                        const pos = snapMap[id] || {};
+                        const tx = pos.translation_x, ty = pos.translation_y, tz = pos.translation_z, rz = pos.rotation_z;
+                        return {
+                            id,
+                            objectTypeName: inst?.object_type_name || '—',
+                            x: (tx !== undefined && tx !== null) ? tx : 0,
+                            y: (ty !== undefined && ty !== null) ? ty : 0,
+                            z: (tz !== undefined && tz !== null) ? tz : 0,
+                            rotZ: (rz !== undefined && rz !== null) ? rz : 0,
+                        };
+                    });
+                    batchStep.value = 2;
+                } finally {
+                    batchLoadingCoords.value = false;
+                }
             });
-            batchStep.value = 2;
+        }
+
+        function toggleSelectAll() {
+            if (batchAllSelected.value) {
+                // Deselect only visible (filtered) items
+                batchSelectedIds.value = batchSelectedIds.value.filter(
+                    id => !batchCandidates.value.some(i => i.id === id)
+                );
+            } else {
+                // Select all visible (filtered) items, preserving already-selected ones outside filter
+                const visibleIds = batchCandidates.value.map(i => i.id);
+                const merged = new Set([...batchSelectedIds.value, ...visibleIds]);
+                batchSelectedIds.value = [...merged];
+            }
+        }
+
+        function applyBatchFill() {
+            const f = batchFill.value;
+            batchRows.value = batchRows.value.map(row => ({
+                ...row,
+                x: f.x !== '' ? f.x : row.x,
+                y: f.y !== '' ? f.y : row.y,
+                z: f.z !== '' ? f.z : row.z,
+                rotZ: f.rotZ !== '' ? f.rotZ : row.rotZ,
+            }));
         }
 
         async function doBatchDeploy() {
@@ -758,10 +891,13 @@ createApp({
             instances, objectTypes, readyTypes, availableInstanceIds, selectedInst, currentSnap,
             spawnForm, spawning, overriding, overrideFields, overridePatch, toasts, pendingDelete,
             loadInstances, spawnInstance, deleteInstance, selectInstance, applyOverride, resetOverride,
+            // instance list filter
+            instanceTypeFilter, filteredInstances,
             // batch
             showBatchDrawer, batchStep, batchTypeFilter, batchSelectedIds, batchCandidates,
             batchRows, batchDeploying, batchDone, batchProgress, batchRowResults,
-            openBatchDrawer, closeBatchDrawer, batchNext, doBatchDeploy, batchRowStatus
+            batchAllSelected, batchSomeSelected, batchFill, batchLoadingCoords,
+            openBatchDrawer, closeBatchDrawer, batchNext, toggleSelectAll, applyBatchFill, doBatchDeploy, batchRowStatus
         };
     }
 }).mount('#app');

@@ -50,3 +50,11 @@ exports/*.usd
 
 # SQLite 数据库（运行时生成）
 backend/lite/db/*.db
+
+# 运行时实例数据（不进 git；mapping_rules.json 作为配置仍跟踪）
+backend/data/scenes/
+backend/data/projects/
+backend/data/active.json
+
+# Windows 快捷方式
+*.lnk

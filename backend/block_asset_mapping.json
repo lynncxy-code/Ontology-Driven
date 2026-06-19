@@ -1,4 +1,5 @@
 {
   "CNC": "SM_CNC",
-  "AGV": "SM_AGV"
+  "AGV": "SM_AGV",
+  "半球摄像头": "SM_Cam"
 }

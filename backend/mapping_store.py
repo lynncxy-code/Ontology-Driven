@@ -14,8 +14,9 @@ import uuid
 import threading
 import random
 import math
+import hashlib
 
-_DEFAULT_PATH = os.path.join(os.path.dirname(__file__), "mapping_rules.json")
+_DEFAULT_PATH = os.path.join(os.path.dirname(__file__), "data", "mapping_rules.json")
 
 
 class MappingStore:
@@ -2676,16 +2677,87 @@ MOCK_ASSETS = {
 # 动态实例存储 (InstanceStore)
 # ═══════════════════════════════════════════════════════════════
 
+_SCENES_DIR = os.path.join(os.path.dirname(__file__), "data", "scenes")
+
+
+def _safe_scene_filename(scene_id):
+    """
+    把 scene_id 清洗成安全(纯 ASCII)的文件名。
+    纯 ASCII 的 id 保持原样（向后兼容旧文件）；含中文等非 ASCII 的工厂名
+    用 "ascii前缀_短哈希" 命名，保证文件名可移植、不依赖文件系统编码。
+    """
+    s = str(scene_id)
+    if s.isascii():
+        safe = "".join(c for c in s if c.isalnum() or c in ("-", "_"))
+        if safe:
+            return safe + ".json"
+    ascii_part = "".join(c for c in s if c.isascii() and (c.isalnum() or c in ("-", "_")))
+    digest = hashlib.md5(s.encode("utf-8")).hexdigest()[:8]
+    return f"{ascii_part or 'scene'}_{digest}.json"
+
+
 class InstanceStore:
-    """管理所有孪生体实例，支持动态投产与销毁。"""
+    """
+    管理所有孪生体实例，支持动态投产与销毁。
 
-    def __init__(self):
+    持久化（v2.9.3）：实例按 scene_id 分文件落盘到 data/scenes/{scene_id}.json，
+    进程启动时自动从磁盘恢复。每个实例自带 render_config（接口/资产配置的快照），
+    使单个场景文件可独立移植到任意后端 / UE 工程。
+    """
+
+    def __init__(self, scenes_dir=None):
         self._lock = threading.Lock()
-        # {instance_id: {id, object_type_rid, created_at, last_seen, status, raw_state}}
+        # {instance_id: {id, object_type_rid, scene_id, render_config, created_at, last_seen, status, raw_state}}
         self._instances = {}
+        # 最近一次投实例的场景（UE 默认显示它，不依赖易变的"激活数据集"id）
+        self._last_scene = None
+        self._scenes_dir = scenes_dir or _SCENES_DIR
+        os.makedirs(self._scenes_dir, exist_ok=True)
+        self._load_all()
 
-    def spawn(self, instance_id, object_type_rid, initial_position=None):
-        """创建新实例"""
+    # ── 持久化 ────────────────────────────────────────────────────
+    # 以下 _save_scene / _load_* 均假定调用方已持有 self._lock（或在 __init__ 单线程阶段）
+
+    def _scene_path(self, scene_id):
+        return os.path.join(self._scenes_dir, _safe_scene_filename(scene_id))
+
+    def _save_scene(self, scene_id):
+        """把指定场景的所有实例整体落盘；场景空了则删除文件。"""
+        insts = {iid: inst for iid, inst in self._instances.items()
+                 if inst.get("scene_id", "default") == scene_id}
+        path = self._scene_path(scene_id)
+        if not insts:
+            if os.path.exists(path):
+                os.remove(path)
+            return
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"scene_id": scene_id, "instances": insts},
+                      f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)  # 原子替换，避免写到一半崩溃留下半个文件
+
+    def _load_all(self):
+        """启动时从 data/scenes/ 读回所有实例。单个文件损坏不影响其它场景。"""
+        if not os.path.isdir(self._scenes_dir):
+            return
+        for fn in os.listdir(self._scenes_dir):
+            if not fn.endswith(".json"):
+                continue
+            try:
+                with open(os.path.join(self._scenes_dir, fn), "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                for iid, inst in (data.get("instances") or {}).items():
+                    self._instances[iid] = inst
+            except Exception:
+                pass
+        # 用"创建时间最新的实例"所属场景作为默认 UE 场景（重启后恢复"最近在投的那个"）
+        if self._instances:
+            newest = max(self._instances.values(), key=lambda i: i.get("created_at", 0))
+            self._last_scene = newest.get("scene_id", "default")
+
+    def spawn(self, instance_id, object_type_rid, initial_position=None,
+              scene_id="default", render_config=None):
+        """创建新实例。scene_id 决定落盘到哪个场景文件；render_config 为接口/资产配置快照。"""
         with self._lock:
             if initial_position is None:
                 initial_position = {"x": 0.0, "y": 0.0, "z": 0.0}
@@ -2715,16 +2787,23 @@ class InstanceStore:
                 "id": instance_id,
                 "object_type_rid": object_type_rid,
                 "object_type_name": obj_type.get("name", object_type_rid),
+                "scene_id": scene_id,
+                "render_config": render_config or {},
                 "created_at": time.time(),
                 "last_seen": time.time(),
                 "status": "online",
                 "raw_state": raw_state
             }
+            self._last_scene = scene_id  # 记住最近在投的场景，UE 默认看它
+            self._save_scene(scene_id)
         return self._instances[instance_id]
 
     def remove(self, instance_id):
         with self._lock:
-            return self._instances.pop(instance_id, None)
+            inst = self._instances.pop(instance_id, None)
+            if inst:
+                self._save_scene(inst.get("scene_id", "default"))
+            return inst
 
     def list_all(self):
         with self._lock:
@@ -2737,6 +2816,7 @@ class InstanceStore:
                     "id": iid,
                     "object_type_rid": inst["object_type_rid"],
                     "object_type_name": inst["object_type_name"],
+                    "scene_id": inst.get("scene_id", "default"),
                     "status": status,
                     "last_seen": inst["last_seen"],
                     "created_at": inst["created_at"]
@@ -2750,12 +2830,23 @@ class InstanceStore:
                 return dict(inst["raw_state"])
             return None
 
-    def update_raw_state(self, instance_id, patch):
+    def get_render_config(self, instance_id):
+        """返回 spawn 时冻结的接口/资产配置快照。"""
+        with self._lock:
+            inst = self._instances.get(instance_id)
+            if inst:
+                return dict(inst.get("render_config") or {})
+            return None
+
+    def update_raw_state(self, instance_id, patch, persist=False):
+        """更新 raw_state。persist=True 才落盘（模拟器高频波动应传 False，避免狂写磁盘）。"""
         with self._lock:
             inst = self._instances.get(instance_id)
             if inst:
                 inst["raw_state"].update(patch)
                 inst["last_seen"] = time.time()
+                if persist:
+                    self._save_scene(inst.get("scene_id", "default"))
                 return True
             return False
 
@@ -2765,9 +2856,37 @@ class InstanceStore:
             if inst:
                 inst["last_seen"] = time.time()
 
-    def get_all_ids(self):
+    def get_all_ids(self, scene_id=None):
+        """返回实例 id 列表；传 scene_id 则只返回该场景的实例。"""
         with self._lock:
-            return list(self._instances.keys())
+            if scene_id is None:
+                return list(self._instances.keys())
+            return [iid for iid, inst in self._instances.items()
+                    if inst.get("scene_id", "default") == scene_id]
+
+    def get_default_scene(self):
+        """UE 不指定场景时的默认场景 = 最近一次投实例的场景。"""
+        with self._lock:
+            return self._last_scene
+
+    def clear_scene(self, scene_id):
+        """清空指定场景的全部实例（内存 + 磁盘文件）。返回清除数量。"""
+        with self._lock:
+            ids = [iid for iid, inst in self._instances.items()
+                   if inst.get("scene_id", "default") == scene_id]
+            for iid in ids:
+                self._instances.pop(iid, None)
+            self._save_scene(scene_id)  # 已空 → 自动删除场景文件
+            return len(ids)
+
+    def list_scenes(self):
+        """列出当前所有场景及其实例数（含磁盘上已加载的）。"""
+        with self._lock:
+            counts = {}
+            for inst in self._instances.values():
+                sid = inst.get("scene_id", "default")
+                counts[sid] = counts.get(sid, 0) + 1
+            return counts
 
 
 # ═══════════════════════════════════════════════════════════════

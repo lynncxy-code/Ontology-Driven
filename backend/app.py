@@ -18,6 +18,11 @@ app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
 app.json.ensure_ascii = False  # 中文字符不转义为 \uXXXX，便于 2.9.2 调试（Flask 2.2+ 用法）
 CORS(app)
 
+# ── ArtStudio 资产库配置 ─────────────────────────────────────────
+ARTSTUDIO_BASE_URL = "http://studio.xjbg.tech:12345/api"
+ARTSTUDIO_TIMEOUT  = 5  # 秒，超时后自动回退 MOCK_ASSETS
+ARTSTUDIO_TOKEN    = None  # 后续有固定 token 后填写
+
 @app.after_request
 def add_header(response):
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
@@ -34,12 +39,15 @@ states = {
 }
 mapping_store = MappingStore()
 
-# 2.3 新版：动态实例系统
-instance_store = InstanceStore()
-simulator = MockInstanceSimulator(instance_store)
+# 2.9.4 重构：统一项目存储（取代 InstanceStore）。
+# 实例归属"当前激活项目"，与数据集/类型表一起持久化、一起加载、一起删——单一事实来源。
+from project_store import ProjectStore
+project_store = ProjectStore()
+instance_store = project_store          # 向后兼容别名：实例操作接口一致
+simulator = MockInstanceSimulator(project_store)
 simulator.start()
 
-# ObjectType 接口注册表（运行时内存，初始化自 OBJECT_TYPES）
+# ObjectType 接口注册表（运行时内存，作为"当前激活项目"的视图，启动后由 _init_from_project_store 同步）
 _object_types = {k: dict(v) for k, v in OBJECT_TYPES.items()}
 
 # ═══════════════════════════════════════════════════════════════
@@ -308,6 +316,9 @@ def _commit_publish(data, items, source_file, force):
     _datasets.append(new_ds)
     _active_dataset_id = ds_id
     _object_types = _project_dataset_to_object_types(new_ds)
+    # 持久化为一个项目(含类型表+graph),并设为激活 → 后续 coord 投产落入此项目
+    project_store.create_project(name, object_types=_object_types,
+                                 project_id=ds_id, dataset=new_ds)
     mapping_n = _write_back_asset_mapping(items)
 
     return jsonify({
@@ -387,9 +398,10 @@ def _commit_merge(data, items, source_file, force):
     target_ds["graph_data"]["nodes"] = final_nodes
     target_ds["node_count"] = len(final_nodes)
 
-    # 若目标是当前激活的，刷新 _object_types
+    # 若目标是当前激活的，刷新 _object_types 并持久化
     if target_id == _active_dataset_id:
         _object_types = _project_dataset_to_object_types(target_ds)
+        _persist_active_project()
 
     mapping_n = _write_back_asset_mapping(items)
 
@@ -694,23 +706,23 @@ def coord_spawn_instances():
             "rotation_z": rec["rotation_z"],
         }
 
-    # 5.1 to_create — 全部 spawn
+    # 5.1 to_create — 全部 spawn（绑定当前激活数据集为 scene_id，冻结渲染配置）
     for rec in to_create:
         instance_store.spawn(rec["instance_id"], rec["object_type_rid"], {
             "x": rec["translation_x"], "y": rec["translation_y"], "z": rec["translation_z"]
-        })
-        instance_store.update_raw_state(rec["instance_id"], {"rotation_z": rec["rotation_z"]})
+        },            render_config=_build_render_config(rec["object_type_rid"]))
+        instance_store.update_raw_state(rec["instance_id"], {"rotation_z": rec["rotation_z"]}, persist=True)
         written_create += 1
 
     # 5.2 to_update_coord_only — 补充坐标
     for rec in to_update_coord_only:
-        instance_store.update_raw_state(rec["instance_id"], _coord_patch(rec))
+        instance_store.update_raw_state(rec["instance_id"], _coord_patch(rec), persist=True)
         written_update += 1
 
     # 5.3 conflicts — 按策略处理
     for rec in conflicts:
         if strategy == "update_coord":
-            instance_store.update_raw_state(rec["instance_id"], _coord_patch(rec))
+            instance_store.update_raw_state(rec["instance_id"], _coord_patch(rec), persist=True)
             written_conflict += 1
         elif strategy == "skip":
             skipped_conflict += 1
@@ -721,8 +733,8 @@ def coord_spawn_instances():
                 new_iid = f"{rec['instance_id']}-{n}"; n += 1
             instance_store.spawn(new_iid, rec["object_type_rid"], {
                 "x": rec["translation_x"], "y": rec["translation_y"], "z": rec["translation_z"]
-            })
-            instance_store.update_raw_state(new_iid, {"rotation_z": rec["rotation_z"]})
+            },                render_config=_build_render_config(rec["object_type_rid"]))
+            instance_store.update_raw_state(new_iid, {"rotation_z": rec["rotation_z"]}, persist=True)
             dup_records.append({"original_id": rec["instance_id"], "new_id": new_iid})
 
     return jsonify({
@@ -1063,6 +1075,7 @@ def get_object_types():
             "properties": ot["properties"],
             "injected_interfaces": ot.get("injected_interfaces", []),
             "asset_id": ot.get("asset_id"),
+            "ue_asset_path": ot.get("ue_asset_path", ""),
             "mock_instances": ot.get("mock_instances", []),
             "has_representable": "I3D_Representable" in ot.get("injected_interfaces", [])
         })
@@ -1110,6 +1123,7 @@ def inject_interfaces():
     if "asset_id" in data and data["asset_id"]:
         _object_types[rid]["asset_id"] = data["asset_id"]
 
+    _persist_active_project()   # 接口/资产变更写回当前项目
     return jsonify({
         "object_type_rid": rid,
         "injected_interfaces": merged,
@@ -1137,9 +1151,11 @@ def remove_interface():
         # 移除顶层接口，级联删除所有子接口
         current = []
         _object_types[rid]["asset_id"] = None
+        _object_types[rid]["ue_asset_path"] = None
     else:
         current = [i for i in current if i != iface]
     _object_types[rid]["injected_interfaces"] = current
+    _persist_active_project()
     return jsonify({"object_type_rid": rid, "injected_interfaces": current})
 
 
@@ -1167,22 +1183,111 @@ def get_transform_types():
 
 @app.route('/api/v2/assets', methods=['GET'])
 def list_assets():
-    """返回资产库所有资产列表（供前端资产库卡片选择）"""
-    result = []
+    """
+    资产列表 — 优先从 ArtStudio 拉取，失败时回退 MOCK_ASSETS。
+
+    支持服务端分页 + 分类筛选：
+      ?page=1&size=10&category=1&q=&sort=newest
+    """
+    page     = int(request.args.get("page", 1))
+    size     = int(request.args.get("size", 10))
+    source   = request.args.get("source", "studio")
+    category = request.args.get("category")
+    sort     = request.args.get("sort", "newest")
+    q        = request.args.get("q", "")
+
+    # ── 尝试从 ArtStudio 拉取 ─────────────────────────────────
+    if source != "mock":
+        try:
+            params = {"page": page, "size": size, "sort": sort}
+            if category:
+                params["category"] = category
+            if q:
+                params["q"] = q
+
+            headers = {}
+            if ARTSTUDIO_TOKEN:
+                headers["Authorization"] = f"Bearer {ARTSTUDIO_TOKEN}"
+
+            resp = http_requests.get(
+                f"{ARTSTUDIO_BASE_URL}/assets",
+                params=params, headers=headers, timeout=ARTSTUDIO_TIMEOUT,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+
+            raw_items = body.get("data", {}).get("list", [])
+            items = []
+            for a in raw_items:
+                ext_list = a.get("fileExtensions") or []
+                fmt = ext_list[0].upper() if ext_list else "未知"
+                items.append({
+                    "file_number": str(a["id"]),
+                    "name":        a.get("name", ""),
+                    "format":      fmt,
+                    "bounding_box": {},
+                    "download_url": "",
+                    "cover_url":   a.get("coverUrl", ""),
+                    "ue_path":     "",
+                    "_source": {
+                        "artstudio_id": a["id"],
+                    },
+                })
+
+            return jsonify({
+                "items":     items,
+                "total":     body.get("data", {}).get("total", len(items)),
+                "page":      page,
+                "size":      size,
+                "_source":   "studio",
+            })
+
+        except Exception as e:
+            app.logger.warning(f"[ArtStudio] 不可用，回退 MOCK_ASSETS: {e}")
+
+    # ── 回退：MOCK_ASSETS（服务端模拟分页） ────────────────────
+    all_items = []
     for fn, meta in MOCK_ASSETS.items():
-        result.append({
+        all_items.append({
             "file_number":  fn,
             "name":         meta.get("name", fn),
             "format":       meta.get("format", "glb"),
             "bounding_box": meta.get("bounding_box", {}),
-            "download_url": meta.get("download_url", "")
+            "download_url": meta.get("download_url", ""),
+            "cover_url":    "",
+            "ue_path":      meta.get("ue_path", ""),
+            "_source":      None,
         })
-    return jsonify(result)
+
+    # 模拟分页
+    if q:
+        ql = q.lower()
+        all_items = [i for i in all_items if ql in i["name"].lower() or ql in i["file_number"].lower()]
+    if category:
+        # MOCK_ASSETS 没有分类，不过滤
+        pass
+
+    total = len(all_items)
+    start = (page - 1) * size
+    paged = all_items[start:start + size]
+
+    return jsonify({
+        "items":   paged,
+        "total":   total,
+        "page":    page,
+        "size":    size,
+        "_source": "mock",
+    })
 
 @app.route('/api/v2/assets/bind', methods=['POST'])
 def bind_asset():
     """
-    绑定 GLB 资产到 ObjectType。
+    绑定资产到 ObjectType。
+
+    支持两种数据源：
+      - ArtStudio：file_number 是数字 ID（如 "322966478972260352"）
+      - MOCK_ASSETS：file_number 是语义标识（如 "SM_Rack_01a_Shelf"）
+
     Body: { "object_type_rid": str, "file_number": str }
     """
     data = request.json or {}
@@ -1194,33 +1299,98 @@ def bind_asset():
     if rid not in _object_types:
         return jsonify({"error": "ObjectType not found"}), 404
 
-    # 校验 FileNumber
-    asset_meta = MOCK_ASSETS.get(file_number)
-    valid = asset_meta is not None
+    # ── 判断数据源 ─────────────────────────────────────────────
+    asset_meta = None
+    is_from_studio = False
+    artstudio_id = None
+    name = ""
+
+    # 先查 ArtStudio（数字 ID）
+    if file_number.isdigit():
+        try:
+            headers = {}
+            if ARTSTUDIO_TOKEN:
+                headers["Authorization"] = f"Bearer {ARTSTUDIO_TOKEN}"
+            resp = http_requests.get(
+                f"{ARTSTUDIO_BASE_URL}/assets/{file_number}",
+                headers=headers, timeout=ARTSTUDIO_TIMEOUT,
+            )
+            if resp.ok:
+                body = resp.json()
+                adata = body.get("data", {})
+                name = adata.get("name", "")
+                is_from_studio = True
+                artstudio_id = int(file_number)
+        except Exception:
+            pass  # 查不到也继续
+
+    # 再查 MOCK_ASSETS（语义标识）
+    if not is_from_studio:
+        asset_meta = MOCK_ASSETS.get(file_number)
+        if asset_meta:
+            name = asset_meta.get("name", "")
+
+    valid = is_from_studio or asset_meta is not None
     warning = None if valid else f"资产库中未找到编号 '{file_number}'，请确认后再绑定。"
 
+    # ── UE 资产路径（可选）────────────────────────────────────
+    ue_asset_path = data.get("ue_asset_path", "").strip()
+    if not ue_asset_path and asset_meta:
+        # 从 MOCK_ASSETS 自动预填
+        ue_asset_path = asset_meta.get("ue_path", "")
+
+    # ── 写入绑定 ───────────────────────────────────────────────
     _object_types[rid]["asset_id"] = file_number
+    _object_types[rid]["ue_asset_path"] = ue_asset_path
+    _persist_active_project()   # 资产绑定写回当前项目，重启不丢
+
     return jsonify({
         "object_type_rid": rid,
         "file_number":     file_number,
         "valid":           valid,
         "warning":         warning,
-        "name":            asset_meta.get("name", "") if asset_meta else "",
+        "name":            name,
         "format":          asset_meta.get("format", "") if asset_meta else "",
-        "bounding_box":    asset_meta.get("bounding_box", {}) if asset_meta else {}
+        "bounding_box":    asset_meta.get("bounding_box", {}) if asset_meta else {},
+        "ue_asset_path":   ue_asset_path,
+        "_source":         "studio" if is_from_studio else ("mock" if asset_meta else None),
     })
 
 
 @app.route('/api/v2/assets/resolve', methods=['GET'])
 def resolve_asset():
-    """通过 file_number 获取 GLB 资产元数据与下载地址"""
+    """通过 file_number 获取资产元数据（先查 ArtStudio，再查 MOCK_ASSETS）。"""
     file_number = request.args.get("file_number", "")
     if not file_number:
         return jsonify({"error": "file_number is required"}), 400
+
+    # 先查 ArtStudio
+    if file_number.isdigit():
+        try:
+            headers = {}
+            if ARTSTUDIO_TOKEN:
+                headers["Authorization"] = f"Bearer {ARTSTUDIO_TOKEN}"
+            resp = http_requests.get(
+                f"{ARTSTUDIO_BASE_URL}/assets/{file_number}",
+                headers=headers, timeout=ARTSTUDIO_TIMEOUT,
+            )
+            if resp.ok:
+                body = resp.json()
+                adata = body.get("data", {})
+                return jsonify({
+                    "valid": True,
+                    "file_number": file_number,
+                    "name": adata.get("name", ""),
+                    "_source": "studio",
+                })
+        except Exception:
+            pass
+
+    # 再查 MOCK_ASSETS
     asset = MOCK_ASSETS.get(file_number)
     if not asset:
         return jsonify({"error": f"Asset '{file_number}' not found", "valid": False}), 404
-    return jsonify({"valid": True, **asset})
+    return jsonify({"valid": True, **asset, "_source": "mock"})
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1229,8 +1399,13 @@ def resolve_asset():
 
 @app.route('/api/v2/instances', methods=['GET'])
 def list_instances():
-    """获取所有实例清单（含在线状态）"""
-    return jsonify(instance_store.list_all())
+    """
+    获取当前激活数据集下的实例清单（含在线状态）。
+    实例按其 object_type_rid 是否属于当前类型库（_object_types）过滤：
+    切换数据集后，不属于当前数据集的实例自动隐藏（不删除，切回即恢复）。
+    """
+    all_inst = instance_store.list_all()
+    return jsonify([i for i in all_inst if i["object_type_rid"] in _object_types])
 
 @app.route('/api/v2/instances', methods=['POST'])
 def spawn_instance():
@@ -1257,7 +1432,8 @@ def spawn_instance():
     if existing is not None:
         return jsonify({"error": f"实例 ID '{instance_id}' 已存在"}), 409
 
-    inst = instance_store.spawn(instance_id, object_type_rid, initial_position)
+    inst = instance_store.spawn(instance_id, object_type_rid, initial_position,
+                                                                render_config=_build_render_config(object_type_rid))
     return jsonify({"status": "spawned", "instance": inst}), 201
 
 @app.route('/api/v2/instances/<path:instance_id>', methods=['DELETE'])
@@ -1271,12 +1447,15 @@ def delete_instance(instance_id):
 
 @app.route('/api/v2/instances/<path:instance_id>', methods=['GET'])
 def get_instance(instance_id):
-    """获取单实例信息"""
+    """获取单实例信息（仅限当前激活数据集内的实例）"""
     raw = instance_store.get_raw_state(instance_id)
     if raw is None:
         return jsonify({"error": "Instance not found"}), 404
     all_list = instance_store.list_all()
     meta = next((i for i in all_list if i["id"] == instance_id), None)
+    # 数据集隔离：类型不在当前数据集时按 404 处理（与 list 行为一致）
+    if meta and meta.get("object_type_rid") not in _object_types:
+        return jsonify({"error": "Instance not found"}), 404
     return jsonify({"id": instance_id, **(meta or {}), "raw_state": raw})
 
 
@@ -1284,22 +1463,55 @@ def get_instance(instance_id):
 # 2.3 API — 状态快照 & Override
 # ═══════════════════════════════════════════════════════════════
 
+def _build_render_config(object_type_rid):
+    """
+    从当前 _object_types 抓取该类型的接口/资产配置，冻结成一份快照。
+    spawn 时写进实例的 render_config，使快照生成不再依赖易失的 _object_types
+    （A 方案：配置随实例走，场景文件可独立移植）。
+    """
+    ot = _object_types.get(object_type_rid, {})
+    asset_id = ot.get("asset_id") or ""
+    asset_meta = MOCK_ASSETS.get(asset_id, {})
+    return {
+        "injected_interfaces": list(ot.get("injected_interfaces", [])),
+        "asset_id": asset_id,
+        "ue_asset_path": ot.get("ue_asset_path") or asset_meta.get("ue_path") or asset_id,
+        "object_type_name": ot.get("name", object_type_rid),
+    }
+
+
 def _build_snapshot(instance_id):
-    """根据 ObjectType 接口配置，将 raw_state 组装为标准接口格式快照。"""
+    """
+    将 raw_state 组装为标准接口格式快照。
+    优先使用实例自带的 render_config（spawn 时冻结）；老实例无此字段时
+    回退到当前 _object_types，并沿用"类型不在激活数据集则隐藏"的旧逻辑。
+    """
     raw = instance_store.get_raw_state(instance_id)
     if raw is None:
         return None
 
-    # 找 ObjectType
     all_instances = instance_store.list_all()
     inst_meta = next((i for i in all_instances if i["id"] == instance_id), {})
     ot_rid = inst_meta.get("object_type_rid", "")
-    ot = _object_types.get(ot_rid, {})
-    injected = ot.get("injected_interfaces", [])
-    asset_id = ot.get("asset_id") or raw.get("asset_id", "")
-    # 将 file_number 解析为 UE 内容路径（供 3D 渲染端 LoadObject 使用）
-    asset_meta = MOCK_ASSETS.get(asset_id, {})
-    ue_asset_path = asset_meta.get("ue_path", asset_id)  # fallback: 原始 asset_id
+
+    cfg = instance_store.get_render_config(instance_id) or {}
+    if ot_rid in _object_types:
+        # 类型在当前激活数据集 → 用实时配置：绑定资产/换模型立即生效（不被 spawn 时的快照锁死）
+        ot = _object_types[ot_rid]
+        injected = ot.get("injected_interfaces", [])
+        asset_id = ot.get("asset_id") or raw.get("asset_id", "")
+        asset_meta = MOCK_ASSETS.get(asset_id, {})
+        ue_asset_path = ot.get("ue_asset_path") or asset_meta.get("ue_path") or asset_id
+        ot_name = ot.get("name", ot_rid)
+    elif cfg:
+        # 类型已不在当前数据集（场景被切走/移植到别的后端）→ 回退实例冻结的配置
+        injected = cfg.get("injected_interfaces", [])
+        asset_id = cfg.get("asset_id") or raw.get("asset_id", "")
+        ue_asset_path = cfg.get("ue_asset_path") or asset_id
+        ot_name = cfg.get("object_type_name", ot_rid)
+    else:
+        # 无配置可用 → 隐藏，避免给 UE 推空接口
+        return None
 
     now = time.time()
     online = (now - inst_meta.get("last_seen", 0)) < 3.0
@@ -1342,7 +1554,7 @@ def _build_snapshot(instance_id):
     return {
         "instanceId":      instance_id,
         "objectTypeRid":   ot_rid,
-        "objectTypeName":  ot.get("name", ot_rid),
+        "objectTypeName":  ot_name,
         "timestamp":       now,
         "online":          online,
         "raw_state":       raw,
@@ -1363,9 +1575,13 @@ def get_state_snapshot():
 
 @app.route('/api/v2/state/snapshots', methods=['GET'])
 def get_all_snapshots():
-    """获取所有实例的快照（3D 渲染端批量轮询用）"""
+    """
+    获取指定场景所有实例的快照（3D 渲染端批量轮询用）。
+    ?scene=<scene_id> 指定场景；不传则用当前激活数据集。
+    UE 工程可通过该参数各自锁定自己的场景，互不干扰。
+    """
     result = []
-    for iid in instance_store.get_all_ids():
+    for iid in instance_store.get_all_ids():   # 当前激活项目的全部实例（唯一可见性规则）
         snap = _build_snapshot(iid)
         if snap:
             result.append(snap)
@@ -1398,12 +1614,33 @@ def override_state():
         if k in ('is_visible', 'is_loaded') and isinstance(v, str):
             patch[k] = v.lower() not in ('false', '0', 'no')
 
-    success = instance_store.update_raw_state(instance_id, patch)
+    success = instance_store.update_raw_state(instance_id, patch, persist=True)
     if not success:
         return jsonify({"error": "Instance not found"}), 404
 
     snap = _build_snapshot(instance_id)
     return jsonify({"status": "ok", "snapshot": snap})
+
+
+@app.route('/api/v2/scenes', methods=['GET'])
+def list_scenes():
+    """列出所有项目及其实例数（运维/清理用）。"""
+    return jsonify({
+        "active_project": project_store.get_active_id(),
+        "projects": project_store.list_projects()
+    })
+
+
+@app.route('/api/v2/scene/clear', methods=['POST'])
+def clear_scene():
+    """
+    清空一个场景的全部实例（内存 + 磁盘）。
+    Body: { "scene": "<scene_id>" }  不传则清当前激活数据集对应的场景。
+    清空后 UE 轮询会自动销毁这些（非编辑器预置的）实例。
+    """
+    before = len(project_store.get_all_ids())
+    project_store.clear_instances()   # 清空当前激活项目的实例
+    return jsonify({"status": "ok", "cleared": before})
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1455,6 +1692,47 @@ _datasets = [
 ]
 # 当前激活的数据集 ID
 _active_dataset_id = "demo"
+
+
+# ── 同步视图 ↔ ProjectStore ────────────────────────────────────────────────
+# _datasets / _active_dataset_id / _object_types 是"当前激活项目"的内存视图；
+# ProjectStore 是唯一事实来源(持久化+实例归属)。下面两个 helper 负责双向同步。
+
+def _persist_active_project():
+    """把当前 _object_types + 激活数据集 写回 ProjectStore 的激活项目并落盘。
+    数据集层任何变更(发布/合并/激活/绑资产)后调用。demo 不持久化。"""
+    if _active_dataset_id == "demo":
+        return
+    ds = next((d for d in _datasets if d.get("id") == _active_dataset_id), None)
+    if project_store.get_active_id() != _active_dataset_id:
+        # 目标项目可能还没有文件 → 建一个(create_project 会设为激活)
+        if not project_store.activate(_active_dataset_id):
+            project_store.create_project(
+                ds.get("name") if ds else _active_dataset_id,
+                object_types=_object_types,
+                project_id=_active_dataset_id,
+                dataset=ds)
+            return
+    project_store.set_object_types(_object_types)
+    if ds is not None:
+        project_store.set_dataset(ds)
+
+
+def _init_from_project_store():
+    """启动时从 ProjectStore 恢复 _datasets / _active_dataset_id / _object_types。"""
+    global _datasets, _active_dataset_id, _object_types
+    existing = {d["id"] for d in _datasets}
+    for ds in project_store.all_datasets():
+        if ds.get("id") and ds["id"] not in existing:
+            _datasets.append(ds)
+            existing.add(ds["id"])
+    active_id = project_store.get_active_id()
+    if active_id:
+        _active_dataset_id = active_id
+        ot = project_store.get_object_types()
+        if ot:
+            _object_types = ot
+        print(f"[project] 恢复激活项目={active_id}，类型={len(_object_types)}，实例={len(project_store.get_all_ids())}")
 
 
 @app.route('/api/v2/ontology/import_csv', methods=['POST'])
@@ -1721,6 +1999,10 @@ def activate_dataset():
 
     _active_dataset_id = ds_id
     _object_types = _project_dataset_to_object_types(ds)
+    if ds_id == "demo":
+        project_store.deactivate()            # demo 无项目 → 不服务实例
+    else:
+        _persist_active_project()             # 切换激活项目(不存在则建)
     return jsonify({"status": "ok", "active": _active_dataset_id})
 
 
@@ -1748,6 +2030,7 @@ def delete_dataset(ds_id):
         return jsonify({"error": f"找不到数据集: {ds_id}"}), 404
 
     _datasets.pop(ds_index)
+    project_store.delete_project(ds_id)   # 连带删除该项目的实例(无孤儿)
 
     # 如果删除的是当前激活项，重置为 demo
     if _active_dataset_id == ds_id:
@@ -3099,6 +3382,9 @@ try:
 except Exception as _lite_err:
     print(f"[Lite] 模块加载失败: {_lite_err}")
 # ================================================================
+
+# 启动时从 ProjectStore 恢复数据集 + 激活态 + 类型表（须在所有函数定义之后调用）
+_init_from_project_store()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)

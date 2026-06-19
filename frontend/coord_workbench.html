@@ -65,8 +65,11 @@ body.embedded-mode{background:#fafaf7}
 .layer-list{margin-top:16px; max-height:calc(100vh - 260px); overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--border-strong) transparent}
 .layer-item{display:flex;align-items:center;gap:8px;padding:6px 2px;margin-bottom:2px;font-size:12px;color:var(--text-muted);border-bottom:2px solid transparent;transition:all .15s}
 .layer-item.active{color:#111;border-bottom-color:#111;font-weight:600;background:var(--surface-subtle)}
+.layer-item.deselected{opacity:.5}
+.layer-item .layer-sel{accent-color:var(--ink);cursor:pointer;flex-shrink:0;margin:0}
 .layer-swatch{width:12px;height:12px;border-radius:3px;flex-shrink:0}
 .layer-toggle{margin-left:auto;cursor:pointer;font-size:11px;color:var(--text-soft)}
+.layer-toggle.locked{cursor:default;opacity:.4}
 /* Anchor list */
 .anchor-row{display:flex;align-items:center;gap:6px;padding:8px;background:var(--surface-subtle);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12px}
 .anchor-row .idx{font-weight:700;color:var(--accent);width:20px}
@@ -228,6 +231,34 @@ body.embedded-mode{background:#fafaf7}
 .zoom-controls { position:absolute; bottom:16px; right:16px; display:flex; flex-direction:column; gap:4px; background:var(--surface); padding:4px; border-radius:6px; border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,.05); z-index:10; }
 .zoom-controls button { background:transparent; border:none; width:28px; height:28px; border-radius:4px; cursor:pointer; font-weight:600; font-size:16px; color:var(--text); transition:background 0.15s; display:flex; align-items:center; justify-content:center; }
 .zoom-controls button:hover { background:var(--surface-subtle); color:var(--accent); }
+
+/* Align Assist Toolbar */
+.canvas-toolbar {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 2px;
+  background: rgba(255,255,255,0.92); backdrop-filter: blur(6px);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 3px 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  z-index: 10; font-size: 11px; user-select: none;
+}
+.toolbar-btn {
+  padding: 4px 8px; border-radius: 5px; cursor: pointer;
+  display: flex; align-items: center; gap: 4px;
+  color: var(--ink-2); border: 1px solid transparent; background: transparent;
+  font-size: 11px; font-weight: 500; transition: all 0.15s;
+}
+.toolbar-btn.active {
+  background: var(--ink); color: var(--on-ink); border-color: var(--ink);
+}
+.toolbar-btn:hover:not(.active) {
+  background: var(--bg-3); color: var(--ink);
+}
+.toolbar-sep {
+  width: 1px; height: 18px; background: var(--line-2); margin: 0 4px;
+}
+.toolbar-info {
+  font-size: 10px; color: var(--ink-3); font-family: monospace; padding: 0 4px;
+}
 </style>
 </head>
 <body>
@@ -251,6 +282,14 @@ body.embedded-mode{background:#fafaf7}
   <div class="wb-body">
     <div class="canvas-area">
       <canvas id="mainCanvas"></canvas>
+      <div class="canvas-toolbar" id="alignToolbar" style="display:none">
+        <button class="toolbar-btn active" id="btnGrid" onclick="toggleAlignGrid()" data-tip="显示/隐藏网格 (G)">⊞ Grid</button>
+        <button class="toolbar-btn active" id="btnSnap" onclick="toggleAlignSnap()" data-tip="网格吸附与对齐线 (S)">⊕ Snap</button>
+        <button class="toolbar-btn" id="btnOrtho" onclick="toggleAlignOrtho()" data-tip="正交约束: 限制水平/垂直放置 (O, 或按住Shift临时切换)">⟂ Ortho</button>
+        <div class="toolbar-sep"></div>
+        <div class="toolbar-info" id="alignGridInfo">网格: —</div>
+        <div class="toolbar-info" id="alignSnapInfo">吸附: 8px</div>
+      </div>
       <div class="zoom-controls">
         <button onclick="zoomCanvas(1.25)" data-tip="放大">+</button>
         <button onclick="zoomCanvas(0.8)" data-tip="缩小">−</button>
@@ -282,7 +321,12 @@ body.embedded-mode{background:#fafaf7}
                   <svg id="layerChevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.2s; transform:rotate(0deg)"><polyline points="6 9 12 15 18 9"></polyline></svg>
                   图层列表
                 </span>
-                <span class="copy-btn" onclick="toggleAllLayers()" data-tip="切换全显/全隐"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></span>
+                <div style="display:flex; align-items:center; gap:10px">
+                  <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--ink-2);cursor:pointer;font-weight:400" data-tip="勾选=纳入后续流程；取消=该图层在审核/实体/导出/投实例中不出现">
+                    <input type="checkbox" id="layerSelectAll" checked onchange="toggleAllLayerSelect(this.checked)" style="accent-color:var(--ink);cursor:pointer"> 全选纳入
+                  </label>
+                  <span class="copy-btn" onclick="toggleAllLayers()" data-tip="切换全显/全隐（仅画布）"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></span>
+                </div>
               </div>
               <div id="layerList" class="layer-list" style="margin-top:8px; flex:1; min-height:0;"></div>
               <div id="parseWarnings" style="display:none; margin-top:8px; font-size:11px; color:#b45309; cursor:pointer; user-select:none;" onclick="toggleWarningDetail(this)"></div>
@@ -299,6 +343,10 @@ body.embedded-mode{background:#fafaf7}
               <button class="audit-tool-btn" onclick="auditCheckAll(false)">全不选</button>
             </div>
             <div class="audit-list" id="auditList"></div>
+            <div id="polyAuditWrap" style="display:none;margin-top:12px">
+              <div class="audit-summary" style="margin-bottom:6px">线图层（墙 / 地面）<span class="hint" style="font-weight:400;margin:0">勾选才生成，未勾选不纳入</span></div>
+              <div class="audit-list" id="polyAuditList" style="max-height:160px;overflow-y:auto"></div>
+            </div>
             <div class="audit-filter-log" id="auditFilterLog" onclick="toggleFilterLog()">系统已过滤 0 个块（点击查看明细）
               <div class="audit-filter-log-detail" id="auditFilterLogDetail"></div>
             </div>
@@ -595,9 +643,10 @@ function saveSession(){
     cad: {
       previewData:State.previewData, scanResult:State.scanResult,
       anchors:State.anchors, matrix:State.matrix, metrics:State.metrics,
-      currentStep:State.currentStep, layerVisible:State.layerVisible,
+      currentStep:State.currentStep, layerVisible:State.layerVisible, layerSelected:State.layerSelected,
       entityChecked:State.entityChecked, entityAssets:State.entityAssets, entityTypes:State.entityTypes,
       auditChecked:State.auditChecked, auditName:State.auditName, auditAsset:State.auditAsset,
+      polyAuditChecked:State.polyAuditChecked,
       fileName: (State.lastUploadedFile && State.lastUploadedFile.name) || null,
     },
     img: {
@@ -631,9 +680,10 @@ async function restoreSession(){
       const c=snap.cad;
       State.previewData=c.previewData; State.scanResult=c.scanResult;
       State.anchors=c.anchors||[]; State.matrix=c.matrix||null; State.metrics=c.metrics||null;
-      State.layerVisible=c.layerVisible||{};
+      State.layerVisible=c.layerVisible||{}; State.layerSelected=c.layerSelected||{};
       State.entityChecked=c.entityChecked||{}; State.entityAssets=c.entityAssets||{}; State.entityTypes=c.entityTypes||{};
       State.auditChecked=c.auditChecked||{}; State.auditName=c.auditName||{}; State.auditAsset=c.auditAsset||{};
+      State.polyAuditChecked=c.polyAuditChecked||{};
       if(c.fileName) State.lastUploadedFile={name:c.fileName};
     }
     // 切到正确模式并重建界面
@@ -727,6 +777,7 @@ const State = {
   metrics: null,
   currentStep: 1,
   layerVisible: {},
+  layerSelected: {},   // 2.9.2.2 图层是否纳入流程（不变式：选择⟹可见）
   entityChecked: {},
   entityAssets: {},
   entityTypes: {},
@@ -736,6 +787,7 @@ const State = {
   auditChecked: {},           // block_name -> bool
   auditName: {},              // block_name -> 用户编辑后的 name
   auditAsset: {},             // block_name -> 用户编辑后的 asset_id
+  polyAuditChecked: {},       // 线图层 layer -> bool（默认 false：未勾选=不纳入）
   lastUploadedFile: null,     // File 对象，供 scan 等接口复用
   // M4 commit UI 状态
   activeDsId: null,
@@ -749,6 +801,226 @@ function copyText(text, btn) {
     btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
     setTimeout(() => { btn.innerHTML = orig; }, 1500);
   });
+}
+
+// ═══ 辅助对齐系统（2.9.2.1） ═══
+let isShiftDown = false;
+window.addEventListener('keydown', e => {
+  if (e.key === 'Shift') isShiftDown = true;
+  if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+  if (e.key === 'g' || e.key === 'G') toggleAlignGrid();
+  if (e.key === 's' || e.key === 'S') toggleAlignSnap();
+  if (e.key === 'o' || e.key === 'O') toggleAlignOrtho();
+  if (e.key === 'Escape') { AlignAssist.snapResult = null; AlignAssist.orthoResult = null; draw(); }
+});
+window.addEventListener('keyup', e => { if (e.key === 'Shift') { isShiftDown = false; draw(); } });
+
+const AlignAssist = {
+  gridVisible: true,
+  snapEnabled: true,
+  orthoEnabled: false,
+  SNAP_THRESHOLD_PX: 8,
+  
+  snapResult: null,
+  orthoResult: null,
+  currentGridStep: 0,
+  
+  getCurrentPointsList() {
+    if (State.mode === 'dxf' && State.currentStep === 3) return State.anchors.map(a => a.cadXY);
+    if (State.mode === 'image' && imgState.currentStep === 1) return imgState.anchors.map(a => a.pixelXY);
+    if (State.mode === 'image' && imgState.currentStep === 2) return imgState.markers.map(m => m.pixelXY);
+    return [];
+  },
+  
+  computeSnap(mouseWX, mouseWY, existingPoints, gridStep) {
+    const threshold = this.SNAP_THRESHOLD_PX / camScale;
+    let resultX = mouseWX, resultY = mouseWY;
+    let guideX = null, guideY = null;
+    
+    // Prio 1: Existing points
+    let bestDx = Infinity, bestDy = Infinity;
+    for (const [idx, pt] of existingPoints.entries()) {
+      const dx = Math.abs(mouseWX - pt[0]);
+      const dy = Math.abs(mouseWY - pt[1]);
+      if (dx < threshold && dx < bestDx) {
+        bestDx = dx; resultX = pt[0];
+        guideX = { wx: pt[0], color: '#e040a0', label: `X 对齐 #${idx+1}` };
+      }
+      if (dy < threshold && dy < bestDy) {
+        bestDy = dy; resultY = pt[1];
+        guideY = { wy: pt[1], color: '#e040a0', label: `Y 对齐 #${idx+1}` };
+      }
+    }
+    
+    // Prio 2: Grid
+    if (!guideX && gridStep) {
+      const nearestGridX = Math.round(mouseWX / gridStep) * gridStep;
+      if (Math.abs(mouseWX - nearestGridX) < threshold) {
+        resultX = nearestGridX;
+        guideX = { wx: nearestGridX, color: '#4f7df7', label: '' };
+      }
+    }
+    if (!guideY && gridStep) {
+      const nearestGridY = Math.round(mouseWY / gridStep) * gridStep;
+      if (Math.abs(mouseWY - nearestGridY) < threshold) {
+        resultY = nearestGridY;
+        guideY = { wy: nearestGridY, color: '#4f7df7', label: '' };
+      }
+    }
+    
+    return {
+      snappedWX: resultX, snappedWY: resultY,
+      guideX, guideY,
+      snapInfo: [guideX?.label, guideY?.label].filter(Boolean).join(' ')
+    };
+  },
+  
+  computeOrtho(mouseWX, mouseWY, lastPoint) {
+    if (!lastPoint) return null;
+    const [x0, y0] = lastPoint;
+    const dx = Math.abs(mouseWX - x0);
+    const dy = Math.abs(mouseWY - y0);
+    if (dx >= dy) return { constrainedWX: mouseWX, constrainedWY: y0, direction: 'H', refPoint: lastPoint };
+    else return { constrainedWX: x0, constrainedWY: mouseWY, direction: 'V', refPoint: lastPoint };
+  },
+  
+  getAdjustedCoord(mouseWX, mouseWY) {
+    let wx = mouseWX, wy = mouseWY;
+    const isOrthoActive = this.orthoEnabled !== isShiftDown; // XOR
+    
+    if (this.snapEnabled) {
+      const points = this.getCurrentPointsList();
+      const snap = this.computeSnap(wx, wy, points, this.currentGridStep);
+      wx = snap.snappedWX; wy = snap.snappedWY;
+      this.snapResult = snap;
+    } else {
+      this.snapResult = null;
+    }
+    
+    if (isOrthoActive) {
+      const points = this.getCurrentPointsList();
+      const last = points.length > 0 ? points[points.length - 1] : null;
+      const ortho = this.computeOrtho(wx, wy, last);
+      if (ortho) {
+        wx = ortho.constrainedWX; wy = ortho.constrainedWY;
+        this.orthoResult = ortho;
+      } else {
+        this.orthoResult = null;
+      }
+    } else {
+      this.orthoResult = null;
+    }
+    
+    return [wx, wy];
+  },
+  
+  drawGuides(ctx, cw, ch) {
+    ctx.save();
+    
+    // Draw snap guides
+    if (this.snapResult) {
+      const { guideX, guideY } = this.snapResult;
+      ctx.setLineDash([4, 4]);
+      if (guideX) {
+        const [sx, _] = w2s(guideX.wx, 0);
+        ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, ch);
+        ctx.strokeStyle = guideX.color; ctx.lineWidth = 1; ctx.stroke();
+        if (guideX.color === '#e040a0') { // circle
+          const pts = this.getCurrentPointsList();
+          pts.filter(p => p[0] === guideX.wx).forEach(p => {
+            const [psx, psy] = w2s(p[0], p[1]);
+            ctx.beginPath(); ctx.arc(psx, psy, 12, 0, Math.PI*2); ctx.stroke();
+          });
+        }
+      }
+      if (guideY) {
+        const [_, sy] = w2s(0, guideY.wy);
+        ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(cw, sy);
+        ctx.strokeStyle = guideY.color; ctx.lineWidth = 1; ctx.stroke();
+        if (guideY.color === '#e040a0') { // circle
+          const pts = this.getCurrentPointsList();
+          pts.filter(p => p[1] === guideY.wy).forEach(p => {
+            const [psx, psy] = w2s(p[0], p[1]);
+            ctx.beginPath(); ctx.arc(psx, psy, 12, 0, Math.PI*2); ctx.stroke();
+          });
+        }
+      }
+    }
+    
+    // Draw ortho guides
+    if (this.orthoResult) {
+      const { constrainedWX, constrainedWY, direction, refPoint } = this.orthoResult;
+      const [rsx, rsy] = w2s(refPoint[0], refPoint[1]);
+      const [csx, csy] = w2s(constrainedWX, constrainedWY);
+      ctx.setLineDash([5, 5]);
+      ctx.strokeStyle = '#4f7df7'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(rsx, rsy); ctx.lineTo(csx, csy); ctx.stroke();
+      
+      ctx.beginPath(); ctx.arc(csx, csy, 6, 0, Math.PI*2);
+      ctx.lineWidth = 1.5; ctx.stroke();
+      
+      ctx.font = '10px monospace'; ctx.fillStyle = '#4f7df7'; ctx.setLineDash([]);
+      ctx.fillText(direction, csx + 10, csy - 10);
+    }
+    
+    ctx.restore();
+  },
+  
+  drawCrosshair(ctx, mouseSX, mouseSY) {
+    const isSnap = !!(this.snapResult && (this.snapResult.guideX || this.snapResult.guideY));
+    const isOrtho = !!this.orthoResult;
+    
+    let color = '#333';
+    if (isSnap) {
+      const gx = this.snapResult.guideX; const gy = this.snapResult.guideY;
+      color = (gx?.color === '#e040a0' || gy?.color === '#e040a0') ? '#e040a0' : '#4f7df7';
+    } else if (isOrtho) {
+      color = '#4f7df7';
+    }
+    
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = 1;
+    const len = 12; const gap = 3;
+    
+    // Cross
+    ctx.beginPath();
+    ctx.moveTo(mouseSX - len, mouseSY); ctx.lineTo(mouseSX - gap, mouseSY);
+    ctx.moveTo(mouseSX + gap, mouseSY); ctx.lineTo(mouseSX + len, mouseSY);
+    ctx.moveTo(mouseSX, mouseSY - len); ctx.lineTo(mouseSX, mouseSY - gap);
+    ctx.moveTo(mouseSX, mouseSY + gap); ctx.lineTo(mouseSX, mouseSY + len);
+    ctx.stroke();
+    
+    if (isSnap || isOrtho) {
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(mouseSX, mouseSY, 1.5, 0, Math.PI*2); ctx.fill();
+    }
+    
+    // Ortho extension lines
+    if (isOrtho) {
+      const dir = this.orthoResult.direction;
+      ctx.setLineDash([2, 4]);
+      ctx.beginPath();
+      if (dir === 'H') {
+        ctx.moveTo(mouseSX - len - 20, mouseSY); ctx.lineTo(mouseSX - len, mouseSY);
+        ctx.moveTo(mouseSX + len, mouseSY); ctx.lineTo(mouseSX + len + 20, mouseSY);
+      } else {
+        ctx.moveTo(mouseSX, mouseSY - len - 20); ctx.lineTo(mouseSX, mouseSY - len);
+        ctx.moveTo(mouseSX, mouseSY + len); ctx.lineTo(mouseSX, mouseSY + len + 20);
+      }
+      ctx.stroke();
+    }
+    
+    ctx.restore();
+  }
+};
+
+function toggleAlignGrid() { AlignAssist.gridVisible = !AlignAssist.gridVisible; syncToolbarUI(); draw(); scheduleSave(); }
+function toggleAlignSnap() { AlignAssist.snapEnabled = !AlignAssist.snapEnabled; syncToolbarUI(); draw(); scheduleSave(); }
+function toggleAlignOrtho() { AlignAssist.orthoEnabled = !AlignAssist.orthoEnabled; syncToolbarUI(); draw(); scheduleSave(); }
+function syncToolbarUI() {
+  document.getElementById('btnGrid').classList.toggle('active', AlignAssist.gridVisible);
+  document.getElementById('btnSnap').classList.toggle('active', AlignAssist.snapEnabled);
+  document.getElementById('btnOrtho').classList.toggle('active', AlignAssist.orthoEnabled);
 }
 
 // ── Canvas ──
@@ -808,7 +1080,8 @@ canvas._origMousedown = function(e) {
   }
   if (e.button === 0 && State.currentStep === 3) {
     const [wx, wy] = s2w(e.offsetX, e.offsetY);
-    addAnchor(wx, wy);
+    const [adjWx, adjWy] = AlignAssist.getAdjustedCoord(wx, wy);
+    addAnchor(adjWx, adjWy);
   }
 };
 canvas.addEventListener('mousedown', canvas._origMousedown);
@@ -817,6 +1090,12 @@ canvas.addEventListener('mousemove', e => {
     camX = camStartX - (e.offsetX - dragStartX) / camScale;
     camY = camStartY + (e.offsetY - dragStartY) / camScale;
     draw();
+  } else if ((State.mode === 'dxf' && State.currentStep === 3) || (State.mode === 'image' && (imgState.currentStep === 1 || imgState.currentStep === 2))) {
+    // Redraw continuously for alignment guides
+    draw();
+    const [wx, wy] = s2w(e.offsetX, e.offsetY);
+    AlignAssist.getAdjustedCoord(wx, wy);
+    AlignAssist.drawCrosshair(ctx, e.offsetX, e.offsetY);
   }
   updateCanvasInfo(e);
   // Hover highlight for instances
@@ -887,8 +1166,13 @@ canvas.addEventListener('mouseleave', () => { isDragging = false; canvas.style.c
 
 function updateCanvasInfo(e) {
   const [wx,wy] = s2w(e.offsetX, e.offsetY);
+  let adjStr = '';
+  if (AlignAssist.snapResult && AlignAssist.snapResult.snapInfo) adjStr += ` [${AlignAssist.snapResult.snapInfo}]`;
+  if (AlignAssist.orthoResult) adjStr += ` [正交约束]`;
+  
+  const [adjX, adjY] = AlignAssist.getAdjustedCoord(wx, wy);
   document.getElementById('canvasInfo').textContent =
-    `缩放: ${(camScale*100).toFixed(0)}% | CAD: (${wx.toFixed(0)}, ${wy.toFixed(0)})`;
+    `缩放: ${(camScale*100).toFixed(0)}% | CAD: (${adjX.toFixed(1)}, ${adjY.toFixed(1)})${adjStr}`;
 }
 
 function fitView() {
@@ -922,10 +1206,13 @@ function zoomCanvas(factor) {
  * 自适应网格背景暗纹——会根据当前缩放级自动选择最合适的网格间距
  */
 function drawGrid(cw, ch) {
+  if (!AlignAssist.gridVisible) return;
   // 候选网格间距（世界坐标单位）
-  const STEPS = [100, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000];
-  // 希望屏幕上网格行密度为 60~120px
-  let step = STEPS.find(s => s * camScale >= 60) || STEPS[STEPS.length - 1];
+  const STEPS = [10, 25, 50, 100, 250, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000];
+  // 希望屏幕上网格行密度为 40px
+  let step = STEPS.find(s => s * camScale >= 40) || STEPS[STEPS.length - 1];
+  AlignAssist.currentGridStep = step;
+  document.getElementById('alignGridInfo').textContent = `网格: ${step}`;
 
   const [wxL, wyT] = s2w(0, 0);
   const [wxR, wyB] = s2w(cw, ch);
@@ -953,8 +1240,27 @@ function drawGrid(cw, ch) {
     ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(cw, sy); ctx.stroke();
   }
 
-  // 坐标标注（最小间距 > 100px 才显示）
-  if (step * camScale >= 100) {
+  // 细分网格线 (step <= 50 且缩放足够大时)
+  if (step <= 50 && camScale > 0.5) {
+    const subStep = step / 5;
+    ctx.strokeStyle = 'rgba(120,130,150,0.06)';
+    ctx.lineWidth = 0.5;
+    ctx.setLineDash([1, 2]);
+    for (let wx = startX; wx <= wxR + step; wx += subStep) {
+      if (wx % step === 0) continue;
+      const [sx] = w2s(wx, 0);
+      ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, ch); ctx.stroke();
+    }
+    for (let wy = startY; wy <= wyB + step; wy += subStep) {
+      if (wy % step === 0) continue;
+      const [, sy] = w2s(0, wy);
+      ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(cw, sy); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+
+  // 坐标标注（最小间距 > 80px 才显示）
+  if (step * camScale >= 80) {
     ctx.font = '10px Inter,monospace';
     ctx.fillStyle = 'rgba(100,120,160,0.45)';
     for (let wx = startX; wx <= wxR + step; wx += step * 5) {
@@ -1097,6 +1403,11 @@ function draw() {
     ctx.font = 'bold 11px Inter'; ctx.fillStyle = '#dc2626';
     ctx.fillText(`#${i+1}`, sx+12, sy-4);
   });
+  
+  // Draw alignment guides on top
+  if (State.currentStep === 3) {
+    AlignAssist.drawGuides(ctx, cw, ch);
+  }
 }
 
 // ── Step Navigation ──
@@ -1131,8 +1442,13 @@ function _applyStep(n) {
   }
   if (n === 2) renderAuditList();
   if (n === 4) buildEntityTable();
-  if (n === 3) { canvas.style.cursor = 'crosshair'; }
-  else { canvas.style.cursor = 'default'; }
+  if (n === 3) { 
+    canvas.style.cursor = 'none'; // crosshair is drawn manually
+    document.getElementById('alignToolbar').style.display = 'flex';
+  } else { 
+    canvas.style.cursor = 'default'; 
+    document.getElementById('alignToolbar').style.display = 'none';
+  }
   draw();
   scheduleSave();
 }
@@ -1226,12 +1542,17 @@ function renderAuditList() {
     return;
   }
   const s = State.scanResult.summary || {};
-  const cands = State.scanResult.candidates || [];
+  const allCands = State.scanResult.candidates || [];
+  // 2.9.2.2：按图层选择过滤——primary_layer 未被选中的候选不进审核
+  const inSelLayer = c => State.layerSelected[c.primary_layer] !== false;
+  const cands = allCands.filter(inSelLayer);
+  const excludedByLayer = allCands.length - cands.length;
   const checkedCount = cands.filter(c => State.auditChecked[c.block_name]).length;
   summaryEl.innerHTML = `
     <span>共 <b>${s.unique_block_names}</b> 种图块，已过滤 <b>${(s.filtered_system_blocks||0)+(s.filtered_xref_blocks||0)}</b> 处无关引用</span>
-    <span>可建类型 <b>${s.candidates}</b> 个</span>
+    <span>可建类型 <b>${cands.length}</b> 个</span>
     <span>已勾选 <b id="auditCheckedCnt">${checkedCount}</b></span>
+    ${excludedByLayer > 0 ? `<span style="color:var(--ink-3)">因图层未选已排除 <b>${excludedByLayer}</b> 个（可在第①步调整）</span>` : ''}
   `;
 
   const kw = (document.getElementById('auditSearch')?.value || '').trim().toLowerCase();
@@ -1276,8 +1597,53 @@ function renderAuditList() {
     filterDetailEl.dataset.rendered = '1';
   }
 
+  // 渲染线图层审核（与块审核同级，未勾选=不纳入）
+  renderPolyAuditList();
+
   // 同时刷新写入策略 UI（确保激活集状态最新）
   refreshStrategyUI();
+}
+
+// 2.9.2 — 线图层审核：按图层聚合 polyline，勾选才纳入下游
+function _polyLayerCounts() {
+  const counts = {};
+  (State.previewData?.polylines || []).forEach(p => {
+    if (State.layerSelected[p.layer] === false) return;   // 未选图层不进审核
+    counts[p.layer] = (counts[p.layer] || 0) + 1;
+  });
+  return counts;
+}
+
+function renderPolyAuditList() {
+  const wrap = document.getElementById('polyAuditWrap');
+  const listEl = document.getElementById('polyAuditList');
+  if (!wrap || !listEl) return;
+  const counts = _polyLayerCounts();
+  const layers = Object.keys(counts);
+  if (layers.length === 0) { wrap.style.display = 'none'; listEl.innerHTML = ''; return; }
+  wrap.style.display = 'block';
+  listEl.innerHTML = '';
+  layers.sort();
+  for (const layer of layers) {
+    const checked = State.polyAuditChecked[layer] ? 'checked' : '';
+    const row = document.createElement('div');
+    row.className = 'audit-row';
+    row.innerHTML = `
+      <input type="checkbox" ${checked} onchange="polyAuditToggle('${escapeQ(layer)}', this.checked)"/>
+      <div class="a-name"><span class="a-meta">${escapeHTML(layer)} · 线</span></div>
+      <span class="a-count">×${counts[layer]}</span>`;
+    listEl.appendChild(row);
+  }
+}
+
+function polyAuditToggle(layer, checked) {
+  State.polyAuditChecked[layer] = checked;
+}
+
+// 线是否纳入下游：图层已选 且 线审核已勾选
+function polyInScope(p) {
+  return State.layerSelected[p.layer] !== false
+      && !!State.polyAuditChecked[p.layer];
 }
 
 // ── M4: 当前激活数据集 / 写入策略 / commit 流程 ──
@@ -1384,7 +1750,7 @@ async function openDatasetPicker() {
 function _collectCheckedItems() {
   if (!State.scanResult) return [];
   return (State.scanResult.candidates || [])
-    .filter(c => State.auditChecked[c.block_name])
+    .filter(c => State.auditChecked[c.block_name] && State.layerSelected[c.primary_layer] !== false)
     .map(c => ({
       block_name: c.block_name,
       name: State.auditName[c.block_name] || c.suggested_name,
@@ -1395,7 +1761,7 @@ function _collectCheckedItems() {
 
 async function doCommit(force) {
   // 清掉上一次的成功横幅，避免叠加（可逆：编辑区始终在）
-  if (!force) { const sc = document.getElementById('commitSuccess'); if (sc) { sc.style.display='none'; sc.innerHTML=''; } }
+  if (!force) { const sc = document.getElementById('commitSuccess'); if (sc) { sc.style.display='none'; sc.innerHTML=''; } document.getElementById('btnCommit').classList.add('btn-primary'); }
   const items = _collectCheckedItems();
   if (items.length === 0) {
     toast('请至少勾选一项再提交', 'warn');
@@ -1548,11 +1914,17 @@ async function skipAudit() {
   }
 }
 
+// ── 单一作用域判定：图层已纳入 且 类型审核已勾选（谁也不另起炉灶） ──
+function insertInScope(ins) {
+  return State.layerSelected[ins.layer] !== false
+      && !!State.auditChecked[ins.block_name];   // 类型审核未勾选 = 不在作用域，下游一律不出现
+}
+
 // ── PRD 2.9.1 — CAD 实体批量入实例库 ──
 function _collectSpawnItems() {
   if (!State.previewData) return [];
   return State.previewData.inserts
-    .filter(ins => State.layerVisible[ins.layer] && State.entityChecked[ins.id] !== false)
+    .filter(ins => insertInScope(ins) && State.entityChecked[ins.id] !== false)
     .map(ins => ({
       block_name: ins.block_name,
       cad_xy: ins.position,
@@ -1689,6 +2061,8 @@ function spawnSuccessDialog(data) {
 
 function showCommitSuccess(data) {
   const el = document.getElementById('commitSuccess');
+  // 主次随进度：提交成功后，黑底交给成功框里的"下一步：标定"，提交按钮降为次级白底
+  document.getElementById('btnCommit').classList.remove('btn-primary');
   // 不隐藏编辑区：成功后仍可继续勾选追加、或换数据集再提交（可逆）
   const summary = data.mode === 'publish'
     ? `数据集"${escapeHTML(data.dataset_name)}"已创建并激活<br>写入 <b>${data.written_count}</b> 个类型，记住资产对应 <b>${data.asset_mapping_updated}</b> 项`
@@ -1722,6 +2096,9 @@ function auditCheckAll(val) {
   (State.scanResult?.candidates || []).forEach(c => {
     State.auditChecked[c.block_name] = val;
   });
+  Object.keys(_polyLayerCounts()).forEach(layer => {
+    State.polyAuditChecked[layer] = val;
+  });
   renderAuditList();
 }
 
@@ -1742,7 +2119,8 @@ function openInNewTab(url) {
 }
 
 function applyPreviewData() {
-  State.previewData.layers.forEach(l => State.layerVisible[l.name] = true);
+  State.polyAuditChecked = {};   // 新解析：线图层默认全不纳入
+  State.previewData.layers.forEach(l => { State.layerVisible[l.name] = true; State.layerSelected[l.name] = true; });
   renderLayerList();
   document.getElementById('layerPanel').style.display = 'flex';
   document.querySelector('.upload-zone').style.display = 'none';
@@ -1792,13 +2170,51 @@ function renderLayerList() {
   el.innerHTML = '';
   State.previewData.layers.forEach(l => {
     const isActive = State.highlightLayer === l.name;
+    const selected = State.layerSelected[l.name] !== false;
     const div = document.createElement('div');
-    div.className = 'layer-item' + (isActive ? ' active' : '');
-    div.innerHTML = `<span class="layer-swatch" style="background:${l.color}"></span>
-      <span style="cursor:pointer;flex:1;" onclick="focusLayer('${l.name}')" data-tip="点击定位到该图层">${l.name} (${l.entity_count})</span>
-      <span class="layer-toggle" data-layer="${l.name}" onclick="toggleLayer(this)" style="cursor:pointer; display:flex; align-items:center;">${State.layerVisible[l.name]?ICON_EYE_ON:ICON_EYE_OFF}</span>`;
+    div.className = 'layer-item' + (isActive ? ' active' : '') + (selected ? '' : ' deselected');
+    // 选中：眼睛锁定常亮（不可点）；未选：眼睛可点
+    const eyeHtml = selected
+      ? `<span class="layer-toggle locked" data-tip="已选图层保持可见；要隐藏请先取消选择">${ICON_EYE_ON}</span>`
+      : `<span class="layer-toggle" data-layer="${l.name}" onclick="toggleLayer(this)" style="cursor:pointer; display:flex; align-items:center;">${State.layerVisible[l.name]?ICON_EYE_ON:ICON_EYE_OFF}</span>`;
+    div.innerHTML = `<input type="checkbox" class="layer-sel" ${selected?'checked':''} onclick="event.stopPropagation()" onchange="toggleLayerSelect('${escapeQ(l.name)}', this.checked)" data-tip="勾选=纳入后续流程">
+      <span class="layer-swatch" style="background:${l.color}"></span>
+      <span style="cursor:pointer;flex:1;" onclick="focusLayer('${escapeQ(l.name)}')" data-tip="点击定位到该图层">${escapeHTML(l.name)} (${l.entity_count})</span>
+      ${eyeHtml}`;
     el.appendChild(div);
   });
+  syncLayerSelectAll();
+}
+
+// 勾选「纳入」：不变式「选择⟹可见」——勾选时强制可见并锁眼睛
+function toggleLayerSelect(name, checked) {
+  State.layerSelected[name] = checked;
+  if (checked) State.layerVisible[name] = true;  // 选中即可见
+  renderLayerList();
+  draw();
+  // 刷新当前步的下游视图
+  if (State.currentStep === 2) renderAuditList();
+  if (State.currentStep === 4) buildEntityTable();
+  scheduleSave();
+}
+
+function toggleAllLayerSelect(checked) {
+  Object.keys(State.layerSelected).forEach(k => {
+    State.layerSelected[k] = checked;
+    if (checked) State.layerVisible[k] = true;
+  });
+  renderLayerList();
+  draw();
+  if (State.currentStep === 2) renderAuditList();
+  if (State.currentStep === 4) buildEntityTable();
+  scheduleSave();
+}
+
+function syncLayerSelectAll() {
+  const box = document.getElementById('layerSelectAll');
+  if (!box) return;
+  const keys = Object.keys(State.layerSelected);
+  box.checked = keys.length > 0 && keys.every(k => State.layerSelected[k] !== false);
 }
 
 function focusLayer(layerName) {
@@ -1846,20 +2262,22 @@ function focusLayer(layerName) {
 
 function toggleLayer(el) {
   const name = el.dataset.layer;
+  if (!name || State.layerSelected[name] !== false) return;  // 已选图层眼睛锁定，不可隐藏
   State.layerVisible[name] = !State.layerVisible[name];
   el.innerHTML = State.layerVisible[name] ? ICON_EYE_ON : ICON_EYE_OFF;
   draw();
+  scheduleSave();
 }
 
 function toggleAllLayers() {
-  const keys = Object.keys(State.layerVisible);
+  // 眼睛批量仅作用于「未选」图层（已选恒为可见、锁定）
+  const keys = Object.keys(State.layerVisible).filter(k => State.layerSelected[k] === false);
   if (keys.length === 0) return;
   const allOn = keys.every(k => State.layerVisible[k]);
   const targetState = !allOn;
   keys.forEach(k => State.layerVisible[k] = targetState);
   renderLayerList();
   draw();
-  if (State.currentStep === 4) buildEntityTable();
 }
 
 function toggleLayerAccordion(el) {
@@ -1923,7 +2341,7 @@ function updateAnchorUE(idx, axis, val) {
 function deleteAnchor(idx) {
   State.anchors.splice(idx, 1);
   if (State.anchors.length >= 2) doCalibrate();
-  else { State.matrix = null; State.metrics = null; document.getElementById('metricsPanel').style.display='none'; document.getElementById('btnToStep4').style.display='none'; }
+  else { State.matrix = null; State.metrics = null; document.getElementById('metricsPanel').style.display='none'; document.getElementById('btnToStep4').style.display='none'; document.getElementById('btnCalibrate').classList.add('btn-primary'); }
   renderAnchorList(); draw();
 }
 
@@ -1957,7 +2375,10 @@ function renderMetrics() {
     <span class="status-badge ${statusClass}">${statusText}</span>
     <div class="scale-info">缩放 X: ${m.scaleX} | Y: ${m.scaleY} | 一致性: ${m.scaleConsistencyPct}%</div>
   </div>`;
-  document.getElementById('btnToStep4').style.display = (m.rmse < 200) ? '' : 'none';
+  const proceed = m.rmse < 200;
+  document.getElementById('btnToStep4').style.display = proceed ? '' : 'none';
+  // 主次随进度：算出可用变换后，黑底交给"下一步"，计算按钮降为次级白底
+  document.getElementById('btnCalibrate').classList.toggle('btn-primary', !proceed);
 }
 
 // ── Step 3: Entity Table ──
@@ -1970,7 +2391,9 @@ function buildEntityTable() {
     ...State.previewData.polylines.map(e => ({...e, _type:'polyline'})),
   ];
   all.forEach(ent => {
-    if (!State.layerVisible[ent.layer]) return;
+    if (State.layerSelected[ent.layer] === false) return;   // 2.9.2.2 未选图层不进实体表
+    if (ent._type === 'insert' && !insertInScope(ent)) return;   // 类型审核未勾选的设备块不进实体表
+    if (ent._type === 'polyline' && !polyInScope(ent)) return;   // 线审核未勾选的图层不进实体表
     if (State.entityChecked[ent.id] === undefined) State.entityChecked[ent.id] = true;
     const isInsert = ent._type === 'insert';
     const pos = isInsert ? ent.position : ent.points[0];
@@ -2006,12 +2429,12 @@ function highlightTableRow(id) {
 function _buildExportPayload() {
   const ents = [];
   State.previewData.inserts.forEach(ins => {
-    if (!State.layerVisible[ins.layer] || !State.entityChecked[ins.id]) return;
+    if (State.layerSelected[ins.layer] === false || !State.entityChecked[ins.id]) return;
     ents.push({ ...ins, asset_path: State.entityAssets[ins.id] || ins.block_name, export: true });
   });
   const polys = [];
   State.previewData.polylines.forEach(p => {
-    if (!State.layerVisible[p.layer] || !State.entityChecked[p.id]) return;
+    if (!polyInScope(p) || !State.entityChecked[p.id]) return;
     polys.push({ ...p, generate_type: State.entityTypes[p.id] || p.generate_type, export: true });
   });
   return {
@@ -2094,7 +2517,7 @@ function downloadCSV() {
   if (!State.previewData || !State.matrix) return;
   let csv = '设备ID,块名,图层,CAD_X,CAD_Y,UE_X,UE_Y,UE_Z,旋转角,UE资产路径\n';
   State.previewData.inserts.forEach(ins => {
-    if (!State.layerVisible[ins.layer] || !State.entityChecked[ins.id]) return;
+    if (State.layerSelected[ins.layer] === false || !State.entityChecked[ins.id]) return;
     const ue = CoordTransform.applyTransform(State.matrix, ins.position);
     csv += `${ins.attribs.EQUIP_ID||''},${ins.block_name},${ins.layer},${ins.position[0]},${ins.position[1]},${ue[0]},${ue[1]},0,${ins.rotation},${State.entityAssets[ins.id]||''}\n`;
   });
@@ -2109,13 +2532,16 @@ function resetAll() {
     State.previewData = null; State.anchors = []; State.matrix = null; State.metrics = null;
     State.currentStep = 1; State.highlightId = null;
     // M2 类型审核状态清空
-    State.scanResult = null; State.auditChecked = {}; State.auditName = {}; State.auditAsset = {};
+    State.scanResult = null; State.auditChecked = {}; State.auditName = {}; State.auditAsset = {}; State.polyAuditChecked = {};
+    State.layerVisible = {}; State.layerSelected = {};   // 2.9.2.2
     State.lastUploadedFile = null;
     document.getElementById('layerPanel').style.display = 'none';
     document.querySelector('#cadPanels .upload-zone').style.display = '';
     document.getElementById('btnReset').style.display = 'none';
     document.getElementById('metricsPanel').style.display = 'none';
     document.getElementById('btnToStep4').style.display = 'none';
+    document.getElementById('btnCalibrate').classList.add('btn-primary');   // 还原主次
+    document.getElementById('btnCommit').classList.add('btn-primary');
     document.getElementById('anchorList').innerHTML = '';
     document.getElementById('fileInput').value = '';
     // 清空审核 UI（防止旧数据残留）
@@ -2203,19 +2629,23 @@ function imgHandleUpload(e) {
 function imgGoToStep(n) {
   if (n > 1 && !imgState.matrix) return;
   imgState.currentStep = n;
-  const tabs = document.querySelectorAll('#imgPanels .step-tab');
-  tabs.forEach(t => {
+  document.querySelectorAll('#imgPanels .step-tab').forEach(t => {
     const s = t.dataset.step === 'i1' ? 1 : 2;
     t.classList.toggle('active', s === n);
     t.classList.toggle('done', s < n);
     t.classList.toggle('disabled', s > n && !imgState.matrix);
   });
-  document.getElementById('imgStep1').classList.toggle('active', n === 1);
-  document.getElementById('imgStep2').classList.toggle('active', n === 2);
-  if (imgState.matrix) {
-    tabs.forEach(t => t.classList.remove('disabled'));
+  document.querySelectorAll('#imgPanels .step-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('imgStep'+n).classList.add('active');
+  
+  if (n === 1 || n === 2) {
+    canvas.style.cursor = 'none';
+    document.getElementById('alignToolbar').style.display = 'flex';
+  } else {
+    canvas.style.cursor = 'default';
+    document.getElementById('alignToolbar').style.display = 'none';
   }
-  canvas.style.cursor = 'crosshair';
+  
   draw();
   scheduleSave();
 }
@@ -2359,11 +2789,16 @@ canvas._mdHandler = function(e) {
   if (e.button !== 0) return;
 
   if (State.mode === 'dxf') {
-    if (State.currentStep === 3) { const [wx,wy] = s2w(e.offsetX, e.offsetY); addAnchor(wx, wy); }
+    if (State.currentStep === 3) { 
+      const [wx,wy] = s2w(e.offsetX, e.offsetY); 
+      const [adjWx, adjWy] = AlignAssist.getAdjustedCoord(wx, wy);
+      addAnchor(adjWx, adjWy); 
+    }
   } else {
     const [wx, wy] = s2w(e.offsetX, e.offsetY);
-    if (imgState.currentStep === 1 && imgState.imageObj) { imgAddAnchor(wx, wy); }
-    else if (imgState.currentStep === 2) { imgAddMarker(wx, wy); }
+    const [adjWx, adjWy] = AlignAssist.getAdjustedCoord(wx, wy);
+    if (imgState.currentStep === 1 && imgState.imageObj) { imgAddAnchor(adjWx, adjWy); }
+    else if (imgState.currentStep === 2) { imgAddMarker(adjWx, adjWy); }
   }
 };
 canvas.addEventListener('mousedown', canvas._mdHandler);

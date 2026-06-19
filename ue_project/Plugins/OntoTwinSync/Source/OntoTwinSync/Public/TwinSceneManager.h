@@ -35,7 +35,7 @@ class ATwinInstance;
  *
  * 场景中放置 1 个即可。自动轮询后端、管理所有孪生体 Actor 的生命周期。
  */
-UCLASS(ClassGroup=(DigitalTwin), meta=(DisplayName="孪生场景管理器"))
+UCLASS(ClassGroup=(DigitalTwin), meta=(DisplayName="Twin Scene Manager"))
 class ONTOTWINSYNC_API ATwinSceneManager : public AActor
 {
     GENERATED_BODY()
@@ -56,6 +56,15 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生管理器|连接",
               meta=(DisplayName="后端基础URL"))
     FString BackendBaseUrl = TEXT("http://127.0.0.1:5000");
+
+    /**
+     * 场景 ID：只拉取该场景的实例。
+     * 留空 = 跟随后端当前激活的数据集（单工程常用）。
+     * 多个 UE 工程对接同一后端时，各填各的场景名以互不干扰。
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生管理器|连接",
+              meta=(DisplayName="场景ID(留空=跟随后端)"))
+    FString SceneId = TEXT("");
 
     /** 轮询间隔（秒） */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生管理器|连接",
@@ -102,6 +111,9 @@ private:
     TMap<FString, ATwinInstance*> InstanceRegistry;
 
     // ── 内部方法 ─────────────────────────────────────────────────────────
+
+    /** 拼接快照接口 URL（SceneId 非空时追加 ?scene= 查询参数） */
+    FString BuildSnapshotsUrl() const;
 
     /** 定时轮询回调 */
     void PollBackend();

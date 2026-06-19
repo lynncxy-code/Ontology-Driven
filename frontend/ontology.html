@@ -259,52 +259,118 @@
                                 <span class="text-[10px] font-mono text-gray-400">依赖: I3D_Representable.asset_id</span>
                             </div>
                             <div class="p-5">
-                                <div class="flex bg-gray-100 border border-gray-200 rounded-lg overflow-hidden p-1 mb-5 max-w-sm">
-                                    <button class="flex-1 text-xs font-medium py-1.5 rounded-md transition" :class="bindMode==='library' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="bindMode='library'; assetResult=null">标准资产库</button>
-                                    <button class="flex-1 text-xs font-medium py-1.5 rounded-md transition" :class="bindMode==='manual' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="bindMode='manual'; assetResult=null">路径直连</button>
+                                <!-- 三种绑定模式切换 -->
+                                <div class="flex items-center gap-3 mb-4">
+                                    <div class="flex bg-gray-100 border border-gray-200 rounded-lg overflow-hidden p-1">
+                                        <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='library' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('library')">ArtStudio 资产库</button>
+                                        <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='local' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('local')">默认资产库</button>
+                                        <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='manual' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('manual')">路径直连</button>
+                                    </div>
+                                    <!-- 数据源指示 -->
+                                    <span v-if="bindMode==='library'" class="text-[10px] font-mono ml-auto text-blue-600 bg-blue-50 border border-blue-200" style="padding:2px 8px; border-radius:4px;">
+                                        ArtStudio 资产库
+                                    </span>
+                                    <span v-if="bindMode==='local'" class="text-[10px] font-mono ml-auto text-yellow-700 bg-yellow-50 border border-yellow-200" style="padding:2px 8px; border-radius:4px;">
+                                        本地默认资产库（40 个）
+                                    </span>
                                 </div>
 
                                 <template v-if="bindMode === 'library'">
+                                    <!-- ArtStudio 筛选栏：所有者 + 分类 + 搜索 -->
+                                    <div class="flex items-center gap-2 mb-4">
+                                        <select v-model="assetOwnerType" @change="onFilterChange"
+                                                class="text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-gray-900 bg-white">
+                                            <option value="">全部所有者</option>
+                                            <option value="1">个人资产</option>
+                                            <option value="2">组织资产</option>
+                                        </select>
+                                        <select v-model="assetCategory" @change="onFilterChange"
+                                                class="text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-gray-900 bg-white">
+                                            <option v-for="c in ASSET_CATEGORIES" :key="c.value" :value="c.value">{{ c.label }}</option>
+                                        </select>
+                                        <input type="text" v-model="assetQuery" @keyup.enter="onSearch"
+                                               placeholder="搜索资产名称…"
+                                               class="flex-1 text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-gray-900" />
+                                        <button @click="onSearch" class="text-xs px-3 py-1.5 bg-gray-100 border border-gray-200 rounded-md hover:bg-gray-200 whitespace-nowrap">搜索</button>
+                                    </div>
+                                </template>
+
+                                <template v-if="bindMode === 'local'">
+                                    <!-- 默认资产库：搜索 -->
+                                    <div class="flex items-center gap-2 mb-4">
+                                        <input type="text" v-model="assetQuery" @keyup.enter="onSearch"
+                                               placeholder="搜索资产名称…"
+                                               class="flex-1 text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-gray-900" />
+                                        <button @click="onSearch" class="text-xs px-3 py-1.5 bg-gray-100 border border-gray-200 rounded-md hover:bg-gray-200 whitespace-nowrap">搜索</button>
+                                    </div>
+                                </template>
+
+                                <!-- 资产卡片网格 + 分页（library / local 共用） -->
+                                <template v-if="bindMode === 'library' || bindMode === 'local'">
+                                    <!-- 资产卡片网格 -->
                                     <div class="grid grid-cols-2 gap-3 mb-4">
                                         <div v-for="asset in pagedAssets" :key="asset.file_number"
-                                             @click="selectedAssetFn = asset.file_number; assetResult = null"
+                                             @click="selectedAssetFn = asset.file_number; selectedAssetUePath = asset.ue_path || ''; assetResult = null"
                                              :class="[
                                                 'p-3 border rounded-lg cursor-pointer transition flex flex-col',
                                                 selectedAssetFn === asset.file_number ? 'border-gray-900 bg-gray-50 ring-1 ring-gray-900' : 'border-gray-200 hover:border-gray-400'
                                              ]">
+                                            <!-- 封面图 -->
+                                            <img v-if="asset.cover_url" :src="asset.cover_url" :alt="asset.name"
+                                                 style="width:100%; height:90px; object-fit:cover; border-radius:4px; margin-bottom:8px;"
+                                                 @error="asset.cover_url = ''" />
+                                            <div v-else style="width:100%; height:90px; border-radius:4px; margin-bottom:8px; background:#f3f4f6; display:flex; align-items:center; justify-content:center; font-size:20px; color:#d1d5db;">
+                                                ◈
+                                            </div>
                                             <div class="font-mono text-xs font-bold text-gray-900">{{ asset.file_number }}</div>
                                             <div class="text-[11px] text-gray-500 mt-1 truncate">{{ asset.name }}</div>
-                                            <div class="mt-auto pt-2">
+                                            <div class="mt-auto pt-2 flex items-center gap-1">
                                                 <span class="text-[9px] bg-gray-100 text-gray-500 px-1 border border-gray-200 rounded font-semibold">{{ asset.format?.toUpperCase() }}</span>
+                                                <span v-if="asset.ue_path" class="text-[8px] text-gray-400 truncate ml-auto max-w-[100px]" title="UE 路径">{{ asset.ue_path }}</span>
                                             </div>
                                         </div>
                                     </div>
-                                    <!-- Pagination -->
+                                    <!-- Pagination（服务端分页） -->
                                     <div class="flex items-center justify-between mb-4">
-                                        <button @click="assetPage > 1 && assetPage--" :disabled="assetPage <= 1"
+                                        <button @click="onPageChange(-1)" :disabled="assetPage <= 1"
                                                 class="text-xs px-3 py-1.5 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 transition">
                                             &larr; 上一页
                                         </button>
-                                        <span class="text-xs text-gray-500">第 {{ assetPage }} / {{ assetTotalPages }} 页（共 {{ allAssets.length }} 个模型）</span>
-                                        <button @click="assetPage < assetTotalPages && assetPage++" :disabled="assetPage >= assetTotalPages"
+                                        <span class="text-xs text-gray-500">第 {{ assetPage }} / {{ assetTotalPages }} 页（共 {{ assetTotal }} 个模型）</span>
+                                        <button @click="onPageChange(1)" :disabled="assetPage >= assetTotalPages"
                                                 class="text-xs px-3 py-1.5 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 transition">
                                             下一页 &rarr;
                                         </button>
                                     </div>
+                                    <!-- UE 资产路径 -->
+                                    <div class="flex items-center gap-2 mb-3" v-if="selectedAssetFn">
+                                        <span class="text-[10px] text-gray-500 font-mono whitespace-nowrap relative group">
+                                            UE 路径:
+                                            <span class="invisible group-hover:visible absolute bottom-full left-0 mb-1 w-64 p-2 bg-gray-900 text-white text-[10px] rounded shadow-lg z-50 leading-relaxed">
+                                                UE Content Browser 中右键模型 → Copy Reference<br/>
+                                                去掉前缀 <code class="text-yellow-300">StaticMesh'</code> 和后缀 <code class="text-yellow-300">'</code><br/>
+                                                只保留 <code class="text-yellow-300">/Game/...</code> 部分
+                                            </span>
+                                        </span>
+                                        <input type="text" v-model="selectedAssetUePath"
+                                               placeholder="/Game/WarehouseProps_Bundle/Models/SM_xxx"
+                                               class="flex-1 text-[11px] font-mono border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-gray-900 bg-white" />
+                                    </div>
                                     <div class="flex items-center gap-3">
-                                        <button class="text-xs font-medium bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-800 disabled:opacity-50 transition drop-shadow-sm" 
+                                        <button class="text-xs font-medium bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-800 disabled:opacity-50 transition drop-shadow-sm"
                                                 :disabled="!selectedAssetFn || bindingAsset" @click="bindAsset(selectedAssetFn)">
                                             {{ bindingAsset ? '处理中...' : '确认绑定选中资产' }}
                                         </button>
                                     </div>
                                 </template>
 
-                                <template v-else>
+                                <!-- 路径直连 -->
+                                <template v-if="bindMode === 'manual'">
                                     <div class="flex gap-2">
                                         <input type="text" v-model="manualPath" @keyup.enter="bindAsset(manualPath)"
-                                               placeholder="输入相对路径，如 /static/models/drone.glb" 
+                                               placeholder="输入相对路径，如 /static/models/drone.glb"
                                                class="flex-1 text-sm font-mono border border-gray-300 rounded-md px-3 py-2 outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
-                                        <button class="text-xs font-medium bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-800 disabled:opacity-50 transition drop-shadow-sm whitespace-nowrap" 
+                                        <button class="text-xs font-medium bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-800 disabled:opacity-50 transition drop-shadow-sm whitespace-nowrap"
                                                 :disabled="!manualPath.trim() || bindingAsset" @click="bindAsset(manualPath)">
                                             {{ bindingAsset ? '处理中...' : '直接绑定' }}
                                         </button>
@@ -317,7 +383,10 @@
                                 ]">
                                     <template v-if="assetResult.valid">
                                         包含模型 <strong class="font-mono">{{ assetResult.file_number }}</strong> ({{ assetResult.name }})<br/>
-                                        <span class="text-gray-500 mt-1 block">体积包围盒: {{ assetResult.bounding_box?.x }} × {{ assetResult.bounding_box?.y }} × {{ assetResult.bounding_box?.z }} cm</span>
+                                        <span class="text-gray-500 mt-1 block">
+                                            来源: {{ assetResult._source === 'studio' ? 'ArtStudio' : '本地资产库' }}
+                                            <span v-if="assetResult.ue_asset_path"> | UE: <code class="font-mono">{{ assetResult.ue_asset_path }}</code></span>
+                                        </span>
                                     </template>
                                     <template v-else>请求驳回: {{ assetResult.warning || assetResult.error }}</template>
                                 </div>
@@ -325,6 +394,7 @@
                                     <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                     <span>当前业务对象已绑定渲染资产:</span>
                                     <code class="font-mono font-bold text-gray-900">{{ selected.asset_id }}</code>
+                                    <span v-if="selected.ue_asset_path" class="text-gray-400">| UE: <code class="font-mono">{{ selected.ue_asset_path }}</code></span>
                                 </div>
                             </div>
                         </div>
@@ -355,7 +425,9 @@ createApp({
     setup() {
         const objectTypes   = ref([]);
         const allInterfaces = ref([]);
-        const allAssets     = ref([]);
+        const allAssets     = ref([]);       // 当前页的资产
+        const assetTotal    = ref(0);         // 总资产数（服务端返回）
+        const assetSource   = ref("studio");  // "studio" | "mock"
         const selected      = ref(null);
         const pendingInterfaces = ref(new Set());
         const pendingRemove = ref(new Set());   // 编辑模式下，待卸载的接口
@@ -363,18 +435,30 @@ createApp({
         const saving        = ref(false);
         const bindMode      = ref('library');
         const selectedAssetFn = ref('');
+        const selectedAssetUePath = ref('');    // 当前选中资产的 UE 路径
         const manualPath    = ref('');
         const assetResult   = ref(null);
         const bindingAsset  = ref(false);
         const toasts        = ref([]);
         const assetPage     = ref(1);
+        const assetCategory = ref("");          // 分类筛选，""=全部
+        const assetOwnerType = ref("");          // 所有者筛选（ArtStudio），""=全部 / 1=个人 / 2=组织
+        const assetQuery    = ref("");          // 搜索关键词
         const ASSET_PAGE_SIZE = 10;
 
-        const assetTotalPages = computed(() => Math.max(1, Math.ceil(allAssets.value.length / ASSET_PAGE_SIZE)));
-        const pagedAssets = computed(() => {
-            const start = (assetPage.value - 1) * ASSET_PAGE_SIZE;
-            return allAssets.value.slice(start, start + ASSET_PAGE_SIZE);
-        });
+        // 资产分类枚举（和 ArtStudio 一致）
+        const ASSET_CATEGORIES = [
+            { value: "",  label: "全部" },
+            { value: "1", label: "3D 模型" },
+            { value: "2", label: "材质贴图" },
+            { value: "3", label: "视频素材" },
+            { value: "4", label: "音频素材" },
+            { value: "5", label: "资产包" },
+        ];
+
+        const assetTotalPages = computed(() => Math.max(1, Math.ceil(assetTotal.value / ASSET_PAGE_SIZE)));
+        // 服务端已分页，allAssets 就是当前页数据
+        const pagedAssets = computed(() => allAssets.value);
 
         const parentInterfaces = computed(() => allInterfaces.value.filter(i => i.tier === 'parent'));
         const childInterfaces  = computed(() => allInterfaces.value.filter(i => i.tier === 'child'));
@@ -505,13 +589,18 @@ createApp({
             if (!id?.trim()) return;
             bindingAsset.value = true; assetResult.value = null;
             try {
-                const res = await axios.post('/api/v2/assets/bind', {
+                const body = {
                     object_type_rid: selected.value.rid,
-                    file_number: id.trim()
-                });
+                    file_number: id.trim(),
+                };
+                if (selectedAssetUePath.value) {
+                    body.ue_asset_path = selectedAssetUePath.value.trim();
+                }
+                const res = await axios.post('/api/v2/assets/bind', body);
                 assetResult.value = res.data;
                 if (res.data.valid) {
                     selected.value.asset_id = res.data.file_number;
+                    selected.value.ue_asset_path = res.data.ue_asset_path || '';
                     toast('ok', `资产关系 [${res.data.file_number}] 建立成功`);
                     await loadTypes();
                 } else { toast('err', res.data.warning); }
@@ -527,22 +616,79 @@ createApp({
             editMode.value = false;
             assetResult.value = null;
             selectedAssetFn.value = ot.asset_id || '';
+            selectedAssetUePath.value = ot.ue_asset_path || '';
             manualPath.value = ot.asset_id || '';
             assetPage.value = 1; // reset pagination
         }
 
         async function loadTypes() {
-            const [typesRes, ifaceRes, assetsRes] = await Promise.all([
+            const [typesRes, ifaceRes] = await Promise.all([
                 axios.get('/api/v2/ontology/types'),
                 axios.get('/api/v2/ontology/interfaces'),
-                axios.get('/api/v2/assets')
             ]);
             objectTypes.value   = typesRes.data;
             allInterfaces.value = ifaceRes.data;
-            allAssets.value     = assetsRes.data;
             if (selected.value) {
                 const fresh = typesRes.data.find(t => t.rid === selected.value.rid);
                 if (fresh) selected.value = { ...fresh };
+            }
+        }
+
+        async function loadAssets() {
+            const params = { page: assetPage.value, size: ASSET_PAGE_SIZE };
+
+            if (bindMode.value === 'local') {
+                params.source = 'mock';
+                if (assetQuery.value) params.q = assetQuery.value;
+            } else {
+                // ArtStudio 模式
+                if (assetOwnerType.value) params.ownerType = assetOwnerType.value;
+                if (assetCategory.value)  params.category = assetCategory.value;
+                if (assetQuery.value)     params.q = assetQuery.value;
+            }
+
+            try {
+                const { data } = await axios.get('/api/v2/assets', { params });
+                allAssets.value  = data.items || [];
+                assetTotal.value = data.total || 0;
+                assetSource.value = data._source || "mock";
+            } catch {
+                allAssets.value  = [];
+                assetTotal.value = 0;
+                assetSource.value = "mock";
+            }
+        }
+
+        // 切换绑定模式
+        function switchBindMode(mode) {
+            bindMode.value = mode;
+            assetResult.value = null;
+            selectedAssetFn.value = '';
+            selectedAssetUePath.value = '';
+            assetPage.value = 1;
+            loadAssets();
+        }
+
+        // 筛选条件变化（重置到第一页）
+        function onFilterChange() {
+            assetPage.value = 1;
+            loadAssets();
+        }
+
+        // 分类 / 搜索 / 翻页
+        function onCategoryChange() {
+            assetPage.value = 1;
+            loadAssets();
+        }
+        function onSearch() {
+            assetPage.value = 1;
+            loadAssets();
+        }
+        function onPageChange(delta) {
+            const next = assetPage.value + delta;
+            if (next >= 1 && next <= assetTotalPages.value) {
+                assetPage.value = next;
+                loadAssets();
             }
         }
 
@@ -554,6 +700,7 @@ createApp({
 
         onMounted(async () => {
             await loadTypes();
+            await loadAssets();
             const urlParams = new URLSearchParams(window.location.search);
             const ridParam = urlParams.get('rid');
             if (ridParam) {
@@ -569,12 +716,13 @@ createApp({
             }
         });
         return {
-            objectTypes, sortedObjectTypes, allInterfaces, allAssets, selected,
+            objectTypes, sortedObjectTypes, allInterfaces, allAssets, assetTotal, assetSource, selected,
             parentInterfaces, childInterfaces, pendingInterfaces, pendingRemove, hasRepresentable,
-            editMode, saving, bindMode, selectedAssetFn, manualPath, assetResult, bindingAsset, toasts,
-            assetPage, assetTotalPages, pagedAssets,
+            editMode, saving, bindMode, selectedAssetFn, selectedAssetUePath, manualPath, assetResult, bindingAsset, toasts,
+            assetPage, assetTotalPages, pagedAssets, assetCategory, assetOwnerType, assetQuery, ASSET_CATEGORIES,
             isInjected, isChecked, toggleInterface, saveInterfaces, removeInterface, bindAsset, selectType,
-            enterEditMode, cancelEditMode, saveEdit
+            enterEditMode, cancelEditMode, saveEdit, loadAssets, switchBindMode, onFilterChange,
+            onCategoryChange, onSearch, onPageChange,
         };
     }
 }).mount('#app');

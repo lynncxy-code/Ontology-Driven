@@ -109,6 +109,17 @@ void ATwinSceneManager::TakeOverExistingInstances()
 // 📸 快照固化到关卡（编辑器按钮）
 // ═══════════════════════════════════════════════════════════════════════════
 
+FString ATwinSceneManager::BuildSnapshotsUrl() const
+{
+    FString Url = FString::Printf(TEXT("%s/api/v2/state/snapshots"), *BackendBaseUrl);
+    // SceneId 非空时锁定场景；留空则由后端用当前激活数据集
+    if (!SceneId.IsEmpty())
+    {
+        Url += FString::Printf(TEXT("?scene=%s"), *SceneId);
+    }
+    return Url;
+}
+
 void ATwinSceneManager::SnapshotToLevel()
 {
 #if WITH_EDITOR
@@ -117,7 +128,7 @@ void ATwinSceneManager::SnapshotToLevel()
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request =
         FHttpModule::Get().CreateRequest();
 
-    FString Url = FString::Printf(TEXT("%s/api/v2/state/snapshots"), *BackendBaseUrl);
+    FString Url = BuildSnapshotsUrl();
     Request->SetURL(Url);
     Request->SetVerb(TEXT("GET"));
     Request->SetHeader(TEXT("Accept"), TEXT("application/json"));
@@ -268,13 +279,13 @@ void ATwinSceneManager::PollBackend()
     if (bRequestInFlight) return;
 
     UE_LOG(LogTemp, Log,
-           TEXT("[孪生管理器] 轮询中... URL=%s/api/v2/state/snapshots | 现有实例数=%d"),
-           *BackendBaseUrl, InstanceRegistry.Num());
+           TEXT("[孪生管理器] 轮询中... 场景=%s | 现有实例数=%d"),
+           SceneId.IsEmpty() ? TEXT("(跟随后端)") : *SceneId, InstanceRegistry.Num());
 
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request =
         FHttpModule::Get().CreateRequest();
 
-    FString Url = FString::Printf(TEXT("%s/api/v2/state/snapshots"), *BackendBaseUrl);
+    FString Url = BuildSnapshotsUrl();
     Request->SetURL(Url);
     Request->SetVerb(TEXT("GET"));
     Request->SetHeader(TEXT("Accept"), TEXT("application/json"));

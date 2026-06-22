@@ -81,13 +81,21 @@ class ProjectStore:
             json.dump(obj, f, ensure_ascii=False, indent=2, default=str)
         os.replace(tmp, path)   # 原子替换
 
+    @staticmethod
+    def _ensure_collections(proj):
+        """向后兼容：旧项目无 components/instance_roster 时补空，不影响现有数据。"""
+        if proj is not None:
+            proj.setdefault("components", {})
+            proj.setdefault("instance_roster", [])
+        return proj
+
     def _read_project(self, pid):
         path = self._path(pid)
         if not os.path.exists(path):
             return None
         try:
             with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                return self._ensure_collections(json.load(f))
         except Exception:
             return None
 
@@ -147,6 +155,8 @@ class ProjectStore:
                 "dataset": dataset,
                 "object_types": object_types or {},
                 "instances": {},
+                "components": {},          # 3.0：坐标标定产出的匿名构件
+                "instance_roster": [],     # 3.0：业务实例清单（身份证号目录）
                 "calibration": calibration,
             }
             self._write_json(self._path(pid), proj)
@@ -340,3 +350,115 @@ class ProjectStore:
         with self._lock:
             if self._dirty:
                 self._save_current()
+
+    # ── 构件（3.0：坐标标定产物） ──────────────────────────────
+    def _comps(self):
+        return self._current["components"] if self._current else {}
+
+    def get_components(self):
+        with self._lock:
+            return self._comps()
+
+    def set_components(self, components):
+        """整体替换当前项目的构件集（坐标标定"保存构件"调用）。"""
+        with self._lock:
+            if self._current:
+                self._current["components"] = components or {}
+                self._save_current()
+
+    def clear_components(self):
+        with self._lock:
+            if self._current:
+                self._current["components"] = {}
+                self._save_current()
+
+    # ── 实例清单（3.0：身份证号目录） ─────────────────────────
+    def get_roster(self):
+        with self._lock:
+            return list(self._current["instance_roster"]) if self._current else []
+
+    def set_roster(self, roster):
+        with self._lock:
+            if self._current:
+                self._current["instance_roster"] = roster or []
+                self._save_current()
+
+    def add_roster_entries(self, entries):
+        """追加清单行，按 instance_id 去重（已存在则覆盖）。"""
+        with self._lock:
+            if not self._current:
+                return
+            roster = self._current["instance_roster"]
+            by_id = {e.get("instance_id"): e for e in roster if e.get("instance_id")}
+            for e in entries or []:
+                iid = e.get("instance_id")
+                if iid:
+                    by_id[iid] = e
+            self._current["instance_roster"] = list(by_id.values())
+            self._save_current()
+
+    # ── 绑定（构件 ↔ 身份证号，1:1） ──────────────────────────
+    def bind(self, component_id, instance_id):
+        """把构件绑到身份证号；1:1 占用校验。返回 (ok, err)。"""
+        with self._lock:
+            comps = self._comps()
+            comp = comps.get(component_id)
+            if not comp:
+                return False, "构件不存在"
+            # 1:1：该身份证号不能已被别的构件占用
+            for cid, c in comps.items():
+                if cid != component_id and c.get("bound_instance_id") == instance_id:
+                    return False, f"身份证号 {instance_id} 已绑定其他构件"
+            comp["bound_instance_id"] = instance_id
+            self._save_current()
+            return True, None
+
+    def unbind(self, component_id):
+        with self._lock:
+            comp = self._comps().get(component_id)
+            if not comp:
+                return False
+            comp["bound_instance_id"] = None
+            self._save_current()
+            return True
+
+    # ── 铸造（已绑定构件 → 实例） ──────────────────────────────
+    def mint_instances(self):
+        """把所有已绑定构件同步为实例：instances 与"已绑定构件集"对齐。
+        已存在的实例保留其 raw_state/last_seen（不重置在线状态）。返回铸造数量。"""
+        with self._lock:
+            if not self._current:
+                return 0
+            comps = self._comps()
+            old = self._current.get("instances") or {}
+            new_instances = {}
+            for comp in comps.values():
+                iid = comp.get("bound_instance_id")
+                if not iid:
+                    continue
+                ot_rid = comp.get("object_type_rid", "")
+                if iid in old:
+                    rec = old[iid]
+                    rec["component_id"] = comp.get("id")
+                    rec["object_type_rid"] = ot_rid
+                    rec["object_type_name"] = comp.get("type_name", ot_rid)
+                    rec["render_config"] = comp.get("render_config") or rec.get("render_config") or {}
+                    rec["last_seen"] = time.time()
+                else:
+                    pos = {"x": (comp.get("ue_xy") or [0, 0])[0],
+                           "y": (comp.get("ue_xy") or [0, 0])[1], "z": 0}
+                    rec = {
+                        "id": iid,
+                        "component_id": comp.get("id"),
+                        "object_type_rid": ot_rid,
+                        "object_type_name": comp.get("type_name", ot_rid),
+                        "render_config": comp.get("render_config") or {},
+                        "created_at": time.time(),
+                        "last_seen": time.time(),
+                        "status": "online",
+                        "raw_state": _default_raw_state(ot_rid, comp.get("type_name"), pos),
+                    }
+                new_instances[iid] = rec
+            self._current["instances"] = new_instances
+            self._save_current()
+            return len(new_instances)

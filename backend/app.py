@@ -94,6 +94,10 @@ def serve_coord_workbench():
 def serve_floor_pulse():
     return app.send_static_file('floor_pulse.html')
 
+@app.route('/binding')
+def serve_binding():
+    return app.send_static_file('binding.html')
+
 @app.route('/scenes')
 def serve_scenes():
     return app.send_static_file('scenes/scenes.html')
@@ -751,6 +755,77 @@ def coord_spawn_instances():
         "source_label": source_label,
         "mode": mode,
         "hint": "实例已写入 InstanceStore，可在 /instance 页面查看；UE 端将于下次轮询同步显示"
+    })
+
+
+@app.route('/api/v2/coord/save_components', methods=['POST'])
+def coord_save_components():
+    """
+    3.0 — 坐标标定的产物是"构件"（匿名：类型+几何+坐标，无身份证号），
+    保存到当前激活项目的 components，供实例绑定台后续绑定身份、铸造实例。
+    取代旧的"直接 spawn 实例"。
+
+    Body: {
+        "transform_matrix": [[a,b,tx],[c,d,ty]],
+        "items": [{"block_name", "cad_xy":[x,y], "rotation", "attribs":{"EQUIP_ID":...}}]
+    }
+    重复保存按构件 id 保留已有绑定（bound_instance_id 不丢）。
+    """
+    import hashlib
+    if project_store.get_active() is None:
+        return jsonify({"error": "当前无激活项目，请先合并类型库以建立项目"}), 400
+    data = request.json or {}
+    items = data.get("items") or []
+    matrix = data.get("transform_matrix")
+    if not items:
+        return jsonify({"error": "items 为空"}), 400
+    if not matrix:
+        return jsonify({"error": "缺少 transform_matrix（请先完成标定）"}), 400
+
+    old = project_store.get_components()
+    comps = {}
+    errors = []
+    for item in items:
+        block_name = (item.get("block_name") or "").strip()
+        if not block_name:
+            errors.append({"item": item, "reason": "block_name 为空"})
+            continue
+        if block_name not in _object_types:
+            errors.append({"block_name": block_name, "reason": "type_not_in_active_dataset",
+                           "hint": "请先在类型审核把该类型合并进当前类型库"})
+            continue
+        cad_xy = item.get("cad_xy")
+        if not cad_xy or len(cad_xy) < 2:
+            errors.append({"block_name": block_name, "reason": "cad_xy 缺失或非法"})
+            continue
+        try:
+            ue_xy = coord_apply(matrix, cad_xy)
+        except Exception as e:
+            errors.append({"block_name": block_name, "reason": f"变换失败: {e}"})
+            continue
+        # 构件 id：按 块名+CAD坐标 取稳定短哈希 → 重存同图纸 id 不漂移，可保留绑定
+        key = f"{block_name}|{round(float(cad_xy[0]),2)}|{round(float(cad_xy[1]),2)}"
+        cid = "cmp_" + hashlib.md5(key.encode("utf-8")).hexdigest()[:12]
+        ot = _object_types.get(block_name) or {}
+        comps[cid] = {
+            "id": cid,
+            "object_type_rid": block_name,
+            "type_name": ot.get("name", block_name),
+            "cad_xy": [float(cad_xy[0]), float(cad_xy[1])],
+            "ue_xy": [float(ue_xy[0]), float(ue_xy[1])],
+            "rotation": float(item.get("rotation") or 0.0),
+            "attribs": item.get("attribs") or {},
+            "asset_path": ot.get("asset_id") or "",
+            "render_config": _build_render_config(block_name),
+            # 保留已有绑定（按 id 命中旧构件）
+            "bound_instance_id": (old.get(cid) or {}).get("bound_instance_id"),
+        }
+    project_store.set_components(comps)
+    return jsonify({
+        "status": "ok",
+        "saved": len(comps),
+        "errors": errors,
+        "hint": "构件已保存到当前项目，请前往『实例绑定台』绑定实例编号并铸造实例",
     })
 
 
@@ -1644,6 +1719,169 @@ def clear_scene():
 
 
 # ═══════════════════════════════════════════════════════════════
+# 3.0.1 实例绑定台 API（构件 ↔ 身份证号 → 铸造实例）
+# 作用域：当前激活项目。构件来自坐标标定，实例由绑定铸造。
+# ═══════════════════════════════════════════════════════════════
+
+# 清单 CSV 表头归一化：中英文兼容
+_ROSTER_HEADER_MAP = {
+    "instance_id": "instance_id", "实例编号": "instance_id", "身份证号": "instance_id", "编号": "instance_id",
+    "id": "instance_id", "资产编号": "instance_id",
+    "type": "type", "类型": "type", "设备类型": "type",
+    "name": "name", "名称": "name",
+    "area": "area", "区域": "area", "位置": "area",
+    "equip_id": "equip_id", "设备编号": "equip_id", "EQUIP_ID": "equip_id",
+}
+
+
+def _require_active_project():
+    """无激活项目时返回 (None, 错误响应)。"""
+    if project_store.get_active() is None:
+        return None, (jsonify({"error": "当前无激活项目，请先在坐标标定保存构件"}), 400)
+    return project_store.get_active(), None
+
+
+@app.route('/api/v2/binding/components', methods=['GET'])
+def binding_components():
+    """当前项目的构件列表（含绑定状态）。"""
+    _, err = _require_active_project()
+    if err:
+        return err
+    comps = project_store.get_components()
+    return jsonify({"components": list(comps.values()), "count": len(comps)})
+
+
+@app.route('/api/v2/binding/roster', methods=['GET'])
+def binding_roster_get():
+    _, err = _require_active_project()
+    if err:
+        return err
+    return jsonify({"roster": project_store.get_roster()})
+
+
+@app.route('/api/v2/binding/roster', methods=['POST'])
+def binding_roster_add():
+    """手动新增/编辑清单行。Body: {entries:[{instance_id,...}]} 或单条 {instance_id,...}。"""
+    _, err = _require_active_project()
+    if err:
+        return err
+    data = request.json or {}
+    entries = data.get("entries") or ([data] if data.get("instance_id") else [])
+    entries = [dict(e, source=e.get("source", "manual")) for e in entries if e.get("instance_id")]
+    if not entries:
+        return jsonify({"error": "缺少 instance_id"}), 400
+    project_store.add_roster_entries(entries)
+    return jsonify({"status": "ok", "roster": project_store.get_roster()})
+
+
+@app.route('/api/v2/binding/roster/upload', methods=['POST'])
+def binding_roster_upload():
+    """上传 CSV 解析入清单。表头中英文兼容，缺列容错。"""
+    import csv as _csv
+    import io as _io
+    _, err = _require_active_project()
+    if err:
+        return err
+    if 'file' not in request.files:
+        return jsonify({"error": "未检测到上传文件"}), 400
+    content = request.files['file'].read().decode('utf-8-sig')
+    reader = _csv.DictReader(_io.StringIO(content))
+    entries = []
+    for row in reader:
+        norm = {}
+        for k, v in row.items():
+            key = _ROSTER_HEADER_MAP.get((k or "").strip())
+            if key and v is not None and str(v).strip():
+                norm[key] = str(v).strip()
+        if norm.get("instance_id"):
+            norm["source"] = "upload"
+            entries.append(norm)
+    if not entries:
+        return jsonify({"error": "未解析到有效行（至少需要『实例编号』列）"}), 400
+    project_store.add_roster_entries(entries)
+    return jsonify({"status": "ok", "added": len(entries), "roster": project_store.get_roster()})
+
+
+@app.route('/api/v2/binding/automatch', methods=['POST'])
+def binding_automatch():
+    """自动撮合建议（不落库）：构件 attribs.EQUIP_ID 精确匹配清单身份证号/EQUIP_ID。"""
+    _, err = _require_active_project()
+    if err:
+        return err
+    comps = project_store.get_components()
+    roster = project_store.get_roster()
+    # 清单索引：身份证号 / equip_id → instance_id
+    by_id = {e["instance_id"]: e["instance_id"] for e in roster if e.get("instance_id")}
+    by_equip = {e["equip_id"]: e["instance_id"] for e in roster if e.get("equip_id")}
+    # 已被占用的身份证号
+    taken = {c.get("bound_instance_id") for c in comps.values() if c.get("bound_instance_id")}
+    suggestions = []
+    for cid, c in comps.items():
+        if c.get("bound_instance_id"):
+            continue
+        eq = (c.get("attribs") or {}).get("EQUIP_ID")
+        if not eq:
+            continue
+        target = by_id.get(eq) or by_equip.get(eq)
+        if target and target not in taken:
+            suggestions.append({
+                "component_id": cid, "instance_id": target,
+                "reason": "EQUIP_ID 精确匹配", "score": 1.0,
+            })
+            taken.add(target)
+    return jsonify({"suggestions": suggestions, "count": len(suggestions)})
+
+
+@app.route('/api/v2/binding/bind', methods=['POST'])
+def binding_bind():
+    """绑定单条。Body: {component_id, instance_id}。"""
+    _, err = _require_active_project()
+    if err:
+        return err
+    data = request.json or {}
+    ok, e = project_store.bind(data.get("component_id"), (data.get("instance_id") or "").strip())
+    if not ok:
+        return jsonify({"error": e}), 400
+    return jsonify({"status": "ok"})
+
+
+@app.route('/api/v2/binding/bind_batch', methods=['POST'])
+def binding_bind_batch():
+    """批量绑定（采纳自动撮合）。Body: {pairs:[{component_id,instance_id}]}。"""
+    _, err = _require_active_project()
+    if err:
+        return err
+    pairs = (request.json or {}).get("pairs") or []
+    bound, failed = 0, []
+    for p in pairs:
+        ok, e = project_store.bind(p.get("component_id"), (p.get("instance_id") or "").strip())
+        if ok:
+            bound += 1
+        else:
+            failed.append({"component_id": p.get("component_id"), "error": e})
+    return jsonify({"status": "ok", "bound": bound, "failed": failed})
+
+
+@app.route('/api/v2/binding/unbind', methods=['POST'])
+def binding_unbind():
+    _, err = _require_active_project()
+    if err:
+        return err
+    ok = project_store.unbind((request.json or {}).get("component_id"))
+    return jsonify({"status": "ok" if ok else "noop"})
+
+
+@app.route('/api/v2/binding/mint', methods=['POST'])
+def binding_mint():
+    """把已绑定构件铸造/同步为实例（实例集 = 已绑定构件集）。"""
+    _, err = _require_active_project()
+    if err:
+        return err
+    n = project_store.mint_instances()
+    return jsonify({"status": "ok", "minted": n})
+
+
+# ═══════════════════════════════════════════════════════════════
 # 旧版 2.x 映射规则 API（保留兼容）
 # ═══════════════════════════════════════════════════════════════
 
@@ -2006,6 +2244,32 @@ def activate_dataset():
     return jsonify({"status": "ok", "active": _active_dataset_id})
 
 
+def _normalize_graph_data(graph):
+    """读取端归一化：补齐节点 id/symbolSize/category，并在 categories 为空时从节点派生。
+    保证任何来源（CAD 提交 / CSV 导入 / 旧数据）建的数据集，预览时节点都有身份、
+    有分类、有图例，不再渲染成无结构散点（修复"新建数据集预览图谱空白"）。"""
+    if not isinstance(graph, dict):
+        return graph
+    nodes = graph.get("nodes") or []
+    for n in nodes:
+        if not n.get("id"):
+            n["id"] = n.get("rid") or n.get("name")
+        if not n.get("symbolSize"):
+            n["symbolSize"] = 30
+        if not n.get("category"):
+            n["category"] = "Core"
+    if not graph.get("categories"):
+        seen, cats = set(), []
+        for n in nodes:
+            c = n.get("category") or "Core"
+            if c not in seen:
+                seen.add(c)
+                cats.append({"name": c})
+        graph["categories"] = cats
+    graph.setdefault("links", [])
+    return graph
+
+
 @app.route('/api/v2/ontology/datasets/<ds_id>/graph', methods=['GET'])
 def get_dataset_graph(ds_id):
     """获取指定数据集的图谱数据（用于前端预览）"""
@@ -2015,7 +2279,7 @@ def get_dataset_graph(ds_id):
     if ds.get("graph_data") is None:
         # Demo 数据集，重定向到 graph_data
         return get_graph_data()
-    return jsonify(ds["graph_data"])
+    return jsonify(_normalize_graph_data(ds["graph_data"]))
 
 
 @app.route('/api/v2/ontology/datasets/<ds_id>', methods=['DELETE'])

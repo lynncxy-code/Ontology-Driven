@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实例绑定台 | OntoTwin Nexus</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1a1a1a;--ink-2:#5c5c5c;--ink-3:#8a8a8a;
+  --line:#e8e8e8;--line-2:#d4d4d4;
+  --bg:#fafafa;--bg-2:#fafafa;--bg-3:#f3f3f3;--on-ink:#fff;
+  --danger:#b42318;--danger-bg:#fef3f2;--danger-line:#fda29b;
+  --warn:#b54708;--warn-bg:#fffaeb;--warn-line:#fec84b;
+  --ok:#067647;--ok-bg:#ecfdf3;--ok-line:#a6f4c5;
+  --info:#363f72;--info-bg:#f8f9fc;
+  --r-sm:6px;--r-md:8px;--r-lg:12px;
+  --t-xs:11px;--t-sm:12px;--t-base:13px;--t-md:14px;--t-lg:16px;--t-xl:20px;
+  --shadow-pop:0 4px 16px rgba(20,20,20,.08);--shadow-modal:0 16px 48px rgba(20,20,20,.18);
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Microsoft YaHei',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--t-base)}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 24px 48px}
+header.pg{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+header.pg h1{font-size:var(--t-xl);font-weight:600}
+.eyebrow{font-size:var(--t-xs);letter-spacing:.08em;color:var(--ink-3);border:1px solid var(--line);padding:2px 8px;border-radius:999px}
+.sub{color:var(--ink-2);font-size:var(--t-sm);margin:6px 0 18px;line-height:1.6}
+.badge{font-size:var(--t-xs);color:var(--ink-2);background:var(--bg-3);padding:4px 10px;border-radius:999px;border:1px solid var(--line)}
+/* toolbar */
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.spacer{flex:1}
+.btn{font:500 var(--t-base)/1 var(--font);padding:8px 14px;border-radius:var(--r-md);border:1px solid var(--line-2);background:#fff;color:var(--ink);cursor:pointer;transition:background .15s,border-color .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--bg-3)}
+.btn-primary{background:var(--ink);color:var(--on-ink);border-color:var(--ink)}
+.btn-primary:hover{background:#000}
+.btn-ghost{border-color:transparent;background:transparent;color:var(--ink-2)}
+.btn-ghost:hover{background:var(--bg-3);color:var(--ink)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-sm{padding:6px 10px;font-size:var(--t-sm)}
+.chk{font-size:var(--t-sm);color:var(--ink-2);display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.field{padding:7px 10px;border:1px solid var(--line-2);border-radius:var(--r-sm);font-size:var(--t-sm);background:#fff;color:var(--ink)}
+.field:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px rgba(26,26,26,.06)}
+/* panes */
+.panes{display:grid;grid-template-columns:1.55fr 1fr;gap:14px;align-items:start}
+.pane{background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+.pane-head{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line)}
+.pane-head .t{font-size:var(--t-base);font-weight:600}
+.pane-head .m{font-size:var(--t-sm);color:var(--ink-3)}
+.list{max-height:62vh;overflow-y:auto}
+.row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:none}
+.row:hover{background:var(--bg-3)}
+.dot{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
+.dot-ok{background:var(--ok)}.dot-warn{background:var(--warn)}.dot-err{background:var(--danger)}.dot-muted{background:var(--ink-3)}
+.r-main{flex:1;min-width:0}
+.r-title{font-size:var(--t-base);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r-meta{font-size:var(--t-xs);color:var(--ink-3);margin-top:2px}
+.r-slot{flex:none}
+.pill{display:inline-flex;align-items:center;gap:6px;background:var(--ok-bg);color:var(--ok);font-size:var(--t-sm);padding:4px 8px;border-radius:var(--r-md);font-family:monospace}
+.pill .x{cursor:pointer;font-style:normal;opacity:.7}
+.pill .x:hover{opacity:1}
+.pill .auto{font-family:var(--font);font-size:10px;opacity:.7}
+.tag-ok{font-size:var(--t-xs);color:var(--ok)}
+.tag-err{font-size:var(--t-xs);color:var(--danger)}
+select.bind{height:32px;font-size:var(--t-sm);max-width:180px;border:1px solid var(--line-2);border-radius:var(--r-sm);background:#fff;color:var(--ink);padding:0 6px}
+.empty{padding:40px 20px;text-align:center;color:var(--ink-3);font-size:var(--t-sm);line-height:1.7}
+.empty a{color:var(--ink);text-decoration:underline}
+.roster-add{display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--bg-2)}
+.roster-add .field{flex:1}
+/* toast */
+.toast{position:fixed;top:16px;right:16px;z-index:1100;display:flex;flex-direction:column;gap:8px}
+.toast-item{background:var(--ink);color:var(--on-ink);padding:10px 14px;border-radius:var(--r-md);font-size:var(--t-sm);box-shadow:var(--shadow-pop);max-width:360px}
+.toast-item.ok{background:#fff;color:var(--ink);border-left:2px solid var(--ok)}
+.toast-item.err{background:#fff;color:var(--ink);border-left:2px solid var(--danger)}
+.toast-item.warn{background:#fff;color:var(--ink);border-left:2px solid var(--warn)}
+/* modal */
+.mask{position:fixed;inset:0;background:rgba(20,20,20,.4);display:none;align-items:center;justify-content:center;z-index:1000}
+.mask.on{display:flex}
+.modal{background:#fff;border-radius:var(--r-lg);box-shadow:var(--shadow-modal);width:min(460px,92vw);padding:24px}
+.modal h3{font-size:var(--t-lg);font-weight:600;margin-bottom:12px}
+.modal .body{font-size:var(--t-sm);color:var(--ink-2);line-height:1.7}
+.modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="pg">
+    <h1>实例绑定台</h1>
+    <span class="eyebrow">BINDING</span>
+    <span class="badge" id="projBadge">项目：加载中…</span>
+    <div style="flex:1"></div>
+    <button class="btn btn-sm btn-ghost" onclick="loadAll()">刷新</button>
+  </header>
+  <p class="sub">把坐标标定产出的<strong>构件</strong>绑定到业务<strong>实例编号</strong>，绑定后铸造为实例，方可在实例运维与 UE 中显示。墙体/地面等无身份构件不在此处。</p>
+
+  <div class="toolbar">
+    <button class="btn btn-sm" id="btnAuto" onclick="autoMatch()">自动撮合（EQUIP_ID）</button>
+    <label class="chk"><input type="checkbox" id="onlyUnbound" onchange="render()"> 仅看未绑定</label>
+    <input class="field" id="searchBox" placeholder="搜索 类型 / 编号 / 实例编号…" oninput="render()" style="width:200px">
+    <div class="spacer"></div>
+    <button class="btn btn-sm btn-primary" id="btnMint" onclick="mint()">铸造为实例（<span id="mintN">0</span>）</button>
+  </div>
+
+  <div class="panes">
+    <div class="pane">
+      <div class="pane-head">
+        <span class="t">构件（CAD 解析）</span>
+        <span class="m"><b id="boundN">0</b>/<b id="totalN">0</b> 已绑定</span>
+      </div>
+      <div class="list" id="compList"></div>
+    </div>
+    <div class="pane">
+      <div class="pane-head">
+        <span class="t">实例清单（实例编号）</span>
+        <span class="m"><a href="javascript:void(0)" onclick="document.getElementById('csvInput').click()" style="color:var(--ink-2);text-decoration:underline">上传 CSV</a></span>
+      </div>
+      <div class="roster-add">
+        <input class="field" id="manualId" placeholder="手填实例编号，回车添加" onkeydown="if(event.key==='Enter')addManual()">
+        <button class="btn btn-sm" onclick="addManual()">添加</button>
+      </div>
+      <div class="list" id="rosterList"></div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="csvInput" accept=".csv" style="display:none" onchange="uploadCsv(this.files[0])">
+<div class="toast" id="toast"></div>
+<div class="mask" id="mask"><div class="modal">
+  <h3 id="mdTitle"></h3><div class="body" id="mdBody"></div>
+  <div class="modal-foot">
+    <button class="btn btn-sm btn-ghost" onclick="closeModal(false)">取消</button>
+    <button class="btn btn-sm btn-primary" id="mdOk" onclick="closeModal(true)">确认</button>
+  </div>
+</div></div>
+
+<script>
+var State = { components: [], roster: [], noProject: false };
+
+function toast(msg, type){
+  var box = document.getElementById('toast');
+  var el = document.createElement('div');
+  el.className = 'toast-item ' + (type||'');
+  el.textContent = msg;
+  box.appendChild(el);
+  setTimeout(function(){ el.remove(); }, 2600);
+}
+var _modalResolve = null;
+function confirmModal(title, bodyHTML, okText){
+  document.getElementById('mdTitle').textContent = title;
+  document.getElementById('mdBody').innerHTML = bodyHTML;
+  document.getElementById('mdOk').textContent = okText || '确认';
+  document.getElementById('mask').classList.add('on');
+  return new Promise(function(res){ _modalResolve = res; });
+}
+function closeModal(v){ document.getElementById('mask').classList.remove('on'); if(_modalResolve){ _modalResolve(v); _modalResolve=null; } }
+
+function esc(t){ return (''+(t==null?'':t)).replace(/[<>&"]/g, function(m){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[m];}); }
+
+async function loadAll(){
+  try{
+    var rc = await fetch('/api/v2/binding/components');
+    if(rc.status === 400){ State.noProject = true; render(); refreshProjBadge(); return; }
+    State.noProject = false;
+    State.components = (await rc.json()).components || [];
+    var rr = await fetch('/api/v2/binding/roster');
+    State.roster = (await rr.json()).roster || [];
+  }catch(e){ toast('加载失败：' + e.message, 'err'); return; }
+  refreshProjBadge();
+  render();
+}
+async function refreshProjBadge(){
+  try{
+    var r = await fetch('/api/v2/scenes');
+    var d = await r.json();
+    var active = (d.projects||[]).find(function(p){ return p.id === d.active_project; });
+    document.getElementById('projBadge').textContent = '项目：' + (active ? active.name : '（无激活项目）');
+  }catch(e){ document.getElementById('projBadge').textContent = '项目：—'; }
+}
+
+function takenSet(){
+  var s = {};
+  State.components.forEach(function(c){ if(c.bound_instance_id) s[c.bound_instance_id] = c.id; });
+  return s;
+}
+
+function render(){
+  var cl = document.getElementById('compList');
+  var rl = document.getElementById('rosterList');
+  if(State.noProject){
+    cl.innerHTML = '<div class="empty">当前没有激活项目。<br>请先在<a href="/coord" target="_blank">坐标标定工作台</a>合并类型库并保存构件。</div>';
+    rl.innerHTML = '<div class="empty">—</div>';
+    document.getElementById('mintN').textContent = 0;
+    document.getElementById('boundN').textContent = 0;
+    document.getElementById('totalN').textContent = 0;
+    return;
+  }
+  var taken = takenSet();
+  var kw = (document.getElementById('searchBox').value || '').trim().toLowerCase();
+  var onlyUnbound = document.getElementById('onlyUnbound').checked;
+
+  // 左：构件
+  cl.innerHTML = '';
+  if(State.components.length === 0){
+    cl.innerHTML = '<div class="empty">当前项目还没有构件。<br>去<a href="/coord" target="_blank">坐标标定</a>标定并「保存构件」。</div>';
+  }
+  State.components.forEach(function(c){
+    if(onlyUnbound && c.bound_instance_id) return;
+    var eq = (c.attribs||{}).EQUIP_ID || '';
+    if(kw){
+      var hay = (c.type_name+' '+eq+' '+(c.bound_instance_id||'')).toLowerCase();
+      if(hay.indexOf(kw) < 0) return;
+    }
+    var row = document.createElement('div');
+    row.className = 'row';
+    var meta = (eq ? ('EQUIP ' + esc(eq)) : '无编号') + ' · UE(' + (c.ue_xy?c.ue_xy[0].toFixed(1):'?') + ', ' + (c.ue_xy?c.ue_xy[1].toFixed(1):'?') + ')';
+    var slot;
+    if(c.bound_instance_id){
+      slot = '<span class="pill">' + esc(c.bound_instance_id) + ' <i class="x" data-unbind="'+esc(c.id)+'" title="解绑">✕</i></span>';
+    }else{
+      var opts = '<option value="">— 选择实例编号 —</option>';
+      State.roster.forEach(function(r){ if(!taken[r.instance_id]) opts += '<option value="'+esc(r.instance_id)+'">'+esc(r.instance_id)+'</option>'; });
+      opts += '<option value="__manual__">+ 手填新号…</option>';
+      slot = '<select class="bind" data-bind="'+esc(c.id)+'">'+opts+'</select>';
+    }
+    var dotCls = c.bound_instance_id ? 'dot-ok' : 'dot-warn';
+    row.innerHTML = '<span class="dot '+dotCls+'"></span>'
+      + '<div class="r-main"><div class="r-title">'+esc(c.type_name)+'</div><div class="r-meta">'+meta+'</div></div>'
+      + '<div class="r-slot">'+slot+'</div>';
+    cl.appendChild(row);
+  });
+
+  // 右：清单
+  rl.innerHTML = '';
+  if(State.roster.length === 0){
+    rl.innerHTML = '<div class="empty">还没有实例清单。<br>上传 CSV（含「实例编号」列）或在上方手填。</div>';
+  }
+  State.roster.forEach(function(r){
+    var isBound = !!taken[r.instance_id];
+    var row = document.createElement('div');
+    row.className = 'row';
+    var tag = isBound ? '<span class="tag-ok">已绑定</span>' : '<span class="tag-err">悬空·无几何</span>';
+    row.innerHTML = '<span class="dot '+(isBound?'dot-ok':'dot-err')+'"></span>'
+      + '<span class="r-main" style="font-family:monospace;font-size:var(--t-base)">'+esc(r.instance_id)+'</span>' + tag;
+    rl.appendChild(row);
+  });
+
+  var bn = State.components.filter(function(c){ return c.bound_instance_id; }).length;
+  document.getElementById('boundN').textContent = bn;
+  document.getElementById('totalN').textContent = State.components.length;
+  document.getElementById('mintN').textContent = bn;
+  document.getElementById('btnMint').disabled = bn === 0;
+}
+
+document.addEventListener('change', async function(e){
+  var cid = e.target.getAttribute && e.target.getAttribute('data-bind');
+  if(!cid) return;
+  var v = e.target.value;
+  if(!v) return;
+  if(v === '__manual__'){
+    var nid = (prompt('输入实例编号（清单外手填）') || '').trim();
+    if(!nid){ render(); return; }
+    await addRosterEntry(nid);
+    await bind(cid, nid);
+    return;
+  }
+  await bind(cid, v);
+});
+document.addEventListener('click', async function(e){
+  var uid = e.target.getAttribute && e.target.getAttribute('data-unbind');
+  if(!uid) return;
+  await fetch('/api/v2/binding/unbind', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({component_id:uid})});
+  await loadAll();
+});
+
+async function bind(componentId, instanceId){
+  var r = await fetch('/api/v2/binding/bind', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({component_id:componentId, instance_id:instanceId})});
+  var d = await r.json();
+  if(!r.ok){ toast('绑定失败：' + (d.error||r.status), 'err'); render(); return; }
+  await loadAll();
+}
+async function addRosterEntry(instanceId){
+  await fetch('/api/v2/binding/roster', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({instance_id:instanceId})});
+}
+async function addManual(){
+  var el = document.getElementById('manualId');
+  var id = (el.value||'').trim();
+  if(!id){ return; }
+  await addRosterEntry(id);
+  el.value = '';
+  toast('已添加实例编号 ' + id, 'ok');
+  await loadAll();
+}
+async function uploadCsv(file){
+  if(!file) return;
+  var fd = new FormData(); fd.append('file', file);
+  try{
+    var r = await fetch('/api/v2/binding/roster/upload', {method:'POST', body:fd});
+    var d = await r.json();
+    if(!r.ok){ toast('上传失败：' + (d.error||r.status), 'err'); return; }
+    toast('已导入 ' + d.added + ' 条实例编号', 'ok');
+    await loadAll();
+  }catch(e){ toast('上传异常：' + e.message, 'err'); }
+  document.getElementById('csvInput').value = '';
+}
+async function autoMatch(){
+  var r = await fetch('/api/v2/binding/automatch', {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  var d = await r.json();
+  if(!r.ok){ toast('撮合失败：' + (d.error||r.status), 'err'); return; }
+  var sugg = d.suggestions || [];
+  if(sugg.length === 0){ toast('没有可自动撮合的项（EQUIP_ID 未匹配到清单）', 'warn'); return; }
+  var ok = await confirmModal('自动撮合', '按 EQUIP_ID 精确匹配到 <b>'+sugg.length+'</b> 条绑定建议，是否全部采纳？', '采纳全部');
+  if(!ok) return;
+  var r2 = await fetch('/api/v2/binding/bind_batch', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pairs:sugg})});
+  var d2 = await r2.json();
+  toast('已自动绑定 ' + d2.bound + ' 条' + (d2.failed&&d2.failed.length?('，'+d2.failed.length+' 条失败'):''), 'ok');
+  await loadAll();
+}
+async function mint(){
+  var bn = State.components.filter(function(c){ return c.bound_instance_id; }).length;
+  if(bn === 0){ toast('还没有已绑定的构件', 'warn'); return; }
+  var ok = await confirmModal('铸造为实例', '将把 <b>'+bn+'</b> 个已绑定构件铸造/同步为实例（实例集 = 已绑定构件集）。未绑定的构件不会成为实例。确认？', '铸造');
+  if(!ok) return;
+  var r = await fetch('/api/v2/binding/mint', {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  var d = await r.json();
+  if(!r.ok){ toast('铸造失败：' + (d.error||r.status), 'err'); return; }
+  toast('已铸造 ' + d.minted + ' 个实例，可在实例运维 / UE 查看', 'ok');
+}
+
+loadAll();
+</script>
+</body>
+</html>

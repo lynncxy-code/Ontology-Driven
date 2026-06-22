@@ -304,7 +304,7 @@ body.embedded-mode{background:#fafaf7}
           <div class="step-tab active" data-step="1" onclick="goToStep(1)">① 上传</div>
           <div class="step-tab disabled" data-step="2" onclick="goToStep(2)">② 类型审核</div>
           <div class="step-tab disabled" data-step="3" onclick="goToStep(3)">③ 标定</div>
-          <div class="step-tab disabled" data-step="4" onclick="goToStep(4)">④ 实体</div>
+          <div class="step-tab disabled" data-step="4" onclick="goToStep(4)">④ 构件</div>
           <div class="step-tab disabled" data-step="5" onclick="goToStep(5)">⑤ 导出</div>
         </div>
         <div class="step-content">
@@ -322,7 +322,7 @@ body.embedded-mode{background:#fafaf7}
                   图层列表
                 </span>
                 <div style="display:flex; align-items:center; gap:10px">
-                  <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--ink-2);cursor:pointer;font-weight:400" data-tip="勾选=纳入后续流程；取消=该图层在审核/实体/导出/投实例中不出现">
+                  <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--ink-2);cursor:pointer;font-weight:400" data-tip="勾选=纳入后续流程；取消=该图层在审核/构件/导出/投实例中不出现">
                     <input type="checkbox" id="layerSelectAll" checked onchange="toggleAllLayerSelect(this.checked)" style="accent-color:var(--ink);cursor:pointer"> 全选纳入
                   </label>
                   <span class="copy-btn" onclick="toggleAllLayers()" data-tip="切换全显/全隐（仅画布）"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></span>
@@ -352,28 +352,26 @@ body.embedded-mode{background:#fafaf7}
             </div>
             <div class="write-strategy" id="writeStrategy">
               <h4>写入策略</h4>
-              <label class="opt"><input type="radio" name="wsMode" value="publish" checked onchange="onStrategyChange()"/> 发布为新数据集并激活</label>
-              <div class="opt-inputs" id="wsPubInputs">
-                <span style="font-size:11px;color:var(--text-soft)">名称：</span>
-                <input type="text" id="wsPubName" placeholder="如：我的工厂本体"/>
+              <div id="wsMergeArea">
+                <label class="opt">合并到类型库</label>
+                <div class="opt-inputs" id="wsMergeInputs">
+                  <span style="font-size:11px;color:var(--text-soft)">目标：</span>
+                  <select id="wsMergeTarget"><option>加载中...</option></select>
+                  <span style="font-size:11px;color:var(--text-soft);margin-left:6px">同名冲突：</span>
+                  <select id="wsConflictStrategy" style="flex:0 0 auto;width:90px">
+                    <option value="skip">跳过</option>
+                    <option value="overwrite">覆盖</option>
+                  </select>
+                </div>
+                <p class="hint" style="margin:6px 0 0">本步只把构件类型并入已有类型库；新建类型库请在「语义图谱总览」完成。</p>
               </div>
-              <label class="opt" id="wsMergeLabel"><input type="radio" name="wsMode" value="merge" onchange="onStrategyChange()"/> 合并到现有工作数据集</label>
-              <div class="opt-inputs" id="wsMergeInputs" style="display:none">
-                <span style="font-size:11px;color:var(--text-soft)">目标：</span>
-                <select id="wsMergeTarget"><option>加载中...</option></select>
-                <span style="font-size:11px;color:var(--text-soft);margin-left:6px">同名冲突：</span>
-                <select id="wsConflictStrategy" style="flex:0 0 auto;width:90px">
-                  <option value="skip">跳过</option>
-                  <option value="overwrite">覆盖</option>
-                </select>
-              </div>
-              <div id="wsDemoTip" class="demo-tip" style="display:none">
-                当前激活的是只读 Demo，无可合并目标
-                <button class="btn btn-primary btn-sm" style="margin-top:6px;width:100%" onclick="quickCreateWorkDs()">立即新建空数据集"我的工厂本体"并激活</button>
+              <div id="wsNoTargetTip" class="demo-tip" style="display:none">
+                还没有可合并的类型库。类型库须先在「语义图谱总览」中新建，再回到这里把构件类型并入。
+                <a class="btn btn-sm" style="margin-top:8px;width:100%;display:block;box-sizing:border-box;text-align:center;text-decoration:none" href="/ontology_graph" target="_blank">前往语义图谱总览新建类型库</a>
               </div>
             </div>
             <div id="commitArea" style="margin-top:10px">
-              <button class="btn btn-primary btn-sm" id="btnCommit" style="width:100%" onclick="doCommit()">提交（创建/合并类型）</button>
+              <button class="btn btn-primary btn-sm" id="btnCommit" style="width:100%" onclick="doCommit()">提交（合并类型）</button>
               <div style="margin-top:6px;display:flex;justify-content:space-between;align-items:center">
                 <p class="hint" style="margin:0">提交后可继续标定，或前往语义图谱总览查看</p>
                 <a href="javascript:void(0)" onclick="skipAudit()" style="font-size:11px;color:var(--text-soft);text-decoration:underline">跳过此步</a>
@@ -387,10 +385,10 @@ body.embedded-mode{background:#fafaf7}
             <div id="anchorList"></div>
             <button class="btn btn-primary btn-sm" id="btnCalibrate" style="margin-top:10px;width:100%" onclick="doCalibrate()" disabled>计算变换（至少 2 个锚点）</button>
             <div id="metricsPanel" style="display:none"></div>
-            <button class="btn btn-primary btn-sm" id="btnToStep4" style="margin-top:10px;width:100%;display:none" onclick="goToStep(4)">下一步：实体列表</button>
+            <button class="btn btn-primary btn-sm" id="btnToStep4" style="margin-top:10px;width:100%;display:none" onclick="goToStep(4)">下一步：构件列表</button>
           </div>
           <div class="step-panel" id="step4">
-            <div class="section-title">实体列表与资产对应</div>
+            <div class="section-title">构件列表与资产对应</div>
             <div style="overflow-x:auto;max-height:calc(100vh - 240px);overflow-y:auto">
               <table class="entity-table" id="entityTable">
                 <thead><tr><th>选择</th><th>类型</th><th>名称</th><th>编号</th><th>构件</th><th>UE X</th><th>UE Y</th><th>资产路径</th></tr></thead>
@@ -400,14 +398,14 @@ body.embedded-mode{background:#fafaf7}
             <button class="btn btn-primary btn-sm" style="margin-top:14px;width:100%" onclick="goToStep(5)">下一步：导出</button>
           </div>
           <div class="step-panel" id="step5">
-            <div class="section-title">导出与投入</div>
-            <p class="hint" style="margin-top:0;margin-bottom:14px">把标定好的实体投入实例库，或导出为文件。</p>
+            <div class="section-title">保存与导出</div>
+            <p class="hint" style="margin-top:0;margin-bottom:14px">把标定好的构件保存到项目，随后在『实例绑定台』绑定实例编号、铸造实例；或导出为文件。</p>
 
-            <!-- 主操作：投入实例库 -->
+            <!-- 主操作：保存构件 -->
             <div class="action-group action-group-primary">
-              <div class="ag-title">投入实例库</div>
-              <div class="ag-desc">将勾选的实体写入实例运维中心，UE 端即可见。</div>
-              <button class="btn btn-primary" onclick="spawnInstances()" style="width:100%">投入实例库</button>
+              <div class="ag-title">保存构件</div>
+              <div class="ag-desc">将勾选的构件存入当前项目。构件此时还没有实例编号，需到『实例绑定台』绑定后才会铸造为实例、被 UE 渲染。</div>
+              <button class="btn btn-primary" onclick="spawnInstances()" style="width:100%">保存构件到项目</button>
             </div>
 
             <!-- 次级操作：导出文件 -->
@@ -1144,7 +1142,7 @@ canvas.addEventListener('mouseup', e => {
         }
       }, 50);
     } else if (State.matrix) {
-      // 如果已标定，且不在图层步骤：跳转到实体列表并定位
+      // 如果已标定，且不在图层步骤：跳转到构件列表并定位
       if (State.currentStep < 4) goToStep(4);
       setTimeout(() => {
         const tr = document.querySelector(`tr[data-id="${State.highlightId}"]`);
@@ -1411,15 +1409,15 @@ function draw() {
 }
 
 // ── Step Navigation ──
-// 步骤含义: 1=上传  2=类型审核  3=标定  4=实体  5=导出
+// 步骤含义: 1=上传  2=类型审核  3=标定  4=构件  5=导出
 function goToStep(n) {
   if (n > 1 && !State.previewData) return;
-  if (n > 3 && !State.matrix) return;  // step4 实体表 / step5 导出 都需要先完成标定
-  // 从实体/导出回退到标定：需异步确认（保持 goToStep 同步可调用）
+  if (n > 3 && !State.matrix) return;  // step4 构件表 / step5 导出 都需要先完成标定
+  // 从构件/导出回退到标定：需异步确认（保持 goToStep 同步可调用）
   if (n < State.currentStep && n === 3 && State.currentStep >= 4) {
     UI.confirm({
       title: '回到标定',
-      bodyHTML: '重新标定会刷新所有实体的坐标，已填写的资产路径会保留。确认回退？'
+      bodyHTML: '重新标定会刷新所有构件的坐标，已填写的资产路径会保留。确认回退？'
     }).then(ok => { if (ok) _applyStep(n); });
     return;
   }
@@ -1664,70 +1662,26 @@ async function loadActiveDataset(silentRefresh) {
 }
 
 function refreshStrategyUI() {
-  const isDemo = State.activeDsId === 'demo' || !State.activeDsId;
-  // 默认值
-  const pubNameEl = document.getElementById('wsPubName');
-  if (pubNameEl && !pubNameEl.value) {
-    pubNameEl.value = '我的工厂本体';
-  }
-  // merge 选项可用性
-  const mergeLabel = document.getElementById('wsMergeLabel');
-  const demoTip = document.getElementById('wsDemoTip');
-  const mergeRadio = mergeLabel?.querySelector('input');
-  const targetSel = document.getElementById('wsMergeTarget');
+  // 3.0 建库收口：坐标标定只能"合并到已有类型库"，不能新建。
+  // 新建类型库统一在「语义图谱总览」完成。无可合并目标时禁用提交并引导过去。
   const otherDs = (State.datasetList || []).filter(d => d.id !== 'demo');
-  if (isDemo || otherDs.length === 0) {
-    mergeLabel?.classList.add('disabled');
-    if (mergeRadio) mergeRadio.disabled = true;
-    if (demoTip) demoTip.style.display = isDemo ? 'block' : 'none';
-    // 强制 publish
-    const pubRadio = document.querySelector('input[name="wsMode"][value="publish"]');
-    if (pubRadio) pubRadio.checked = true;
-    document.getElementById('wsPubInputs').style.display = 'flex';
-    document.getElementById('wsMergeInputs').style.display = 'none';
+  const mergeArea = document.getElementById('wsMergeArea');
+  const noTip = document.getElementById('wsNoTargetTip');
+  const targetSel = document.getElementById('wsMergeTarget');
+  const btnCommit = document.getElementById('btnCommit');
+  if (otherDs.length === 0) {
+    if (mergeArea) mergeArea.style.display = 'none';
+    if (noTip) noTip.style.display = 'block';
+    if (btnCommit) btnCommit.disabled = true;
   } else {
-    mergeLabel?.classList.remove('disabled');
-    if (mergeRadio) mergeRadio.disabled = false;
-    if (demoTip) demoTip.style.display = 'none';
-    // 默认改为 merge 到当前激活集
+    if (mergeArea) mergeArea.style.display = 'block';
+    if (noTip) noTip.style.display = 'none';
+    if (btnCommit) btnCommit.disabled = false;
     if (targetSel) {
       targetSel.innerHTML = otherDs.map(d =>
         `<option value="${d.id}" ${d.is_active?'selected':''}>${escapeHTML(d.name)}</option>`
       ).join('');
     }
-    // 智能默认：active 不是 Demo → 默认 merge
-    const curSel = document.querySelector('input[name="wsMode"]:checked');
-    if (!curSel || curSel.value === 'publish') {
-      const mr = document.querySelector('input[name="wsMode"][value="merge"]');
-      if (mr) mr.checked = true;
-      document.getElementById('wsPubInputs').style.display = 'none';
-      document.getElementById('wsMergeInputs').style.display = 'flex';
-    }
-  }
-}
-
-function onStrategyChange() {
-  const m = document.querySelector('input[name="wsMode"]:checked')?.value;
-  document.getElementById('wsPubInputs').style.display = m === 'publish' ? 'flex' : 'none';
-  document.getElementById('wsMergeInputs').style.display = m === 'merge' ? 'flex' : 'none';
-}
-
-async function quickCreateWorkDs() {
-  const name = '我的工厂本体';
-  try {
-    const res = await fetch('/api/v2/ontology/datasets', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({name, activate: true})
-    });
-    if (res.ok) {
-      await loadActiveDataset();
-      toast(`已新建并激活数据集"${name}"，已切换为合并模式`, 'ok');
-    } else {
-      const err = await res.json();
-      toast('新建失败：' + (err.message || err.error), 'err');
-    }
-  } catch(e) {
-    toast('网络错误：' + e.message, 'err');
   }
 }
 
@@ -1767,20 +1721,17 @@ async function doCommit(force) {
     toast('请至少勾选一项再提交', 'warn');
     return;
   }
-  const mode = document.querySelector('input[name="wsMode"]:checked')?.value || 'publish';
+  const mode = 'merge';   // 3.0 建库收口：本步只合并，不再新建数据集
   const sourceFile = State.lastUploadedFile?.name || 'untitled.dxf';
 
   const payload = { source_file: sourceFile, mode, items, force: !!force };
-  if (mode === 'publish') {
-    const name = document.getElementById('wsPubName').value.trim();
-    if (!name) { toast('请填写数据集名称', 'warn'); return; }
-    payload.publish_options = { name };
-  } else {
-    const targetId = document.getElementById('wsMergeTarget').value;
-    if (!targetId) { toast('请选择合并目标', 'warn'); return; }
-    payload.merge_options = { target_dataset_id: targetId };
-    payload.conflict_strategy = document.getElementById('wsConflictStrategy').value;
+  const targetId = document.getElementById('wsMergeTarget')?.value;
+  if (!targetId) {
+    toast('还没有可合并的类型库，请先在语义图谱总览新建', 'warn');
+    return;
   }
+  payload.merge_options = { target_dataset_id: targetId };
+  payload.conflict_strategy = document.getElementById('wsConflictStrategy').value;
 
   // 不带 force 时先 check_conflicts 走一遍弹窗（M4 简化版：仅 merge 弹窗，publish 走信息提示）
   if (!force) {
@@ -1829,7 +1780,7 @@ async function doCommit(force) {
   } catch(e) {
     toast('网络错误：' + e.message, 'err');
   } finally {
-    btn.disabled = false; btn.textContent = '提交（创建/合并类型）';
+    btn.disabled = false; btn.textContent = '提交（合并类型）';
   }
 }
 
@@ -1920,7 +1871,7 @@ function insertInScope(ins) {
       && !!State.auditChecked[ins.block_name];   // 类型审核未勾选 = 不在作用域，下游一律不出现
 }
 
-// ── PRD 2.9.1 — CAD 实体批量入实例库 ──
+// ── PRD 2.9.1 — CAD 构件批量入实例库 ──
 function _collectSpawnItems() {
   if (!State.previewData) return [];
   return State.previewData.inserts
@@ -1934,61 +1885,36 @@ function _collectSpawnItems() {
 }
 
 async function spawnInstances() {
+  // 3.0：坐标标定的产物是"构件"，保存到当前项目（不再直接 spawn 实例）。
   if (!State.matrix) {
     toast('请先完成标定', 'warn');
     return;
   }
   const items = _collectSpawnItems();
   if (items.length === 0) {
-    toast('没有勾选任何实体', 'warn');
+    toast('没有勾选任何构件', 'warn');
     return;
   }
-  const payload = {
-    source_label: State.lastUploadedFile?.name || 'untitled.dxf',
-    mode: 'dxf',
-    transform_matrix: State.matrix,
-    items,
-    conflict_strategy: 'update_coord',
-    commit: false,
-  };
-
-  // dry-run
-  let res, dry;
+  const payload = { transform_matrix: State.matrix, items };
   try {
-    res = await fetch('/api/v2/coord/spawn_instances', {
+    const res = await fetch('/api/v2/coord/save_components', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(payload)
     });
-    dry = await res.json();
-  } catch(e) {
-    toast('请求失败：' + e.message, 'err');
-    return;
-  }
-  if (!res.ok) {
-    toast('预检失败：' + (dry.error || res.status), 'err');
-    return;
-  }
-
-  // 弹窗让用户选策略并确认
-  const choice = await spawnConfirmDialog(dry);
-  if (!choice) return;
-
-  // commit
-  payload.commit = true;
-  payload.conflict_strategy = choice.strategy;
-  try {
-    const r2 = await fetch('/api/v2/coord/spawn_instances', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
-    });
-    const final = await r2.json();
-    if (!r2.ok) {
-      toast('提交失败：' + (final.error || r2.status), 'err');
+    const data = await res.json();
+    if (!res.ok) {
+      toast('保存失败：' + (data.error || res.status), 'err');
       return;
     }
-    spawnSuccessDialog(final);
+    const errN = (data.errors || []).length;
+    const bodyHTML = `已保存 <b>${data.saved}</b> 个构件到当前项目。`
+      + (errN ? `<br><span style="color:var(--danger)">${errN} 个未保存（类型未并入类型库）。</span>` : '')
+      + `<br><br>构件还没有实例编号，请前往『实例绑定台』绑定身份、铸造实例。`;
+    if (await UI.confirm({ title: '构件已保存', bodyHTML, confirmText: '前往实例绑定台', cancelText: '留在本页' })) {
+      openInNewTab('/binding');
+    }
   } catch(e) {
-    toast('提交异常：' + e.message, 'err');
+    toast('请求失败：' + e.message, 'err');
   }
 }
 
@@ -2391,9 +2317,9 @@ function buildEntityTable() {
     ...State.previewData.polylines.map(e => ({...e, _type:'polyline'})),
   ];
   all.forEach(ent => {
-    if (State.layerSelected[ent.layer] === false) return;   // 2.9.2.2 未选图层不进实体表
-    if (ent._type === 'insert' && !insertInScope(ent)) return;   // 类型审核未勾选的设备块不进实体表
-    if (ent._type === 'polyline' && !polyInScope(ent)) return;   // 线审核未勾选的图层不进实体表
+    if (State.layerSelected[ent.layer] === false) return;   // 2.9.2.2 未选图层不进构件表
+    if (ent._type === 'insert' && !insertInScope(ent)) return;   // 类型审核未勾选的设备块不进构件表
+    if (ent._type === 'polyline' && !polyInScope(ent)) return;   // 线审核未勾选的图层不进构件表
     if (State.entityChecked[ent.id] === undefined) State.entityChecked[ent.id] = true;
     const isInsert = ent._type === 'insert';
     const pos = isInsert ? ent.position : ent.points[0];

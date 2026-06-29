@@ -96,6 +96,87 @@ def apply_transform(matrix, point):
     return [round(x, 2), round(y, 2)]
 
 
+import math
+
+
+def _axis_vec(spec):
+    """'+x'/'-y' → (列索引, 符号)。"""
+    sign = -1.0 if str(spec).startswith("-") else 1.0
+    idx = 0 if str(spec).endswith("x") else 1
+    return idx, sign
+
+
+def _build_coarse_matrix(ut):
+    """由"规范→UE"的粗声明（轴映射 + 翻转 + 旋转 + 尺度 + 原点）构造 3×3 仿射。
+    仅在未做锚点精确拟合时用于预览；锚点拟合后用 ut['matrix'] 覆盖。"""
+    disp = ut.get("display") or {}
+    am = disp.get("axis_map") or {"x": "+x", "y": "+y"}
+    ix, sx = _axis_vec(am.get("x", "+x"))
+    iy, sy = _axis_vec(am.get("y", "+y"))
+    # 轴映射 2×2：ue = AxisM · canon
+    axisM = [[0.0, 0.0], [0.0, 0.0]]
+    axisM[0][ix] = sx
+    axisM[1][iy] = sy
+    # 翻转（X 镜像）
+    flip = [[-1.0, 0.0], [0.0, 1.0]] if disp.get("flip") else [[1.0, 0.0], [0.0, 1.0]]
+    # 旋转
+    th = math.radians(float(disp.get("rotation_deg", 0) or 0))
+    rot = [[math.cos(th), -math.sin(th)], [math.sin(th), math.cos(th)]]
+
+    def mul(a, b):
+        return [[a[0][0] * b[0][0] + a[0][1] * b[1][0], a[0][0] * b[0][1] + a[0][1] * b[1][1]],
+                [a[1][0] * b[0][0] + a[1][1] * b[1][0], a[1][0] * b[0][1] + a[1][1] * b[1][1]]]
+
+    F = mul(rot, mul(flip, axisM))
+    s = float(ut.get("scale_to_cm", 0.1) or 0.1)
+    ox, oy = (ut.get("ue_origin_cm") or [0.0, 0.0])[:2]
+    return [
+        [s * F[0][0], s * F[0][1], float(ox)],
+        [s * F[1][0], s * F[1][1], float(oy)],
+        [0, 0, 1],
+    ]
+
+
+def build_ue_matrix(profile):
+    """取"规范→UE"3×3 仿射：优先用锚点拟合的精确矩阵；未标定则用粗声明构造。"""
+    ut = (profile or {}).get("ue_transform") or {}
+    m = ut.get("matrix")
+    if m:
+        return m
+    return _build_coarse_matrix(ut)
+
+
+def canonical_to_ue(profile, xy, floor=1):
+    """规范坐标(mm) + 楼层 → UE 世界坐标(cm) [x, y, z]。
+    z = 该楼层 z_base_mm × scale_to_cm（与 XY 同量纲；尺度待现场核实，见 PRD §12）。"""
+    m = build_ue_matrix(profile)
+    ue = apply_transform(m, xy)
+    ut = (profile or {}).get("ue_transform") or {}
+    scale = float(ut.get("scale_to_cm", 0.1) or 0.1)
+    z_base_mm = 0.0
+    for ft in (profile or {}).get("floor_table") or []:
+        if ft.get("floor") == floor:
+            z_base_mm = float(ft.get("z_base_mm", 0) or 0)
+            break
+    return [ue[0], ue[1], round(z_base_mm * scale, 2)]
+
+
+def invert_affine(matrix):
+    """求 3×3 仿射的逆（FR-9：将来向外部系反算坐标）。退化时返回 None。"""
+    a, b, tx = matrix[0]
+    c, d, ty = matrix[1]
+    det = a * d - b * c
+    if abs(det) < 1e-12:
+        return None
+    ia, ib = d / det, -b / det
+    ic, idd = -c / det, a / det
+    return [
+        [round(ia, 10), round(ib, 10), round(-(ia * tx + ib * ty), 4)],
+        [round(ic, 10), round(idd, 10), round(-(ic * tx + idd * ty), 4)],
+        [0, 0, 1],
+    ]
+
+
 def batch_transform(matrix, entities):
     """
     批量变换实体坐标，返回带 UE 坐标的实体列表。

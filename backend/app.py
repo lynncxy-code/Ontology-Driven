@@ -23,6 +23,13 @@ ARTSTUDIO_BASE_URL = "http://studio.xjbg.tech:12345/api"
 ARTSTUDIO_TIMEOUT  = 5  # 秒，超时后自动回退 MOCK_ASSETS
 ARTSTUDIO_TOKEN    = None  # 后续有固定 token 后填写
 
+# 3.3：ArtStudio 运行时同步客户端（详情/版本缓存/下载代理/后端预取）
+import artstudio_client
+artstudio_client.configure(
+    ARTSTUDIO_BASE_URL, ARTSTUDIO_TOKEN, ARTSTUDIO_TIMEOUT,
+    models_dir=os.environ.get("MODELS_DIR"),   # 预取落盘目录（容器 /models → UE 固定 Models）
+)
+
 @app.after_request
 def add_header(response):
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
@@ -110,7 +117,8 @@ def serve_scenes():
 import json as _json
 import tempfile
 from parser_dxf import extract_preview_data
-from coord_transform import calibrate as coord_calibrate, apply_transform as coord_apply
+from coord_transform import (calibrate as coord_calibrate, apply_transform as coord_apply,
+                             canonical_to_ue as coord_canon_to_ue, invert_affine as coord_invert)
 
 _MAPPING_FILE = os.path.join(os.path.dirname(__file__), 'block_asset_mapping.json')
 
@@ -782,6 +790,19 @@ def coord_save_components():
     if not matrix:
         return jsonify({"error": "缺少 transform_matrix（请先完成标定）"}), 400
 
+    # 3.1/3.2：规范系 = CAD 帧（canonical_xy = cad_xy − 规范原点）
+    # 锚点矩阵是 cad→UE；存前按 origin 组合成"规范→UE"（t' = A·origin + t），
+    # 这样 ue = M·canonical 与 ue = M_cad·cad 一致，根除 origin≠0 偏移。
+    profile = project_store.get_spatial_profile()
+    origin = (profile.get("canonical_origin") or [0.0, 0.0])[:2]
+    profile["ue_transform"]["matrix"] = _compose_origin(matrix, origin)
+    project_store.set_spatial_profile(profile)
+    project_store.upsert_frame({
+        "id": "frame_cad", "name": "CAD 图纸", "kind": "cad", "unit": "mm",
+        "to_canonical": {"method": "anchor", "matrix": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]},
+        "floor": 1, "map_code": None,
+    })
+
     old = project_store.get_components()
     comps = {}
     errors = []
@@ -798,8 +819,10 @@ def coord_save_components():
         if not cad_xy or len(cad_xy) < 2:
             errors.append({"block_name": block_name, "reason": "cad_xy 缺失或非法"})
             continue
+        floor = int(item.get("floor") or 1)
+        canonical_xy = [float(cad_xy[0]) - float(origin[0]), float(cad_xy[1]) - float(origin[1])]
         try:
-            ue_xy = coord_apply(matrix, cad_xy)
+            ue = coord_canon_to_ue(profile, canonical_xy, floor)   # [x_cm, y_cm, z_cm]
         except Exception as e:
             errors.append({"block_name": block_name, "reason": f"变换失败: {e}"})
             continue
@@ -811,8 +834,14 @@ def coord_save_components():
             "id": cid,
             "object_type_rid": block_name,
             "type_name": ot.get("name", block_name),
-            "cad_xy": [float(cad_xy[0]), float(cad_xy[1])],
-            "ue_xy": [float(ue_xy[0]), float(ue_xy[1])],
+            "frame_id": "frame_cad",
+            "floor": floor,
+            "source_xy": [float(cad_xy[0]), float(cad_xy[1])],   # 留痕：原始源坐标
+            "cad_xy": [float(cad_xy[0]), float(cad_xy[1])],      # 兼容旧字段
+            "canonical_xy": canonical_xy,                         # 3.1：规范坐标（事实来源）
+            "canonical_z": _floor_zbase_mm(profile, floor),       # 3.2：规范 Z（默认楼层基准，可微调）
+            "ue_xy": [ue[0], ue[1]],                             # 派生缓存
+            "ue_z": ue[2],
             "rotation": float(item.get("rotation") or 0.0),
             "attribs": item.get("attribs") or {},
             "asset_path": ot.get("asset_id") or "",
@@ -827,6 +856,218 @@ def coord_save_components():
         "errors": errors,
         "hint": "构件已保存到当前项目，请前往『实例绑定台』绑定实例编号并铸造实例",
     })
+
+
+# ═══════════════════════════════════════════════════════════════
+# 3.1 — 三维坐标体系：空间剖面 / 帧 / 派生重算
+# ═══════════════════════════════════════════════════════════════
+
+def _compose_origin(matrix, origin):
+    """cad→帧 仿射 → 规范→帧（规范 = cad − origin）：t' = A·origin + t。"""
+    a, b, t0 = matrix[0]
+    c, d, t1 = matrix[1]
+    ox, oy = float(origin[0]), float(origin[1])
+    return [[a, b, a*ox + b*oy + t0], [c, d, c*ox + d*oy + t1], [0, 0, 1]]
+
+
+def _floor_zbase_mm(profile, floor):
+    for ft in profile.get("floor_table") or []:
+        if ft.get("floor") == floor:
+            return float(ft.get("z_base_mm", 0) or 0)
+    return 0.0
+
+
+def _rederive_components(sync_instances=True):
+    """按当前 spatial_profile 重算所有构件的派生 UE 坐标；并同步已绑定实例的位置。
+    profile/楼层表变更后调用（FR-8 改一处全场重算）。"""
+    profile = project_store.get_spatial_profile()
+    origin = (profile.get("canonical_origin") or [0.0, 0.0])[:2]
+    scale = (profile.get("ue_transform") or {}).get("scale_to_cm", 0.1)
+    comps = project_store.get_components()
+    for c in comps.values():
+        canon = c.get("canonical_xy")
+        if canon is None:                       # 旧构件无 canonical → 用 cad_xy 回填
+            cad = c.get("cad_xy") or [0.0, 0.0]
+            canon = [float(cad[0]) - float(origin[0]), float(cad[1]) - float(origin[1])]
+            c["canonical_xy"] = canon
+        if c.get("canonical_z") is None:        # 旧构件无 canonical_z → 楼层基准回填
+            c["canonical_z"] = _floor_zbase_mm(profile, c.get("floor", 1))
+        ue = coord_canon_to_ue(profile, canon, c.get("floor", 1))
+        c["ue_xy"] = [ue[0], ue[1]]
+        c["ue_z"] = round(float(c["canonical_z"]) * scale, 2)   # 3.2：Z 由 canonical_z 派生（可微调）
+    project_store.set_components(comps)
+    if not sync_instances:
+        return
+    # mint 不重置已有实例位置 → 这里显式把新派生坐标推给已绑定实例
+    project_store.mint_instances()
+    for c in comps.values():
+        iid = c.get("bound_instance_id")
+        if iid:
+            instance_store.update_raw_state(iid, {
+                "translation_x": c["ue_xy"][0],
+                "translation_y": c["ue_xy"][1],
+                "translation_z": c.get("ue_z", 0.0),
+                "rotation_z": float(c.get("rotation") or 0.0),
+            }, persist=True)
+
+
+@app.route('/api/v2/spatial/profile', methods=['GET'])
+def spatial_profile_get():
+    if project_store.get_active() is None:
+        return jsonify({"error": "当前无激活项目"}), 400
+    return jsonify(project_store.get_spatial_profile())
+
+
+@app.route('/api/v2/spatial/profile', methods=['PUT'])
+def spatial_profile_put():
+    if project_store.get_active() is None:
+        return jsonify({"error": "当前无激活项目"}), 400
+    data = request.json or {}
+    profile = project_store.get_spatial_profile()
+    # 只更新允许的子项，保留 matrix（锚点拟合的精确 规范→UE）除非显式传入
+    if "ue_transform" in data:
+        ut = profile.get("ue_transform") or {}
+        ut.update(data["ue_transform"])
+        profile["ue_transform"] = ut
+    if "floor_table" in data:
+        profile["floor_table"] = data["floor_table"]
+    if "canonical_origin" in data:
+        profile["canonical_origin"] = data["canonical_origin"]
+    project_store.set_spatial_profile(profile)
+    _rederive_components()                       # FR-8：全场重算 + 同步实例
+    return jsonify({"status": "ok", "profile": profile})
+
+
+@app.route('/api/v2/spatial/frames', methods=['GET'])
+def spatial_frames_get():
+    if project_store.get_active() is None:
+        return jsonify({"error": "当前无激活项目"}), 400
+    return jsonify({"frames": project_store.list_frames()})
+
+
+@app.route('/api/v2/spatial/frames', methods=['POST'])
+def spatial_frames_post():
+    if project_store.get_active() is None:
+        return jsonify({"error": "当前无激活项目"}), 400
+    frame = request.json or {}
+    if not frame.get("id"):
+        return jsonify({"error": "缺少 frame id"}), 400
+    project_store.upsert_frame(frame)
+    return jsonify({"status": "ok", "frames": project_store.list_frames()})
+
+
+@app.route('/api/v2/spatial/frames/<frame_id>/calibrate', methods=['POST'])
+def spatial_frame_calibrate(frame_id):
+    """标定一个自定义源帧。Body: {anchors:[{src:规范坐标, dst:源读数}], name?, unit?}。
+    锚点 src 取"规范坐标(cad−origin)"、dst 取该源读数 → 拟合得 from_canonical(规范→源)，
+    并存其逆 to_canonical(源→规范)。供 P2 多坐标面板正/逆换算。"""
+    if project_store.get_active() is None:
+        return jsonify({"error": "当前无激活项目"}), 400
+    data = request.json or {}
+    anchors = data.get("anchors")
+    if not anchors or len(anchors) < 2:
+        return jsonify({"error": "至少需要 2 组锚点"}), 400
+    try:
+        res = coord_calibrate(anchors)              # 规范 → 源
+    except Exception as e:
+        return jsonify({"error": f"标定失败: {e}"}), 400
+    from_canon = res["transform_matrix"]
+    to_canon = coord_invert(from_canon)
+    frame = project_store.get_frame(frame_id) or {"id": frame_id, "kind": "custom", "unit": "mm"}
+    if data.get("name"):
+        frame["name"] = data["name"]
+    if data.get("unit"):
+        frame["unit"] = data["unit"]
+    frame["from_canonical"] = {"method": "anchor", "matrix": from_canon}
+    frame["to_canonical"] = {"method": "anchor", "matrix": to_canon} if to_canon else None
+    project_store.upsert_frame(frame)
+    return jsonify({"status": "ok", "metrics": res.get("metrics"), "frame": frame})
+
+
+@app.route('/api/v2/spatial/preview', methods=['POST'])
+def spatial_preview():
+    """给一批规范坐标 + 可选 profile 覆盖，返回派生 UE 坐标（画布/实时预览用）。
+    Body: {points:[[x,y],...], floor?, profile?}"""
+    profile = (request.json or {}).get("profile") or project_store.get_spatial_profile()
+    points = (request.json or {}).get("points") or []
+    floor = int((request.json or {}).get("floor") or 1)
+    out = []
+    for p in points:
+        try:
+            out.append(coord_canon_to_ue(profile, p, floor))
+        except Exception:
+            out.append(None)
+    return jsonify({"ue": out})
+
+
+@app.route('/api/v2/instances/<path:instance_id>/transform', methods=['GET'])
+def instance_transform_get(instance_id):
+    """FR-7：取该实例绑定构件的当前规范坐标/朝向，供微调弹窗预填。"""
+    if project_store.get_active() is None:
+        return jsonify({"error": "当前无激活项目"}), 400
+    comp = project_store.get_component_by_instance(instance_id)
+    if not comp:
+        return jsonify({"error": "找不到该实例对应的构件"}), 404
+    profile = project_store.get_spatial_profile()
+    canon = comp.get("canonical_xy") or comp.get("cad_xy") or [0, 0]
+    floor = comp.get("floor", 1)
+    cz = comp.get("canonical_z")
+    if cz is None:
+        cz = _floor_zbase_mm(profile, floor)
+    # 各已标定"自定义源"的坐标（规范→源）：供多坐标面板展示第三列
+    frames_out = []
+    for f in project_store.list_frames():
+        if f.get("id") == "frame_cad":
+            continue
+        fc = f.get("from_canonical") or {}
+        m = fc.get("matrix") if isinstance(fc, dict) else fc
+        if not m:
+            continue
+        try:
+            xy = coord_apply(m, canon)
+        except Exception:
+            continue
+        frames_out.append({"id": f.get("id"), "name": f.get("name", f.get("id")),
+                           "unit": f.get("unit", "mm"), "xy": xy})
+    return jsonify({
+        "canonical_xy": canon,
+        "canonical_z": cz,
+        "rotation": comp.get("rotation", 0.0),
+        "floor": floor,
+        "ue_xy": comp.get("ue_xy") or [0, 0],
+        "ue_z": comp.get("ue_z", 0.0),
+        "frames": frames_out,
+    })
+
+
+@app.route('/api/v2/instances/<path:instance_id>/transform', methods=['PUT'])
+def instance_transform_put(instance_id):
+    """FR-7 / 3.2 单实例微调：改绑定构件 canonical_xy / canonical_z / rotation / floor
+    → 重派生 → 同步实例。前端已把任一帧坐标折算成规范坐标后再传入。"""
+    if project_store.get_active() is None:
+        return jsonify({"error": "当前无激活项目"}), 400
+    data = request.json or {}
+    comp = project_store.get_component_by_instance(instance_id)
+    if not comp:
+        return jsonify({"error": "找不到该实例对应的构件"}), 404
+    patch = {}
+    if "canonical_xy" in data and data["canonical_xy"]:
+        patch["canonical_xy"] = [float(data["canonical_xy"][0]), float(data["canonical_xy"][1])]
+    if "rotation" in data:
+        patch["rotation"] = float(data["rotation"] or 0.0)
+    if "floor" in data:
+        new_floor = int(data["floor"])
+        patch["floor"] = new_floor
+        # 切楼层 → Z 跳到新层基准（除非本次同时显式给了 canonical_z）
+        if "canonical_z" not in data:
+            patch["canonical_z"] = _floor_zbase_mm(project_store.get_spatial_profile(), new_floor)
+    if "canonical_z" in data and data["canonical_z"] is not None:
+        patch["canonical_z"] = float(data["canonical_z"])
+    if not patch:
+        return jsonify({"error": "无可更新字段（canonical_xy / canonical_z / rotation / floor）"}), 400
+    project_store.update_component(comp["id"], patch)
+    _rederive_components()
+    return jsonify({"status": "ok"})
 
 
 @app.route('/api/v2/coord/calibrate', methods=['POST'])
@@ -1405,19 +1646,41 @@ def bind_asset():
         if asset_meta:
             name = asset_meta.get("name", "")
 
-    valid = is_from_studio or asset_meta is not None
-    warning = None if valid else f"资产库中未找到编号 '{file_number}'，请确认后再绑定。"
+    # 本地运行时 glb/gltf：不在资产库里，UE 侧由 glTFRuntime 从磁盘直接加载
+    is_local_runtime = file_number.lower().endswith((".glb", ".gltf"))
 
-    # ── UE 资产路径（可选）────────────────────────────────────
+    # 3.3：ArtStudio 资产 → 解析 glb + 版本，组装稳定标识 artstudio:{id}:v{n}
+    # 本期仅支持 glb；fbx/usd 等拒绝、不写绑定。
+    artstudio_stable_id = None
+    artstudio_reject = None
+    if is_from_studio:
+        detail = artstudio_client.fetch_detail(file_number)
+        glb = artstudio_client.pick_glb_file(detail)
+        if glb:
+            artstudio_stable_id = artstudio_client.make_stable_id(file_number, detail["version"])
+        else:
+            artstudio_reject = "该资产暂不支持（本期仅支持 glb 模型，fbx/usd 待格式转换上线）"
+
+    valid = (is_from_studio and artstudio_stable_id) or asset_meta is not None or is_local_runtime
+    if artstudio_reject:
+        warning = artstudio_reject
+    else:
+        warning = None if valid else f"资产库中未找到编号 '{file_number}'，请确认后再绑定。"
+
+    # ── UE 资产路径 ────────────────────────────────────────────
     ue_asset_path = data.get("ue_asset_path", "").strip()
-    if not ue_asset_path and asset_meta:
-        # 从 MOCK_ASSETS 自动预填
-        ue_asset_path = asset_meta.get("ue_path", "")
+    if artstudio_stable_id:
+        ue_asset_path = artstudio_stable_id            # ArtStudio：稳定标识优先
+    elif not ue_asset_path and asset_meta:
+        ue_asset_path = asset_meta.get("ue_path", "")  # 从 MOCK_ASSETS 自动预填
+    elif not ue_asset_path and is_local_runtime:
+        ue_asset_path = file_number                    # 本地 glb 直连：UE 路径即文件名
 
-    # ── 写入绑定 ───────────────────────────────────────────────
-    _object_types[rid]["asset_id"] = file_number
-    _object_types[rid]["ue_asset_path"] = ue_asset_path
-    _persist_active_project()   # 资产绑定写回当前项目，重启不丢
+    # ── 写入绑定（ArtStudio 非 glb 拒绝时不写）────────────────────
+    if not artstudio_reject:
+        _object_types[rid]["asset_id"] = file_number
+        _object_types[rid]["ue_asset_path"] = ue_asset_path
+        _persist_active_project()   # 资产绑定写回当前项目，重启不丢
 
     return jsonify({
         "object_type_rid": rid,
@@ -1428,8 +1691,43 @@ def bind_asset():
         "format":          asset_meta.get("format", "") if asset_meta else "",
         "bounding_box":    asset_meta.get("bounding_box", {}) if asset_meta else {},
         "ue_asset_path":   ue_asset_path,
-        "_source":         "studio" if is_from_studio else ("mock" if asset_meta else None),
+        "_source":         "studio" if is_from_studio else ("mock" if asset_meta else ("local" if is_local_runtime else None)),
     })
+
+
+@app.route('/api/v2/assets/download', methods=['GET'])
+def download_artstudio_asset():
+    """
+    3.3：ArtStudio glb 下载代理。UE → Flask → S3 流式转发，隐藏 presigned/token。
+    入参 id=ArtStudio 资产数字 id；只转发 glb。
+    """
+    from flask import Response, stream_with_context
+    asset_id = request.args.get("id", "").strip()
+    if not asset_id:
+        return jsonify({"error": "缺少 id"}), 400
+
+    upstream, filename = artstudio_client.open_download_stream(asset_id)
+    if upstream is None:
+        return jsonify({"error": f"资产 {asset_id} 无 glb 文件或不可达"}), 404
+
+    def _gen():
+        try:
+            for chunk in upstream.iter_content(chunk_size=65536):
+                if chunk:
+                    yield chunk
+        finally:
+            upstream.close()
+
+    # Content-Disposition 必须 latin-1：用 ASCII 安全名（id.glb），
+    # 中文 displayName 经 RFC 5987 的 filename* 传递，避免 UnicodeEncodeError。
+    from urllib.parse import quote
+    resp = Response(stream_with_context(_gen()), content_type="model/gltf-binary")
+    resp.headers["Content-Disposition"] = (
+        f"inline; filename=\"{asset_id}.glb\"; filename*=UTF-8''{quote(filename)}"
+    )
+    if upstream.headers.get("Content-Length"):
+        resp.headers["Content-Length"] = upstream.headers["Content-Length"]
+    return resp
 
 
 @app.route('/api/v2/assets/resolve', methods=['GET'])
@@ -1587,6 +1885,16 @@ def _build_snapshot(instance_id):
     else:
         # 无配置可用 → 隐藏，避免给 UE 推空接口
         return None
+
+    # 3.3：ArtStudio 资产 → 后端预取到本地 Models 目录，snapshot 下发本地文件名，
+    # UE 走已验证的本地加载路径（绕开 UE HTTP 的代理/并发/连接坑）。
+    # 版本同步：get_version(TTL缓存)取当前版本，版本变→新文件名→UE 热更换重载。
+    if isinstance(ue_asset_path, str) and ue_asset_path.startswith(artstudio_client.PREFIX):
+        aid, parsed_ver = artstudio_client.parse_stable_id(ue_asset_path)
+        ver = artstudio_client.get_version(aid) or parsed_ver or 1
+        local_name = artstudio_client.ensure_local_glb(aid, ver)
+        # 就绪→下发本地文件名(UE 本地加载)；未就绪→下发空(UE 占位 Cube，下个轮询再换)
+        ue_asset_path = local_name or ""
 
     now = time.time()
     online = (now - inst_meta.get("last_seen", 0)) < 3.0
@@ -3651,4 +3959,5 @@ except Exception as _lite_err:
 _init_from_project_store()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    # threaded=True：支持并发请求（UE 多实例同时拉模型下载代理流，单线程会串行超时）
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)

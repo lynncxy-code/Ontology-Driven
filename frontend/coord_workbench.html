@@ -381,7 +381,36 @@ body.embedded-mode{background:#fafaf7}
           </div>
           <div class="step-panel" id="step3">
             <div class="section-title">锚点标定</div>
-            <p class="hint" style="margin-top:0;margin-bottom:12px">在左侧画布上点击已知位置放置锚点，然后在下方填写该点的 UE 世界坐标（cm）</p>
+            <div id="orientPanel" style="border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;margin:0 0 12px;background:var(--bg-2)">
+              <div style="font-size:var(--t-sm);font-weight:600;margin-bottom:8px">画布朝向 <span style="font-weight:400;color:var(--ink-3)">— 先转到与 UE 顶视一致，再打点</span></div>
+              <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:var(--t-xs);color:var(--ink-2)">
+                <label style="display:flex;align-items:center;gap:5px">旋转
+                  <select id="oRot" onchange="onOrientChange()" style="padding:4px 6px;border:1px solid var(--line-2);border-radius:var(--r-sm);font-size:var(--t-xs);background:#fff">
+                    <option value="0">0°</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option>
+                  </select>
+                </label>
+                <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="oFlip" onchange="onOrientChange()"> 镜像翻转</label>
+                <button class="btn btn-ghost btn-sm" style="padding:3px 8px" onclick="resetOrient()">复位</button>
+                <span id="orientSaveTip" style="color:var(--ink-3)"></span>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:var(--t-xs);color:var(--ink-2);margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)">
+                <span>规范原点(CAD)</span>
+                <input id="oOriginX" type="number" placeholder="X" onchange="updateOriginFromInput()" style="width:84px;padding:4px 6px;border:1px solid var(--line-2);border-radius:var(--r-sm);font-size:var(--t-xs);font-family:monospace">
+                <input id="oOriginY" type="number" placeholder="Y" onchange="updateOriginFromInput()" style="width:84px;padding:4px 6px;border:1px solid var(--line-2);border-radius:var(--r-sm);font-size:var(--t-xs);font-family:monospace">
+                <button class="btn btn-ghost btn-sm" id="btnPickOrigin" style="padding:3px 8px" onclick="toggleOriginPick()">在画布点选</button>
+                <span id="originSaveTip" style="color:var(--ink-3)"></span>
+              </div>
+              <p class="hint" style="margin:8px 0 0;font-size:var(--t-xs)">朝向为纯显示变换；原点是规范坐标基准(全楼一次)，不影响 UE 渲染。精确对位由下方锚点拟合完成。</p>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-size:var(--t-xs);color:var(--ink-2)">
+              <span>映射目标</span>
+              <select id="calibTarget" onchange="onCalibTargetChange()" style="padding:4px 6px;border:1px solid var(--line-2);border-radius:var(--r-sm);font-size:var(--t-xs);background:#fff">
+                <option value="ue">UE（cm）</option>
+              </select>
+              <button class="btn btn-ghost btn-sm" style="padding:3px 8px" onclick="createNewSource()">+ 新建源</button>
+              <span style="color:var(--ink-3)">同一批 CAD 点可标多个目标，切换只换读数列</span>
+            </div>
+            <p class="hint" style="margin-top:0;margin-bottom:12px">在左侧画布上点击已知位置放置锚点，然后在下方填写该点在「映射目标」里的坐标</p>
             <div id="anchorList"></div>
             <button class="btn btn-primary btn-sm" id="btnCalibrate" style="margin-top:10px;width:100%" onclick="doCalibrate()" disabled>计算变换（至少 2 个锚点）</button>
             <div id="metricsPanel" style="display:none"></div>
@@ -640,7 +669,7 @@ function saveSession(){
     layerColors: LAYER_COLORS,
     cad: {
       previewData:State.previewData, scanResult:State.scanResult,
-      anchors:State.anchors, matrix:State.matrix, metrics:State.metrics,
+      anchors:State.anchors, matrix:State.matrix, metrics:State.metrics, calibTarget:State.calibTarget,
       currentStep:State.currentStep, layerVisible:State.layerVisible, layerSelected:State.layerSelected,
       entityChecked:State.entityChecked, entityAssets:State.entityAssets, entityTypes:State.entityTypes,
       auditChecked:State.auditChecked, auditName:State.auditName, auditAsset:State.auditAsset,
@@ -677,7 +706,8 @@ async function restoreSession(){
     if(hasCad){
       const c=snap.cad;
       State.previewData=c.previewData; State.scanResult=c.scanResult;
-      State.anchors=c.anchors||[]; State.matrix=c.matrix||null; State.metrics=c.metrics||null;
+      State.anchors=(c.anchors||[]).map(_migrateAnchor); State.matrix=c.matrix||null; State.metrics=c.metrics||null;
+      State.calibTarget=c.calibTarget||'ue';
       State.layerVisible=c.layerVisible||{}; State.layerSelected=c.layerSelected||{};
       State.entityChecked=c.entityChecked||{}; State.entityAssets=c.entityAssets||{}; State.entityTypes=c.entityTypes||{};
       State.auditChecked=c.auditChecked||{}; State.auditName=c.auditName||{}; State.auditAsset=c.auditAsset||{};
@@ -770,7 +800,9 @@ MOCK_PREVIEW.layers.forEach(l => LAYER_COLORS[l.name] = l.color);
 // ── State ──
 const State = {
   previewData: null,
-  anchors: [],        // {cadXY, ueXY, canvasXY}
+  anchors: [],        // 3.2：{cadXY, readings:{frameId:[x,y]}}（旧 {cadXY,ueXY} 自动迁移）
+  calibTarget: 'ue',  // 3.2：当前映射目标帧（'ue' 或自定义源 id）
+  frames: [],         // 3.2：已建自定义源帧缓存（来自 /spatial/frames）
   matrix: null,
   metrics: null,
   currentStep: 1,
@@ -915,13 +947,16 @@ const AlignAssist = {
   drawGuides(ctx, cw, ch) {
     ctx.save();
     
-    // Draw snap guides
+    // Draw snap guides（两端点都投影 → 兼容显示朝向旋转，与网格修复同理）
     if (this.snapResult) {
       const { guideX, guideY } = this.snapResult;
+      const _c = [s2w(0,0), s2w(cw,0), s2w(0,ch), s2w(cw,ch)];
+      const _xs = _c.map(p => p[0]), _ys = _c.map(p => p[1]);
+      const wxL = Math.min(..._xs), wxR = Math.max(..._xs), wyB = Math.min(..._ys), wyT = Math.max(..._ys);
       ctx.setLineDash([4, 4]);
       if (guideX) {
-        const [sx, _] = w2s(guideX.wx, 0);
-        ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, ch);
+        const a = w2s(guideX.wx, wyB), b = w2s(guideX.wx, wyT);
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
         ctx.strokeStyle = guideX.color; ctx.lineWidth = 1; ctx.stroke();
         if (guideX.color === '#e040a0') { // circle
           const pts = this.getCurrentPointsList();
@@ -932,8 +967,8 @@ const AlignAssist = {
         }
       }
       if (guideY) {
-        const [_, sy] = w2s(0, guideY.wy);
-        ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(cw, sy);
+        const a = w2s(wxL, guideY.wy), b = w2s(wxR, guideY.wy);
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
         ctx.strokeStyle = guideY.color; ctx.lineWidth = 1; ctx.stroke();
         if (guideY.color === '#e040a0') { // circle
           const pts = this.getCurrentPointsList();
@@ -1046,17 +1081,125 @@ if (window.ResizeObserver) {
 }
 setTimeout(resizeCanvas, 50);
 
-// World to screen (Y 翻转: CAD的Y向上 → 屏幕的Y向下)
+// 3.1 显示朝向：把渲染绕画布中心做"规范→UE 粗朝向"变换（纯显示，不改 CAD 数据）。
+// 让标定画布看起来与 UE 顶视图同向，打点 1:1，无需脑内旋转。锚点点击经 s2w 反算回真 CAD。
+let DisplayM = [[1,0],[0,1]], DisplayMInv = [[1,0],[0,1]];
+function _buildDisplayM(disp) {
+  disp = disp || {};
+  const am = disp.axis_map || {x:'+x', y:'+y'};
+  const av = s => [ String(s).endsWith('x') ? 0 : 1, String(s).startsWith('-') ? -1 : 1 ];
+  const [ix,sxg] = av(am.x||'+x'), [iy,syg] = av(am.y||'+y');
+  const axis = [[0,0],[0,0]]; axis[0][ix] = sxg; axis[1][iy] = syg;
+  const flip = disp.flip ? [[-1,0],[0,1]] : [[1,0],[0,1]];
+  const th = (disp.rotation_deg||0) * Math.PI/180;
+  const rot = [[Math.cos(th),-Math.sin(th)],[Math.sin(th),Math.cos(th)]];
+  const mul = (a,b)=>[[a[0][0]*b[0][0]+a[0][1]*b[1][0], a[0][0]*b[0][1]+a[0][1]*b[1][1]],
+                      [a[1][0]*b[0][0]+a[1][1]*b[1][0], a[1][0]*b[0][1]+a[1][1]*b[1][1]]];
+  return mul(rot, mul(flip, axis));
+}
+function setDisplayOrient(disp) {
+  DisplayM = _buildDisplayM(disp);
+  const det = (DisplayM[0][0]*DisplayM[1][1] - DisplayM[0][1]*DisplayM[1][0]) || 1;
+  DisplayMInv = [[DisplayM[1][1]/det, -DisplayM[0][1]/det], [-DisplayM[1][0]/det, DisplayM[0][0]/det]];
+}
+function _orient(m, sx, sy) {
+  const cx = canvas.width/devicePixelRatio/2, cy = canvas.height/devicePixelRatio/2;
+  const dx = sx-cx, dy = sy-cy;
+  return [m[0][0]*dx + m[0][1]*dy + cx, m[1][0]*dx + m[1][1]*dy + cy];
+}
+// World to screen (Y 翻转: CAD的Y向上 → 屏幕的Y向下) + 显示朝向
 function w2s(wx, wy) {
   const sx = (wx - camX) * camScale + canvas.width / devicePixelRatio / 2;
   const sy = -(wy - camY) * camScale + canvas.height / devicePixelRatio / 2;
-  return [sx, sy];
+  return _orient(DisplayM, sx, sy);
 }
-// Screen to world
+// Screen to world（先撤显示朝向，再相机反投影）
 function s2w(sx, sy) {
-  const wx = (sx - canvas.width / devicePixelRatio / 2) / camScale + camX;
-  const wy = -(sy - canvas.height / devicePixelRatio / 2) / camScale + camY;
+  const p = _orient(DisplayMInv, sx, sy);
+  const wx = (p[0] - canvas.width / devicePixelRatio / 2) / camScale + camX;
+  const wy = -(p[1] - canvas.height / devicePixelRatio / 2) / camScale + camY;
   return [wx, wy];
+}
+
+// ── 3.1 空间剖面：画布朝向声明（读/写 /spatial/profile） ──
+let _orientSaveTimer = null;
+async function loadSpatialProfile() {
+  try {
+    const r = await fetch('/api/v2/spatial/profile');
+    if (!r.ok) { setDisplayOrient({}); draw(); return; }   // 无激活项目 → 恒等
+    const p = await r.json();
+    State.spatialProfile = p;
+    const disp = (p.ue_transform && p.ue_transform.display) || {};
+    const rotEl = document.getElementById('oRot'); if (rotEl) rotEl.value = String(disp.rotation_deg || 0);
+    const flipEl = document.getElementById('oFlip'); if (flipEl) flipEl.checked = !!disp.flip;
+    const org = p.canonical_origin || [0, 0];
+    const oxEl = document.getElementById('oOriginX'); if (oxEl) oxEl.value = org[0];
+    const oyEl = document.getElementById('oOriginY'); if (oyEl) oyEl.value = org[1];
+    setDisplayOrient(disp);
+    draw();
+    loadCalibFrames();   // 3.2：载入自定义源帧 → 填充映射目标选择器
+  } catch(e) { setDisplayOrient({}); draw(); }
+}
+function _currentDisplay() {
+  return {
+    axis_map: {x:'+x', y:'+y'},
+    flip: !!document.getElementById('oFlip')?.checked,
+    rotation_deg: parseInt(document.getElementById('oRot')?.value) || 0,
+  };
+}
+function onOrientChange() {
+  const disp = _currentDisplay();
+  setDisplayOrient(disp);
+  draw();
+  const tip = document.getElementById('orientSaveTip');
+  if (tip) tip.textContent = '保存中…';
+  clearTimeout(_orientSaveTimer);
+  _orientSaveTimer = setTimeout(async () => {
+    try {
+      const r = await fetch('/api/v2/spatial/profile', {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ue_transform: {display: disp}})
+      });
+      if (tip) tip.textContent = r.ok ? '已保存' : '未保存（无激活项目）';
+    } catch(e) { if (tip) tip.textContent = '保存失败'; }
+    setTimeout(() => { if (tip) tip.textContent = ''; }, 1600);
+  }, 500);
+}
+function resetOrient() {
+  const rotEl = document.getElementById('oRot'); if (rotEl) rotEl.value = '0';
+  const flipEl = document.getElementById('oFlip'); if (flipEl) flipEl.checked = false;
+  onOrientChange();
+}
+
+// ── 3.2 规范原点 ──
+function toggleOriginPick() {
+  State.originPickMode = !State.originPickMode;
+  const b = document.getElementById('btnPickOrigin');
+  if (b) { b.classList.toggle('btn-primary', State.originPickMode); b.textContent = State.originPickMode ? '点击画布…' : '在画布点选'; }
+}
+function setOriginByPick(wx, wy) {
+  document.getElementById('oOriginX').value = Math.round(wx);
+  document.getElementById('oOriginY').value = Math.round(wy);
+  State.originPickMode = false;
+  const b = document.getElementById('btnPickOrigin');
+  if (b) { b.classList.remove('btn-primary'); b.textContent = '在画布点选'; }
+  _saveOrigin();
+  draw();
+}
+function updateOriginFromInput() { _saveOrigin(); draw(); }
+async function _saveOrigin() {
+  const ox = parseFloat(document.getElementById('oOriginX').value) || 0;
+  const oy = parseFloat(document.getElementById('oOriginY').value) || 0;
+  if (State.spatialProfile) State.spatialProfile.canonical_origin = [ox, oy];
+  const tip = document.getElementById('originSaveTip'); if (tip) tip.textContent = '保存中…';
+  try {
+    const r = await fetch('/api/v2/spatial/profile', {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({canonical_origin: [ox, oy]})
+    });
+    if (tip) tip.textContent = r.ok ? '已保存(全场已重算)' : '未保存(无激活项目)';
+  } catch(e) { if (tip) tip.textContent = '保存失败'; }
+  setTimeout(() => { const t = document.getElementById('originSaveTip'); if (t) t.textContent = ''; }, 1800);
 }
 
 canvas.addEventListener('wheel', e => {
@@ -1079,6 +1222,7 @@ canvas._origMousedown = function(e) {
   if (e.button === 0 && State.currentStep === 3) {
     const [wx, wy] = s2w(e.offsetX, e.offsetY);
     const [adjWx, adjWy] = AlignAssist.getAdjustedCoord(wx, wy);
+    if (State.originPickMode) { setOriginByPick(adjWx, adjWy); return; }   // 3.2：点选规范原点
     addAnchor(adjWx, adjWy);
   }
 };
@@ -1212,30 +1356,32 @@ function drawGrid(cw, ch) {
   AlignAssist.currentGridStep = step;
   document.getElementById('alignGridInfo').textContent = `网格: ${step}`;
 
-  const [wxL, wyT] = s2w(0, 0);
-  const [wxR, wyB] = s2w(cw, ch);
+  // 可视区世界包围盒（4 角反投影 → 兼容显示朝向旋转/翻转）
+  const _corners = [s2w(0,0), s2w(cw,0), s2w(0,ch), s2w(cw,ch)];
+  const _xs = _corners.map(p => p[0]), _ys = _corners.map(p => p[1]);
+  const wxL = Math.min(..._xs), wxR = Math.max(..._xs);
+  const wyB = Math.min(..._ys), wyT = Math.max(..._ys);
 
   const startX = Math.floor(wxL / step) * step;
-  const startY = Math.floor(wyT / step) * step;
+  const startY = Math.floor(wyB / step) * step;
 
   ctx.save();
-  ctx.strokeStyle = 'rgba(120,130,150,0.13)';
   ctx.lineWidth = 1;
   ctx.setLineDash([]);
 
-  // 竖线
+  // 竖线（世界 X 等距）：两端点都经 w2s 投影，任意朝向都画对
   for (let wx = startX; wx <= wxR + step; wx += step) {
-    const [sx] = w2s(wx, 0);
+    const a = w2s(wx, wyB), b = w2s(wx, wyT);
     const isMajor = wx % (step * 5) === 0;
     ctx.strokeStyle = isMajor ? 'rgba(120,130,150,0.22)' : 'rgba(120,130,150,0.10)';
-    ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, ch); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
   }
-  // 横线
-  for (let wy = startY; wy <= wyB + step; wy += step) {
-    const [, sy] = w2s(0, wy);
+  // 横线（世界 Y 等距）
+  for (let wy = startY; wy <= wyT + step; wy += step) {
+    const a = w2s(wxL, wy), b = w2s(wxR, wy);
     const isMajor = wy % (step * 5) === 0;
     ctx.strokeStyle = isMajor ? 'rgba(120,130,150,0.22)' : 'rgba(120,130,150,0.10)';
-    ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(cw, sy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
   }
 
   // 细分网格线 (step <= 50 且缩放足够大时)
@@ -1245,14 +1391,14 @@ function drawGrid(cw, ch) {
     ctx.lineWidth = 0.5;
     ctx.setLineDash([1, 2]);
     for (let wx = startX; wx <= wxR + step; wx += subStep) {
-      if (wx % step === 0) continue;
-      const [sx] = w2s(wx, 0);
-      ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, ch); ctx.stroke();
+      if (Math.abs(wx % step) < 1e-6) continue;
+      const a = w2s(wx, wyB), b = w2s(wx, wyT);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
     }
-    for (let wy = startY; wy <= wyB + step; wy += subStep) {
-      if (wy % step === 0) continue;
-      const [, sy] = w2s(0, wy);
-      ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(cw, sy); ctx.stroke();
+    for (let wy = startY; wy <= wyT + step; wy += subStep) {
+      if (Math.abs(wy % step) < 1e-6) continue;
+      const a = w2s(wxL, wy), b = w2s(wxR, wy);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
     }
     ctx.setLineDash([]);
   }
@@ -1262,54 +1408,40 @@ function drawGrid(cw, ch) {
     ctx.font = '10px Inter,monospace';
     ctx.fillStyle = 'rgba(100,120,160,0.45)';
     for (let wx = startX; wx <= wxR + step; wx += step * 5) {
-      const [sx] = w2s(wx, 0);
-      ctx.fillText(wx.toLocaleString(), sx + 3, ch - 4);
+      const s = w2s(wx, startY);
+      ctx.fillText(wx.toLocaleString(), s[0] + 3, ch - 4);
     }
-    for (let wy = startY; wy <= wyB + step; wy += step * 5) {
-      const [, sy] = w2s(0, wy);
-      ctx.fillText(wy.toLocaleString(), 3, sy - 3);
+    for (let wy = startY; wy <= wyT + step; wy += step * 5) {
+      const s = w2s(startX, wy);
+      ctx.fillText(wy.toLocaleString(), 3, s[1] - 3);
     }
   }
 
-  // X/Y 坐标轴 + 方向箭头 + 标注
-  const [ox, oy] = w2s(0, 0);
-  const axisLen = 60; // 箭头长度 px
-  const arrowSize = 6;
-
-  // X 轴（向右，红色）
-  ctx.strokeStyle = 'rgba(220,60,60,0.55)';
-  ctx.fillStyle = 'rgba(220,60,60,0.7)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + axisLen, oy); ctx.stroke();
-  // 箭头
-  ctx.beginPath();
-  ctx.moveTo(ox + axisLen, oy);
-  ctx.lineTo(ox + axisLen - arrowSize, oy - arrowSize * 0.6);
-  ctx.lineTo(ox + axisLen - arrowSize, oy + arrowSize * 0.6);
-  ctx.closePath(); ctx.fill();
-  // 标注
-  ctx.font = 'bold 11px Inter,sans-serif';
-  ctx.fillText('X', ox + axisLen + 4, oy + 4);
-
-  // Y 轴（向上，绿色）
-  ctx.strokeStyle = 'rgba(60,180,80,0.55)';
-  ctx.fillStyle = 'rgba(60,180,80,0.7)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - axisLen); ctx.stroke();
-  // 箭头
-  ctx.beginPath();
-  ctx.moveTo(ox, oy - axisLen);
-  ctx.lineTo(ox - arrowSize * 0.6, oy - axisLen + arrowSize);
-  ctx.lineTo(ox + arrowSize * 0.6, oy - axisLen + arrowSize);
-  ctx.closePath(); ctx.fill();
-  // 标注
-  ctx.fillText('Y', ox - 4, oy - axisLen - 6);
+  // X/Y 坐标轴 + 方向箭头（跟随显示朝向：方向由 w2s 实算）
+  const o = w2s(0, 0);
+  const axisLen = 60, arrowSize = 6;
+  const _u = (ax, ay) => { const p = w2s(ax, ay); let dx = p[0]-o[0], dy = p[1]-o[1]; const L = Math.hypot(dx, dy) || 1; return [dx/L, dy/L]; };
+  const _axis = (d, sC, fC, label) => {
+    const tipx = o[0] + d[0]*axisLen, tipy = o[1] + d[1]*axisLen;
+    const px = -d[1], py = d[0]; // 垂直方向（画箭头）
+    ctx.strokeStyle = sC; ctx.fillStyle = fC; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(tipx, tipy); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(tipx, tipy);
+    ctx.lineTo(tipx - d[0]*arrowSize + px*arrowSize*0.6, tipy - d[1]*arrowSize + py*arrowSize*0.6);
+    ctx.lineTo(tipx - d[0]*arrowSize - px*arrowSize*0.6, tipy - d[1]*arrowSize - py*arrowSize*0.6);
+    ctx.closePath(); ctx.fill();
+    ctx.font = 'bold 11px Inter,sans-serif';
+    ctx.fillText(label, tipx + d[0]*8 - 3, tipy + d[1]*8 + 4);
+  };
+  _axis(_u(step, 0), 'rgba(220,60,60,0.55)', 'rgba(220,60,60,0.7)', 'X');
+  _axis(_u(0, step), 'rgba(60,180,80,0.55)', 'rgba(60,180,80,0.7)', 'Y');
 
   // 原点标记
   ctx.fillStyle = 'rgba(80,160,220,0.6)';
   ctx.font = '10px Inter,sans-serif';
-  ctx.fillText('O', ox - 14, oy - 6);
-  ctx.beginPath(); ctx.arc(ox, oy, 3, 0, Math.PI * 2);
+  ctx.fillText('O', o[0]-14, o[1]-6);
+  ctx.beginPath(); ctx.arc(o[0], o[1], 3, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(80,160,220,0.5)'; ctx.fill();
 
   ctx.restore();
@@ -1404,8 +1536,23 @@ function draw() {
   
   // Draw alignment guides on top
   if (State.currentStep === 3) {
+    drawCanonicalOrigin();
     AlignAssist.drawGuides(ctx, cw, ch);
   }
+}
+
+// 3.2：规范原点标记（画在选定的 CAD 坐标处）
+function drawCanonicalOrigin() {
+  const org = State.spatialProfile && State.spatialProfile.canonical_origin;
+  if (!org) return;
+  const [sx, sy] = w2s(org[0], org[1]);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(180,60,160,0.9)'; ctx.fillStyle = 'rgba(180,60,160,0.9)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(sx, sy, 7, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(sx-11, sy); ctx.lineTo(sx+11, sy); ctx.moveTo(sx, sy-11); ctx.lineTo(sx, sy+11); ctx.stroke();
+  ctx.font = 'bold 10px Inter,sans-serif';
+  ctx.fillText('规范原点', sx + 10, sy - 8);
+  ctx.restore();
 }
 
 // ── Step Navigation ──
@@ -1440,10 +1587,11 @@ function _applyStep(n) {
   }
   if (n === 2) renderAuditList();
   if (n === 4) buildEntityTable();
-  if (n === 3) { 
+  if (n === 3) {
     canvas.style.cursor = 'none'; // crosshair is drawn manually
     document.getElementById('alignToolbar').style.display = 'flex';
-  } else { 
+    loadSpatialProfile();   // 3.1：进入标定即载入并应用画布朝向
+  } else {
     canvas.style.cursor = 'default'; 
     document.getElementById('alignToolbar').style.display = 'none';
   }
@@ -2229,8 +2377,24 @@ function toggleWarningDetail(el) {
 }
 
 // ── Step 2: Calibration ──
+// 3.2：锚点读数助手（迁移旧 {cadXY,ueXY} → readings；返回当前映射目标的读数）
+function _migrateAnchor(a) {
+  if (!a.readings) a.readings = a.ueXY ? { ue: a.ueXY.slice() } : {};
+  return a;
+}
+function _curReading(a) {
+  _migrateAnchor(a);
+  if (!a.readings[State.calibTarget]) a.readings[State.calibTarget] = [0, 0];
+  return a.readings[State.calibTarget];
+}
+function _targetLabel() {
+  if (State.calibTarget === 'ue') return 'UE(cm)';
+  const f = State.frames.find(f => f.id === State.calibTarget);
+  return (f ? f.name : '源') + '(' + (f ? f.unit : 'mm') + ')';
+}
+
 function addAnchor(wx, wy) {
-  State.anchors.push({ cadXY: [Math.round(wx), Math.round(wy)], ueXY: [0, 0] });
+  State.anchors.push({ cadXY: [Math.round(wx), Math.round(wy)], readings: {} });
   renderAnchorList();
   draw();
 }
@@ -2238,43 +2402,47 @@ function addAnchor(wx, wy) {
 function renderAnchorList() {
   const el = document.getElementById('anchorList');
   el.innerHTML = '';
+  const showRes = State.calibTarget === 'ue';   // 残差只对 UE（State.metrics 是 UE 的）
   State.anchors.forEach((a, i) => {
-    const res = (State.metrics && State.metrics.perAnchorResiduals)
+    const rd = _curReading(a);
+    const res = (showRes && State.metrics && State.metrics.perAnchorResiduals)
       ? State.metrics.perAnchorResiduals[i] : null;
-    const maxRes = State.metrics ? Math.max(...State.metrics.perAnchorResiduals) : 0;
+    const maxRes = (showRes && State.metrics) ? Math.max(...State.metrics.perAnchorResiduals) : 0;
     const isWorst = res !== null && res === maxRes && State.anchors.length >= 3;
     const div = document.createElement('div');
     div.className = 'anchor-row' + (isWorst ? ' warn' : '');
     div.innerHTML = `<span class="idx">#${i+1}</span>
       <span style="font-size:10px;color:var(--text-soft)">CAD(${a.cadXY[0]},${a.cadXY[1]})</span>
-      <span style="font-size:10px">UE:</span>
-      <input type="number" value="${a.ueXY[0]}" onchange="updateAnchorUE(${i},0,this.value)" placeholder="X">
-      <input type="number" value="${a.ueXY[1]}" onchange="updateAnchorUE(${i},1,this.value)" placeholder="Y">
+      <span style="font-size:10px">${_targetLabel()}:</span>
+      <input type="number" value="${rd[0]}" onchange="updateAnchorReading(${i},0,this.value)" placeholder="X">
+      <input type="number" value="${rd[1]}" onchange="updateAnchorReading(${i},1,this.value)" placeholder="Y">
       <span class="residual">${res !== null ? res+'cm' : ''}</span>
       <span class="del-btn" onclick="deleteAnchor(${i})" data-tip="删除锚点"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span>`;
     el.appendChild(div);
   });
   document.getElementById('btnCalibrate').disabled = State.anchors.length < 2;
+  const tgt = State.calibTarget === 'ue' ? '' : `→${_targetLabel()}`;
   document.getElementById('btnCalibrate').textContent =
-    State.anchors.length < 2 ? '计算变换（至少 2 个锚点）' : `计算变换（${State.anchors.length} 个锚点）`;
+    State.anchors.length < 2 ? '计算变换（至少 2 个锚点）' : `计算变换（${State.anchors.length} 个锚点）${tgt}`;
 }
 
-function updateAnchorUE(idx, axis, val) {
-  State.anchors[idx].ueXY[axis] = parseFloat(val) || 0;
-  if (State.matrix) doCalibrate(); // auto-recalc
+function updateAnchorReading(idx, axis, val) {
+  _curReading(State.anchors[idx])[axis] = parseFloat(val) || 0;
+  if (State.calibTarget === 'ue' && State.matrix) doCalibrate(); // 仅 UE 自动重算（自定义源走后端，按钮触发）
 }
 
 function deleteAnchor(idx) {
   State.anchors.splice(idx, 1);
-  if (State.anchors.length >= 2) doCalibrate();
-  else { State.matrix = null; State.metrics = null; document.getElementById('metricsPanel').style.display='none'; document.getElementById('btnToStep4').style.display='none'; document.getElementById('btnCalibrate').classList.add('btn-primary'); }
+  if (State.calibTarget === 'ue' && State.anchors.length >= 2) doCalibrate();
+  else if (State.anchors.length < 2) { State.matrix = null; State.metrics = null; document.getElementById('metricsPanel').style.display='none'; document.getElementById('btnToStep4').style.display='none'; document.getElementById('btnCalibrate').classList.add('btn-primary'); }
   renderAnchorList(); draw();
 }
 
 function doCalibrate() {
+  if (State.calibTarget !== 'ue') { calibrateCustomSource(); return; }
   try {
     const src = State.anchors.map(a => a.cadXY);
-    const dst = State.anchors.map(a => a.ueXY);
+    const dst = State.anchors.map(a => _curReading(a));
     const result = CoordTransform.calibrate(src, dst);
     State.matrix = result.matrix;
     State.metrics = result;
@@ -2285,6 +2453,68 @@ function doCalibrate() {
   } catch(e) {
     toast('标定失败：' + e.message, 'err');
   }
+}
+
+// 3.2：标定自定义源帧（src=规范坐标 cad−origin，dst=该源读数）→ 后端拟合 from_canonical
+async function calibrateCustomSource() {
+  const origin = (State.spatialProfile && State.spatialProfile.canonical_origin) || [0, 0];
+  const anchors = State.anchors.map(a => ({
+    src: [a.cadXY[0] - origin[0], a.cadXY[1] - origin[1]],
+    dst: _curReading(a),
+  }));
+  const f = State.frames.find(f => f.id === State.calibTarget);
+  try {
+    const r = await fetch(`/api/v2/spatial/frames/${encodeURIComponent(State.calibTarget)}/calibrate`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ anchors, name: f ? f.name : undefined, unit: f ? f.unit : 'mm' })
+    });
+    const d = await r.json();
+    if (!r.ok) { toast('源标定失败：' + (d.error || r.status), 'err'); return; }
+    toast(`源「${f ? f.name : State.calibTarget}」标定完成，RMSE ${d.metrics ? d.metrics.rmse_cm : '?'}`, 'ok');
+    await loadCalibFrames();
+    scheduleSave();
+  } catch(e) {
+    toast('源标定异常：' + e.message, 'err');
+  }
+}
+
+// 3.2：映射目标（帧）加载/切换/新建
+async function loadCalibFrames() {
+  try {
+    const r = await fetch('/api/v2/spatial/frames');
+    State.frames = r.ok ? (((await r.json()).frames) || []).filter(f => f.id !== 'frame_cad') : [];
+  } catch(e) { State.frames = []; }
+  _renderCalibTargetOptions();
+}
+function _renderCalibTargetOptions() {
+  const sel = document.getElementById('calibTarget');
+  if (!sel) return;
+  let html = '<option value="ue">UE（cm）</option>';
+  State.frames.forEach(f => { html += `<option value="${escapeAttr(f.id)}">${escapeHTML(f.name)}（${escapeHTML(f.unit || 'mm')}）</option>`; });
+  sel.innerHTML = html;
+  if (!State.frames.find(f => f.id === State.calibTarget) && State.calibTarget !== 'ue') State.calibTarget = 'ue';
+  sel.value = State.calibTarget;
+}
+function onCalibTargetChange() {
+  State.calibTarget = document.getElementById('calibTarget').value;
+  renderAnchorList();   // 切目标=读数列切换，CAD 点保留
+}
+async function createNewSource() {
+  const name = (prompt('新建坐标源名称（如：海康RCS、WMS）') || '').trim();
+  if (!name) return;
+  const id = 'src_' + Date.now().toString(36);
+  try {
+    const r = await fetch('/api/v2/spatial/frames', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ id, name, kind: 'custom', unit: 'mm' })
+    });
+    if (!r.ok) { const d = await r.json(); toast('新建失败：' + (d.error || r.status), 'err'); return; }
+    await loadCalibFrames();
+    State.calibTarget = id;
+    const sel = document.getElementById('calibTarget'); if (sel) sel.value = id;
+    renderAnchorList();
+    toast(`已新建源「${name}」，现在为每个锚点填它的坐标`, 'ok');
+  } catch(e) { toast('新建异常：' + e.message, 'err'); }
 }
 
 function renderMetrics() {
@@ -2455,7 +2685,7 @@ function downloadCSV() {
 function resetAll() {
   SessionDB.clear();  // U6: 重新开始即清掉会话缓存
   if (State.mode === 'dxf') {
-    State.previewData = null; State.anchors = []; State.matrix = null; State.metrics = null;
+    State.previewData = null; State.anchors = []; State.matrix = null; State.metrics = null; State.calibTarget = 'ue';
     State.currentStep = 1; State.highlightId = null;
     // M2 类型审核状态清空
     State.scanResult = null; State.auditChecked = {}; State.auditName = {}; State.auditAsset = {}; State.polyAuditChecked = {};

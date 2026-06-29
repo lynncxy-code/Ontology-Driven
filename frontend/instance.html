@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>实例运维与监控中心 | OntoTwin Nexus 2.3</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.staticfile.net/vue/3.3.4/vue.global.prod.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/vendor/vue-3.3.4.global.prod.js" integrity="sha384-QLgwzsuau/sa8LhRgjRzkvQS0LyUzCM2B8FPwVoSu1KDel940/orifPaumNXp9hK" crossorigin="anonymous"></script>
+    <script src="/vendor/axios-1.7.9.min.js" integrity="sha384-jLwhcmGu/RL8PSTUEl/559f8QVLL4QqM+HBvoZlt4F7XCdsdoDGAwW4nPFfoM7lU" crossorigin="anonymous"></script>
     <style>
         .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
@@ -177,6 +177,7 @@
                         </span>
                     </div>
                     <div class="flex items-center gap-4 text-xs">
+                        <button @click="openPos" class="text-xs font-medium px-2.5 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition">微调位置</button>
                         <span class="text-gray-500 font-medium">源类型: <span class="text-gray-800">{{ currentSnap?.objectTypeName }}</span></span>
                         <div class="w-px h-4 bg-gray-300"></div>
                         <span class="text-gray-400 font-mono tracking-widest flex items-center gap-1.5">
@@ -232,29 +233,7 @@
                                     </div>
                                 </div>
 
-                                <!-- Spatial Overlay -->
-                                <div v-if="currentSnap.injected_interfaces.includes('I3D_Spatial')" class="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
-                                    <h4 class="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
-                                        I3D_Spatial [空间测绘]
-                                    </h4>
-                                    <!-- POS -->
-                                    <div class="space-y-3 mb-4">
-                                        <div v-for="axis in ['x','y','z']" :key="'t'+axis" class="flex items-center gap-3">
-                                            <span class="w-5 text-[10px] font-bold text-gray-400 uppercase font-mono text-right">T{{axis}}</span>
-                                            <input type="range" class="flex-1 accent-gray-900" min="-1000" max="1000" step="1" v-model.number="overridePatch['translation_' + axis]">
-                                            <input type="number" class="w-16 text-xs font-mono border border-gray-300 rounded px-2 py-1 outline-none focus:border-gray-900 transition text-right" v-model.number="overridePatch['translation_' + axis]" :placeholder="currentSnap.interfaces.I3D_Spatial['translation_' + axis]">
-                                        </div>
-                                    </div>
-                                    <!-- ROT -->
-                                    <div class="space-y-3 mb-4">
-                                        <div v-for="axis in ['x','y','z']" :key="'r'+axis" class="flex items-center gap-3">
-                                            <span class="w-5 text-[10px] font-bold text-gray-400 uppercase font-mono text-right">R{{axis}}</span>
-                                            <input type="range" class="flex-1 accent-gray-900" min="-180" max="180" step="1" v-model.number="overridePatch['rotation_' + axis]">
-                                            <input type="number" class="w-16 text-xs font-mono border border-gray-300 rounded px-2 py-1 outline-none focus:border-gray-900 transition text-right" v-model.number="overridePatch['rotation_' + axis]" :placeholder="currentSnap.interfaces.I3D_Spatial['rotation_' + axis]">
-                                        </div>
-                                    </div>
-                                </div>
+                                <!-- Spatial 位置/朝向已移交「微调位置(多坐标)」面板，此处不再热干预 -->
 
                                 <!-- Visual Overlay -->
                                 <div v-if="currentSnap.injected_interfaces.includes('I3D_Visual')" class="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
@@ -354,6 +333,59 @@
             </template>
         </div>
     </div>
+
+    <!-- 3.2 位置编辑（多坐标联动）modal -->
+    <transition name="fade">
+        <div v-if="posOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="posOpen=false">
+            <div class="bg-white rounded-xl shadow-xl w-[460px] max-w-[94vw] p-6">
+                <h3 class="text-base font-bold text-gray-900 mb-1">微调位置（多坐标联动）</h3>
+                <p class="text-xs text-gray-500 mb-4 leading-relaxed">改任一坐标系，其余自动联动（经规范换算）。<b>保存只写规范坐标</b>，持久生效、经得起整场重算。</p>
+                <div class="space-y-2.5">
+                    <!-- 表头 -->
+                    <div class="grid grid-cols-[64px_1fr_1fr_1fr] gap-2 text-[10px] text-gray-400 font-mono px-1">
+                        <span></span><span>X</span><span>Y</span><span>Z</span>
+                    </div>
+                    <!-- 规范 -->
+                    <div class="grid grid-cols-[64px_1fr_1fr_1fr] gap-2 items-center">
+                        <span class="text-xs text-gray-600 font-medium">规范<span class="text-gray-400">mm</span></span>
+                        <input v-model.number="pos.canonical.x" @change="posEditCanonical" type="number" class="text-xs font-mono border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-gray-900 w-full">
+                        <input v-model.number="pos.canonical.y" @change="posEditCanonical" type="number" class="text-xs font-mono border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-gray-900 w-full">
+                        <input v-model.number="pos.canonical.z" @change="posEditCanonical" type="number" class="text-xs font-mono border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-gray-900 w-full">
+                    </div>
+                    <!-- UE -->
+                    <div class="grid grid-cols-[64px_1fr_1fr_1fr] gap-2 items-center">
+                        <span class="text-xs text-gray-600 font-medium">UE<span class="text-gray-400">cm</span></span>
+                        <input v-model.number="pos.ue.x" @change="posEditUE" type="number" class="text-xs font-mono border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-gray-900 w-full">
+                        <input v-model.number="pos.ue.y" @change="posEditUE" type="number" class="text-xs font-mono border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-gray-900 w-full">
+                        <input v-model.number="pos.ue.z" @change="posEditUE" type="number" class="text-xs font-mono border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-gray-900 w-full">
+                    </div>
+                    <!-- 自定义源（已标定才出现，2D） -->
+                    <div v-for="fr in pos.frames" :key="fr.id" class="grid grid-cols-[64px_1fr_1fr_1fr] gap-2 items-center">
+                        <span class="text-xs text-gray-600 font-medium truncate" :title="fr.name">{{ fr.name }}<span class="text-gray-400">{{ fr.unit }}</span></span>
+                        <input v-model.number="fr.x" @change="posEditFrame(fr)" type="number" class="text-xs font-mono border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-gray-900 w-full">
+                        <input v-model.number="fr.y" @change="posEditFrame(fr)" type="number" class="text-xs font-mono border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-gray-900 w-full">
+                        <span class="text-[10px] text-gray-300 self-center">—</span>
+                    </div>
+                </div>
+                <!-- 楼层 + 朝向 -->
+                <div class="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100">
+                    <label class="text-xs text-gray-500 flex items-center gap-2">楼层
+                        <select v-model.number="pos.floor" @change="posEditFloor" class="text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-gray-900">
+                            <option v-for="ft in posX.floorTable" :key="ft.floor" :value="ft.floor">{{ ft.floor }}F</option>
+                            <option v-if="!posX.floorTable.length" :value="1">1F</option>
+                        </select>
+                    </label>
+                    <label class="text-xs text-gray-500 flex items-center gap-2">朝向(°)
+                        <input v-model.number="pos.rotation" type="number" class="w-20 text-xs font-mono border border-gray-200 rounded px-2 py-1 outline-none focus:border-gray-900">
+                    </label>
+                </div>
+                <div class="flex justify-end gap-2 mt-5">
+                    <button @click="posOpen=false" class="text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition">取消</button>
+                    <button @click="savePos" :disabled="posSaving" class="text-xs px-3 py-1.5 rounded-md bg-gray-900 text-white hover:bg-black transition disabled:opacity-50">{{ posSaving ? '保存中…' : '保存' }}</button>
+                </div>
+            </div>
+        </div>
+    </transition>
 
     <!-- Toast Notifications -->
     <div class="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
@@ -556,6 +588,18 @@
 </div>
 
 <script>
+// 3.2 仿射助手（多坐标联动）
+function _affApply(m, p) {
+    return [m[0][0]*p[0] + m[0][1]*p[1] + m[0][2], m[1][0]*p[0] + m[1][1]*p[1] + m[1][2]];
+}
+function _affInv(m) {
+    const a=m[0][0], b=m[0][1], t0=m[0][2], c=m[1][0], d=m[1][1], t1=m[1][2];
+    const det = (a*d - b*c) || 1e-12;
+    const ia=d/det, ib=-b/det, ic=-c/det, id=a/det;
+    return [[ia, ib, -(ia*t0 + ib*t1)], [ic, id, -(ic*t0 + id*t1)], [0,0,1]];
+}
+function _r2(v) { return Math.round((Number(v)||0) * 100) / 100; }
+
 const { createApp, ref, computed, onMounted, onUnmounted, watch } = Vue;
 createApp({
     setup() {
@@ -567,6 +611,11 @@ createApp({
         const overriding = ref(false);
         const toasts = ref([]);
         let pollTimer = null;
+        // 3.2：位置编辑（多坐标联动）
+        const posOpen = ref(false);
+        const posSaving = ref(false);
+        const pos = ref({ canonical:{x:0,y:0,z:0}, ue:{x:0,y:0,z:0}, frames:[], floor:1, rotation:0 });
+        let posX = { ueM:[[1,0,0],[0,1,0],[0,0,1]], ueMInv:[[1,0,0],[0,1,0],[0,0,1]], scale:0.1, floorTable:[], frameMats:{} };
 
         const spawnForm = ref({ objectTypeRid: '', instanceId: '', x: 0, y: 0, z: 0 });
 
@@ -625,11 +674,8 @@ createApp({
             if (ifaces.I3D_Representable) {
                 fields.push({ key: 'is_visible', type: 'text' });
             }
-            if (ifaces.I3D_Spatial) {
-                ['translation_x','translation_y','translation_z',
-                 'rotation_x','rotation_y','rotation_z',
-                 'scale_x','scale_y','scale_z'].forEach(k => fields.push({ key: k, type: 'number', step: 1 }));
-            }
+            // 3.2：I3D_Spatial(位置/朝向)移交「位置编辑(多坐标)」面板(规范坐标，持久)，
+            // 不再放进 Override 热干预(其改 UE 坐标会被重算覆盖)。
             if (ifaces.I3D_Visual) {
                 fields.push({ key: 'material_variant', type: 'text' });
             }
@@ -876,6 +922,96 @@ createApp({
             overridePatch.value = patch;
         }
 
+        async function openPos() {
+            if (!selectedInst.value) return;
+            try {
+                const id = encodeURIComponent(selectedInst.value.id);
+                const [tRes, pRes, fRes] = await Promise.all([
+                    axios.get(`/api/v2/instances/${id}/transform`),
+                    axios.get('/api/v2/spatial/profile'),
+                    axios.get('/api/v2/spatial/frames'),
+                ]);
+                const t = tRes.data, prof = pRes.data, frames = (fRes.data.frames) || [];
+                const ut = prof.ue_transform || {};
+                posX.ueM = ut.matrix || [[ut.scale_to_cm||0.1,0,0],[0,ut.scale_to_cm||0.1,0],[0,0,1]];
+                posX.ueMInv = _affInv(posX.ueM);
+                posX.scale = ut.scale_to_cm || 0.1;
+                posX.floorTable = prof.floor_table || [];
+                posX.frameMats = {};
+                const frameRows = [];
+                frames.forEach(f => {
+                    if (f.id === 'frame_cad') return;
+                    const fc = f.from_canonical || {};
+                    const m = fc.matrix || fc;
+                    if (!m || !m[0]) return;
+                    posX.frameMats[f.id] = { m, mInv: _affInv(m) };
+                    frameRows.push({ id: f.id, name: f.name || f.id, unit: f.unit || 'mm', x: 0, y: 0 });
+                });
+                pos.value = {
+                    canonical: { x: t.canonical_xy?.[0] ?? 0, y: t.canonical_xy?.[1] ?? 0, z: t.canonical_z ?? 0 },
+                    ue: { x: t.ue_xy?.[0] ?? 0, y: t.ue_xy?.[1] ?? 0, z: t.ue_z ?? 0 },
+                    frames: frameRows,
+                    floor: t.floor ?? 1,
+                    rotation: t.rotation ?? 0,
+                };
+                _posRecompute();
+                posOpen.value = true;
+            } catch (e) {
+                toast('err', e.response?.data?.error || '无法读取该实例的坐标');
+            }
+        }
+        function _floorZ(fl) {
+            const ft = (posX.floorTable || []).find(f => f.floor === Number(fl));
+            return ft ? Number(ft.z_base_mm || 0) : 0;
+        }
+        // 由规范坐标重算所有派生显示（不动正在编辑的那一栏靠 @change 触发）
+        function _posRecompute() {
+            const c = pos.value.canonical;
+            const ue = _affApply(posX.ueM, [Number(c.x), Number(c.y)]);
+            pos.value.ue.x = _r2(ue[0]); pos.value.ue.y = _r2(ue[1]);
+            pos.value.ue.z = _r2(Number(c.z) * posX.scale);
+            pos.value.frames.forEach(fr => {
+                const fm = posX.frameMats[fr.id];
+                if (fm) { const p = _affApply(fm.m, [Number(c.x), Number(c.y)]); fr.x = _r2(p[0]); fr.y = _r2(p[1]); }
+            });
+        }
+        function posEditCanonical() { _posRecompute(); }
+        function posEditUE() {
+            const p = _affApply(posX.ueMInv, [Number(pos.value.ue.x), Number(pos.value.ue.y)]);
+            pos.value.canonical.x = _r2(p[0]); pos.value.canonical.y = _r2(p[1]);
+            pos.value.canonical.z = _r2(Number(pos.value.ue.z) / (posX.scale || 0.1));
+            _posRecompute();
+        }
+        function posEditFrame(fr) {
+            const fm = posX.frameMats[fr.id]; if (!fm) return;
+            const p = _affApply(fm.mInv, [Number(fr.x), Number(fr.y)]);
+            pos.value.canonical.x = _r2(p[0]); pos.value.canonical.y = _r2(p[1]);
+            _posRecompute();
+        }
+        function posEditFloor() {
+            pos.value.canonical.z = _floorZ(pos.value.floor);   // 切楼层 → Z 跳新层基准
+            _posRecompute();
+        }
+        async function savePos() {
+            if (!selectedInst.value) return;
+            posSaving.value = true;
+            try {
+                await axios.put(`/api/v2/instances/${encodeURIComponent(selectedInst.value.id)}/transform`, {
+                    canonical_xy: [Number(pos.value.canonical.x), Number(pos.value.canonical.y)],
+                    canonical_z: Number(pos.value.canonical.z),
+                    rotation: Number(pos.value.rotation),
+                    floor: Number(pos.value.floor),
+                });
+                posOpen.value = false;
+                toast('ok', '已保存（写入规范坐标，下一轮快照生效）');
+                fetchSnap();
+            } catch (e) {
+                toast('err', e.response?.data?.error || '保存失败');
+            } finally {
+                posSaving.value = false;
+            }
+        }
+
         function stopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
         function toast(type, msg) {
@@ -891,6 +1027,8 @@ createApp({
             instances, objectTypes, readyTypes, availableInstanceIds, selectedInst, currentSnap,
             spawnForm, spawning, overriding, overrideFields, overridePatch, toasts, pendingDelete,
             loadInstances, spawnInstance, deleteInstance, selectInstance, applyOverride, resetOverride,
+            // FR-7 规范坐标微调
+            posOpen, posSaving, pos, posX, openPos, savePos, posEditCanonical, posEditUE, posEditFrame, posEditFloor,
             // instance list filter
             instanceTypeFilter, filteredInstances,
             // batch

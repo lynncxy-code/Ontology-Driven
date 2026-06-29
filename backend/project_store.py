@@ -60,6 +60,24 @@ def _default_raw_state(object_type_rid, object_type_name, initial_position):
     return raw
 
 
+def _default_spatial_profile():
+    """3.1 空间剖面默认值。规范系=mm；规范→UE 默认恒等（matrix=None 表示未标定，
+    回退到 calibration 旧矩阵），保证旧项目/未标定项目行为不变。"""
+    return {
+        "unit": "mm",
+        "canonical_origin": [0.0, 0.0],
+        "ue_transform": {
+            "display": {"axis_map": {"x": "+x", "y": "+y"}, "flip": False, "rotation_deg": 0},
+            "matrix": None,              # 规范→UE 精确仿射（锚点拟合）；None=未标定
+            "ue_origin_cm": [0.0, 0.0],
+            "scale_to_cm": 0.1,
+        },
+        "floor_table": [
+            {"floor": 1, "z_base_mm": 0.0, "ue_level": "", "map_codes": []}
+        ],
+    }
+
+
 class ProjectStore:
     def __init__(self, projects_dir=None, active_file=None):
         self._lock = threading.RLock()
@@ -158,6 +176,8 @@ class ProjectStore:
                 "components": {},          # 3.0：坐标标定产出的匿名构件
                 "instance_roster": [],     # 3.0：业务实例清单（身份证号目录）
                 "calibration": calibration,
+                "spatial_profile": _default_spatial_profile(),  # 3.1：空间剖面
+                "frames": [],              # 3.1：通用帧注册表（CAD 帧标定后写入）
             }
             self._write_json(self._path(pid), proj)
             self._current = proj
@@ -372,6 +392,69 @@ class ProjectStore:
                 self._current["components"] = {}
                 self._save_current()
 
+    def get_component_by_instance(self, instance_id):
+        """按已绑定身份证号反查构件（FR-7 单实例微调用）。"""
+        with self._lock:
+            for c in self._comps().values():
+                if c.get("bound_instance_id") == instance_id:
+                    return c
+            return None
+
+    def update_component(self, component_id, patch):
+        """局部更新单个构件字段（如 canonical_xy / ue_xy / rotation），落盘。"""
+        with self._lock:
+            comp = self._comps().get(component_id)
+            if not comp:
+                return False
+            comp.update(patch or {})
+            self._save_current()
+            return True
+
+    # ── 空间剖面 / 帧（3.1） ──────────────────────────────────
+    def get_spatial_profile(self):
+        with self._lock:
+            if not self._current:
+                return _default_spatial_profile()
+            sp = self._current.get("spatial_profile")
+            if not sp:                       # 旧项目无此字段 → 注入默认
+                sp = _default_spatial_profile()
+                self._current["spatial_profile"] = sp
+                self._save_current()
+            return sp
+
+    def set_spatial_profile(self, profile):
+        with self._lock:
+            if self._current:
+                self._current["spatial_profile"] = profile or _default_spatial_profile()
+                self._save_current()
+
+    def list_frames(self):
+        with self._lock:
+            return list(self._current.get("frames") or []) if self._current else []
+
+    def get_frame(self, frame_id):
+        with self._lock:
+            for f in (self._current.get("frames") or []) if self._current else []:
+                if f.get("id") == frame_id:
+                    return f
+            return None
+
+    def upsert_frame(self, frame):
+        """按 id 新增/更新一帧。"""
+        with self._lock:
+            if not self._current:
+                return
+            self._current.setdefault("frames", [])
+            frames = self._current["frames"]
+            fid = frame.get("id")
+            for i, f in enumerate(frames):
+                if f.get("id") == fid:
+                    frames[i] = frame
+                    break
+            else:
+                frames.append(frame)
+            self._save_current()
+
     # ── 实例清单（3.0：身份证号目录） ─────────────────────────
     def get_roster(self):
         with self._lock:
@@ -431,6 +514,12 @@ class ProjectStore:
                 return 0
             comps = self._comps()
             old = self._current.get("instances") or {}
+            # 3.1：楼层 → Z 基准(cm) 查表
+            sp = self._current.get("spatial_profile") or _default_spatial_profile()
+            scale = (sp.get("ue_transform") or {}).get("scale_to_cm", 0.1)
+            floor_z_cm = {}
+            for ft in sp.get("floor_table") or []:
+                floor_z_cm[ft.get("floor")] = float(ft.get("z_base_mm", 0)) * scale
             new_instances = {}
             for comp in comps.values():
                 iid = comp.get("bound_instance_id")
@@ -446,7 +535,8 @@ class ProjectStore:
                     rec["last_seen"] = time.time()
                 else:
                     pos = {"x": (comp.get("ue_xy") or [0, 0])[0],
-                           "y": (comp.get("ue_xy") or [0, 0])[1], "z": 0}
+                           "y": (comp.get("ue_xy") or [0, 0])[1],
+                           "z": floor_z_cm.get(comp.get("floor", 1), 0.0)}
                     rec = {
                         "id": iid,
                         "component_id": comp.get("id"),

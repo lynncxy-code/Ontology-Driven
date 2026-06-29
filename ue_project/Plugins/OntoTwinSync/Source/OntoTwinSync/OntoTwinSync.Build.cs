@@ -18,7 +18,8 @@ public class OntoTwinSync : ModuleRules
 			"Json",
 			"JsonUtilities",
 			"Niagara",
-			"UMG"
+			"UMG",
+			"glTFRuntime"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });

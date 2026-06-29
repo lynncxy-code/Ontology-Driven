@@ -14,6 +14,18 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/Engine.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Misc/Paths.h"
+#include "HAL/PlatformProcess.h"
+#include "HAL/FileManager.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/FileHelper.h"
+// HTTP —— ArtStudio glb 经后端代理流式下载（3.3）
+#include "HttpModule.h"
+#include "Interfaces/IHttpRequest.h"
+#include "Interfaces/IHttpResponse.h"
+// glTFRuntime —— 运行时加载磁盘上的 glb/gltf（B2 方案，模型不参与打包）
+#include "glTFRuntimeFunctionLibrary.h"
+#include "glTFRuntimeAsset.h"
 
 // ── 构造函数 ─────────────────────────────────────────────────────────────────
 
@@ -278,49 +290,289 @@ void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot)
 
 bool ATwinInstance::LoadMeshFromPath(const FString& MeshPath)
 {
-    // UE 内容路径格式："/Game/WarehouseProps_Bundle/Models/SM_Pallet_01a"
-    // LoadObject 需要完整的对象路径："/Game/.../SM_Pallet_01a.SM_Pallet_01a"
-    FString FullPath = MeshPath;
-    if (!FullPath.Contains(TEXT(".")))
+    // asset_id 三种语义：
+    //   0. "artstudio:{id}:v{n}" → ArtStudio 资产，后端代理下载（异步，3.3）
+    //   1. "/Game/..." 或 "/Engine/..." → 烘焙进包的资产，走 LoadObject（向后兼容）
+    //   2. 其他（如 "forklift.glb"）→ 运行时从固定目录/磁盘加载，不参与打包
+    if (MeshPath.StartsWith(TEXT("artstudio:")))
     {
-        // 从路径中提取资产名称（最后一段）
-        FString AssetName;
-        MeshPath.Split(TEXT("/"), nullptr, &AssetName, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
-        FullPath = FString::Printf(TEXT("%s.%s"), *MeshPath, *AssetName);
+        LoadRemoteGltf(MeshPath);   // 异步接管：命中缓存即时加载，否则占位 Cube + 下载
+        return true;                 // 不走下方同步 Cube 兜底
     }
-
-    UE_LOG(LogTemp, Log, TEXT("[孪生体] 尝试加载: %s"), *FullPath);
-    UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *FullPath);
-
-    if (!Mesh)
+    if (MeshPath.StartsWith(TEXT("/Game/")) || MeshPath.StartsWith(TEXT("/Engine/")))
     {
-        UE_LOG(LogTemp, Warning,
-               TEXT("[孪生体] 路径1加载失败，尝试原始路径: %s"), *MeshPath);
-        Mesh = LoadObject<UStaticMesh>(nullptr, *MeshPath);
+        FString FullPath = MeshPath;
+        if (!FullPath.Contains(TEXT(".")))
+        {
+            FString AssetName;
+            MeshPath.Split(TEXT("/"), nullptr, &AssetName, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+            FullPath = FString::Printf(TEXT("%s.%s"), *MeshPath, *AssetName);
+        }
+
+        UE_LOG(LogTemp, Log, TEXT("[孪生体] 尝试加载(烘焙资产): %s"), *FullPath);
+        UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *FullPath);
+        if (!Mesh)
+        {
+            Mesh = LoadObject<UStaticMesh>(nullptr, *MeshPath);
+        }
+        if (Mesh)
+        {
+            MeshComponent->SetStaticMesh(Mesh);
+            CacheOriginalMaterials();
+            UE_LOG(LogTemp, Log, TEXT("[孪生体] ✅ 烘焙资产加载成功: %s"), *MeshPath);
+            return true;
+        }
     }
-
-    if (Mesh)
+    else if (LoadRuntimeGltf(MeshPath))
     {
-        MeshComponent->SetStaticMesh(Mesh);
-        CacheOriginalMaterials();
-        UE_LOG(LogTemp, Log, TEXT("[孪生体] ✅ 资产加载成功: %s"), *MeshPath);
         return true;
     }
 
     // ── 加载失败：使用引擎内置立方体作为占位符 ──────────────────────────
     UE_LOG(LogTemp, Error,
-           TEXT("[孪生体] ❌ 资产加载失败: %s\n   完整路径: %s\n   请检查 UE 内容路径是否正确"),
-           *MeshPath, *FullPath);
+           TEXT("[孪生体] ❌ 资产加载失败: %s   请检查路径/glb 文件是否存在"), *MeshPath);
+    SetPlaceholderCube();
+    UE_LOG(LogTemp, Warning, TEXT("[孪生体] 使用默认立方体占位 (ID=%s)"), *InstanceId);
+    return false;
+}
 
+// ─── 运行时 glb/gltf 加载（glTFRuntime，模型不参与打包） ──────────────────────
+
+// 固定模型目录的默认值：编辑器与打包 exe 都读这一份，永不拷贝。
+// 可在 项目 Config/DefaultGame.ini 用 [OntoTwinSync] ModelsDir=... 覆盖，无需重编译。
+static const TCHAR* kDefaultModelsDir = TEXT("D:/SCC/DigitalFactoryBase_SCC/Models");
+
+FString ATwinInstance::ResolveModelFilePath(const FString& AssetId) const
+{
+    // 在候选目录里找 <file>，返回第一个存在的；都没有则返回空串。
+    // 优先级：① 固定目录（ini 可配，默认 kDefaultModelsDir）—— 编辑器/打包共用，零拷贝；
+    //         ②③④ exe 相对的 Models/（兜底，兼容把模型丢在包旁的情况）。
+    // 后续若改为后端 HTTP 下发，只需替换本函数（glTFRuntime 亦支持 URL 加载）。
+    FString FileName = AssetId;
+    if (!FileName.EndsWith(TEXT(".glb")) && !FileName.EndsWith(TEXT(".gltf")))
+    {
+        FileName += TEXT(".glb");
+    }
+
+    // ① 固定目录：先读 ini 配置，没配则用默认
+    FString FixedDir;
+    if (!GConfig || !GConfig->GetString(TEXT("OntoTwinSync"), TEXT("ModelsDir"), FixedDir, GGameIni) || FixedDir.IsEmpty())
+    {
+        FixedDir = kDefaultModelsDir;
+    }
+
+    const FString ProjDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+    const FString ExeDir  = FPaths::ConvertRelativePathToFull(FPlatformProcess::BaseDir());
+
+    // 候选 1：固定目录直接拼文件名（FixedDir 已是 Models 根，不再追加 Models）
+    TArray<FString> Candidates;
+    Candidates.Add(FPaths::Combine(FixedDir, FileName));
+    // 候选 2~5：exe 相对的 Models/ 兜底
+    Candidates.Add(FPaths::Combine(ProjDir, TEXT("Models"), FileName));
+    Candidates.Add(FPaths::Combine(ProjDir, TEXT(".."), TEXT("Models"), FileName));
+    Candidates.Add(FPaths::Combine(ExeDir, TEXT("Models"), FileName));
+    Candidates.Add(FPaths::Combine(ExeDir, TEXT(".."), TEXT(".."), TEXT(".."), TEXT("Models"), FileName));
+
+    for (const FString& Raw : Candidates)
+    {
+        const FString Candidate = FPaths::ConvertRelativePathToFull(Raw);
+        const bool bExists = FPaths::FileExists(Candidate);
+        UE_LOG(LogTemp, Log, TEXT("[孪生体] 候选模型路径 %s : %s"),
+               bExists ? TEXT("✅命中") : TEXT("✗未找到"), *Candidate);
+        if (bExists)
+        {
+            return Candidate;
+        }
+    }
+
+    return FString();  // 全部未命中
+}
+
+bool ATwinInstance::LoadRuntimeGltf(const FString& AssetId)
+{
+    const FString FilePath = ResolveModelFilePath(AssetId);
+    if (FilePath.IsEmpty())
+    {
+        UE_LOG(LogTemp, Warning,
+               TEXT("[孪生体] 所有候选目录都没找到模型 '%s'，请把 Models/ 放到上面日志列出的任一目录"),
+               *AssetId);
+        return false;
+    }
+    return LoadGltfFromFile(FilePath);
+}
+
+bool ATwinInstance::LoadGltfFromFile(const FString& FilePath)
+{
+    UE_LOG(LogTemp, Log, TEXT("[孪生体] 运行时加载 glb: %s"), *FilePath);
+
+    // glTF 以米为单位，UE 以厘米，SceneScale=100 做单位换算
+    FglTFRuntimeConfig LoaderConfig;
+    LoaderConfig.TransformBaseType = EglTFRuntimeTransformBaseType::Default;
+    LoaderConfig.SceneScale = 100.0f;
+
+    UglTFRuntimeAsset* Asset =
+        UglTFRuntimeFunctionLibrary::glTFLoadAssetFromFilename(FilePath, false, LoaderConfig);
+    if (!Asset)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[孪生体] glb 解析失败: %s"), *FilePath);
+        return false;
+    }
+
+    // 把整个默认场景的所有静态网格递归合并成一个 StaticMesh
+    FglTFRuntimeStaticMeshConfig MeshConfig;
+    MeshConfig.bBuildSimpleCollision = true;
+    MeshConfig.NormalsGenerationStrategy = EglTFRuntimeNormalsGenerationStrategy::IfMissing;
+    MeshConfig.TangentsGenerationStrategy = EglTFRuntimeTangentsGenerationStrategy::IfMissing;
+
+    UStaticMesh* Mesh = Asset->LoadStaticMeshRecursive(FString(), TArray<FString>(), MeshConfig);
+    if (!Mesh)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[孪生体] glb 网格生成失败: %s"), *FilePath);
+        return false;
+    }
+
+    MeshComponent->SetStaticMesh(Mesh);
+    MeshComponent->SetWorldScale3D(FVector(1.0f));  // 清掉占位 Cube 可能留下的 0.5 缩放
+    CacheOriginalMaterials();
+
+    // ── 材质诊断（定位打包后灰白无贴图）─────────────────────────────
+    // 槽0 基材若是 M_glTFRuntime* → 材质正常,问题在贴图;若是默认/BasicShape → 材质回退(shader没编)
+    const int32 NumMats = MeshComponent->GetNumMaterials();
+    UE_LOG(LogTemp, Warning, TEXT("[材质诊断] %s 材质槽数=%d"),
+           *FPaths::GetCleanFilename(FilePath), NumMats);
+    for (int32 i = 0; i < NumMats && i < 4; ++i)
+    {
+        UMaterialInterface* M = MeshComponent->GetMaterial(i);
+        UMaterialInterface* Base = M ? M->GetBaseMaterial() : nullptr;
+        UE_LOG(LogTemp, Warning, TEXT("[材质诊断]   槽%d 材质=%s 基材=%s"),
+               i,
+               M ? *M->GetName() : TEXT("NULL"),
+               Base ? *Base->GetName() : TEXT("?"));
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[孪生体] ✅ glb 加载成功: %s"), *FilePath);
+    return true;
+}
+
+void ATwinInstance::SetPlaceholderCube()
+{
     UStaticMesh* DefaultMesh = LoadObject<UStaticMesh>(
         nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
     if (DefaultMesh)
     {
         MeshComponent->SetStaticMesh(DefaultMesh);
         MeshComponent->SetWorldScale3D(FVector(0.5f));
-        UE_LOG(LogTemp, Warning, TEXT("[孪生体] 使用默认立方体占位 (ID=%s)"), *InstanceId);
     }
-    return false;
+}
+
+void ATwinInstance::PurgeOldCacheVersions(const FString& AssetId, const FString& KeepFile)
+{
+    const FString CacheDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ModelCache"));
+    const FString KeepName = FPaths::GetCleanFilename(KeepFile);
+    TArray<FString> Found;
+    IFileManager::Get().FindFiles(Found, *FPaths::Combine(CacheDir, AssetId + TEXT("_v*.glb")), true, false);
+    for (const FString& F : Found)
+    {
+        if (F != KeepName)
+        {
+            IFileManager::Get().Delete(*FPaths::Combine(CacheDir, F));
+            UE_LOG(LogTemp, Log, TEXT("[孪生体] 清理旧版本缓存: %s"), *F);
+        }
+    }
+}
+
+// ─── ArtStudio 远程加载：命中缓存即时加载，否则占位 Cube + 异步下载（3.3）──────
+void ATwinInstance::LoadRemoteGltf(const FString& StableId)
+{
+    // 解析 artstudio:{id}:v{n}
+    FString Rest = StableId;
+    Rest.RemoveFromStart(TEXT("artstudio:"));
+    FString AssetIdPart, VersionPart;
+    if (!Rest.Split(TEXT(":v"), &AssetIdPart, &VersionPart))
+    {
+        AssetIdPart = Rest;           // 容错：无版本段
+        VersionPart = TEXT("0");
+    }
+
+    // 缓存文件：Saved/ModelCache/{id}_v{n}.glb —— 版本进文件名，升版自动失效重下
+    const FString CacheDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ModelCache"));
+    const FString CacheFile = FPaths::Combine(
+        CacheDir, FString::Printf(TEXT("%s_v%s.glb"), *AssetIdPart, *VersionPart));
+
+    // ① 命中缓存 → 直接加载
+    if (FPaths::FileExists(CacheFile))
+    {
+        UE_LOG(LogTemp, Log, TEXT("[孪生体] ArtStudio 缓存命中: %s"), *CacheFile);
+        if (!LoadGltfFromFile(CacheFile))
+        {
+            SetPlaceholderCube();
+        }
+        return;
+    }
+
+    // ② 缓存缺失 → 占位 Cube + 异步下载
+    if (PendingRemoteId == StableId)
+    {
+        return;  // 同一标识已在下载中，避免轮询重复发请求
+    }
+    SetPlaceholderCube();
+    PendingRemoteId = StableId;
+
+    IFileManager::Get().MakeDirectory(*CacheDir, /*Tree=*/true);
+
+    const FString Url = FString::Printf(
+        TEXT("%s/api/v2/assets/download?id=%s"), *BackendBaseUrl, *AssetIdPart);
+    UE_LOG(LogTemp, Log, TEXT("[孪生体] ArtStudio 下载: %s"), *Url);
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+    Request->SetURL(Url);
+    Request->SetVerb(TEXT("GET"));
+
+    // 弱引用保护：实例可能在回调前被销毁
+    TWeakObjectPtr<ATwinInstance> WeakThis(this);
+    const FString ExpectId = StableId;
+    const FString AssetIdForPurge = AssetIdPart;
+    Request->OnProcessRequestComplete().BindLambda(
+        [WeakThis, CacheFile, ExpectId, AssetIdForPurge](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bOk)
+        {
+            ATwinInstance* Self = WeakThis.Get();
+            if (!Self)
+            {
+                return;  // 实例已销毁
+            }
+            Self->PendingRemoteId.Empty();
+
+            // 期间资产又被改绑/升版 → 本次结果已过期，丢弃
+            if (Self->AssetPath != ExpectId)
+            {
+                UE_LOG(LogTemp, Log, TEXT("[孪生体] 下载结果已过期，丢弃: %s"), *ExpectId);
+                return;
+            }
+
+            if (!bOk || !Resp.IsValid() || Resp->GetResponseCode() != 200)
+            {
+                UE_LOG(LogTemp, Error, TEXT("[孪生体] ArtStudio 下载失败 (code=%d)，保持占位 Cube"),
+                       Resp.IsValid() ? Resp->GetResponseCode() : -1);
+                return;  // 占位 Cube 已在位
+            }
+
+            // 落盘缓存 → 加载
+            if (!FFileHelper::SaveArrayToFile(Resp->GetContent(), *CacheFile))
+            {
+                UE_LOG(LogTemp, Error, TEXT("[孪生体] 缓存写入失败: %s"), *CacheFile);
+                return;
+            }
+            if (!Self->LoadGltfFromFile(CacheFile))
+            {
+                Self->SetPlaceholderCube();
+            }
+            else
+            {
+                Self->PurgeOldCacheVersions(AssetIdForPurge, CacheFile);
+            }
+        });
+
+    Request->ProcessRequest();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

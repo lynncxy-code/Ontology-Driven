@@ -8,5 +8,9 @@ services:
       - ./frontend:/frontend
       - ./assets:/assets
       - ./exports:/exports
+      # 3.3 后端预取：把 UE 固定 Models 目录挂进来，后端从 ArtStudio 下载 glb 落到这里，
+      # UE 直接读本地文件（绕开 UE HTTP 的代理/并发/连接坑）。换机改 MODELS_HOST_DIR 即可。
+      - ${MODELS_HOST_DIR:-D:/SCC/DigitalFactoryBase_SCC/Models}:/models
     environment:
       - ONTOTWIN_MIDDLEWARE_URL=http://host.docker.internal:5001
+      - MODELS_DIR=/models

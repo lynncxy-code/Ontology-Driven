@@ -188,8 +188,29 @@ private:
 
     // ── 内部方法 ─────────────────────────────────────────────────────────
 
-    /** 根据 UE 路径加载 StaticMesh */
+    /** 根据 asset_id 加载 StaticMesh（兼容 /Game 烘焙资产 与 运行时 glb 文件） */
     bool LoadMeshFromPath(const FString& MeshPath);
+
+    /** 运行时从磁盘加载 glb/gltf（glTFRuntime）；成功返回 true 并已 SetStaticMesh */
+    bool LoadRuntimeGltf(const FString& AssetId);
+
+    /** 从绝对路径加载 glb（glTFRuntime 核心，被本地/远程缓存复用） */
+    bool LoadGltfFromFile(const FString& FilePath);
+
+    /** 把 asset_id 解析成 glb 文件的绝对磁盘路径（固定目录/exe 旁 Models/） */
+    FString ResolveModelFilePath(const FString& AssetId) const;
+
+    /** ArtStudio 远程加载：artstudio:{id}:v{n} → 命中缓存即时加载，否则占位 Cube + 异步下载（3.3） */
+    void LoadRemoteGltf(const FString& StableId);
+
+    /** 设置占位立方体（加载失败/下载中） */
+    void SetPlaceholderCube();
+
+    /** 清理同一 ArtStudio 资产的旧版本缓存（保留 KeepFile），防升版后缓存堆积 */
+    void PurgeOldCacheVersions(const FString& AssetId, const FString& KeepFile);
+
+    /** 正在下载的稳定标识，防重复请求；空=无下载在途 */
+    FString PendingRemoteId;
 
     /** 把当前的材质全部存下 */
     void CacheOriginalMaterials();

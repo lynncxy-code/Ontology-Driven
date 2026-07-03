@@ -1,0 +1,1086 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://avic.lingshu.proto/ontology.simple.schema.json",
+  "title": "Lingshu Simple Ontology Registry",
+  "description": "Human-readable JSON Schema for ontology JSON documents represented by ontology.proto. Property names use proto field names.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "$ref": "#/$defs/NonBlankString",
+      "description": "Ontology registry version.",
+      "x-json-name": "version"
+    },
+    "shared_property_types": {
+      "type": "object",
+      "description": "SharedPropertyTypeDefinition map keyed by RID.",
+      "additionalProperties": {
+        "$ref": "#/$defs/SharedPropertyTypeDefinition"
+      },
+      "x-json-name": "sharedPropertyTypes",
+      "propertyNames": {
+        "$ref": "#/$defs/SharedPropertyTypeRid"
+      }
+    },
+    "interface_types": {
+      "type": "object",
+      "description": "InterfaceTypeDefinition map keyed by RID.",
+      "additionalProperties": {
+        "$ref": "#/$defs/InterfaceTypeDefinition"
+      },
+      "x-json-name": "interfaceTypes",
+      "propertyNames": {
+        "$ref": "#/$defs/InterfaceTypeRid"
+      }
+    },
+    "object_types": {
+      "type": "object",
+      "description": "ObjectTypeDefinition map keyed by RID.",
+      "additionalProperties": {
+        "$ref": "#/$defs/ObjectTypeDefinition"
+      },
+      "x-json-name": "objectTypes",
+      "propertyNames": {
+        "$ref": "#/$defs/ObjectTypeRid"
+      }
+    },
+    "link_types": {
+      "type": "object",
+      "description": "LinkTypeDefinition map keyed by RID.",
+      "additionalProperties": {
+        "$ref": "#/$defs/LinkTypeDefinition"
+      },
+      "x-json-name": "linkTypes",
+      "propertyNames": {
+        "$ref": "#/$defs/LinkTypeRid"
+      }
+    },
+    "action_types": {
+      "type": "object",
+      "description": "ActionTypeDefinition map keyed by RID.",
+      "additionalProperties": {
+        "$ref": "#/$defs/ActionTypeDefinition"
+      },
+      "x-json-name": "actionTypes",
+      "propertyNames": {
+        "$ref": "#/$defs/ActionTypeRid"
+      }
+    }
+  },
+  "required": [
+    "version",
+    "shared_property_types",
+    "interface_types",
+    "object_types",
+    "link_types",
+    "action_types"
+  ],
+  "$defs": {
+    "DataType": {
+      "type": "string",
+      "enum": [
+        "DT_UNKNOWN",
+        "DT_STRING",
+        "DT_INTEGER",
+        "DT_DOUBLE",
+        "DT_BOOLEAN",
+        "DT_TIMESTAMP",
+        "DT_DATE",
+        "DT_ATTACHMENT"
+      ]
+    },
+    "Cardinality": {
+      "type": "string",
+      "enum": [
+        "CARDINALITY_UNSPECIFIED",
+        "ONE_TO_ONE",
+        "ONE_TO_MANY",
+        "MANY_TO_MANY"
+      ]
+    },
+    "InterfaceCategory": {
+      "type": "string",
+      "enum": [
+        "INTERFACE_CATEGORY_INVALID",
+        "OBJECT_INTERFACE",
+        "LINK_INTERFACE"
+      ]
+    },
+    "LifecycleStatus": {
+      "type": "string",
+      "enum": [
+        "LIFECYCLE_UNSPECIFIED",
+        "ACTIVE",
+        "EXPERIMENTAL",
+        "DEPRECATED",
+        "EXAMPLE"
+      ]
+    },
+    "ActionSafetyLevel": {
+      "type": "string",
+      "enum": [
+        "SAFETY_UNSPECIFIED",
+        "SAFETY_READ_ONLY",
+        "SAFETY_IDEMPOTENT_WRITE",
+        "SAFETY_NON_IDEMPOTENT",
+        "SAFETY_CRITICAL"
+      ]
+    },
+    "EngineType": {
+      "type": "string",
+      "enum": [
+        "ENGINE_UNSPECIFIED",
+        "ENGINE_NATIVE_CRUD",
+        "ENGINE_SQL_RUNNER"
+      ]
+    },
+    "ReferenceType": {
+      "type": "string",
+      "enum": [
+        "REFERENCE_TYPE_INVALID",
+        "SELF",
+        "EXPLICIT_OBJECT",
+        "EXPLICIT_INTERFACE"
+      ]
+    },
+    "ApiName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
+    },
+    "NonBlankString": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "SharedPropertyTypeRid": {
+      "type": "string",
+      "pattern": "^ri\\.shprop\\.[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "PropertyTypeRid": {
+      "type": "string",
+      "pattern": "^ri\\.prop\\.[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "InterfaceTypeRid": {
+      "type": "string",
+      "pattern": "^ri\\.iface\\.[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "ObjectTypeRid": {
+      "type": "string",
+      "pattern": "^ri\\.obj\\.[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "LinkTypeRid": {
+      "type": "string",
+      "pattern": "^ri\\.link\\.[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "ActionTypeRid": {
+      "type": "string",
+      "pattern": "^ri\\.action\\.[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "SharedPropertyTypeDefinition": {
+      "type": "object",
+      "description": "Global reusable property template referenced by interfaces and inherited by concrete properties.",
+      "additionalProperties": false,
+      "required": [
+        "rid",
+        "api_name",
+        "display_name",
+        "lifecycle_status",
+        "data_type"
+      ],
+      "properties": {
+        "rid": {
+          "$ref": "#/$defs/SharedPropertyTypeRid",
+          "description": "Resource identifier.",
+          "x-json-name": "rid"
+        },
+        "api_name": {
+          "$ref": "#/$defs/ApiName",
+          "description": "Stable API name.",
+          "x-json-name": "apiName"
+        },
+        "display_name": {
+          "$ref": "#/$defs/NonBlankString",
+          "description": "Human display name.",
+          "x-json-name": "displayName"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description.",
+          "x-json-name": "description"
+        },
+        "lifecycle_status": {
+          "$ref": "#/$defs/LifecycleStatus",
+          "description": "Lifecycle state.",
+          "x-json-name": "lifecycleStatus",
+          "not": {
+            "const": "LIFECYCLE_UNSPECIFIED"
+          }
+        },
+        "data_type": {
+          "$ref": "#/$defs/DataType",
+          "description": "Value type.",
+          "x-json-name": "dataType",
+          "not": {
+            "const": "DT_UNKNOWN"
+          }
+        }
+      }
+    },
+    "PropertyTypeDefinition": {
+      "type": "object",
+      "description": "Concrete property attached to an ObjectType or LinkType.",
+      "additionalProperties": false,
+      "required": [
+        "rid",
+        "api_name",
+        "display_name",
+        "lifecycle_status",
+        "data_type"
+      ],
+      "properties": {
+        "rid": {
+          "$ref": "#/$defs/PropertyTypeRid",
+          "x-json-name": "rid"
+        },
+        "api_name": {
+          "$ref": "#/$defs/ApiName",
+          "x-json-name": "apiName"
+        },
+        "display_name": {
+          "$ref": "#/$defs/NonBlankString",
+          "x-json-name": "displayName"
+        },
+        "description": {
+          "type": "string",
+          "x-json-name": "description"
+        },
+        "lifecycle_status": {
+          "$ref": "#/$defs/LifecycleStatus",
+          "x-json-name": "lifecycleStatus",
+          "not": {
+            "const": "LIFECYCLE_UNSPECIFIED"
+          }
+        },
+        "data_type": {
+          "$ref": "#/$defs/DataType",
+          "x-json-name": "dataType",
+          "not": {
+            "const": "DT_UNKNOWN"
+          }
+        },
+        "inherit_from_shared_property_type_rid": {
+          "$ref": "#/$defs/SharedPropertyTypeRid",
+          "description": "RID of the SharedPropertyType this property inherits from.",
+          "x-json-name": "inheritFromSharedPropertyTypeRid"
+        }
+      }
+    },
+    "InterfaceTypeDefinition": {
+      "type": "object",
+      "description": "Contract implemented by ObjectType or LinkType.",
+      "additionalProperties": false,
+      "required": [
+        "rid",
+        "api_name",
+        "display_name",
+        "lifecycle_status",
+        "category"
+      ],
+      "properties": {
+        "rid": {
+          "$ref": "#/$defs/InterfaceTypeRid",
+          "x-json-name": "rid"
+        },
+        "api_name": {
+          "$ref": "#/$defs/ApiName",
+          "x-json-name": "apiName"
+        },
+        "display_name": {
+          "$ref": "#/$defs/NonBlankString",
+          "x-json-name": "displayName"
+        },
+        "description": {
+          "type": "string",
+          "x-json-name": "description"
+        },
+        "lifecycle_status": {
+          "$ref": "#/$defs/LifecycleStatus",
+          "x-json-name": "lifecycleStatus",
+          "not": {
+            "const": "LIFECYCLE_UNSPECIFIED"
+          }
+        },
+        "category": {
+          "$ref": "#/$defs/InterfaceCategory",
+          "description": "OBJECT_INTERFACE or LINK_INTERFACE.",
+          "x-json-name": "category",
+          "not": {
+            "const": "INTERFACE_CATEGORY_INVALID"
+          }
+        },
+        "extends_interface_type_rids": {
+          "type": "array",
+          "description": "Parent InterfaceType RIDs inherited by this interface.",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/InterfaceTypeRid"
+          },
+          "x-json-name": "extendsInterfaceTypeRids"
+        },
+        "required_shared_property_type_rids": {
+          "type": "array",
+          "description": "SharedPropertyType RIDs required by this interface.",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/SharedPropertyTypeRid"
+          },
+          "x-json-name": "requiredSharedPropertyTypeRids"
+        },
+        "link_requirements": {
+          "type": "array",
+          "description": "Required links for OBJECT_INTERFACE implementors.",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/ObjectLinkRequirement"
+          },
+          "x-json-name": "linkRequirements"
+        },
+        "object_constraint": {
+          "$ref": "#/$defs/LinkObjectConstraint",
+          "description": "Endpoint constraints for LINK_INTERFACE implementors.",
+          "x-json-name": "objectConstraint"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "category": {
+                "const": "OBJECT_INTERFACE"
+              }
+            },
+            "required": [
+              "category"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "object_constraint"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "category": {
+                "const": "LINK_INTERFACE"
+              }
+            },
+            "required": [
+              "category"
+            ]
+          },
+          "then": {
+            "required": [
+              "object_constraint"
+            ],
+            "properties": {
+              "link_requirements": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ObjectLinkRequirement": {
+      "type": "object",
+      "description": "Link requirement declared by an OBJECT_INTERFACE.",
+      "additionalProperties": false,
+      "required": [
+        "rid",
+        "api_name",
+        "display_name",
+        "cardinality",
+        "source_object",
+        "target_object"
+      ],
+      "properties": {
+        "rid": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/LinkTypeRid"
+            },
+            {
+              "$ref": "#/$defs/InterfaceTypeRid"
+            }
+          ],
+          "x-json-name": "rid"
+        },
+        "api_name": {
+          "$ref": "#/$defs/ApiName",
+          "x-json-name": "apiName"
+        },
+        "display_name": {
+          "$ref": "#/$defs/NonBlankString",
+          "x-json-name": "displayName"
+        },
+        "description": {
+          "type": "string",
+          "x-json-name": "description"
+        },
+        "cardinality": {
+          "$ref": "#/$defs/Cardinality",
+          "x-json-name": "cardinality",
+          "not": {
+            "const": "CARDINALITY_UNSPECIFIED"
+          }
+        },
+        "source_object": {
+          "$ref": "#/$defs/ObjectTypeSpec",
+          "x-json-name": "sourceObject"
+        },
+        "target_object": {
+          "$ref": "#/$defs/ObjectTypeSpec",
+          "x-json-name": "targetObject"
+        }
+      }
+    },
+    "LinkObjectConstraint": {
+      "type": "object",
+      "description": "Endpoint constraints declared by a LINK_INTERFACE.",
+      "additionalProperties": false,
+      "required": [
+        "source_object",
+        "target_object"
+      ],
+      "properties": {
+        "source_object": {
+          "$ref": "#/$defs/ObjectTypeSpec",
+          "x-json-name": "sourceObject"
+        },
+        "target_object": {
+          "$ref": "#/$defs/ObjectTypeSpec",
+          "x-json-name": "targetObject"
+        }
+      }
+    },
+    "ObjectTypeSpec": {
+      "type": "object",
+      "description": "Object endpoint reference. reference_rid is a proto oneof: set at most one of object_type_rid or interface_type_rid.",
+      "additionalProperties": false,
+      "properties": {
+        "reference_type": {
+          "$ref": "#/$defs/ReferenceType",
+          "x-json-name": "referenceType"
+        },
+        "object_type_rid": {
+          "$ref": "#/$defs/ObjectTypeRid",
+          "x-json-name": "objectTypeRid"
+        },
+        "interface_type_rid": {
+          "$ref": "#/$defs/InterfaceTypeRid",
+          "x-json-name": "interfaceTypeRid"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "reference_type"
+          ],
+          "properties": {
+            "reference_type": {
+              "const": "SELF"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "object_type_rid"
+                ]
+              },
+              {
+                "required": [
+                  "interface_type_rid"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "reference_type",
+            "object_type_rid"
+          ],
+          "properties": {
+            "reference_type": {
+              "const": "EXPLICIT_OBJECT"
+            }
+          },
+          "not": {
+            "required": [
+              "interface_type_rid"
+            ]
+          }
+        },
+        {
+          "required": [
+            "reference_type",
+            "interface_type_rid"
+          ],
+          "properties": {
+            "reference_type": {
+              "const": "EXPLICIT_INTERFACE"
+            }
+          },
+          "not": {
+            "required": [
+              "object_type_rid"
+            ]
+          }
+        }
+      ]
+    },
+    "ObjectTypeDefinition": {
+      "type": "object",
+      "description": "Graph node type.",
+      "additionalProperties": false,
+      "required": [
+        "rid",
+        "api_name",
+        "display_name",
+        "lifecycle_status",
+        "property_types",
+        "primary_key_property_type_rids"
+      ],
+      "properties": {
+        "rid": {
+          "$ref": "#/$defs/ObjectTypeRid",
+          "x-json-name": "rid"
+        },
+        "api_name": {
+          "$ref": "#/$defs/ApiName",
+          "x-json-name": "apiName"
+        },
+        "display_name": {
+          "$ref": "#/$defs/NonBlankString",
+          "x-json-name": "displayName"
+        },
+        "description": {
+          "type": "string",
+          "x-json-name": "description"
+        },
+        "lifecycle_status": {
+          "$ref": "#/$defs/LifecycleStatus",
+          "x-json-name": "lifecycleStatus",
+          "not": {
+            "const": "LIFECYCLE_UNSPECIFIED"
+          }
+        },
+        "property_types": {
+          "type": "object",
+          "description": "PropertyTypeDefinition map keyed by PropertyType.api_name.",
+          "propertyNames": {
+            "$ref": "#/$defs/ApiName"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/PropertyTypeDefinition"
+          },
+          "x-json-name": "propertyTypes"
+        },
+        "implements_interface_type_rids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/InterfaceTypeRid"
+          },
+          "x-json-name": "implementsInterfaceTypeRids"
+        },
+        "primary_key_property_type_rids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/PropertyTypeRid"
+          },
+          "x-json-name": "primaryKeyPropertyTypeRids"
+        }
+      }
+    },
+    "LinkTypeDefinition": {
+      "type": "object",
+      "description": "Graph edge type. source_type and target_type are proto oneofs.",
+      "additionalProperties": false,
+      "required": [
+        "rid",
+        "api_name",
+        "display_name",
+        "lifecycle_status",
+        "property_types",
+        "cardinality",
+        "primary_key_property_type_rids"
+      ],
+      "properties": {
+        "rid": {
+          "$ref": "#/$defs/LinkTypeRid",
+          "x-json-name": "rid"
+        },
+        "api_name": {
+          "$ref": "#/$defs/ApiName",
+          "x-json-name": "apiName"
+        },
+        "display_name": {
+          "$ref": "#/$defs/NonBlankString",
+          "x-json-name": "displayName"
+        },
+        "description": {
+          "type": "string",
+          "x-json-name": "description"
+        },
+        "lifecycle_status": {
+          "$ref": "#/$defs/LifecycleStatus",
+          "x-json-name": "lifecycleStatus",
+          "not": {
+            "const": "LIFECYCLE_UNSPECIFIED"
+          }
+        },
+        "source_object_type_rid": {
+          "$ref": "#/$defs/ObjectTypeRid",
+          "x-json-name": "sourceObjectTypeRid"
+        },
+        "source_interface_type_rid": {
+          "$ref": "#/$defs/InterfaceTypeRid",
+          "x-json-name": "sourceInterfaceTypeRid"
+        },
+        "target_object_type_rid": {
+          "$ref": "#/$defs/ObjectTypeRid",
+          "x-json-name": "targetObjectTypeRid"
+        },
+        "target_interface_type_rid": {
+          "$ref": "#/$defs/InterfaceTypeRid",
+          "x-json-name": "targetInterfaceTypeRid"
+        },
+        "property_types": {
+          "type": "object",
+          "description": "PropertyTypeDefinition map keyed by PropertyType.api_name.",
+          "propertyNames": {
+            "$ref": "#/$defs/ApiName"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/PropertyTypeDefinition"
+          },
+          "x-json-name": "propertyTypes"
+        },
+        "cardinality": {
+          "$ref": "#/$defs/Cardinality",
+          "x-json-name": "cardinality",
+          "not": {
+            "const": "CARDINALITY_UNSPECIFIED"
+          }
+        },
+        "primary_key_property_type_rids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/PropertyTypeRid"
+          },
+          "x-json-name": "primaryKeyPropertyTypeRids"
+        },
+        "implements_interface_type_rids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/InterfaceTypeRid"
+          },
+          "x-json-name": "implementsInterfaceTypeRids"
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "source_object_type_rid"
+              ],
+              "not": {
+                "required": [
+                  "source_interface_type_rid"
+                ]
+              }
+            },
+            {
+              "required": [
+                "source_interface_type_rid"
+              ],
+              "not": {
+                "required": [
+                  "source_object_type_rid"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "oneOf": [
+            {
+              "required": [
+                "target_object_type_rid"
+              ],
+              "not": {
+                "required": [
+                  "target_interface_type_rid"
+                ]
+              }
+            },
+            {
+              "required": [
+                "target_interface_type_rid"
+              ],
+              "not": {
+                "required": [
+                  "target_object_type_rid"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "ActionTypeDefinition": {
+      "type": "object",
+      "description": "Executable operation available in the ontology.",
+      "additionalProperties": false,
+      "required": [
+        "rid",
+        "api_name",
+        "display_name",
+        "lifecycle_status",
+        "parameters",
+        "execution",
+        "safety_level"
+      ],
+      "properties": {
+        "rid": {
+          "$ref": "#/$defs/ActionTypeRid",
+          "x-json-name": "rid"
+        },
+        "api_name": {
+          "$ref": "#/$defs/ApiName",
+          "x-json-name": "apiName"
+        },
+        "display_name": {
+          "$ref": "#/$defs/NonBlankString",
+          "x-json-name": "displayName"
+        },
+        "description": {
+          "type": "string",
+          "x-json-name": "description"
+        },
+        "lifecycle_status": {
+          "$ref": "#/$defs/LifecycleStatus",
+          "x-json-name": "lifecycleStatus",
+          "not": {
+            "const": "LIFECYCLE_UNSPECIFIED"
+          }
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ActionParameter"
+          },
+          "contains": {
+            "anyOf": [
+              {
+                "required": [
+                  "derived_from_object_type_rid"
+                ]
+              },
+              {
+                "required": [
+                  "derived_from_link_type_rid"
+                ]
+              },
+              {
+                "required": [
+                  "derived_from_interface_type_rid"
+                ]
+              }
+            ]
+          },
+          "minContains": 1,
+          "x-json-name": "parameters"
+        },
+        "execution": {
+          "$ref": "#/$defs/ActionExecutionConfig",
+          "x-json-name": "execution"
+        },
+        "safety_level": {
+          "$ref": "#/$defs/ActionSafetyLevel",
+          "x-json-name": "safetyLevel",
+          "not": {
+            "const": "SAFETY_UNSPECIFIED"
+          }
+        }
+      }
+    },
+    "ActionParameter": {
+      "type": "object",
+      "description": "Action input parameter. definition_source is a proto oneof.",
+      "additionalProperties": false,
+      "required": [
+        "api_name",
+        "display_name",
+        "required"
+      ],
+      "properties": {
+        "api_name": {
+          "$ref": "#/$defs/ApiName",
+          "x-json-name": "apiName"
+        },
+        "display_name": {
+          "$ref": "#/$defs/NonBlankString",
+          "x-json-name": "displayName"
+        },
+        "description": {
+          "type": "string",
+          "x-json-name": "description"
+        },
+        "required": {
+          "type": "boolean",
+          "x-json-name": "required"
+        },
+        "explicit_type": {
+          "$ref": "#/$defs/DataType",
+          "x-json-name": "explicitType",
+          "not": {
+            "const": "DT_UNKNOWN"
+          }
+        },
+        "derived_from_object_type_rid": {
+          "$ref": "#/$defs/ObjectTypeRid",
+          "x-json-name": "derivedFromObjectTypeRid"
+        },
+        "derived_from_link_type_rid": {
+          "$ref": "#/$defs/LinkTypeRid",
+          "x-json-name": "derivedFromLinkTypeRid"
+        },
+        "derived_from_interface_type_rid": {
+          "$ref": "#/$defs/InterfaceTypeRid",
+          "x-json-name": "derivedFromInterfaceTypeRid"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "explicit_type"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "derived_from_object_type_rid"
+                ]
+              },
+              {
+                "required": [
+                  "derived_from_link_type_rid"
+                ]
+              },
+              {
+                "required": [
+                  "derived_from_interface_type_rid"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "derived_from_object_type_rid"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "explicit_type"
+                ]
+              },
+              {
+                "required": [
+                  "derived_from_link_type_rid"
+                ]
+              },
+              {
+                "required": [
+                  "derived_from_interface_type_rid"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "derived_from_link_type_rid"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "explicit_type"
+                ]
+              },
+              {
+                "required": [
+                  "derived_from_object_type_rid"
+                ]
+              },
+              {
+                "required": [
+                  "derived_from_interface_type_rid"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "derived_from_interface_type_rid"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "explicit_type"
+                ]
+              },
+              {
+                "required": [
+                  "derived_from_object_type_rid"
+                ]
+              },
+              {
+                "required": [
+                  "derived_from_link_type_rid"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "ActionExecutionConfig": {
+      "type": "object",
+      "description": "Execution engine and implementation body for an action. implementation is a proto oneof.",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "is_batch",
+        "is_sync"
+      ],
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/EngineType",
+          "x-json-name": "type",
+          "not": {
+            "const": "ENGINE_UNSPECIFIED"
+          }
+        },
+        "is_batch": {
+          "type": "boolean",
+          "x-json-name": "isBatch"
+        },
+        "is_sync": {
+          "type": "boolean",
+          "x-json-name": "isSync"
+        },
+        "native_crud_json": {
+          "$ref": "#/$defs/NonBlankString",
+          "x-json-name": "nativeCrudJson"
+        },
+        "sql_template": {
+          "$ref": "#/$defs/NonBlankString",
+          "x-json-name": "sqlTemplate"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "native_crud_json"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "sql_template"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "sql_template"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "native_crud_json"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "ENGINE_NATIVE_CRUD"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "native_crud_json"
+            ],
+            "not": {
+              "required": [
+                "sql_template"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "ENGINE_SQL_RUNNER"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "sql_template"
+            ],
+            "not": {
+              "required": [
+                "native_crud_json"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

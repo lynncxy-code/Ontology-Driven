@@ -138,11 +138,15 @@ def _build_coarse_matrix(ut):
 
 
 def build_ue_matrix(profile):
-    """取"规范→UE"3×3 仿射：优先用锚点拟合的精确矩阵；未标定则用粗声明构造。"""
+    """取"规范→UE"3×3 仿射：优先用锚点拟合的精确矩阵；未标定则用粗声明构造。
+    退化矩阵（如历史标定坏数据全零，det≈0）视同未标定——否则重算会把全场坐标清零、
+    回写会被"不可逆"拒绝。"""
     ut = (profile or {}).get("ue_transform") or {}
     m = ut.get("matrix")
     if m:
-        return m
+        det = m[0][0] * m[1][1] - m[0][1] * m[1][0]
+        if abs(det) > 1e-12:
+            return m
     return _build_coarse_matrix(ut)
 
 

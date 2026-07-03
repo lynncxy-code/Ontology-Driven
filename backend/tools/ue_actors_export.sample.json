@@ -1,0 +1,27 @@
+{
+  "_comment": "UE 编辑器脚本导出的历史 actor 清单（FR-6 迁移输入契约）。UE 侧遍历关卡里的目标 actor，导出这份 JSON；后端脚本据此收编入 PG。",
+  "project_id": null,
+  "zone_id": null,
+  "actors": [
+    {
+      "ext_guid": "SAMPLE-GUID-0001",
+      "name": "Forklift_Legacy_01",
+      "mesh_asset": "forklift.glb",
+      "transform": {
+        "tx": 1200.0, "ty": 300.0, "tz": 0.0,
+        "rx": 0.0, "ry": 0.0, "rz": 90.0,
+        "sx": 1.0, "sy": 1.0, "sz": 1.0
+      }
+    },
+    {
+      "ext_guid": "SAMPLE-GUID-0002",
+      "name": "Unknown_Rack_07",
+      "mesh_asset": "mystery_rack.glb",
+      "transform": {
+        "tx": 500.0, "ty": 800.0, "tz": 0.0,
+        "rx": 0.0, "ry": 0.0, "rz": 0.0,
+        "sx": 1.0, "sy": 1.0, "sz": 1.0
+      }
+    }
+  ]
+}

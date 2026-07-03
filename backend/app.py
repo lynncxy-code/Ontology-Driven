@@ -6,11 +6,12 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from ontology import SharedState
 from mapping_store import (
-    MappingStore, ONTOLOGY_PROPERTIES, INTERFACES, INTERFACE_MAP,
+    ONTOLOGY_PROPERTIES, INTERFACES, INTERFACE_MAP,
     TRANSFORM_TYPES, MOCK_ASSETS, OBJECT_TYPES,
     InstanceStore, MockInstanceSimulator
 )
 from ontology_parser import validate_files, parse_ontology_csvs
+from writeback import apply_writeback          # FR-5：UE→ontotwin 空间回写
 
 # ── App Setup ───────────────────────────────────────────────────
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
@@ -44,8 +45,6 @@ states = {
     "equipment_01": SharedState(),
     "tooling_01": SharedState()
 }
-mapping_store = MappingStore()
-
 # 2.9.4 重构：统一项目存储（取代 InstanceStore）。
 # 实例归属"当前激活项目"，与数据集/类型表一起持久化、一起加载、一起删——单一事实来源。
 from project_store import ProjectStore
@@ -76,10 +75,6 @@ def serve_ontology():
 @app.route('/instance')
 def serve_instance():
     return app.send_static_file('instance.html')
-
-@app.route('/mapping')
-def serve_mapping():
-    return app.send_static_file('mapping.html')
 
 @app.route('/ontology_graph')
 def serve_ontology_graph():
@@ -1488,6 +1483,17 @@ def get_ontology_interfaces():
 def get_ontology_properties():
     return jsonify(ONTOLOGY_PROPERTIES)
 
+@app.route('/api/v2/ontology/registry', methods=['GET'])
+def get_ontology_registry():
+    """
+    3.4：从 Neo4j 本体图库读取注册表（接口含继承/必需属性 + 类型含实现接口/x_ 扩展）。
+    图库不可达时降级 503，不影响 Nexus 其余功能。写入不走 API——见 db/graph.py 模块注释。
+    """
+    from db import graph
+    if not graph.ping():
+        return jsonify({"error": "本体图库(Neo4j)不可达，请确认 neo4j 服务已启动"}), 503
+    return jsonify(graph.fetch_registry())
+
 @app.route('/api/v2/transforms', methods=['GET'])
 def get_transform_types():
     return jsonify(TRANSFORM_TYPES)
@@ -1959,12 +1965,13 @@ def get_state_snapshot():
 @app.route('/api/v2/state/snapshots', methods=['GET'])
 def get_all_snapshots():
     """
-    获取指定场景所有实例的快照（3D 渲染端批量轮询用）。
-    ?scene=<scene_id> 指定场景；不传则用当前激活数据集。
-    UE 工程可通过该参数各自锁定自己的场景，互不干扰。
+    获取实例快照（3D 渲染端批量轮询用）。
+    ?zone=<zone_id>（兼容旧 ?scene=）只返回该分区实例；不传则返回激活项目全部。
+    FR-3：一分区一 TwinSceneManager，各自按 zone 拉取、互不串台。
     """
+    zone = request.args.get('zone') or request.args.get('scene') or None
     result = []
-    for iid in instance_store.get_all_ids():   # 当前激活项目的全部实例（唯一可见性规则）
+    for iid in instance_store.get_all_ids(zone):   # zone=None → 激活项目全部（唯一可见性规则）
         snap = _build_snapshot(iid)
         if snap:
             result.append(snap)
@@ -2003,6 +2010,27 @@ def override_state():
 
     snap = _build_snapshot(instance_id)
     return jsonify({"status": "ok", "snapshot": snap})
+
+
+@app.route('/api/v2/state/writeback', methods=['POST'])
+def writeback_state():
+    """
+    FR-5：UE→ontotwin 空间回写。把 UE 端调整后的空间变换（UE cm）落回真源。
+    Body: { "instance_id": str, "transform": { tx,ty,tz, rx,ry,rz, sx,sy,sz } }
+    绑定 CAD 构件的实例逆变换回规范系写构件真源；自由实例直接写 raw_state。
+    传输中立：编辑器回写与未来 runtime 拖拽回写共用本端点。
+    """
+    data = request.json or {}
+    instance_id = data.get("instance_id")
+    transform = data.get("transform") or {}
+    if not instance_id:
+        return jsonify({"error": "instance_id is required"}), 400
+
+    ok, info = apply_writeback(instance_store, instance_id, transform, persist=True)
+    if not ok:
+        return jsonify({"status": "error", **info}), 404
+    snap = _build_snapshot(instance_id)
+    return jsonify({"status": "ok", "writeback": info, "snapshot": snap})
 
 
 @app.route('/api/v2/scenes', methods=['GET'])
@@ -2190,35 +2218,6 @@ def binding_mint():
 
 
 # ═══════════════════════════════════════════════════════════════
-# 旧版 2.x 映射规则 API（保留兼容）
-# ═══════════════════════════════════════════════════════════════
-
-@app.route('/api/v2/mapping/rules', methods=['GET'])
-def list_mapping_rules():
-    return jsonify(mapping_store.list_rules())
-
-@app.route('/api/v2/mapping/rules', methods=['POST'])
-def save_mapping_rule():
-    data = request.json
-    if not data:
-        return jsonify({"error": "No data provided"}), 400
-    return jsonify(mapping_store.save_rule(data)), 201
-
-@app.route('/api/v2/mapping/rules/<rule_id>', methods=['GET'])
-def get_mapping_rule(rule_id):
-    rule = mapping_store.get_rule(rule_id)
-    if rule:
-        return jsonify(rule)
-    return jsonify({"error": "Rule not found"}), 404
-
-@app.route('/api/v2/mapping/rules/<rule_id>', methods=['DELETE'])
-def delete_mapping_rule(rule_id):
-    if mapping_store.delete_rule(rule_id):
-        return jsonify({"status": "deleted"})
-    return jsonify({"error": "Rule not found"}), 404
-
-
-# ═══════════════════════════════════════════════════════════════
 # 动态图谱数据：CSV 导入 / API 代理
 # ═══════════════════════════════════════════════════════════════
 
@@ -2370,6 +2369,31 @@ def fetch_api_ontology():
         return jsonify({"error": f"拉取失败: {str(e)}"}), 500
 
 
+@app.route('/api/v2/ontology/graph_from_registry', methods=['POST'])
+def load_graph_from_registry():
+    """
+    3.4：直查 Neo4j 本体图库出图（替代外部 API 拉取的首选项）。
+    产出与 import_csv / fetch_api 同构的 {nodes, links, categories}，
+    同样写入 _custom_graph_data，预览/发布数据集链路零改动复用。
+    """
+    global _custom_graph_data
+    from db import graph as _graph
+    if not _graph.ping():
+        return jsonify({"error": "本体图库(Neo4j)不可达，请确认 neo4j 服务已启动"}), 503
+    try:
+        g = _graph.fetch_graph_echarts()
+    except Exception as e:
+        return jsonify({"error": f"读取本体图库失败: {e}"}), 500
+    _custom_graph_data = g
+    return jsonify({
+        "status": "ok",
+        "node_count": len(g["nodes"]),
+        "link_count": len(g["links"]),
+        "category_count": len(g["categories"]),
+        "graph_data": g
+    })
+
+
 @app.route('/api/v2/ontology/custom_graph', methods=['GET'])
 def get_custom_graph():
     """获取最近一次导入的自定义图谱数据（如果有）"""
@@ -2442,6 +2466,7 @@ def create_empty_dataset():
     if data.get("activate"):
         _active_dataset_id = ds_id
         _object_types = _project_dataset_to_object_types(new_ds)  # 空集 → {}
+        _persist_active_project()   # 与 activate_dataset 一致：建/切项目文件（否则数据集只活在内存）
         activated = True
 
     return jsonify({

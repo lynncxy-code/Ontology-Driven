@@ -1,0 +1,315 @@
+{
+  "version": "ontotwin-3.4.0",
+  "shared_property_types": {
+    "ri.shprop.641e8145-15a2-43a9-a583-cc165037ddff": {
+      "rid": "ri.shprop.641e8145-15a2-43a9-a583-cc165037ddff",
+      "api_name": "instance_id",
+      "display_name": "实例身份证号",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_STRING"
+    },
+    "ri.shprop.57a65fd9-4953-4696-8da5-54a16126d448": {
+      "rid": "ri.shprop.57a65fd9-4953-4696-8da5-54a16126d448",
+      "api_name": "asset_id",
+      "display_name": "资产唯一码 (GLB)",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_STRING"
+    },
+    "ri.shprop.bfe25aa3-a020-4de3-a5bc-19e2cc6a97ed": {
+      "rid": "ri.shprop.bfe25aa3-a020-4de3-a5bc-19e2cc6a97ed",
+      "api_name": "is_visible",
+      "display_name": "是否渲染",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_BOOLEAN"
+    },
+    "ri.shprop.6169a1e2-a57a-4e5e-b1cb-975aae6ee524": {
+      "rid": "ri.shprop.6169a1e2-a57a-4e5e-b1cb-975aae6ee524",
+      "api_name": "translation_x",
+      "display_name": "位置 X (cm)",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_DOUBLE"
+    },
+    "ri.shprop.c0241bdb-3adc-4002-a026-0f1ef40aa5c2": {
+      "rid": "ri.shprop.c0241bdb-3adc-4002-a026-0f1ef40aa5c2",
+      "api_name": "translation_y",
+      "display_name": "位置 Y (cm)",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_DOUBLE"
+    },
+    "ri.shprop.0a17a4c3-5eff-4d74-a5fc-4bd7c4bc49a7": {
+      "rid": "ri.shprop.0a17a4c3-5eff-4d74-a5fc-4bd7c4bc49a7",
+      "api_name": "translation_z",
+      "display_name": "位置 Z (cm)",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_DOUBLE"
+    },
+    "ri.shprop.b56510d1-bf31-4257-b994-c180ef108f6c": {
+      "rid": "ri.shprop.b56510d1-bf31-4257-b994-c180ef108f6c",
+      "api_name": "rotation_x",
+      "display_name": "旋转 X (°)",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_DOUBLE"
+    },
+    "ri.shprop.ede11c68-d17b-4a2c-9118-2c8560f4dce3": {
+      "rid": "ri.shprop.ede11c68-d17b-4a2c-9118-2c8560f4dce3",
+      "api_name": "rotation_y",
+      "display_name": "旋转 Y (°)",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_DOUBLE"
+    },
+    "ri.shprop.517bca9f-27a2-42a7-8e8d-b43f5715b960": {
+      "rid": "ri.shprop.517bca9f-27a2-42a7-8e8d-b43f5715b960",
+      "api_name": "rotation_z",
+      "display_name": "旋转 Z (°)",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_DOUBLE"
+    },
+    "ri.shprop.fc680db5-94ca-4c38-bd22-160eed32c494": {
+      "rid": "ri.shprop.fc680db5-94ca-4c38-bd22-160eed32c494",
+      "api_name": "scale_x",
+      "display_name": "缩放 X",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_DOUBLE"
+    },
+    "ri.shprop.729d3343-3a86-4b1e-a785-b206e9f0b9d1": {
+      "rid": "ri.shprop.729d3343-3a86-4b1e-a785-b206e9f0b9d1",
+      "api_name": "scale_y",
+      "display_name": "缩放 Y",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_DOUBLE"
+    },
+    "ri.shprop.1a8dd20c-6782-4e6c-801b-c17d7e1c5b9f": {
+      "rid": "ri.shprop.1a8dd20c-6782-4e6c-801b-c17d7e1c5b9f",
+      "api_name": "scale_z",
+      "display_name": "缩放 Z",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_DOUBLE"
+    },
+    "ri.shprop.78e7e192-dcb1-4bd8-9f80-d5274e0d1b59": {
+      "rid": "ri.shprop.78e7e192-dcb1-4bd8-9f80-d5274e0d1b59",
+      "api_name": "material_variant",
+      "display_name": "材质变体",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_STRING"
+    },
+    "ri.shprop.85fc9d92-0476-452a-b1b9-752305265e05": {
+      "rid": "ri.shprop.85fc9d92-0476-452a-b1b9-752305265e05",
+      "api_name": "animation_state",
+      "display_name": "动画状态",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_STRING"
+    },
+    "ri.shprop.b64ab3e5-5605-4e05-ad15-3e48ebcec617": {
+      "rid": "ri.shprop.b64ab3e5-5605-4e05-ad15-3e48ebcec617",
+      "api_name": "fx_trigger",
+      "display_name": "特效触发",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_STRING"
+    },
+    "ri.shprop.4ed3a458-a659-4bb5-b93e-55342ef61253": {
+      "rid": "ri.shprop.4ed3a458-a659-4bb5-b93e-55342ef61253",
+      "api_name": "ui_label_content",
+      "display_name": "标签内容",
+      "description": "OntoTwin 三维接口共享属性",
+      "lifecycle_status": "ACTIVE",
+      "data_type": "DT_STRING"
+    }
+  },
+  "interface_types": {
+    "ri.iface.0e8105d4-c1c0-494c-bb77-572615eae82d": {
+      "rid": "ri.iface.0e8105d4-c1c0-494c-bb77-572615eae82d",
+      "api_name": "i3d_representable",
+      "display_name": "三维存在接口",
+      "description": "声明该对象具备在三维场景中存在的能力，是所有子接口的前提。",
+      "lifecycle_status": "ACTIVE",
+      "category": "OBJECT_INTERFACE",
+      "required_shared_property_type_rids": [
+        "ri.shprop.57a65fd9-4953-4696-8da5-54a16126d448",
+        "ri.shprop.bfe25aa3-a020-4de3-a5bc-19e2cc6a97ed"
+      ]
+    },
+    "ri.iface.ed3c7676-0088-496f-8c4f-3bd7f5bdf517": {
+      "rid": "ri.iface.ed3c7676-0088-496f-8c4f-3bd7f5bdf517",
+      "api_name": "i3d_spatial",
+      "display_name": "空间变换接口",
+      "description": "赋予对象在三维空间中定位、旋转、缩放的能力（坐标单位：cm，现实 1:1）。",
+      "lifecycle_status": "ACTIVE",
+      "category": "OBJECT_INTERFACE",
+      "required_shared_property_type_rids": [
+        "ri.shprop.6169a1e2-a57a-4e5e-b1cb-975aae6ee524",
+        "ri.shprop.c0241bdb-3adc-4002-a026-0f1ef40aa5c2",
+        "ri.shprop.0a17a4c3-5eff-4d74-a5fc-4bd7c4bc49a7",
+        "ri.shprop.b56510d1-bf31-4257-b994-c180ef108f6c",
+        "ri.shprop.ede11c68-d17b-4a2c-9118-2c8560f4dce3",
+        "ri.shprop.517bca9f-27a2-42a7-8e8d-b43f5715b960",
+        "ri.shprop.fc680db5-94ca-4c38-bd22-160eed32c494",
+        "ri.shprop.729d3343-3a86-4b1e-a785-b206e9f0b9d1",
+        "ri.shprop.1a8dd20c-6782-4e6c-801b-c17d7e1c5b9f"
+      ],
+      "extends_interface_type_rids": [
+        "ri.iface.0e8105d4-c1c0-494c-bb77-572615eae82d"
+      ]
+    },
+    "ri.iface.52e53e5c-9bb4-4558-8d52-ce11cdf1a5fc": {
+      "rid": "ri.iface.52e53e5c-9bb4-4558-8d52-ce11cdf1a5fc",
+      "api_name": "i3d_visual",
+      "display_name": "视觉表达接口",
+      "description": "赋予对象切换材质外观的能力。资产加载与整体显隐由 I3D_Representable 管理。",
+      "lifecycle_status": "ACTIVE",
+      "category": "OBJECT_INTERFACE",
+      "required_shared_property_type_rids": [
+        "ri.shprop.78e7e192-dcb1-4bd8-9f80-d5274e0d1b59"
+      ],
+      "extends_interface_type_rids": [
+        "ri.iface.0e8105d4-c1c0-494c-bb77-572615eae82d"
+      ]
+    },
+    "ri.iface.4e406e03-6c7b-41c7-b08d-9d0f50b0ee02": {
+      "rid": "ri.iface.4e406e03-6c7b-41c7-b08d-9d0f50b0ee02",
+      "api_name": "i3d_behavioral",
+      "display_name": "动态行为接口",
+      "description": "赋予对象执行动态行为与信息标注的能力。",
+      "lifecycle_status": "ACTIVE",
+      "category": "OBJECT_INTERFACE",
+      "required_shared_property_type_rids": [
+        "ri.shprop.85fc9d92-0476-452a-b1b9-752305265e05",
+        "ri.shprop.b64ab3e5-5605-4e05-ad15-3e48ebcec617",
+        "ri.shprop.4ed3a458-a659-4bb5-b93e-55342ef61253"
+      ],
+      "extends_interface_type_rids": [
+        "ri.iface.0e8105d4-c1c0-494c-bb77-572615eae82d"
+      ]
+    }
+  },
+  "object_types": {
+    "ri.obj.db2dab4b-54ad-4334-ab4f-d46319e280ce": {
+      "rid": "ri.obj.db2dab4b-54ad-4334-ab4f-d46319e280ce",
+      "api_name": "legacy_unclassified",
+      "display_name": "Legacy 未分类",
+      "description": "FR-6 迁移：未匹配到类型的历史 actor 兜底桶，待人工本体化。",
+      "lifecycle_status": "ACTIVE",
+      "property_types": {
+        "instance_id": {
+          "rid": "ri.prop.1a3e8648-ec71-4a5b-a38f-4845b8e29fba",
+          "api_name": "instance_id",
+          "display_name": "实例身份证号",
+          "lifecycle_status": "ACTIVE",
+          "data_type": "DT_STRING",
+          "inherit_from_shared_property_type_rid": "ri.shprop.641e8145-15a2-43a9-a583-cc165037ddff"
+        },
+        "asset_id": {
+          "rid": "ri.prop.29080812-5947-4848-bc47-9161f01fe407",
+          "api_name": "asset_id",
+          "display_name": "资产唯一码 (GLB)",
+          "lifecycle_status": "ACTIVE",
+          "data_type": "DT_STRING",
+          "inherit_from_shared_property_type_rid": "ri.shprop.57a65fd9-4953-4696-8da5-54a16126d448"
+        },
+        "is_visible": {
+          "rid": "ri.prop.71aff9d6-dc4d-43ad-9ba0-510147522ddf",
+          "api_name": "is_visible",
+          "display_name": "是否渲染",
+          "lifecycle_status": "ACTIVE",
+          "data_type": "DT_BOOLEAN",
+          "inherit_from_shared_property_type_rid": "ri.shprop.bfe25aa3-a020-4de3-a5bc-19e2cc6a97ed"
+        },
+        "translation_x": {
+          "rid": "ri.prop.da57246d-7d6d-4480-904d-05e5ce7c2595",
+          "api_name": "translation_x",
+          "display_name": "位置 X (cm)",
+          "lifecycle_status": "ACTIVE",
+          "data_type": "DT_DOUBLE",
+          "inherit_from_shared_property_type_rid": "ri.shprop.6169a1e2-a57a-4e5e-b1cb-975aae6ee524"
+        },
+        "translation_y": {
+          "rid": "ri.prop.9a7a0b35-b76a-42b5-ace6-75046ec27b74",
+          "api_name": "translation_y",
+          "display_name": "位置 Y (cm)",
+          "lifecycle_status": "ACTIVE",
+          "data_type": "DT_DOUBLE",
+          "inherit_from_shared_property_type_rid": "ri.shprop.c0241bdb-3adc-4002-a026-0f1ef40aa5c2"
+        },
+        "translation_z": {
+          "rid": "ri.prop.6fc41a8b-0784-4049-91a9-9c65962f2eb3",
+          "api_name": "translation_z",
+          "display_name": "位置 Z (cm)",
+          "lifecycle_status": "ACTIVE",
+          "data_type": "DT_DOUBLE",
+          "inherit_from_shared_property_type_rid": "ri.shprop.0a17a4c3-5eff-4d74-a5fc-4bd7c4bc49a7"
+        },
+        "rotation_x": {
+          "rid": "ri.prop.81e35c52-1baf-4bff-a9bc-519f01772ef3",
+          "api_name": "rotation_x",
+          "display_name": "旋转 X (°)",
+          "lifecycle_status": "ACTIVE",
+          "data_type": "DT_DOUBLE",
+          "inherit_from_shared_property_type_rid": "ri.shprop.b56510d1-bf31-4257-b994-c180ef108f6c"
+        },
+        "rotation_y": {
+          "rid": "ri.prop.3222e854-2423-444c-a522-218959bbe7ef",
+          "api_name": "rotation_y",
+          "display_name": "旋转 Y (°)",
+          "lifecycle_status": "ACTIVE",
+          "data_type": "DT_DOUBLE",
+          "inherit_from_shared_property_type_rid": "ri.shprop.ede11c68-d17b-4a2c-9118-2c8560f4dce3"
+        },
+        "rotation_z": {
+          "rid": "ri.prop.1353d173-b9c0-4b1a-b9b3-d4e48bc489f9",
+          "api_name": "rotation_z",
+          "display_name": "旋转 Z (°)",
+          "lifecycle_status": "ACTIVE",
+          "data_type": "DT_DOUBLE",
+          "inherit_from_shared_property_type_rid": "ri.shprop.517bca9f-27a2-42a7-8e8d-b43f5715b960"
+        },
+        "scale_x": {
+          "rid": "ri.prop.7f51ad17-c846-4d67-9fde-76fe75c0af5d",
+          "api_name": "scale_x",
+          "display_name": "缩放 X",
+          "lifecycle_status": "ACTIVE",
+          "data_type": "DT_DOUBLE",
+          "inherit_from_shared_property_type_rid": "ri.shprop.fc680db5-94ca-4c38-bd22-160eed32c494"
+        },
+        "scale_y": {
+          "rid": "ri.prop.3b1a5559-07a7-4141-afce-83f195d16184",
+          "api_name": "scale_y",
+          "display_name": "缩放 Y",
+          "lifecycle_status": "ACTIVE",
+          "data_type": "DT_DOUBLE",
+          "inherit_from_shared_property_type_rid": "ri.shprop.729d3343-3a86-4b1e-a785-b206e9f0b9d1"
+        },
+        "scale_z": {
+          "rid": "ri.prop.d92835c3-7189-4676-a97d-fb19f6aea595",
+          "api_name": "scale_z",
+          "display_name": "缩放 Z",
+          "lifecycle_status": "ACTIVE",
+          "data_type": "DT_DOUBLE",
+          "inherit_from_shared_property_type_rid": "ri.shprop.1a8dd20c-6782-4e6c-801b-c17d7e1c5b9f"
+        }
+      },
+      "implements_interface_type_rids": [
+        "ri.iface.0e8105d4-c1c0-494c-bb77-572615eae82d",
+        "ri.iface.ed3c7676-0088-496f-8c4f-3bd7f5bdf517"
+      ],
+      "primary_key_property_type_rids": [
+        "ri.prop.1a3e8648-ec71-4a5b-a38f-4845b8e29fba"
+      ]
+    }
+  },
+  "link_types": {},
+  "action_types": {}
+}

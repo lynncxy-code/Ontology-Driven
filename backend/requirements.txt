@@ -3,3 +3,5 @@ flask-cors==4.0.0
 requests==2.31.0
 ezdxf
 usd-core
+psycopg[binary]>=3.2,<4
+neo4j>=5.28,<6

@@ -338,9 +338,13 @@ class ProjectStore:
             if inst:
                 inst["last_seen"] = time.time()
 
-    def get_all_ids(self):
+    def get_all_ids(self, zone_id=None):
+        """当前项目实例 id 列表；zone_id 非空则只返回该分区（FR-3 分区过滤）。"""
         with self._lock:
-            return list(self._inst().keys())
+            insts = self._inst()
+            if zone_id is None:
+                return list(insts.keys())
+            return [iid for iid, r in insts.items() if r.get("zone_id") == zone_id]
 
     def list_all(self):
         """实例元信息列表（含在线状态），仅当前项目。"""
@@ -552,3 +556,16 @@ class ProjectStore:
             self._current["instances"] = new_instances
             self._save_current()
             return len(new_instances)
+
+
+# ── 存储后端开关（3.4）─────────────────────────────────────────
+# 默认 JSON（行为零变化）；ONTOTWIN_STORE=pg 时切到 PostgreSQL 后端。
+# 通过重绑本模块的 ProjectStore 名，app.py 的 `from project_store import ProjectStore`
+# 自动拿到对应实现，无需改 app.py。
+import os as _os
+if _os.environ.get("ONTOTWIN_STORE", "json").lower() == "pg":
+    try:
+        from project_store_pg import ProjectStorePG as ProjectStore  # noqa: F811
+    except Exception as _e:
+        import sys as _sys
+        print(f"[project_store] PG 后端加载失败，回退 JSON 版: {_e}", file=_sys.stderr)

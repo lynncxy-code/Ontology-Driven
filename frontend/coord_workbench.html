@@ -1114,10 +1114,10 @@ function w2s(wx, wy) {
   return _orient(DisplayM, sx, sy);
 }
 // Screen to world（先撤显示朝向，再相机反投影）
-function s2w(sx, sy) {
+function s2w(sx, sy, cx = camX, cy = camY, scale = camScale) {
   const p = _orient(DisplayMInv, sx, sy);
-  const wx = (p[0] - canvas.width / devicePixelRatio / 2) / camScale + camX;
-  const wy = -(p[1] - canvas.height / devicePixelRatio / 2) / camScale + camY;
+  const wx = (p[0] - canvas.width / devicePixelRatio / 2) / scale + cx;
+  const wy = -(p[1] - canvas.height / devicePixelRatio / 2) / scale + cy;
   return [wx, wy];
 }
 
@@ -1229,8 +1229,10 @@ canvas._origMousedown = function(e) {
 canvas.addEventListener('mousedown', canvas._origMousedown);
 canvas.addEventListener('mousemove', e => {
   if (isDragging) {
-    camX = camStartX - (e.offsetX - dragStartX) / camScale;
-    camY = camStartY + (e.offsetY - dragStartY) / camScale;
+    const wStart = s2w(dragStartX, dragStartY, camStartX, camStartY, camScale);
+    const wCurr = s2w(e.offsetX, e.offsetY, camStartX, camStartY, camScale);
+    camX = camStartX - (wCurr[0] - wStart[0]);
+    camY = camStartY - (wCurr[1] - wStart[1]);
     draw();
   } else if ((State.mode === 'dxf' && State.currentStep === 3) || (State.mode === 'image' && (imgState.currentStep === 1 || imgState.currentStep === 2))) {
     // Redraw continuously for alignment guides
@@ -2585,12 +2587,12 @@ function highlightTableRow(id) {
 function _buildExportPayload() {
   const ents = [];
   State.previewData.inserts.forEach(ins => {
-    if (State.layerSelected[ins.layer] === false || !State.entityChecked[ins.id]) return;
+    if (State.layerSelected[ins.layer] === false || State.entityChecked[ins.id] === false) return;
     ents.push({ ...ins, asset_path: State.entityAssets[ins.id] || ins.block_name, export: true });
   });
   const polys = [];
   State.previewData.polylines.forEach(p => {
-    if (!polyInScope(p) || !State.entityChecked[p.id]) return;
+    if (!polyInScope(p) || State.entityChecked[p.id] === false) return;
     polys.push({ ...p, generate_type: State.entityTypes[p.id] || p.generate_type, export: true });
   });
   return {
@@ -2635,23 +2637,55 @@ function buildExportPreview() {
 }
 
 async function exportJSON() {
-  if (!State.previewData || !State.matrix) return;
+  if (!State.previewData || !State.matrix) {
+    toast('请先完成标定', 'warn');
+    return;
+  }
   const payload = _buildExportPayload();
+  let data = null;
+
+  // 1) 优先尝试后端 API
   try {
     const resp = await fetch('/api/v2/coord/export', {
       method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
     });
-    const data = await resp.json();
-    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = 'scene_export.json'; a.click();
-    document.getElementById('exportPreview').textContent = JSON.stringify(data, null, 2);
-    // 提示保存映射
-    toast('导出成功', 'ok');
-    if (await UI.confirm({ title: '保存资产对应关系', bodyHTML: '是否记住本次"块名 → 资产路径"的对应关系，供下次自动预填？' })) saveMappings();
-  } catch(e) {
-    toast('导出失败：' + e.message, 'err');
+    if (resp.ok) data = await resp.json();
+  } catch(_) { /* 后端不可用，走前端组装 */ }
+
+  // 2) 前端 fallback：与 buildExportPreview 相同逻辑
+  if (!data) {
+    const entities = [];
+    payload.entities.forEach(ins => {
+      const ue = CoordTransform.applyTransform(State.matrix, ins.position);
+      entities.push({
+        id: ins.id, layer: ins.layer, generate_type: 'INSTANCE',
+        data: { mesh_id: ins.asset_path, transform: { loc: [ue[0], ue[1], 0], rot: [0, 0, ins.rotation], scale: [1,1,1] }, metadata: ins.attribs }
+      });
+    });
+    payload.polylines.forEach(p => {
+      const pts = p.points.map(pt => CoordTransform.applyTransform(State.matrix, pt));
+      entities.push({ id: p.id, layer: p.layer, generate_type: p.generate_type, data: { path: pts, height: 4500, thickness: 240 } });
+    });
+    data = {
+      header: { version: '1.0', calibration: { matrix: State.matrix, rmse_cm: State.metrics?.rmse, anchor_count: State.anchors.length } },
+      entities
+    };
   }
+
+  // 3) 下载
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'scene_export.json'; a.style.display = 'none';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  document.getElementById('exportPreview').textContent = JSON.stringify(data, null, 2);
+  toast(`已导出 ${(data.entities||[]).length} 个构件`, 'ok');
+
+  // 4) 提示保存映射
+  try {
+    if (await UI.confirm({ title: '保存资产对应关系', bodyHTML: '是否记住本次"块名 → 资产路径"的对应关系，供下次自动预填？' })) saveMappings();
+  } catch(_) {}
 }
 
 async function saveMappings() {
@@ -2670,16 +2704,29 @@ async function saveMappings() {
 }
 
 function downloadCSV() {
-  if (!State.previewData || !State.matrix) return;
+  if (!State.previewData || !State.matrix) {
+    toast('请先完成标定', 'warn');
+    return;
+  }
   let csv = '设备ID,块名,图层,CAD_X,CAD_Y,UE_X,UE_Y,UE_Z,旋转角,UE资产路径\n';
+  let count = 0;
   State.previewData.inserts.forEach(ins => {
-    if (State.layerSelected[ins.layer] === false || !State.entityChecked[ins.id]) return;
+    if (State.layerSelected[ins.layer] === false || State.entityChecked[ins.id] === false) return;
     const ue = CoordTransform.applyTransform(State.matrix, ins.position);
     csv += `${ins.attribs.EQUIP_ID||''},${ins.block_name},${ins.layer},${ins.position[0]},${ins.position[1]},${ue[0]},${ue[1]},0,${ins.rotation},${State.entityAssets[ins.id]||''}\n`;
+    count++;
   });
+  if (count === 0) {
+    toast('没有可导出的构件', 'warn');
+    return;
+  }
   const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = 'coord_export.csv'; a.click();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'coord_export.csv'; a.style.display = 'none';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  toast(`已导出 ${count} 条记录`, 'ok');
 }
 
 function resetAll() {
@@ -2929,8 +2976,12 @@ function imgDownloadCSV() {
     csv += `${m.name},${m.deviceId},${m.type||'INSTANCE'},${m.pixelXY[0]},${m.pixelXY[1]},${ue[0]},${ue[1]}\n`;
   });
   const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = 'image_coord_export.csv'; a.click();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'image_coord_export.csv'; a.style.display = 'none';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  toast(`已导出 ${imgState.markers.length} 条记录`, 'ok');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2938,9 +2989,11 @@ function imgDownloadCSV() {
 // ═══════════════════════════════════════════════════════════════
 canvas.removeEventListener('mousedown', canvas._origMousedown);
 canvas._mdHandler = function(e) {
-  if (e.button === 1 || (e.button === 0 && e.altKey)) {
+  if (e.button === 2 || e.button === 1 || (e.button === 0 && e.altKey)) {
     isDragging = true; dragStartX = e.offsetX; dragStartY = e.offsetY;
-    camStartX = camX; camStartY = camY; canvas.style.cursor = 'grabbing'; return;
+    camStartX = camX; camStartY = camY; canvas.style.cursor = 'grabbing';
+    e.preventDefault();
+    return;
   }
   if (e.button !== 0) return;
 
@@ -2958,6 +3011,7 @@ canvas._mdHandler = function(e) {
   }
 };
 canvas.addEventListener('mousedown', canvas._mdHandler);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 // ── 模式感知的 draw (扩展) ──
 const _origDraw = draw;

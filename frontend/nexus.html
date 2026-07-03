@@ -411,7 +411,7 @@
         </div>
         
         <!-- Iframe 嵌套现有页面 -->
-        <iframe id="main-frame" class="content-frame" src="/ontology?nexus=true" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+        <iframe id="main-frame" class="content-frame" src="/ontology?nexus=true" sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"></iframe>
     </main>
 
     <script>
@@ -429,6 +429,30 @@
             const sidebar = document.getElementById('sidebar');
             sidebar.classList.toggle('collapsed');
         }
+
+        function syncActiveMenu(path) {
+            const items = document.querySelectorAll('.menu-item');
+            items.forEach(el => {
+                const onclickStr = el.getAttribute('onclick') || '';
+                const matchUrl = onclickStr.match(/navigate\('[^']+',\s*'([^']+)'/);
+                if (matchUrl) {
+                    const menuItemPath = matchUrl[1].split('?')[0];
+                    if (menuItemPath === path) {
+                        items.forEach(x => x.classList.remove('active'));
+                        el.classList.add('active');
+                    }
+                }
+            });
+        }
+
+        document.getElementById('main-frame').addEventListener('load', function() {
+            try {
+                const path = this.contentWindow.location.pathname;
+                syncActiveMenu(path);
+            } catch (e) {
+                console.warn('Sync menu active state failed:', e);
+            }
+        });
     </script>
 </body>
 

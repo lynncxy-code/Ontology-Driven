@@ -1,0 +1,5 @@
+{
+  "_comment": "资产(StaticMesh/glb 名) → 已有类型 rid 的映射表（FR-6 迁移用，复用 2.9.2 block_asset_mapping 思路）。复制成 mesh_type_mapping.json 并按项目填。匹配不上的 actor 归 Legacy 兜底桶。",
+  "forklift.glb": "ri.obj.forklift",
+  "crane.glb": "ri.obj.crane"
+}

@@ -1,0 +1,480 @@
+{
+	"actors": [
+		{
+			"ext_guid": "A586C6AF-42A4-1FD9-22EA-93BE971567C9",
+			"name": "SM_SCC_Equ_Add_A",
+			"mesh_asset": "/Game/SCC/Art/A04_FactoryLevel/SCC_Building/Geometries/SM_SCC_Equ_Add_A.SM_SCC_Equ_Add_A",
+			"transform":
+			{
+				"tx": 810,
+				"ty": -500,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000000000000014,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "DFA3B3E2-4B29-6821-4C95-9394D769F7FA",
+			"name": "SM_SCC_Equ_Add_B",
+			"mesh_asset": "/Game/SCC/Art/A04_FactoryLevel/SCC_Building/Geometries/SM_SCC_Equ_Add_B.SM_SCC_Equ_Add_B",
+			"transform":
+			{
+				"tx": -2270,
+				"ty": -484,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000000000000014,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "0EB9C917-40A5-252D-D882-E0AE971104AB",
+			"name": "SM_SCC_Equ_Add_B2",
+			"mesh_asset": "/Game/SCC/Art/A04_FactoryLevel/SCC_Building/Geometries/SM_SCC_Equ_Add_B.SM_SCC_Equ_Add_B",
+			"transform":
+			{
+				"tx": -2280,
+				"ty": 356,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000000000000014,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "F34B6F3C-438C-32CC-2F70-A88966DE0795",
+			"name": "SM_SCC_Equ_Add_A2",
+			"mesh_asset": "/Game/SCC/Art/A04_FactoryLevel/SCC_Building/Geometries/SM_SCC_Equ_Add_A.SM_SCC_Equ_Add_A",
+			"transform":
+			{
+				"tx": 810,
+				"ty": 350,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000000000000014,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "6CB2D993-489D-1F95-F1FE-A3BC8FFF64A7",
+			"name": "SM_WXSNGC_XC9",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1240,
+				"ty": 1110,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": -89.999999000000003,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "37641B2F-4F87-E118-4A41-AEAB6DC538BE",
+			"name": "SM_WXSNGC_XC10",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1240.000004,
+				"ty": 1290,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000001000000012,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "4047FE6C-4883-89B5-A042-FA8C4A97CED5",
+			"name": "SM_WXSNGC_XC11",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -830.00000399999999,
+				"ty": 1290,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000001000000012,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "921CF36D-4BB5-9B8A-A7CB-4580D1F1C99F",
+			"name": "SM_WXSNGC_XC12",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -830,
+				"ty": 1110,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": -89.999999000000003,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "A9B65476-4761-31ED-9DCB-22B157BF222C",
+			"name": "SM_WXSNGC_XC13",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1240,
+				"ty": 1470,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": -89.999999000000003,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "4E00ACBA-486F-09DD-6D78-DC94589820E1",
+			"name": "SM_WXSNGC_XC14",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1240.000004,
+				"ty": 1650,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000001000000012,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "7C74DDFC-41E3-4717-4152-A9B2744E8120",
+			"name": "SM_WXSNGC_XC15",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -830.00000399999999,
+				"ty": 1650,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000001000000012,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "5BC840DD-48F9-2689-A921-1CB32EABA2E7",
+			"name": "SM_WXSNGC_XC16",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -830,
+				"ty": 1470,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": -89.999999000000003,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "658A100F-4CC9-A5F1-EB44-1B96A38D048D",
+			"name": "SM_WXSNGC_XC17",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1640.000004,
+				"ty": 1650,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000001000000012,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "E81ED5E7-4B22-8317-B4F0-3FAB954DBC43",
+			"name": "SM_WXSNGC_XC18",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1640,
+				"ty": 1470,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": -89.999999000000003,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "76155341-405B-B98D-12BD-94A5879438B9",
+			"name": "SM_WXSNGC_XC19",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1640.000004,
+				"ty": 1290,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000001000000012,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "669D560D-4A17-6123-A9E0-FD8AD66E70E9",
+			"name": "SM_WXSNGC_XC20",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1640,
+				"ty": 1110,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": -89.999999000000003,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "A03A4741-487E-B042-8DB1-74A7C5F5F24E",
+			"name": "SM_WXSNGC_XC21",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1640.000004,
+				"ty": -1110,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000001000000012,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "4C66E149-4645-B2CA-4481-E99F236BD79E",
+			"name": "SM_WXSNGC_XC22",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1640,
+				"ty": -1290,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": -89.999999000000003,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "3B3D8CFA-4B96-D43E-6C15-7BB0C659FACD",
+			"name": "SM_WXSNGC_XC23",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1640.000004,
+				"ty": -1470,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000001000000012,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "258F42A8-4CA9-C5A1-405E-FA933EEFA65A",
+			"name": "SM_WXSNGC_XC24",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1640,
+				"ty": -1650,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": -89.999999000000003,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "2DC178AF-4EAE-01E2-C8E2-8A8AF59A66ED",
+			"name": "SM_WXSNGC_XC25",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1240,
+				"ty": -1650,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": -89.999999000000003,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "F9379BEC-4DBB-FFB6-5A69-CBB1FBD933EE",
+			"name": "SM_WXSNGC_XC26",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1240.000004,
+				"ty": -1470,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000001000000012,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "1BB7A646-4DBD-8E26-4B4C-54BC98F75271",
+			"name": "SM_WXSNGC_XC27",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1240,
+				"ty": -1290,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": -89.999999000000003,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "DDEE53DA-488A-495B-020F-E1B46DE53149",
+			"name": "SM_WXSNGC_XC28",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -1240.000004,
+				"ty": -1110,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000001000000012,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "97ACB556-4961-39AC-1DF1-52A480B14B38",
+			"name": "SM_WXSNGC_XC29",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -830.00000399999999,
+				"ty": -1110,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000001000000012,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "35B4DCF5-4845-0556-7D71-AF835779C9D4",
+			"name": "SM_WXSNGC_XC30",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -830,
+				"ty": -1290,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": -89.999999000000003,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "AE0F12FA-461C-C336-5051-6B8A1BC34C72",
+			"name": "SM_WXSNGC_XC31",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -830.00000399999999,
+				"ty": -1470,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 90.000001000000012,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "2FA1F5A4-4F7E-26E8-A77C-2894C779612E",
+			"name": "SM_WXSNGC_XC32",
+			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
+			"transform":
+			{
+				"tx": -830,
+				"ty": -1650,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": -89.999999000000003,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		}
+	]
+}

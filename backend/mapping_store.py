@@ -16,50 +16,8 @@ import random
 import math
 import hashlib
 
-_DEFAULT_PATH = os.path.join(os.path.dirname(__file__), "data", "mapping_rules.json")
-
-
-class MappingStore:
-    def __init__(self, filepath=None):
-        self.filepath = filepath or _DEFAULT_PATH
-        self.rules = {}
-        self._load()
-
-    def _load(self):
-        if os.path.exists(self.filepath):
-            with open(self.filepath, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, list):
-                    self.rules = {r["id"]: r for r in data if "id" in r}
-                else:
-                    self.rules = data
-        else:
-            self.rules = {}
-
-    def _save(self):
-        with open(self.filepath, "w", encoding="utf-8") as f:
-            json.dump(self.rules, f, ensure_ascii=False, indent=2)
-
-    def list_rules(self):
-        return list(self.rules.values())
-
-    def get_rule(self, rule_id):
-        return self.rules.get(rule_id)
-
-    def save_rule(self, rule_data):
-        if "id" not in rule_data or not rule_data["id"]:
-            rule_data["id"] = str(uuid.uuid4())[:8]
-        rule_data["updated_at"] = time.time()
-        self.rules[rule_data["id"]] = rule_data
-        self._save()
-        return rule_data
-
-    def delete_rule(self, rule_id):
-        if rule_id in self.rules:
-            del self.rules[rule_id]
-            self._save()
-            return True
-        return False
+# MappingStore（2.0/2.1 映射规则存储）已废弃移除（OntoTwin 3.4 清理）：
+# v2.9 后 raw_state 直接存接口原生字段，_build_snapshot 不再消费映射规则。
 
 
 # ═══════════════════════════════════════════════════════════════

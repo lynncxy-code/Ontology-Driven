@@ -12,6 +12,7 @@ from mapping_store import (
 )
 from ontology_parser import validate_files, parse_ontology_csvs
 from writeback import apply_writeback          # FR-5：UE→ontotwin 空间回写
+from ue_project_binding import bind_active_dataset, check_request_matches_active, request_ue_project
 
 # ── App Setup ───────────────────────────────────────────────────
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
@@ -1811,8 +1812,14 @@ def spawn_instance():
     if existing is not None:
         return jsonify({"error": f"实例 ID '{instance_id}' 已存在"}), 409
 
+    metadata = {
+        "display_name": data.get("display_name") or instance_id,
+        "hierarchy_path": data.get("hierarchy_path"),
+        "classification_status": data.get("classification_status") or "confirmed",
+    }
     inst = instance_store.spawn(instance_id, object_type_rid, initial_position,
-                                                                render_config=_build_render_config(object_type_rid))
+                                render_config=_build_render_config(object_type_rid),
+                                metadata=metadata)
     return jsonify({"status": "spawned", "instance": inst}), 201
 
 @app.route('/api/v2/instances/<path:instance_id>', methods=['DELETE'])
@@ -1940,10 +1947,20 @@ def _build_snapshot(instance_id):
             "ui_label_content": raw.get("ui_label_content", instance_id)
         }
 
+    hierarchy_path = inst_meta.get("hierarchy_path") or [ot_name]
+    if not isinstance(hierarchy_path, list):
+        hierarchy_path = [str(hierarchy_path)]
+
     return {
         "instanceId":      instance_id,
         "objectTypeRid":   ot_rid,
         "objectTypeName":  ot_name,
+        "displayName":     inst_meta.get("display_name") or instance_id,
+        "hierarchyPath":   [str(p) for p in hierarchy_path if str(p).strip()],
+        "sourceFolderPath": inst_meta.get("source_folder_path", ""),
+        "sourceAssetPath": inst_meta.get("source_asset_path", ""),
+        "classificationStatus": inst_meta.get("classification_status", "confirmed"),
+        "classificationKey": inst_meta.get("classification_key", ""),
         "timestamp":       now,
         "online":          online,
         "raw_state":       raw,
@@ -1969,6 +1986,9 @@ def get_all_snapshots():
     ?zone=<zone_id>（兼容旧 ?scene=）只返回该分区实例；不传则返回激活项目全部。
     FR-3：一分区一 TwinSceneManager，各自按 zone 拉取、互不串台。
     """
+    ok, info = check_request_matches_active(project_store, request)
+    if not ok:
+        return jsonify(info), 403
     zone = request.args.get('zone') or request.args.get('scene') or None
     result = []
     for iid in instance_store.get_all_ids(zone):   # zone=None → 激活项目全部（唯一可见性规则）
@@ -2025,6 +2045,10 @@ def writeback_state():
     transform = data.get("transform") or {}
     if not instance_id:
         return jsonify({"error": "instance_id is required"}), 400
+
+    bind_ok, bind_info = check_request_matches_active(project_store, request)
+    if not bind_ok:
+        return jsonify(bind_info), 403
 
     ok, info = apply_writeback(instance_store, instance_id, transform, persist=True)
     if not ok:
@@ -2266,17 +2290,20 @@ def _persist_active_project():
 def _init_from_project_store():
     """启动时从 ProjectStore 恢复 _datasets / _active_dataset_id / _object_types。"""
     global _datasets, _active_dataset_id, _object_types
-    existing = {d["id"] for d in _datasets}
+    index_by_id = {d["id"]: i for i, d in enumerate(_datasets) if d.get("id")}
     for ds in project_store.all_datasets():
-        if ds.get("id") and ds["id"] not in existing:
+        if not ds.get("id"):
+            continue
+        if ds["id"] in index_by_id:
+            _datasets[index_by_id[ds["id"]]] = ds
+        else:
             _datasets.append(ds)
-            existing.add(ds["id"])
+            index_by_id[ds["id"]] = len(_datasets) - 1
     active_id = project_store.get_active_id()
     if active_id:
         _active_dataset_id = active_id
-        ot = project_store.get_object_types()
-        if ot:
-            _object_types = ot
+        # 即使激活项目类型表为空，也必须覆盖默认内置类型，避免空项目回退到 Demo 类型库。
+        _object_types = project_store.get_object_types()
         print(f"[project] 恢复激活项目={active_id}，类型={len(_object_types)}，实例={len(project_store.get_all_ids())}")
 
 
@@ -2405,17 +2432,50 @@ def get_custom_graph():
 @app.route('/api/v2/ontology/datasets', methods=['GET'])
 def list_datasets():
     """获取所有已保存的数据集列表，包含内置 Demo"""
+    project_meta = {p["id"]: p for p in project_store.list_projects()}
     result = []
     for ds in _datasets:
+        meta = project_meta.get(ds["id"], {})
         result.append({
             "id": ds["id"],
             "name": ds["name"],
             "created_at": ds["created_at"],
-            "node_count": ds["node_count"],
-            "link_count": ds["link_count"],
+            "node_count": ds.get("node_count"),
+            "link_count": ds.get("link_count"),
+            "project_id": ds["id"] if ds["id"] != "demo" else "",
+            "project_name": meta.get("name") or (ds.get("name") if ds["id"] != "demo" else ""),
+            "type_count": meta.get("type_count"),
+            "instance_count": meta.get("instance_count"),
+            "zone_count": meta.get("zone_count", 0),
+            "unzoned_instance_count": meta.get("unzoned_instance_count", 0),
+            "bound_ue_project_id": ds.get("bound_ue_project_id") or meta.get("bound_ue_project_id", ""),
+            "bound_ue_project_name": ds.get("bound_ue_project_name") or meta.get("bound_ue_project_name", ""),
             "is_active": ds["id"] == _active_dataset_id
         })
     return jsonify(result)
+
+@app.route('/api/v2/ue/bind_active_project', methods=['POST'])
+def bind_active_ue_project():
+    """Bind current active dataset/project to a UE project identity."""
+    global _datasets
+    ue = request_ue_project(request)
+    ok, info = bind_active_dataset(project_store, ue["id"], ue["name"])
+    if not ok:
+        return jsonify(info), 400
+    ds = info["dataset"]
+    for i, item in enumerate(_datasets):
+        if item.get("id") == ds.get("id"):
+            _datasets[i] = ds
+            break
+    return jsonify({"status": "ok", "project_id": info.get("project_id"), "dataset": ds})
+
+@app.route('/api/v2/ue/binding_status', methods=['GET'])
+def ue_binding_status():
+    ue = request_ue_project(request)
+    ok, info = check_request_matches_active(project_store, request)
+    status = "ok" if ok else "error"
+    code = 200 if ok else 403
+    return jsonify({"status": status, "request": ue, **info}), code
 
 
 @app.route('/api/v2/ontology/datasets', methods=['POST'])
@@ -2458,7 +2518,9 @@ def create_empty_dataset():
         "created_at": created_at,
         "node_count": 0,
         "link_count": 0,
-        "graph_data": {"nodes": [], "links": [], "categories": []}
+        "graph_data": {"nodes": [], "links": [], "categories": []},
+        "bound_ue_project_id": (data.get("bound_ue_project_id") or "").strip(),
+        "bound_ue_project_name": (data.get("bound_ue_project_name") or "").strip(),
     }
     _datasets.append(new_ds)
 

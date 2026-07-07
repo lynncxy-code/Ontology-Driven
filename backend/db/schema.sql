@@ -64,6 +64,12 @@ CREATE TABLE IF NOT EXISTS instance (
     component_id      TEXT,                -- 绑定的 CAD 构件（自由实例为 NULL）
     source            TEXT DEFAULT 'ontotwin',  -- 'ontotwin' | 'ue_migrated'
     ext_guid          TEXT,                -- UE ActorGuid（迁移收编用，幂等键）
+    display_name      TEXT,
+    hierarchy_path    JSONB DEFAULT '[]',
+    source_folder_path TEXT,
+    source_asset_path TEXT,
+    classification_status TEXT DEFAULT 'confirmed',
+    classification_key TEXT,
     status            TEXT DEFAULT 'online',
     created_at        DOUBLE PRECISION,
     last_seen         DOUBLE PRECISION,
@@ -72,6 +78,13 @@ CREATE TABLE IF NOT EXISTS instance (
     deleted_at        TIMESTAMPTZ,
     PRIMARY KEY (project_id, id)
 );
+
+ALTER TABLE instance ADD COLUMN IF NOT EXISTS display_name TEXT;
+ALTER TABLE instance ADD COLUMN IF NOT EXISTS hierarchy_path JSONB DEFAULT '[]';
+ALTER TABLE instance ADD COLUMN IF NOT EXISTS source_folder_path TEXT;
+ALTER TABLE instance ADD COLUMN IF NOT EXISTS source_asset_path TEXT;
+ALTER TABLE instance ADD COLUMN IF NOT EXISTS classification_status TEXT DEFAULT 'confirmed';
+ALTER TABLE instance ADD COLUMN IF NOT EXISTS classification_key TEXT;
 
 -- ── 索引 ──────────────────────────────────────────────────────────────────
 -- 按分区过滤（FR-3 snapshots 加 zone 过滤）；仅索引未删行。

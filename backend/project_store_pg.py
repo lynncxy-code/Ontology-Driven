@@ -19,7 +19,7 @@ import threading
 
 from psycopg.types.json import Jsonb
 
-from project_store import ProjectStore, _default_spatial_profile
+from project_store import ProjectStore, _clean_hierarchy_path, _default_spatial_profile, apply_instance_metadata
 from db import pg
 
 
@@ -101,7 +101,10 @@ class ProjectStorePG(ProjectStore):
 
                 cur.execute(
                     """SELECT id, object_type_rid, object_type_name, zone_id, component_id,
-                              source, ext_guid, status, created_at, last_seen,
+                              source, ext_guid, display_name, hierarchy_path,
+                              source_folder_path, source_asset_path,
+                              classification_status, classification_key,
+                              status, created_at, last_seen,
                               render_config, raw_state
                        FROM instance WHERE project_id = %s AND deleted_at IS NULL""",
                     (pid,),
@@ -111,11 +114,17 @@ class ProjectStorePG(ProjectStore):
                         "id": r[0],
                         "object_type_rid": r[1],
                         "object_type_name": r[2],
-                        "render_config": r[10] or {},
-                        "created_at": r[8],
-                        "last_seen": r[9],
-                        "status": r[7],
-                        "raw_state": r[11] or {},
+                        "display_name": r[7] or r[0],
+                        "hierarchy_path": _clean_hierarchy_path(r[8], [r[2] or r[1] or "未分类"]),
+                        "source_folder_path": r[9] or "",
+                        "source_asset_path": r[10] or "",
+                        "classification_status": r[11] or "confirmed",
+                        "classification_key": r[12] or "",
+                        "render_config": r[16] or {},
+                        "created_at": r[14],
+                        "last_seen": r[15],
+                        "status": r[13],
+                        "raw_state": r[17] or {},
                     }
                     # 可空的新增/绑定字段，有值才写回（保持记录形状与 JSON 版一致）
                     if r[3] is not None:
@@ -126,6 +135,7 @@ class ProjectStorePG(ProjectStore):
                         rec["source"] = r[5]
                     if r[6] is not None:
                         rec["ext_guid"] = r[6]
+                    apply_instance_metadata(rec)
                     proj["instances"][r[0]] = rec
                 return self._ensure_collections(proj)
 
@@ -179,14 +189,23 @@ class ProjectStorePG(ProjectStore):
                         cur.execute(
                             """INSERT INTO instance
                                  (project_id, id, object_type_rid, object_type_name, zone_id,
-                                  component_id, source, ext_guid, status, created_at, last_seen,
+                                  component_id, source, ext_guid,
+                                  display_name, hierarchy_path, source_folder_path, source_asset_path,
+                                  classification_status, classification_key,
+                                  status, created_at, last_seen,
                                   render_config, raw_state, deleted_at)
-                               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, NULL)
+                               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, NULL)
                                ON CONFLICT (project_id, id) DO UPDATE SET
                                  object_type_rid=EXCLUDED.object_type_rid,
                                  object_type_name=EXCLUDED.object_type_name,
                                  zone_id=EXCLUDED.zone_id, component_id=EXCLUDED.component_id,
                                  source=EXCLUDED.source, ext_guid=EXCLUDED.ext_guid,
+                                 display_name=EXCLUDED.display_name,
+                                 hierarchy_path=EXCLUDED.hierarchy_path,
+                                 source_folder_path=EXCLUDED.source_folder_path,
+                                 source_asset_path=EXCLUDED.source_asset_path,
+                                 classification_status=EXCLUDED.classification_status,
+                                 classification_key=EXCLUDED.classification_key,
                                  status=EXCLUDED.status, created_at=EXCLUDED.created_at,
                                  last_seen=EXCLUDED.last_seen,
                                  render_config=EXCLUDED.render_config,
@@ -195,6 +214,15 @@ class ProjectStorePG(ProjectStore):
                                 pid, iid, rec.get("object_type_rid"), rec.get("object_type_name"),
                                 rec.get("zone_id"), rec.get("component_id"),
                                 rec.get("source", "ontotwin"), rec.get("ext_guid"),
+                                rec.get("display_name") or iid,
+                                Jsonb(_clean_hierarchy_path(
+                                    rec.get("hierarchy_path"),
+                                    [rec.get("object_type_name") or rec.get("object_type_rid") or "未分类"],
+                                )),
+                                rec.get("source_folder_path") or "",
+                                rec.get("source_asset_path") or "",
+                                rec.get("classification_status") or "confirmed",
+                                rec.get("classification_key") or "",
                                 rec.get("status", "online"), rec.get("created_at"),
                                 rec.get("last_seen"),
                                 Jsonb(rec.get("render_config") or {}),
@@ -221,17 +249,26 @@ class ProjectStorePG(ProjectStore):
         with pg.get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """SELECT p.id, p.name, p.created_at,
+                    """SELECT p.id, p.name, p.created_at, p.dataset,
                               (SELECT count(*) FROM object_type o
                                  WHERE o.project_id = p.id AND o.deleted_at IS NULL),
                               (SELECT count(*) FROM instance i
-                                 WHERE i.project_id = p.id AND i.deleted_at IS NULL)
+                                 WHERE i.project_id = p.id AND i.deleted_at IS NULL),
+                              (SELECT count(DISTINCT i.zone_id) FROM instance i
+                                 WHERE i.project_id = p.id AND i.deleted_at IS NULL AND i.zone_id IS NOT NULL),
+                              (SELECT count(*) FROM instance i
+                                 WHERE i.project_id = p.id AND i.deleted_at IS NULL AND i.zone_id IS NULL)
                        FROM project p WHERE p.deleted_at IS NULL""",
                 )
-                for pid, name, created, tc, ic in cur.fetchall():
+                for pid, name, created, dataset, tc, ic, zc, unzoned in cur.fetchall():
+                    ds = dataset or {}
                     out.append({
                         "id": pid, "name": name, "created_at": created,
                         "type_count": tc, "instance_count": ic,
+                        "zone_count": zc or 0,
+                        "unzoned_instance_count": unzoned or 0,
+                        "bound_ue_project_id": ds.get("bound_ue_project_id", ""),
+                        "bound_ue_project_name": ds.get("bound_ue_project_name", ""),
                         "active": pid == self._active_id,
                     })
         return out

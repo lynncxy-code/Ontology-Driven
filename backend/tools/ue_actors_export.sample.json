@@ -6,7 +6,21 @@
     {
       "ext_guid": "SAMPLE-GUID-0001",
       "name": "Forklift_Legacy_01",
+      "actor_label": "Forklift_Legacy_01",
+      "actor_name": "Forklift_Legacy_01",
+      "source_folder_path": "ToMigrate/设备/叉车",
+      "actor_class": "StaticMeshActor",
+      "actor_class_path": "/Script/Engine.StaticMeshActor",
+      "blueprint_class_path": "",
       "mesh_asset": "forklift.glb",
+      "static_mesh_asset": "forklift.glb",
+      "static_mesh_assets": ["forklift.glb"],
+      "skeletal_mesh_asset": "",
+      "skeletal_mesh_assets": [],
+      "component_summary": {
+        "static_mesh_components": 1,
+        "skeletal_mesh_components": 0
+      },
       "transform": {
         "tx": 1200.0, "ty": 300.0, "tz": 0.0,
         "rx": 0.0, "ry": 0.0, "rz": 90.0,

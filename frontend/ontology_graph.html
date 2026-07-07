@@ -203,6 +203,23 @@
             background: rgba(0, 0, 0, 0.05);
             color: #111111;
         }
+        .workbench-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            width: min(900px, calc(100vw - 64px));
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .workbench-body {
+            padding: 28px 40px 30px;
+            min-height: 470px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
         .load-data-box {
             background: var(--panel-bg);
             border: 1px solid var(--border-color);
@@ -314,13 +331,165 @@
         .ui-modal-btn:hover { opacity: 0.9; }
 
         /* ── 数据集项目行悬停与加载态 ── */
+        #datasets-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow: auto;
+            max-height: 390px;
+            padding-right: 2px;
+        }
+        .dataset-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 28px;
+            padding: 20px 30px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            cursor: default;
+            transition: border-color .15s, background-color .15s, box-shadow .15s;
+        }
+        .dataset-row.active {
+            border-color: #d4d4d4;
+            background: #fafafa;
+            box-shadow: inset 2px 0 0 #111111;
+        }
         .dataset-row:hover {
-            border-color: #999999 !important;
-            background-color: #fafafa !important;
+            border-color: #999999;
+            background-color: #fafafa;
         }
         .dataset-row.is-activating {
             opacity: 0.6;
             pointer-events: none;
+        }
+        .dataset-main {
+            min-width: 0;
+        }
+        .dataset-title-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .dataset-title {
+            font-weight: 700;
+            font-size: 14px;
+            color: #111111;
+            line-height: 1.35;
+        }
+        .dataset-active-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #d4d4d4;
+            border-radius: 999px;
+            background: #ffffff;
+            color: #111111;
+            font-size: 11px;
+            line-height: 1;
+            font-weight: 600;
+            padding: 4px 8px;
+        }
+        .dataset-active-badge::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #067647;
+            flex: 0 0 auto;
+        }
+        .dataset-summary {
+            font-size: 12px;
+            color: #777777;
+            margin-top: 4px;
+            line-height: 1.45;
+        }
+        .dataset-date {
+            color: #999999;
+            margin-left: 8px;
+        }
+        .dataset-meta-row {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) minmax(150px, .7fr) minmax(88px, .35fr);
+            gap: 18px;
+            margin-top: 11px;
+            color: #5c5c5c;
+        }
+        .dataset-chip {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 7px;
+            min-width: 0;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #5c5c5c;
+        }
+        .dataset-chip-label {
+            color: #8a8a8a;
+            font-size: 11px;
+            font-weight: 500;
+            white-space: nowrap;
+            flex: 0 0 auto;
+        }
+        .dataset-chip-value {
+            min-width: 0;
+            color: #111111;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        .dataset-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .dataset-btn {
+            background: #ffffff;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 7px 12px;
+            font-size: 12px;
+            line-height: 1;
+            cursor: pointer;
+            color: #333333;
+            font-weight: 600;
+            transition: background .15s, border-color .15s, color .15s;
+        }
+        .dataset-btn:hover {
+            background: #f3f3f3;
+            border-color: #999999;
+            color: #111111;
+        }
+        .dataset-btn-primary {
+            min-width: 56px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #111111;
+            color: #ffffff;
+            border-color: #111111;
+        }
+        .dataset-btn-primary:hover {
+            background: #000000;
+            color: #ffffff;
+            border-color: #000000;
+        }
+        .dataset-btn-danger {
+            color: #b42318;
+            border-color: #fda29b;
+            background: #ffffff;
+        }
+        .dataset-btn-danger:hover {
+            color: #b42318;
+            border-color: #f97066;
+            background: #fef3f2;
         }
         .spinner {
             width: 14px; height: 14px; border: 2px solid #ddd;
@@ -383,7 +552,7 @@
 
         <!-- 数据集管理工作台 (集成标签页与卡片) -->
         <div id="workbench-panel" style="position: absolute; inset: 0; background: var(--bg-base); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 15;">
-            <div style="background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 12px; width: 580px; box-shadow: 0 4px 24px rgba(0,0,0,0.06); display: flex; flex-direction: column; overflow: hidden;">
+            <div class="workbench-card">
                 <!-- 卡片内部 Tab Bar -->
                 <div style="display: flex; background: #f3f4f6; border-bottom: 1px solid var(--border-color); padding: 4px;">
                     <button class="workbench-tab-btn active" id="tab-datasets" onclick="switchTab('datasets')" style="flex: 1; border: none; background: transparent; padding: 10px; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px; transition: all 0.15s; color: var(--text-secondary);">
@@ -395,12 +564,12 @@
                 </div>
 
                 <!-- 卡片内容区 -->
-                <div style="padding: 24px 32px; min-height: 380px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div class="workbench-body">
                     <!-- 子面板 1: 我的数据集 -->
                     <div id="sub-panel-datasets" style="display: flex; flex-direction: column; gap: 12px; flex: 1;">
                         <p style="font-size:12px; color: var(--text-secondary); margin: 0 0 6px;">选中数据集后，语义图谱与本体配置中心将同步切换至该数据。</p>
                         
-                        <div id="datasets-list" style="display:flex; flex-direction:column; gap: 8px; overflow: auto; max-height: 320px;">
+                        <div id="datasets-list">
                             <!-- 动态渲染 -->
                         </div>
 
@@ -1165,33 +1334,32 @@
                 const isActive = ds.is_active;
                 const nodeTxt = ds.node_count != null ? `${ds.node_count}节点` : '内置';
                 const linkTxt = ds.link_count != null ? ` · ${ds.link_count}关系` : '';
-                const dateTxt = ds.created_at !== 'built-in' ? `<span style="color:#aaa; font-size:11px; margin-left:8px;">${ds.created_at}</span>` : '';
+                const dateTxt = ds.created_at !== 'built-in' ? `<span class="dataset-date">${escapeHtml(ds.created_at || '')}</span>` : '';
+                const ueName = (ds.bound_ue_project_name || '').trim();
+                const zoneTxt = ds.id === 'demo' ? '' : (ds.zone_count > 0 ? `${ds.zone_count} 个分区` : '未分区');
+                const chips = [];
+                if (ds.project_id) chips.push(`<span class="dataset-chip dataset-chip-project"><span class="dataset-chip-label">项目 ID</span><span class="dataset-chip-value">${escapeHtml(ds.project_id)}</span></span>`);
+                if (ueName) chips.push(`<span class="dataset-chip dataset-chip-ue"><span class="dataset-chip-label">UE 项目</span><span class="dataset-chip-value">${escapeHtml(ueName)}</span></span>`);
+                if (zoneTxt) chips.push(`<span class="dataset-chip dataset-chip-zone"><span class="dataset-chip-label">分区</span><span class="dataset-chip-value">${escapeHtml(zoneTxt)}</span></span>`);
 
                 const row = document.createElement('div');
-                row.className = 'dataset-row';
-                row.style.cssText = `
-                    display:flex; align-items:center; gap:12px;
-                    padding: 12px 16px; border-radius: 8px;
-                    border: 1.5px solid ${isActive ? '#111' : '#e5e7eb'};
-                    background: ${isActive ? '#f9f9f9' : '#fff'};
-                    cursor: default; transition: all .15s;
-                `;
+                row.className = isActive ? 'dataset-row active' : 'dataset-row';
 
                 row.innerHTML = `
-                    <div style="flex:1; min-width:0; padding-left:4px;">
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <div style="font-weight:600; font-size:13px;">${ds.name}</div>
-                            ${isActive ? `<span style="display:inline-flex; align-items:center; gap:4px; font-size:10px; background:#ecfdf5; color:#047857; border:1px solid #d1fae5; border-radius:12px; padding:1px 6px; font-weight:600;">● 当前激活</span>` : ''}
+                    <div class="dataset-main">
+                        <div class="dataset-title-row">
+                            <div class="dataset-title">${escapeHtml(ds.name || '')}</div>
+                            ${isActive ? `<span class="dataset-active-badge">当前激活</span>` : ''}
                         </div>
-                        <div style="font-size:12px; color:#888; margin-top:2px;">${nodeTxt}${linkTxt}${dateTxt}</div>
+                        <div class="dataset-summary">${nodeTxt}${linkTxt}${dateTxt}</div>
+                        ${chips.length ? `<div class="dataset-meta-row">${chips.join('')}</div>` : ''}
                     </div>
-                    <div style="display:flex; gap:6px; align-items:center;">
+                    <div class="dataset-actions">
                         ${!isActive ? `<button onclick="activateDataset('${ds.id}', this.closest('.dataset-row'), this)" 
-                            style="background:#111; color:#fff; border:none; border-radius:5px; padding:4px 12px; font-size:11px; cursor:pointer; font-weight:600; min-width:52px; display:inline-flex; align-items:center; justify-content:center;">激活</button>` : ''}
-                        <button onclick="previewDataset('${ds.id}')" 
-                            style="background:transparent; border:1px solid #d1d5db; border-radius:5px; padding:4px 10px; font-size:11px; cursor:pointer; color:#555;">预览图谱</button>
+                            class="dataset-btn dataset-btn-primary">激活</button>` : ''}
+                        <button onclick="previewDataset('${ds.id}')" class="dataset-btn">预览图谱</button>
                         ${ds.id !== 'demo' ? `<button onclick="deleteDataset(this, '${ds.id}', '${escapeAttr(ds.name)}')" 
-                            style="background:transparent; border:1px solid #ff4d4f; border-radius:5px; padding:4px 10px; font-size:11px; cursor:pointer; color:#ff4d4f;">删除</button>` : ''}
+                            class="dataset-btn dataset-btn-danger">删除</button>` : ''}
                     </div>
                 `;
                 container.appendChild(row);
@@ -1201,7 +1369,7 @@
         async function deleteDataset(btn, dsId, dsName) {
             const ok = await UI.confirm({
                 title: '确认删除数据集',
-                bodyHTML: `确认删除数据集 <strong>"${escapeHtml(dsName)}"</strong> 吗？<br><span style="color:#ef4444; font-size:12px;">⚠ 此操作无法撤销，该数据集关联的本体配置和全部实例构件坐标都会被清除！</span>`,
+                bodyHTML: `确认删除数据集 <strong>"${escapeHtml(dsName)}"</strong> 吗？<br><span style="color:#b42318; font-size:12px;">此操作无法撤销，该数据集关联的本体配置和全部实例构件坐标都会被清除。</span>`,
                 confirmText: '确认删除',
                 danger: true
             });
@@ -1256,9 +1424,8 @@
                         document.getElementById('dataset-preview-banner').style.display = 'none';
                     }
 
-                    // 3) 重新拉取激活数据集的图谱渲染，并更新列表
+                    // 3) 激活只更新列表状态；预览图谱由“预览图谱”按钮单独触发
                     renderDatasetList();
-                    initGraph(); 
                 } else {
                     UI.toast('激活失败：' + (result.error || '未知错误'), 'err');
                     renderDatasetList(); // 恢复列表状态

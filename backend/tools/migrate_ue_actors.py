@@ -27,10 +27,13 @@ InstanceId 由 ext_guid 确定性派生（ue_<sanitized guid>）；且迁移前�
 import os
 import re
 import json
+import csv
 import argparse
+import uuid
 
-from project_store import ProjectStore, _default_raw_state   # ONTOTWIN_STORE=pg 时自动是 PG 版
+from project_store import ProjectStore, _default_raw_state, apply_instance_metadata   # ONTOTWIN_STORE=pg 时自动是 PG 版
 from db import pg
+from ue_project_binding import bind_active_dataset
 
 _HERE = os.path.dirname(__file__)
 LEGACY_RID = "legacy.unclassified"
@@ -66,7 +69,70 @@ def _raw_from_transform(rid, name, mesh_asset, tf):
     return raw
 
 
-def migrate(input_path, mapping_path, dry_run=False):
+def _split_path(path):
+    return [p.strip() for p in str(path or "").replace("\\", "/").split("/") if p.strip()]
+
+
+def _best_asset_field(actor):
+    for key in ("blueprint_class_path", "skeletal_mesh_asset", "static_mesh_asset", "mesh_asset", "actor_class_path"):
+        value = actor.get(key)
+        if value:
+            return key, value
+    return "", ""
+
+
+def _best_asset_key(actor):
+    return _best_asset_field(actor)[1]
+
+
+def _classification_key(actor):
+    field, asset = _best_asset_field(actor)
+    if asset:
+        return f"{field}:{asset}"
+    folder = actor.get("source_folder_path") or ""
+    if folder:
+        return f"folder:{folder}"
+    return f"name:{actor.get('name') or actor.get('actor_label') or 'unknown'}"
+
+
+def _load_classification_csv(path):
+    if not path:
+        return {}
+    rules = {}
+    with open(path, "r", encoding="utf-8-sig", newline="") as f:
+        for row in csv.DictReader(f):
+            key = (row.get("group_key") or "").strip()
+            if not key:
+                continue
+            rules[key] = row
+    return rules
+
+
+def _migration_rid(group_key):
+    return f"ri.obj.{uuid.uuid5(uuid.NAMESPACE_URL, 'ontotwin:migration:' + group_key)}"
+
+
+def _metadata_from_actor(actor, rule, rid, source_asset):
+    label = actor.get("actor_label") or actor.get("name") or actor.get("ext_guid") or ""
+    source_folder = actor.get("source_folder_path") or ""
+    if rule and (rule.get("hierarchy_path") or "").strip():
+        hierarchy_path = _split_path(rule.get("hierarchy_path"))
+    elif source_folder:
+        hierarchy_path = ["历史迁移"] + _split_path(source_folder)
+    else:
+        hierarchy_path = ["历史迁移", "未分类"]
+    status = (rule or {}).get("classification_status") or ("confirmed" if rid != LEGACY_RID else "needs_review")
+    return {
+        "display_name": label,
+        "hierarchy_path": hierarchy_path,
+        "source_folder_path": source_folder,
+        "source_asset_path": source_asset,
+        "classification_status": status,
+        "classification_key": _classification_key(actor),
+    }
+
+
+def migrate(input_path, mapping_path, classification_csv=None, dry_run=False):
     # 仅当运行时后端是 PG 时才要求 PG 可达（跟随 ONTOTWIN_STORE，与运行中后端一致，
     # 避免"迁移写 PG、运行时读 JSON"的双真源劈叉）
     if os.environ.get("ONTOTWIN_STORE", "json").lower() == "pg" and not pg.ping():
@@ -77,11 +143,14 @@ def migrate(input_path, mapping_path, dry_run=False):
     actors = payload.get("actors") or []
     target_pid = payload.get("project_id")
     zone_id = payload.get("zone_id")
+    ue_project_id = (payload.get("ue_project_id") or "").strip()
+    ue_project_name = (payload.get("ue_project_name") or "").strip()
 
     mapping = {}
     if os.path.exists(mapping_path):
         with open(mapping_path, "r", encoding="utf-8") as f:
             mapping = {k: v for k, v in json.load(f).items() if not k.startswith("_")}
+    classification_rules = _load_classification_csv(classification_csv)
 
     store = ProjectStore()
     if target_pid and target_pid != store.get_active_id():
@@ -89,6 +158,28 @@ def migrate(input_path, mapping_path, dry_run=False):
             raise SystemExit(f"目标项目不存在或无法激活：{target_pid}")
     if store.get_active() is None:
         raise SystemExit("当前无激活项目，且输入未指定可用 project_id")
+
+    active_proj = store.get_active() or {}
+    active_ds = active_proj.get("dataset") or {}
+    bound_ue_project_id = (active_ds.get("bound_ue_project_id") or "").strip()
+    if ue_project_id:
+        if bound_ue_project_id and bound_ue_project_id != ue_project_id:
+            raise SystemExit(
+                f"UE 工程不匹配：当前项目已绑定 {bound_ue_project_id}，"
+                f"但导出 JSON 来自 {ue_project_id}"
+            )
+        if not dry_run:
+            ok, info = bind_active_dataset(store, ue_project_id, ue_project_name)
+            if not ok:
+                raise SystemExit(f"绑定 UE 工程失败：{info}")
+    elif bound_ue_project_id:
+        raise SystemExit(
+            f"导出 JSON 缺少 ue_project_id，但当前项目已绑定 {bound_ue_project_id}。"
+            "请用新版 UE 插件重新导出。"
+        )
+    else:
+        print("警告：导出 JSON 未提供 ue_project_id；按旧导出兼容模式迁移，不建立 UE 工程绑定。")
+
     print(f"存储后端={store.__class__.__name__} | 目标项目={store.get_active_id()}"
           f"（{(store.get_active() or {}).get('name')}）")
 
@@ -106,10 +197,16 @@ def migrate(input_path, mapping_path, dry_run=False):
         if not guid:
             print(f"跳过（无 ext_guid）: {a.get('name')}")
             continue
-        mesh = a.get("mesh_asset") or ""
+        mesh = a.get("mesh_asset") or a.get("static_mesh_asset") or a.get("skeletal_mesh_asset") or ""
         tf = a.get("transform") or {}
 
-        rid = mapping.get(mesh)
+        group_key = _classification_key(a)
+        rule = classification_rules.get(group_key)
+        source_asset = _best_asset_key(a) or mesh
+        rid = (rule or {}).get("suggested_object_type_rid")
+        if not rid and rule and (rule.get("action") or "").strip().lower() == "create_experimental":
+            rid = _migration_rid(group_key)
+        rid = rid or mapping.get(source_asset) or mapping.get(mesh)
         if rid and rid in ots:
             stats["matched"] += 1
         else:
@@ -132,6 +229,7 @@ def migrate(input_path, mapping_path, dry_run=False):
             },
             "raw_state": _raw_from_transform(rid, a.get("name"), mesh, tf),
         }
+        apply_instance_metadata(rec, _metadata_from_actor(a, rule, rid, source_asset))
         if iid in insts:
             # 保留原 created_at
             rec["created_at"] = insts[iid].get("created_at")
@@ -191,6 +289,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", default=os.path.join(_HERE, "ue_actors_export.json"))
     ap.add_argument("--mapping", default=os.path.join(_HERE, "mesh_type_mapping.json"))
+    ap.add_argument("--classification-csv", default=None,
+                    help="可选：由 generate_migration_classification_csv.py 生成并人工编辑后的分类表")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
-    migrate(args.input, args.mapping, args.dry_run)
+    migrate(args.input, args.mapping, args.classification_csv, args.dry_run)

@@ -60,6 +60,40 @@ def _default_raw_state(object_type_rid, object_type_name, initial_position):
     return raw
 
 
+def _clean_hierarchy_path(value, fallback):
+    """Normalize instance hierarchy path to a non-empty list of display segments."""
+    if isinstance(value, str):
+        parts = value.replace("\\", "/").split("/")
+    elif isinstance(value, (list, tuple)):
+        parts = value
+    else:
+        parts = fallback
+    cleaned = []
+    for part in parts or []:
+        text = str(part or "").strip()
+        if text:
+            cleaned.append(text)
+    return cleaned or [str(fallback[0] if fallback else "未分类")]
+
+
+def apply_instance_metadata(rec, metadata=None):
+    """Attach display/tree metadata shared by OntoTwin UI and UE Outliner folders."""
+    metadata = metadata or {}
+    type_name = rec.get("object_type_name") or rec.get("object_type_rid") or "未分类"
+    rec["display_name"] = (metadata.get("display_name") or rec.get("display_name") or rec.get("id") or "").strip()
+    rec["hierarchy_path"] = _clean_hierarchy_path(
+        metadata.get("hierarchy_path", rec.get("hierarchy_path")),
+        [type_name],
+    )
+    rec["source_folder_path"] = (metadata.get("source_folder_path") or rec.get("source_folder_path") or "").strip()
+    rec["source_asset_path"] = (metadata.get("source_asset_path") or rec.get("source_asset_path") or "").strip()
+    rec["classification_status"] = (
+        metadata.get("classification_status") or rec.get("classification_status") or "confirmed"
+    ).strip()
+    rec["classification_key"] = (metadata.get("classification_key") or rec.get("classification_key") or "").strip()
+    return rec
+
+
 def _default_spatial_profile():
     """3.1 空间剖面默认值。规范系=mm；规范→UE 默认恒等（matrix=None 表示未标定，
     回退到 calibration 旧矩阵），保证旧项目/未标定项目行为不变。"""
@@ -148,12 +182,20 @@ class ProjectStore:
             try:
                 with open(os.path.join(self._projects_dir, fn), "r", encoding="utf-8") as f:
                     p = json.load(f)
+                ds = p.get("dataset") or {}
+                insts = p.get("instances") or {}
+                zones = {r.get("zone_id") for r in insts.values() if isinstance(r, dict) and r.get("zone_id")}
+                unzoned = sum(1 for r in insts.values() if isinstance(r, dict) and not r.get("zone_id"))
                 out.append({
                     "id": p.get("id"),
                     "name": p.get("name"),
                     "created_at": p.get("created_at"),
                     "type_count": len(p.get("object_types") or {}),
-                    "instance_count": len(p.get("instances") or {}),
+                    "instance_count": len(insts),
+                    "zone_count": len(zones),
+                    "unzoned_instance_count": unzoned,
+                    "bound_ue_project_id": ds.get("bound_ue_project_id", ""),
+                    "bound_ue_project_name": ds.get("bound_ue_project_name", ""),
                     "active": p.get("id") == self._active_id,
                 })
             except Exception:
@@ -282,7 +324,7 @@ class ProjectStore:
         """兼容旧 InstanceStore：暴露当前项目实例 dict（app.py 有直接访问处）。"""
         return self._current["instances"] if self._current else {}
 
-    def spawn(self, instance_id, object_type_rid, initial_position=None, render_config=None):
+    def spawn(self, instance_id, object_type_rid, initial_position=None, render_config=None, metadata=None):
         with self._lock:
             if not self._current:
                 return None
@@ -297,6 +339,7 @@ class ProjectStore:
                 "status": "online",
                 "raw_state": _default_raw_state(object_type_rid, ot.get("name"), initial_position),
             }
+            apply_instance_metadata(rec, metadata)
             self._current["instances"][instance_id] = rec
             self._save_current()
             return rec
@@ -356,6 +399,15 @@ class ProjectStore:
                     "id": iid,
                     "object_type_rid": inst["object_type_rid"],
                     "object_type_name": inst["object_type_name"],
+                    "display_name": inst.get("display_name") or iid,
+                    "hierarchy_path": _clean_hierarchy_path(
+                        inst.get("hierarchy_path"),
+                        [inst.get("object_type_name") or inst.get("object_type_rid") or "未分类"],
+                    ),
+                    "source_folder_path": inst.get("source_folder_path", ""),
+                    "source_asset_path": inst.get("source_asset_path", ""),
+                    "classification_status": inst.get("classification_status", "confirmed"),
+                    "classification_key": inst.get("classification_key", ""),
                     "status": "online" if (now - inst["last_seen"]) < 3.0 else "offline",
                     "last_seen": inst["last_seen"],
                     "created_at": inst["created_at"],
@@ -552,6 +604,7 @@ class ProjectStore:
                         "status": "online",
                         "raw_state": _default_raw_state(ot_rid, comp.get("type_name"), pos),
                     }
+                apply_instance_metadata(rec)
                 new_instances[iid] = rec
             self._current["instances"] = new_instances
             self._save_current()

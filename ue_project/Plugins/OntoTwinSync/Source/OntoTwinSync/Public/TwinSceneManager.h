@@ -21,6 +21,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "HttpModule.h"
+#include "InputCoreTypes.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Dom/JsonObject.h"
@@ -29,6 +30,8 @@
 #include "TwinSceneManager.generated.h"
 
 class ATwinInstance;
+class AOntoTwinRuntimeGizmo;
+class UOntoTwinRuntimeEditorPanel;
 
 /**
  * ATwinSceneManager
@@ -46,6 +49,7 @@ public:
 protected:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+    virtual void Tick(float DeltaTime) override;
 
 public:
     // ═══════════════════════════════════════════════════════════════════════
@@ -94,6 +98,91 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="实例配置",
               meta=(DisplayName="孪生体蓝图类"))
     TSubclassOf<ATwinInstance> InstanceClass;
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Runtime Editor（打包 exe 内的轻量场景编辑入口）
+    // ═══════════════════════════════════════════════════════════════════════
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor",
+              meta=(DisplayName="启用Runtime Editor"))
+    bool bEnableRuntimeEditor = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor",
+              meta=(DisplayName="编辑模式轮询间隔(秒)", ClampMin="0.2", ClampMax="10.0"))
+    float EditModePollInterval = 1.5f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor",
+              meta=(DisplayName="Runtime Editor面板类"))
+    TSubclassOf<UOntoTwinRuntimeEditorPanel> RuntimeEditorPanelClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor",
+              meta=(DisplayName="Runtime Gizmo类"))
+    TSubclassOf<AOntoTwinRuntimeGizmo> RuntimeGizmoClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|输入",
+              meta=(DisplayName="切换编辑模式键"))
+    FKey ToggleEditKey = EKeys::F8;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|输入",
+              meta=(DisplayName="备用切换编辑模式键(PIE推荐)"))
+    FKey AlternateToggleEditKey = EKeys::F10;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|输入",
+              meta=(DisplayName="保存键"))
+    FKey SaveKey = EKeys::S;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|输入",
+              meta=(DisplayName="取消键"))
+    FKey CancelKey = EKeys::Escape;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|吸附",
+              meta=(DisplayName="启用靠墙吸附"))
+    bool bEnableWallSnap = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|吸附",
+              meta=(DisplayName="启用网格吸附"))
+    bool bEnableGridSnap = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|吸附",
+              meta=(DisplayName="网格吸附步长(cm)", ClampMin="1.0", ClampMax="10000.0"))
+    float GridSnapSizeCm = 50.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|吸附",
+              meta=(DisplayName="靠墙吸附距离(cm)", ClampMin="1.0", ClampMax="10000.0"))
+    float WallSnapDistanceCm = 100.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|吸附",
+              meta=(DisplayName="墙体Tag"))
+    FName WallTag = TEXT("OntoTwinWall");
+
+    UFUNCTION(BlueprintCallable, Category="Runtime Editor")
+    void ToggleRuntimeEditMode();
+
+    UFUNCTION(BlueprintCallable, Category="Runtime Editor")
+    void SaveRuntimeEdit();
+
+    UFUNCTION(BlueprintCallable, Category="Runtime Editor")
+    void CancelRuntimeEdit();
+
+    UFUNCTION(BlueprintCallable, Category="Runtime Editor")
+    void BindCurrentRuntimeProject();
+
+    UFUNCTION(BlueprintCallable, Category="Runtime Editor")
+    void SetRuntimeWallSnapEnabled(bool bEnabled);
+
+    UFUNCTION(BlueprintCallable, Category="Runtime Editor")
+    void SetRuntimeGridSnapEnabled(bool bEnabled);
+
+    FString GetRuntimeEditorModeText() const;
+    FString GetRuntimeEditorBindingText() const;
+    FString GetRuntimeEditorSelectionText() const;
+    FString GetRuntimeEditorTransformText() const;
+    FString GetRuntimeEditorStatusText() const;
+    bool CanBindRuntimeProject() const;
+    bool CanSaveRuntimeEdit() const;
+    bool HasRuntimeEditSelection() const;
+    bool IsRuntimeWallSnapEnabled() const { return bEnableWallSnap; }
+    bool IsRuntimeGridSnapEnabled() const { return bEnableGridSnap; }
 
     /** 把当前 UE 工程身份绑定到后端当前激活数据集（数据集之后只接受该工程的 UE 请求） */
     UFUNCTION(CallInEditor, Category="连接",
@@ -174,6 +263,37 @@ private:
     int32 PendingWritebacks = 0;
     int32 SucceededWritebacks = 0;
 
+    // Runtime Editor state
+    UPROPERTY()
+    ATwinInstance* RuntimeSelectedInstance = nullptr;
+
+    UPROPERTY()
+    AOntoTwinRuntimeGizmo* RuntimeGizmo = nullptr;
+
+    UPROPERTY()
+    UOntoTwinRuntimeEditorPanel* RuntimeEditorPanel = nullptr;
+
+    bool bRuntimeEditMode = false;
+    bool bRuntimeEditDirty = false;
+    bool bRuntimeEditSaving = false;
+    bool bRuntimeBindingRequestInFlight = false;
+    bool bRuntimeCanSave = false;
+    bool bRuntimeDragging = false;
+    bool bRuntimePreviousMouseCursor = false;
+    bool bRuntimePreviousAnimRunning = false;
+    float RuntimeLastToggleInputTime = -1000.0f;
+    FString RuntimePreviousAnimState;
+    FString RuntimeBindingMode = TEXT("unknown");
+    FString RuntimeStatusMessage = TEXT("F8/F10: Runtime Editor");
+    FTransform RuntimeEditBaseline = FTransform::Identity;
+    FTransform RuntimeDragStartTransform = FTransform::Identity;
+    FVector RuntimeDragStartPoint = FVector::ZeroVector;
+    float RuntimeEditPlaneZ = 0.0f;
+    float RuntimeDragStartAngleDeg = 0.0f;
+    float RuntimeDragStartYaw = 0.0f;
+    enum class ERuntimeDragPart : uint8 { None, MoveXY, RotateYaw };
+    ERuntimeDragPart RuntimeDragPart = ERuntimeDragPart::None;
+
     // ── 内部方法 ─────────────────────────────────────────────────────────
 
     /** 拼接快照接口 URL（SceneId 非空时追加 ?scene= 查询参数） */
@@ -181,6 +301,8 @@ private:
 
     /** 给 UE→后端请求附加 UE 工程身份头（用于数据集强绑定校验） */
     void AddUEProjectHeaders(TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest) const;
+
+    void SetPollTimerInterval(float IntervalSeconds, float FirstDelaySeconds = 0.0f);
 
     /** 定时轮询回调 */
     void PollBackend();
@@ -199,6 +321,26 @@ private:
 
     /** 销毁孪生体 Actor */
     void DestroyTwinInstance(const FString& InstanceId);
+
+    void TickRuntimeEditor(float DeltaTime);
+    void RequestRuntimeEditToggle();
+    void EnterRuntimeEditMode();
+    void ExitRuntimeEditMode();
+    void ShowRuntimeEditorPanel();
+    void HideRuntimeEditorPanel();
+    void EnsureRuntimeGizmo();
+    void UpdateRuntimeEditorPanel();
+    void CheckRuntimeBindingStatus();
+    void SelectRuntimeInstance(ATwinInstance* Instance);
+    void ClearRuntimeSelection(bool bRestoreBaseline);
+    bool TraceRuntimeCursor(FHitResult& OutHit) const;
+    bool GetRuntimeCursorPlanePoint(FVector& OutPoint) const;
+    void BeginRuntimeGizmoDrag(ERuntimeDragPart Part);
+    void UpdateRuntimeGizmoDrag();
+    void EndRuntimeGizmoDrag();
+    void ApplyRuntimeSnaps(FVector& InOutLocation, FRotator& InOutRotation) const;
+    void MarkRuntimeDirtyFromTransform();
+    void ApplyRuntimeSnapshotIfPresent(const TSharedPtr<FJsonObject>& ResponseObj);
 
     /** FR-6 迁移导出文件绝对路径（Saved/OntoTwinMigration/ue_actors_export.json） */
     FString MigrationExportPath() const;

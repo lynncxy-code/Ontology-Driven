@@ -1,5 +1,5 @@
 // OntoTwinSync 插件模块定义
-// 依赖与原 test0316 游戏模块一致，但去掉了与同步无关的 InputCore / EnhancedInput
+// 依赖与原 test0316 游戏模块一致；Runtime Editor 使用 InputCore，但不引入 EnhancedInput。
 
 using UnrealBuildTool;
 
@@ -15,6 +15,7 @@ public class OntoTwinSync : ModuleRules
 			"CoreUObject",
 			"Engine",
 			"HTTP",
+			"InputCore",
 			"Json",
 			"JsonUtilities",
 			"Niagara",
@@ -22,7 +23,7 @@ public class OntoTwinSync : ModuleRules
 			"glTFRuntime"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
 
 		// FR-6 迁移工具：编辑器选择集 / EditorDestroyActor 需要 UnrealEd（仅编辑器构建）
 		if (Target.bBuildEditor)

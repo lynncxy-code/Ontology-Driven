@@ -11,12 +11,18 @@
 // ============================================================================
 
 #include "TwinSceneManager.h"
+#include "OntoTwinRuntimeEditorPanel.h"
+#include "OntoTwinRuntimeGizmo.h"
 #include "TwinInstance.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "Engine/Engine.h"
+#include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h"
+#include "Blueprint/UserWidget.h"
+#include "Components/InputComponent.h"
+#include "Components/PrimitiveComponent.h"
 // FR-6 迁移工具用
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
@@ -82,13 +88,25 @@ FName BuildTwinFolderPath(const TSharedPtr<FJsonObject>& Snapshot, const TCHAR* 
     }
     return FName(*Path);
 }
+
+bool IsInFolderOrChild(const FName ActorFolderName, const FString& RootFolder)
+{
+    const FString ActorFolder = ActorFolderName.ToString().Replace(TEXT("\\"), TEXT("/"));
+    FString CleanRoot = RootFolder;
+    CleanRoot.TrimStartAndEndInline();
+    CleanRoot.ReplaceInline(TEXT("\\"), TEXT("/"));
+    CleanRoot.RemoveFromEnd(TEXT("/"));
+
+    return !CleanRoot.IsEmpty()
+        && (ActorFolder == CleanRoot || ActorFolder.StartsWith(CleanRoot + TEXT("/")));
+}
 }
 
 // ── 构造函数 ─────────────────────────────────────────────────────────────────
 
 ATwinSceneManager::ATwinSceneManager()
 {
-    PrimaryActorTick.bCanEverTick = false;
+    PrimaryActorTick.bCanEverTick = true;
     UEProjectName = FApp::GetProjectName();
     UEProjectId = FString::Printf(TEXT("ueproj_%s"), *UEProjectName);
 }
@@ -98,16 +116,41 @@ ATwinSceneManager::ATwinSceneManager()
 void ATwinSceneManager::BeginPlay()
 {
     Super::BeginPlay();
+    SetActorTickEnabled(true);
 
     // 启动定时轮询（FR-4：孪生实例全部由数据库驱动动态 spawn，不再接管关卡预置 Actor）
-    GetWorldTimerManager().SetTimer(
-        PollTimerHandle,
-        this,
-        &ATwinSceneManager::PollBackend,
-        PollInterval,
-        true,   // bLoop
-        1.0f    // 首次延迟 1 秒
-    );
+    SetPollTimerInterval(PollInterval, 1.0f);
+
+    if (bEnableRuntimeEditor)
+    {
+        APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+        if (PC)
+        {
+            EnableInput(PC);
+            if (InputComponent)
+            {
+                InputComponent->BindKey(ToggleEditKey, IE_Pressed, this, &ATwinSceneManager::RequestRuntimeEditToggle);
+                if (AlternateToggleEditKey != EKeys::Invalid && AlternateToggleEditKey != ToggleEditKey)
+                {
+                    InputComponent->BindKey(AlternateToggleEditKey, IE_Pressed, this, &ATwinSceneManager::RequestRuntimeEditToggle);
+                }
+            }
+        }
+
+        UE_LOG(LogTemp, Log,
+            TEXT("[RuntimeEditor] 已启用 | 主热键=%s | 备用热键=%s | PIE 中 F8 可能被编辑器 Eject 吃掉，建议用备用热键"),
+            *ToggleEditKey.ToString(), *AlternateToggleEditKey.ToString());
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 6.0f, FColor::Cyan,
+                FString::Printf(TEXT("Runtime Editor: %s / %s"),
+                    *ToggleEditKey.ToString(), *AlternateToggleEditKey.ToString()));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Log, TEXT("[RuntimeEditor] 已关闭 (bEnableRuntimeEditor=false)"));
+    }
 
     UE_LOG(LogTemp, Log,
            TEXT("[孪生管理器] 启动完毕 | 后端=%s | 轮询间隔=%.2fs | 预置实例=%d"),
@@ -119,6 +162,14 @@ void ATwinSceneManager::BeginPlay()
 void ATwinSceneManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     GetWorldTimerManager().ClearTimer(PollTimerHandle);
+    bRuntimeEditDirty = false;
+    ExitRuntimeEditMode();
+
+    if (RuntimeGizmo && IsValid(RuntimeGizmo))
+    {
+        RuntimeGizmo->Destroy();
+    }
+    RuntimeGizmo = nullptr;
 
     // 清理全部运行时 spawn 的孪生体（FR-4：不再有编辑器固化 Actor 需要保留）
     for (auto& Pair : InstanceRegistry)
@@ -132,6 +183,12 @@ void ATwinSceneManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
     Super::EndPlay(EndPlayReason);
     UE_LOG(LogTemp, Log, TEXT("[孪生管理器] 已清理运行时孪生体并停止轮询"));
+}
+
+void ATwinSceneManager::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+    TickRuntimeEditor(DeltaTime);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -153,6 +210,22 @@ void ATwinSceneManager::AddUEProjectHeaders(TSharedRef<IHttpRequest, ESPMode::Th
 {
     HttpRequest->SetHeader(TEXT("X-OntoTwin-UE-Project-Id"), UEProjectId);
     HttpRequest->SetHeader(TEXT("X-OntoTwin-UE-Project-Name"), UEProjectName);
+}
+
+void ATwinSceneManager::SetPollTimerInterval(float IntervalSeconds, float FirstDelaySeconds)
+{
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    const float SafeInterval = FMath::Max(0.1f, IntervalSeconds);
+    World->GetTimerManager().ClearTimer(PollTimerHandle);
+    World->GetTimerManager().SetTimer(
+        PollTimerHandle,
+        this,
+        &ATwinSceneManager::PollBackend,
+        SafeInterval,
+        true,
+        FMath::Max(0.0f, FirstDelaySeconds));
 }
 
 void ATwinSceneManager::BindCurrentUEProjectToActiveDataset()
@@ -382,7 +455,9 @@ ATwinInstance* ATwinSceneManager::SpawnTwinInstance(
     {
         DisplayName = InstanceId;
     }
+#if WITH_EDITOR
     Inst->SetActorLabel(DisplayName);
+#endif
     Inst->Tags.Add(FName(*InstanceId));
 
     // ── 放入世界大纲特定文件夹下 ─────────────────────────────────────────
@@ -404,10 +479,943 @@ void ATwinSceneManager::DestroyTwinInstance(const FString& InstanceId)
     ATwinInstance** Found = InstanceRegistry.Find(InstanceId);
     if (Found && *Found && IsValid(*Found))
     {
+        if (RuntimeSelectedInstance == *Found)
+        {
+            ClearRuntimeSelection(false);
+        }
+
         UE_LOG(LogTemp, Log, TEXT("[孪生管理器] 销毁实例: %s"), *InstanceId);
         (*Found)->Destroy();
     }
     InstanceRegistry.Remove(InstanceId);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Runtime Editor（打包 exe 内轻量编辑模式）
+// ═══════════════════════════════════════════════════════════════════════════
+
+void ATwinSceneManager::ToggleRuntimeEditMode()
+{
+    if (!bEnableRuntimeEditor)
+    {
+        RuntimeStatusMessage = TEXT("Runtime Editor disabled on this manager");
+        UpdateRuntimeEditorPanel();
+        return;
+    }
+
+    if (bRuntimeEditMode)
+    {
+        ExitRuntimeEditMode();
+    }
+    else
+    {
+        EnterRuntimeEditMode();
+    }
+}
+
+void ATwinSceneManager::RequestRuntimeEditToggle()
+{
+    UWorld* World = GetWorld();
+    const float Now = World ? World->GetTimeSeconds() : 0.0f;
+    if (Now - RuntimeLastToggleInputTime < 0.15f)
+    {
+        return;
+    }
+
+    RuntimeLastToggleInputTime = Now;
+    ToggleRuntimeEditMode();
+}
+
+void ATwinSceneManager::EnterRuntimeEditMode()
+{
+    if (bRuntimeEditMode || !bEnableRuntimeEditor)
+    {
+        return;
+    }
+
+    bRuntimeEditMode = true;
+    RuntimeStatusMessage = TEXT("Runtime edit mode enabled");
+    SetPollTimerInterval(EditModePollInterval, EditModePollInterval);
+
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (PC)
+    {
+        bRuntimePreviousMouseCursor = PC->bShowMouseCursor;
+        PC->bShowMouseCursor = true;
+
+        FInputModeGameAndUI InputMode;
+        InputMode.SetHideCursorDuringCapture(false);
+        InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+        PC->SetInputMode(InputMode);
+    }
+
+    EnsureRuntimeGizmo();
+    ShowRuntimeEditorPanel();
+    CheckRuntimeBindingStatus();
+    UpdateRuntimeEditorPanel();
+}
+
+void ATwinSceneManager::ExitRuntimeEditMode()
+{
+    if (!bRuntimeEditMode)
+    {
+        return;
+    }
+
+    if (bRuntimeEditDirty)
+    {
+        RuntimeStatusMessage = TEXT("Save or cancel the dirty edit before leaving edit mode");
+        UpdateRuntimeEditorPanel();
+        return;
+    }
+
+    ClearRuntimeSelection(false);
+    HideRuntimeEditorPanel();
+
+    if (RuntimeGizmo && IsValid(RuntimeGizmo))
+    {
+        RuntimeGizmo->SetGizmoEnabled(false);
+    }
+
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (PC)
+    {
+        PC->bShowMouseCursor = bRuntimePreviousMouseCursor;
+        FInputModeGameOnly InputMode;
+        PC->SetInputMode(InputMode);
+    }
+
+    bRuntimeEditMode = false;
+    RuntimeStatusMessage = TEXT("Runtime edit mode disabled");
+    SetPollTimerInterval(PollInterval, PollInterval);
+}
+
+void ATwinSceneManager::TickRuntimeEditor(float DeltaTime)
+{
+    if (!bEnableRuntimeEditor)
+    {
+        return;
+    }
+
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (!PC)
+    {
+        return;
+    }
+
+    const bool bPrimaryTogglePressed = PC->WasInputKeyJustPressed(ToggleEditKey);
+    const bool bAlternateTogglePressed =
+        AlternateToggleEditKey != EKeys::Invalid &&
+        AlternateToggleEditKey != ToggleEditKey &&
+        PC->WasInputKeyJustPressed(AlternateToggleEditKey);
+    if (bPrimaryTogglePressed || bAlternateTogglePressed)
+    {
+        RequestRuntimeEditToggle();
+        return;
+    }
+
+    if (!bRuntimeEditMode)
+    {
+        return;
+    }
+
+    const bool bCtrlDown = PC->IsInputKeyDown(EKeys::LeftControl) || PC->IsInputKeyDown(EKeys::RightControl);
+    if (bCtrlDown && PC->WasInputKeyJustPressed(SaveKey))
+    {
+        SaveRuntimeEdit();
+    }
+    if (PC->WasInputKeyJustPressed(CancelKey))
+    {
+        CancelRuntimeEdit();
+    }
+
+    if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
+    {
+        FHitResult Hit;
+        if (TraceRuntimeCursor(Hit))
+        {
+            UPrimitiveComponent* HitComponent = Hit.GetComponent();
+            if (RuntimeGizmo && IsValid(RuntimeGizmo))
+            {
+                const EOntoTwinRuntimeGizmoPart GizmoPart = RuntimeGizmo->GetPartForComponent(HitComponent);
+                if (GizmoPart == EOntoTwinRuntimeGizmoPart::MoveXY)
+                {
+                    BeginRuntimeGizmoDrag(ERuntimeDragPart::MoveXY);
+                }
+                else if (GizmoPart == EOntoTwinRuntimeGizmoPart::RotateYaw)
+                {
+                    BeginRuntimeGizmoDrag(ERuntimeDragPart::RotateYaw);
+                }
+            }
+
+            if (!bRuntimeDragging)
+            {
+                if (ATwinInstance* HitInstance = Cast<ATwinInstance>(Hit.GetActor()))
+                {
+                    SelectRuntimeInstance(HitInstance);
+                }
+            }
+        }
+    }
+
+    if (bRuntimeDragging)
+    {
+        if (PC->IsInputKeyDown(EKeys::LeftMouseButton))
+        {
+            UpdateRuntimeGizmoDrag();
+        }
+        else
+        {
+            EndRuntimeGizmoDrag();
+        }
+    }
+
+    if (RuntimeSelectedInstance && IsValid(RuntimeSelectedInstance))
+    {
+        if (!bRuntimeEditDirty && !RuntimeSelectedInstance->bLocalOverrideLock)
+        {
+            RuntimeEditBaseline = RuntimeSelectedInstance->GetActorTransform();
+            RuntimeEditPlaneZ = RuntimeSelectedInstance->GetActorLocation().Z;
+        }
+
+        if (RuntimeGizmo && IsValid(RuntimeGizmo))
+        {
+            RuntimeGizmo->UpdateForTarget(RuntimeSelectedInstance);
+        }
+    }
+
+    UpdateRuntimeEditorPanel();
+}
+
+void ATwinSceneManager::ShowRuntimeEditorPanel()
+{
+    if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel))
+    {
+        RuntimeEditorPanel->SetVisibility(ESlateVisibility::Visible);
+        return;
+    }
+
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (!PC)
+    {
+        return;
+    }
+
+    UClass* PanelClass = RuntimeEditorPanelClass ? RuntimeEditorPanelClass.Get() : UOntoTwinRuntimeEditorPanel::StaticClass();
+    RuntimeEditorPanel = CreateWidget<UOntoTwinRuntimeEditorPanel>(PC, PanelClass);
+    if (!RuntimeEditorPanel)
+    {
+        RuntimeStatusMessage = TEXT("Failed to create runtime editor panel");
+        return;
+    }
+
+    RuntimeEditorPanel->SetSceneManager(this);
+    RuntimeEditorPanel->AddToViewport(1000);
+    UE_LOG(LogTemp, Log, TEXT("[RuntimeEditor] 面板已创建并添加到视口"));
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(-1, 4.0f, FColor::Cyan, TEXT("Runtime Editor panel opened"));
+    }
+}
+
+void ATwinSceneManager::HideRuntimeEditorPanel()
+{
+    if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel))
+    {
+        RuntimeEditorPanel->RemoveFromParent();
+    }
+    RuntimeEditorPanel = nullptr;
+}
+
+void ATwinSceneManager::EnsureRuntimeGizmo()
+{
+    if (RuntimeGizmo && IsValid(RuntimeGizmo))
+    {
+        return;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    UClass* GizmoClass = RuntimeGizmoClass ? RuntimeGizmoClass.Get() : AOntoTwinRuntimeGizmo::StaticClass();
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Name = TEXT("OntoTwinRuntimeGizmo");
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    RuntimeGizmo = World->SpawnActor<AOntoTwinRuntimeGizmo>(GizmoClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+    if (RuntimeGizmo)
+    {
+        RuntimeGizmo->SetGizmoEnabled(false);
+    }
+}
+
+void ATwinSceneManager::UpdateRuntimeEditorPanel()
+{
+    if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel))
+    {
+        RuntimeEditorPanel->RefreshFromManager();
+    }
+}
+
+void ATwinSceneManager::CheckRuntimeBindingStatus()
+{
+    if (bRuntimeBindingRequestInFlight)
+    {
+        return;
+    }
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = FHttpModule::Get().CreateRequest();
+    HttpRequest->SetURL(FString::Printf(TEXT("%s/api/v2/ue/binding_status"), *BackendBaseUrl));
+    HttpRequest->SetVerb(TEXT("GET"));
+    HttpRequest->SetHeader(TEXT("Accept"), TEXT("application/json"));
+    AddUEProjectHeaders(HttpRequest);
+
+    bRuntimeBindingRequestInFlight = true;
+    RuntimeStatusMessage = TEXT("Checking UE project binding...");
+    UpdateRuntimeEditorPanel();
+
+    TWeakObjectPtr<ATwinSceneManager> WeakThis(this);
+    HttpRequest->OnProcessRequestComplete().BindLambda(
+        [WeakThis](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bOk)
+        {
+            ATwinSceneManager* Self = WeakThis.Get();
+            if (!Self) return;
+
+            Self->bRuntimeBindingRequestInFlight = false;
+            Self->bRuntimeCanSave = false;
+            Self->RuntimeBindingMode = TEXT("unknown");
+
+            const int32 Code = Resp.IsValid() ? Resp->GetResponseCode() : -1;
+            TSharedPtr<FJsonObject> Root;
+            if (Resp.IsValid())
+            {
+                TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Resp->GetContentAsString());
+                FJsonSerializer::Deserialize(Reader, Root);
+            }
+
+            FString Mode;
+            FString Error;
+            if (Root.IsValid())
+            {
+                Root->TryGetStringField(TEXT("mode"), Mode);
+                Root->TryGetStringField(TEXT("error"), Error);
+            }
+
+            if (bOk && Resp.IsValid() && Code == 200)
+            {
+                if (Mode == TEXT("matched"))
+                {
+                    Self->RuntimeBindingMode = TEXT("matched");
+                    Self->bRuntimeCanSave = true;
+                    Self->RuntimeStatusMessage = TEXT("UE project binding matched");
+                }
+                else if (Mode == TEXT("unbound"))
+                {
+                    Self->RuntimeBindingMode = TEXT("unbound");
+                    Self->RuntimeStatusMessage = TEXT("Active dataset is unbound; bind before saving");
+                }
+                else
+                {
+                    Self->RuntimeBindingMode = Mode.IsEmpty() ? TEXT("unknown") : Mode;
+                    Self->RuntimeStatusMessage = TEXT("Binding status is not save-ready");
+                }
+            }
+            else
+            {
+                Self->RuntimeBindingMode = Error.IsEmpty() ? TEXT("error") : Error;
+                if (Error == TEXT("ue_project_mismatch"))
+                {
+                    Self->RuntimeStatusMessage = TEXT("UE project mismatch; save disabled");
+                }
+                else
+                {
+                    Self->RuntimeStatusMessage = FString::Printf(TEXT("Binding check failed (code=%d)"), Code);
+                }
+            }
+
+            Self->UpdateRuntimeEditorPanel();
+        });
+
+    HttpRequest->ProcessRequest();
+}
+
+void ATwinSceneManager::BindCurrentRuntimeProject()
+{
+    if (!bRuntimeEditMode || bRuntimeBindingRequestInFlight)
+    {
+        return;
+    }
+
+    TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
+    Body->SetStringField(TEXT("ue_project_id"), UEProjectId);
+    Body->SetStringField(TEXT("ue_project_name"), UEProjectName);
+
+    FString BodyStr;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&BodyStr);
+    FJsonSerializer::Serialize(Body.ToSharedRef(), Writer);
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = FHttpModule::Get().CreateRequest();
+    HttpRequest->SetURL(FString::Printf(TEXT("%s/api/v2/ue/bind_active_project"), *BackendBaseUrl));
+    HttpRequest->SetVerb(TEXT("POST"));
+    HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    AddUEProjectHeaders(HttpRequest);
+    HttpRequest->SetContentAsString(BodyStr);
+
+    bRuntimeBindingRequestInFlight = true;
+    RuntimeStatusMessage = TEXT("Binding active dataset to this UE project...");
+    UpdateRuntimeEditorPanel();
+
+    TWeakObjectPtr<ATwinSceneManager> WeakThis(this);
+    HttpRequest->OnProcessRequestComplete().BindLambda(
+        [WeakThis](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bOk)
+        {
+            ATwinSceneManager* Self = WeakThis.Get();
+            if (!Self) return;
+
+            Self->bRuntimeBindingRequestInFlight = false;
+            const int32 Code = Resp.IsValid() ? Resp->GetResponseCode() : -1;
+            if (bOk && Resp.IsValid() && Code == 200)
+            {
+                Self->RuntimeBindingMode = TEXT("matched");
+                Self->bRuntimeCanSave = true;
+                Self->RuntimeStatusMessage = TEXT("Active dataset bound to this UE project");
+            }
+            else
+            {
+                Self->bRuntimeCanSave = false;
+                Self->RuntimeStatusMessage = FString::Printf(TEXT("Bind failed (code=%d)"), Code);
+            }
+            Self->UpdateRuntimeEditorPanel();
+        });
+
+    HttpRequest->ProcessRequest();
+}
+
+void ATwinSceneManager::SelectRuntimeInstance(ATwinInstance* Instance)
+{
+    if (!Instance || !IsValid(Instance))
+    {
+        return;
+    }
+
+    if (RuntimeSelectedInstance == Instance)
+    {
+        return;
+    }
+
+    if (bRuntimeEditDirty)
+    {
+        RuntimeStatusMessage = TEXT("Save or cancel the current edit before selecting another instance");
+        UpdateRuntimeEditorPanel();
+        return;
+    }
+
+    ClearRuntimeSelection(false);
+
+    RuntimeSelectedInstance = Instance;
+    RuntimeEditBaseline = Instance->GetActorTransform();
+    RuntimeEditPlaneZ = Instance->GetActorLocation().Z;
+    RuntimePreviousAnimState = Instance->PauseRuntimeEditorAnimation(bRuntimePreviousAnimRunning);
+    Instance->bLocalOverrideLock = true;
+    bRuntimeEditDirty = false;
+
+    EnsureRuntimeGizmo();
+    if (RuntimeGizmo && IsValid(RuntimeGizmo))
+    {
+        RuntimeGizmo->UpdateForTarget(Instance);
+    }
+
+    RuntimeStatusMessage = FString::Printf(TEXT("Selected %s"), *Instance->GetInstanceId());
+    UpdateRuntimeEditorPanel();
+}
+
+void ATwinSceneManager::ClearRuntimeSelection(bool bRestoreBaseline)
+{
+    if (RuntimeSelectedInstance && IsValid(RuntimeSelectedInstance))
+    {
+        if (bRestoreBaseline)
+        {
+            RuntimeSelectedInstance->SetActorTransform(RuntimeEditBaseline);
+        }
+
+        RuntimeSelectedInstance->bLocalOverrideLock = false;
+        RuntimeSelectedInstance->ResumeRuntimeEditorAnimation(RuntimePreviousAnimState, bRuntimePreviousAnimRunning);
+    }
+
+    RuntimeSelectedInstance = nullptr;
+    RuntimePreviousAnimState.Empty();
+    bRuntimePreviousAnimRunning = false;
+    bRuntimeEditDirty = false;
+    bRuntimeEditSaving = false;
+    bRuntimeDragging = false;
+    RuntimeDragPart = ERuntimeDragPart::None;
+
+    if (RuntimeGizmo && IsValid(RuntimeGizmo))
+    {
+        RuntimeGizmo->SetGizmoEnabled(false);
+    }
+
+    UpdateRuntimeEditorPanel();
+}
+
+bool ATwinSceneManager::TraceRuntimeCursor(FHitResult& OutHit) const
+{
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (!PC)
+    {
+        return false;
+    }
+
+    return PC->GetHitResultUnderCursor(ECC_Visibility, false, OutHit);
+}
+
+bool ATwinSceneManager::GetRuntimeCursorPlanePoint(FVector& OutPoint) const
+{
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (!PC)
+    {
+        return false;
+    }
+
+    float MouseX = 0.0f;
+    float MouseY = 0.0f;
+    if (!PC->GetMousePosition(MouseX, MouseY))
+    {
+        return false;
+    }
+
+    FVector RayOrigin = FVector::ZeroVector;
+    FVector RayDirection = FVector::ForwardVector;
+    if (!PC->DeprojectScreenPositionToWorld(MouseX, MouseY, RayOrigin, RayDirection))
+    {
+        return false;
+    }
+
+    if (FMath::IsNearlyZero(RayDirection.Z))
+    {
+        return false;
+    }
+
+    const float T = (RuntimeEditPlaneZ - RayOrigin.Z) / RayDirection.Z;
+    OutPoint = RayOrigin + RayDirection * T;
+    return true;
+}
+
+void ATwinSceneManager::BeginRuntimeGizmoDrag(ERuntimeDragPart Part)
+{
+    if (!RuntimeSelectedInstance || !IsValid(RuntimeSelectedInstance) || Part == ERuntimeDragPart::None)
+    {
+        return;
+    }
+
+    if (!RuntimeSelectedInstance->bLocalOverrideLock)
+    {
+        RuntimeEditBaseline = RuntimeSelectedInstance->GetActorTransform();
+        RuntimeEditPlaneZ = RuntimeSelectedInstance->GetActorLocation().Z;
+        RuntimePreviousAnimState = RuntimeSelectedInstance->PauseRuntimeEditorAnimation(bRuntimePreviousAnimRunning);
+        RuntimeSelectedInstance->bLocalOverrideLock = true;
+    }
+
+    RuntimeDragPart = Part;
+    RuntimeDragStartTransform = RuntimeSelectedInstance->GetActorTransform();
+    RuntimeDragStartYaw = RuntimeSelectedInstance->GetActorRotation().Yaw;
+    bRuntimeDragging = true;
+
+    FVector PlanePoint = FVector::ZeroVector;
+    if (GetRuntimeCursorPlanePoint(PlanePoint))
+    {
+        RuntimeDragStartPoint = PlanePoint;
+        const FVector ToCursor = PlanePoint - RuntimeSelectedInstance->GetActorLocation();
+        RuntimeDragStartAngleDeg = FMath::RadiansToDegrees(FMath::Atan2(ToCursor.Y, ToCursor.X));
+    }
+    else
+    {
+        RuntimeDragStartPoint = RuntimeSelectedInstance->GetActorLocation();
+        RuntimeDragStartAngleDeg = RuntimeDragStartYaw;
+    }
+}
+
+void ATwinSceneManager::UpdateRuntimeGizmoDrag()
+{
+    if (!bRuntimeDragging || !RuntimeSelectedInstance || !IsValid(RuntimeSelectedInstance))
+    {
+        return;
+    }
+
+    FVector PlanePoint = FVector::ZeroVector;
+    if (!GetRuntimeCursorPlanePoint(PlanePoint))
+    {
+        return;
+    }
+
+    FVector NewLocation = RuntimeDragStartTransform.GetLocation();
+    FRotator NewRotation = RuntimeDragStartTransform.Rotator();
+
+    if (RuntimeDragPart == ERuntimeDragPart::MoveXY)
+    {
+        const FVector Delta = PlanePoint - RuntimeDragStartPoint;
+        NewLocation.X += Delta.X;
+        NewLocation.Y += Delta.Y;
+        NewLocation.Z = RuntimeEditPlaneZ;
+    }
+    else if (RuntimeDragPart == ERuntimeDragPart::RotateYaw)
+    {
+        const FVector ToCursor = PlanePoint - RuntimeDragStartTransform.GetLocation();
+        if (!ToCursor.IsNearlyZero())
+        {
+            const float CurrentAngleDeg = FMath::RadiansToDegrees(FMath::Atan2(ToCursor.Y, ToCursor.X));
+            NewRotation.Yaw = RuntimeDragStartYaw + FMath::FindDeltaAngleDegrees(RuntimeDragStartAngleDeg, CurrentAngleDeg);
+            NewRotation.Pitch = RuntimeDragStartTransform.Rotator().Pitch;
+            NewRotation.Roll = RuntimeDragStartTransform.Rotator().Roll;
+        }
+    }
+
+    ApplyRuntimeSnaps(NewLocation, NewRotation);
+    RuntimeSelectedInstance->SetActorLocation(NewLocation);
+    RuntimeSelectedInstance->SetActorRotation(NewRotation);
+    MarkRuntimeDirtyFromTransform();
+
+    if (RuntimeGizmo && IsValid(RuntimeGizmo))
+    {
+        RuntimeGizmo->UpdateForTarget(RuntimeSelectedInstance);
+    }
+}
+
+void ATwinSceneManager::EndRuntimeGizmoDrag()
+{
+    bRuntimeDragging = false;
+    RuntimeDragPart = ERuntimeDragPart::None;
+}
+
+void ATwinSceneManager::ApplyRuntimeSnaps(FVector& InOutLocation, FRotator& InOutRotation) const
+{
+    InOutLocation.Z = RuntimeEditPlaneZ;
+
+    if (bEnableGridSnap && GridSnapSizeCm > 0.0f)
+    {
+        InOutLocation.X = FMath::GridSnap(InOutLocation.X, GridSnapSizeCm);
+        InOutLocation.Y = FMath::GridSnap(InOutLocation.Y, GridSnapSizeCm);
+    }
+
+    if (!bEnableWallSnap || WallTag.IsNone() || !RuntimeSelectedInstance || !GetWorld())
+    {
+        return;
+    }
+
+    TArray<AActor*> Walls;
+    UGameplayStatics::GetAllActorsWithTag(GetWorld(), WallTag, Walls);
+    if (Walls.Num() == 0)
+    {
+        return;
+    }
+
+    AActor* BestWall = nullptr;
+    FVector BestClosest = FVector::ZeroVector;
+    float BestDistSq = FMath::Square(WallSnapDistanceCm);
+
+    for (AActor* Wall : Walls)
+    {
+        if (!Wall || !IsValid(Wall))
+        {
+            continue;
+        }
+
+        const FBox WallBounds = Wall->GetComponentsBoundingBox(true);
+        if (!WallBounds.IsValid)
+        {
+            continue;
+        }
+
+        FVector Closest = WallBounds.GetClosestPointTo(InOutLocation);
+        Closest.Z = InOutLocation.Z;
+
+        const FVector2D Delta2D(InOutLocation.X - Closest.X, InOutLocation.Y - Closest.Y);
+        const float DistSq = Delta2D.SizeSquared();
+        if (DistSq <= BestDistSq)
+        {
+            BestDistSq = DistSq;
+            BestWall = Wall;
+            BestClosest = Closest;
+        }
+    }
+
+    if (!BestWall)
+    {
+        return;
+    }
+
+    const FBox WallBounds = BestWall->GetComponentsBoundingBox(true);
+    FVector Normal = InOutLocation - BestClosest;
+    Normal.Z = 0.0f;
+    if (!Normal.Normalize())
+    {
+        const FVector Center = WallBounds.GetCenter();
+        Normal = InOutLocation - Center;
+        Normal.Z = 0.0f;
+        if (!Normal.Normalize())
+        {
+            Normal = FVector::ForwardVector;
+        }
+    }
+
+    const FBox TargetBounds = RuntimeSelectedInstance->GetComponentsBoundingBox(true);
+    const FVector TargetExtent = TargetBounds.GetExtent();
+    const float TargetRadiusAlongNormal =
+        FMath::Abs(Normal.X) * TargetExtent.X +
+        FMath::Abs(Normal.Y) * TargetExtent.Y +
+        2.0f;
+
+    InOutLocation.X = BestClosest.X + Normal.X * TargetRadiusAlongNormal;
+    InOutLocation.Y = BestClosest.Y + Normal.Y * TargetRadiusAlongNormal;
+    InOutLocation.Z = RuntimeEditPlaneZ;
+
+    const FVector Tangent(-Normal.Y, Normal.X, 0.0f);
+    InOutRotation.Yaw = Tangent.Rotation().Yaw;
+}
+
+void ATwinSceneManager::MarkRuntimeDirtyFromTransform()
+{
+    if (!RuntimeSelectedInstance || !IsValid(RuntimeSelectedInstance))
+    {
+        bRuntimeEditDirty = false;
+        return;
+    }
+
+    bRuntimeEditDirty = !RuntimeSelectedInstance->GetActorTransform().Equals(RuntimeEditBaseline, 0.01f);
+    RuntimeStatusMessage = bRuntimeEditDirty ? TEXT("Dirty edit; save or cancel") : TEXT("Transform matches baseline");
+}
+
+void ATwinSceneManager::SaveRuntimeEdit()
+{
+    if (!RuntimeSelectedInstance || !IsValid(RuntimeSelectedInstance))
+    {
+        RuntimeStatusMessage = TEXT("Select an instance before saving");
+        UpdateRuntimeEditorPanel();
+        return;
+    }
+    if (!bRuntimeEditDirty)
+    {
+        RuntimeStatusMessage = TEXT("No dirty transform to save");
+        UpdateRuntimeEditorPanel();
+        return;
+    }
+    if (!bRuntimeCanSave)
+    {
+        RuntimeStatusMessage = TEXT("Binding is not matched; save disabled");
+        UpdateRuntimeEditorPanel();
+        return;
+    }
+    if (bRuntimeEditSaving)
+    {
+        return;
+    }
+
+    const FTransform Cur = RuntimeSelectedInstance->GetActorTransform();
+    const FVector L = Cur.GetLocation();
+    const FRotator R = Cur.Rotator();
+    const FVector S = Cur.GetScale3D();
+
+    TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
+    Body->SetStringField(TEXT("instance_id"), RuntimeSelectedInstance->GetInstanceId());
+
+    TSharedPtr<FJsonObject> TF = MakeShared<FJsonObject>();
+    TF->SetNumberField(TEXT("tx"), L.X);
+    TF->SetNumberField(TEXT("ty"), L.Y);
+    TF->SetNumberField(TEXT("tz"), L.Z);
+    TF->SetNumberField(TEXT("rx"), R.Roll);
+    TF->SetNumberField(TEXT("ry"), R.Pitch);
+    TF->SetNumberField(TEXT("rz"), R.Yaw);
+    TF->SetNumberField(TEXT("sx"), S.X);
+    TF->SetNumberField(TEXT("sy"), S.Y);
+    TF->SetNumberField(TEXT("sz"), S.Z);
+    Body->SetObjectField(TEXT("transform"), TF);
+
+    FString BodyStr;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&BodyStr);
+    FJsonSerializer::Serialize(Body.ToSharedRef(), Writer);
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = FHttpModule::Get().CreateRequest();
+    HttpRequest->SetURL(FString::Printf(TEXT("%s/api/v2/state/writeback"), *BackendBaseUrl));
+    HttpRequest->SetVerb(TEXT("POST"));
+    HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    AddUEProjectHeaders(HttpRequest);
+    HttpRequest->SetContentAsString(BodyStr);
+
+    bRuntimeEditSaving = true;
+    RuntimeStatusMessage = TEXT("Saving transform...");
+    UpdateRuntimeEditorPanel();
+
+    TWeakObjectPtr<ATwinSceneManager> WeakThis(this);
+    HttpRequest->OnProcessRequestComplete().BindLambda(
+        [WeakThis](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bOk)
+        {
+            ATwinSceneManager* Self = WeakThis.Get();
+            if (!Self) return;
+
+            Self->bRuntimeEditSaving = false;
+
+            const int32 Code = Resp.IsValid() ? Resp->GetResponseCode() : -1;
+            TSharedPtr<FJsonObject> Root;
+            if (Resp.IsValid())
+            {
+                TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Resp->GetContentAsString());
+                FJsonSerializer::Deserialize(Reader, Root);
+            }
+
+            if (bOk && Resp.IsValid() && Code == 200)
+            {
+                Self->ApplyRuntimeSnapshotIfPresent(Root);
+
+                if (Self->RuntimeSelectedInstance && IsValid(Self->RuntimeSelectedInstance))
+                {
+                    Self->RuntimeSelectedInstance->bLocalOverrideLock = false;
+                    Self->RuntimeSelectedInstance->ResumeRuntimeEditorAnimation(Self->RuntimePreviousAnimState, Self->bRuntimePreviousAnimRunning);
+                    Self->RuntimePreviousAnimState.Empty();
+                    Self->bRuntimePreviousAnimRunning = false;
+                    Self->RuntimeEditBaseline = Self->RuntimeSelectedInstance->GetActorTransform();
+                }
+
+                Self->bRuntimeEditDirty = false;
+                Self->RuntimeStatusMessage = TEXT("Saved; backend snapshot applied");
+            }
+            else
+            {
+                FString Error;
+                if (Root.IsValid())
+                {
+                    Root->TryGetStringField(TEXT("error"), Error);
+                }
+                Self->RuntimeStatusMessage = Error.IsEmpty()
+                    ? FString::Printf(TEXT("Save failed (code=%d)"), Code)
+                    : FString::Printf(TEXT("Save failed: %s"), *Error);
+            }
+
+            Self->UpdateRuntimeEditorPanel();
+        });
+
+    HttpRequest->ProcessRequest();
+}
+
+void ATwinSceneManager::ApplyRuntimeSnapshotIfPresent(const TSharedPtr<FJsonObject>& ResponseObj)
+{
+    if (!RuntimeSelectedInstance || !IsValid(RuntimeSelectedInstance) || !ResponseObj.IsValid())
+    {
+        return;
+    }
+
+    const TSharedPtr<FJsonObject>* SnapshotObj = nullptr;
+    if (ResponseObj->TryGetObjectField(TEXT("snapshot"), SnapshotObj) && SnapshotObj && SnapshotObj->IsValid())
+    {
+        RuntimeSelectedInstance->bLocalOverrideLock = false;
+        RuntimeSelectedInstance->ApplySnapshot(*SnapshotObj);
+    }
+}
+
+void ATwinSceneManager::CancelRuntimeEdit()
+{
+    if (!RuntimeSelectedInstance || !IsValid(RuntimeSelectedInstance))
+    {
+        RuntimeStatusMessage = TEXT("No selected instance");
+        UpdateRuntimeEditorPanel();
+        return;
+    }
+
+    const bool bRestore = bRuntimeEditDirty;
+    ClearRuntimeSelection(bRestore);
+    RuntimeStatusMessage = bRestore ? TEXT("Edit canceled; transform restored") : TEXT("Selection cleared");
+    UpdateRuntimeEditorPanel();
+}
+
+void ATwinSceneManager::SetRuntimeWallSnapEnabled(bool bEnabled)
+{
+    bEnableWallSnap = bEnabled;
+    RuntimeStatusMessage = bEnabled ? TEXT("Wall snap enabled") : TEXT("Wall snap disabled");
+    UpdateRuntimeEditorPanel();
+}
+
+void ATwinSceneManager::SetRuntimeGridSnapEnabled(bool bEnabled)
+{
+    bEnableGridSnap = bEnabled;
+    RuntimeStatusMessage = bEnabled ? TEXT("Grid snap enabled") : TEXT("Grid snap disabled");
+    UpdateRuntimeEditorPanel();
+}
+
+FString ATwinSceneManager::GetRuntimeEditorModeText() const
+{
+    return bRuntimeEditMode ? TEXT("Mode: Runtime Edit") : TEXT("Mode: Runtime View");
+}
+
+FString ATwinSceneManager::GetRuntimeEditorBindingText() const
+{
+    if (bRuntimeBindingRequestInFlight)
+    {
+        return TEXT("Binding: checking");
+    }
+    if (RuntimeBindingMode == TEXT("matched"))
+    {
+        return FString::Printf(TEXT("Binding: matched (%s)"), *UEProjectId);
+    }
+    if (RuntimeBindingMode == TEXT("unbound"))
+    {
+        return TEXT("Binding: active dataset unbound");
+    }
+    if (RuntimeBindingMode == TEXT("ue_project_mismatch"))
+    {
+        return TEXT("Binding: mismatch");
+    }
+    return FString::Printf(TEXT("Binding: %s"), *RuntimeBindingMode);
+}
+
+FString ATwinSceneManager::GetRuntimeEditorSelectionText() const
+{
+    if (!RuntimeSelectedInstance || !IsValid(RuntimeSelectedInstance))
+    {
+        return TEXT("Selection: none");
+    }
+    return FString::Printf(TEXT("Selection: %s%s"),
+        *RuntimeSelectedInstance->GetInstanceId(),
+        bRuntimeEditDirty ? TEXT(" *") : TEXT(""));
+}
+
+FString ATwinSceneManager::GetRuntimeEditorTransformText() const
+{
+    if (!RuntimeSelectedInstance || !IsValid(RuntimeSelectedInstance))
+    {
+        return TEXT("Transform: -");
+    }
+
+    const FVector L = RuntimeSelectedInstance->GetActorLocation();
+    const FRotator R = RuntimeSelectedInstance->GetActorRotation();
+    return FString::Printf(TEXT("Transform: X %.1f | Y %.1f | Z %.1f | Yaw %.1f"),
+        L.X, L.Y, L.Z, R.Yaw);
+}
+
+FString ATwinSceneManager::GetRuntimeEditorStatusText() const
+{
+    return FString::Printf(TEXT("Status: %s"), *RuntimeStatusMessage);
+}
+
+bool ATwinSceneManager::CanBindRuntimeProject() const
+{
+    return bRuntimeEditMode && !bRuntimeBindingRequestInFlight && RuntimeBindingMode == TEXT("unbound");
+}
+
+bool ATwinSceneManager::CanSaveRuntimeEdit() const
+{
+    return bRuntimeEditMode &&
+        RuntimeSelectedInstance &&
+        IsValid(RuntimeSelectedInstance) &&
+        bRuntimeEditDirty &&
+        !bRuntimeEditSaving &&
+        bRuntimeCanSave;
+}
+
+bool ATwinSceneManager::HasRuntimeEditSelection() const
+{
+    return RuntimeSelectedInstance && IsValid(RuntimeSelectedInstance);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -438,7 +1446,8 @@ void ATwinSceneManager::ExportSelectedActorsForMigration()
         return;
     }
 
-    const FName TargetFolder = FName(*MigrationFolderName);
+    FString TargetFolder = MigrationFolderName;
+    TargetFolder.TrimStartAndEndInline();
     TArray<TSharedPtr<FJsonValue>> ActorsJson;
     int32 Count = 0;
 
@@ -448,8 +1457,8 @@ void ATwinSceneManager::ExportSelectedActorsForMigration()
         if (!A || A == this) continue;
         // 已受管的孪生体不迁移（它本就来自 DB）
         if (A->IsA(ATwinInstance::StaticClass())) continue;
-        // 只导出「待迁移文件夹」下的 actor
-        if (A->GetFolderPath() != TargetFolder) continue;
+        // 导出「待迁移文件夹」及其全部子文件夹下的 actor
+        if (!IsInFolderOrChild(A->GetFolderPath(), TargetFolder)) continue;
 
         TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
         Obj->SetStringField(TEXT("ext_guid"),
@@ -554,7 +1563,7 @@ void ATwinSceneManager::ExportSelectedActorsForMigration()
     IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path), /*Tree=*/true);
     const bool bOk = FFileHelper::SaveStringToFile(OutStr, *Path);
 
-    UE_LOG(LogTemp, Log, TEXT("[迁移] 文件夹「%s」导出 %d 个 actor → %s (%s)"),
+    UE_LOG(LogTemp, Log, TEXT("[迁移] 文件夹「%s」及其子文件夹导出 %d 个 actor → %s (%s)"),
            *MigrationFolderName, Count, *Path, bOk ? TEXT("成功") : TEXT("写入失败"));
     if (GEngine)
     {
@@ -564,7 +1573,7 @@ void ATwinSceneManager::ExportSelectedActorsForMigration()
                 ? FString::Printf(TEXT("导出 %d 个 actor → %s\n把它交给后端 migrate_ue_actors.py"),
                                    Count, *Path)
                 : FString::Printf(
-                    TEXT("文件夹「%s」下没有 actor\n请先框选历史 actor，右键→移动到文件夹→填「%s」"),
+                    TEXT("文件夹「%s」及其子文件夹下没有 actor\n请先框选历史 actor，右键→移动到文件夹→填「%s」"),
                     *MigrationFolderName, *MigrationFolderName));
     }
 #else

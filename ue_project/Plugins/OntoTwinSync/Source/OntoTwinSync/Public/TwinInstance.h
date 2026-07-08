@@ -158,6 +158,12 @@ public:
     /** 获取实例 ID */
     FString GetInstanceId() const { return InstanceId; }
 
+    /** Runtime Editor: stop local behavior animation while a gizmo edit owns spatial transform. */
+    FString PauseRuntimeEditorAnimation(bool& bOutWasRunning);
+
+    /** Runtime Editor: restore the behavior animation that was active before editing, if requested. */
+    void ResumeRuntimeEditorAnimation(const FString& PreviousState, bool bWasRunning);
+
 protected:
     virtual void BeginPlay() override;
     virtual void Tick(float DeltaTime) override;

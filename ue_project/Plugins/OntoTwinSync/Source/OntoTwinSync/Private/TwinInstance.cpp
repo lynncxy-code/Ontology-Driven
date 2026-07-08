@@ -133,6 +133,25 @@ void ATwinInstance::Tick(float DeltaTime)
     }
 }
 
+FString ATwinInstance::PauseRuntimeEditorAnimation(bool& bOutWasRunning)
+{
+    bOutWasRunning = bAnimRunning;
+    const FString PreviousState = CurrentAnimState;
+    bAnimRunning = false;
+    AnimTimer = 0.0f;
+    return PreviousState;
+}
+
+void ATwinInstance::ResumeRuntimeEditorAnimation(const FString& PreviousState, bool bWasRunning)
+{
+    if (!bWasRunning || PreviousState.IsEmpty())
+    {
+        return;
+    }
+
+    PlayAnimationState(PreviousState);
+}
+
 // 初始化动画配方字典
 void ATwinInstance::InitAnimLibrary()
 {

@@ -73,13 +73,13 @@ void ATwinInstance::Tick(float DeltaTime)
         {
             FVector CamLoc = CamManager->GetCameraLocation();
             FVector TextLoc = LabelComponent->GetComponentLocation();
-            
+
             // 计算 LookAt 旋转
             FRotator LookAtRot = UKismetMathLibrary::FindLookAtRotation(TextLoc, CamLoc);
-            
+
             // 只需要水平环绕相机（Yaw），强行把 Pitch 和 Roll 锁定为 0，防止文字趴在地上或者竖直歪曲
             FRotator BillboardRot(0.f, LookAtRot.Yaw, 0.f);
-            
+
             // 如果你发现文字刚好是左右镜像反的，可以改成 BillboardRot.Yaw += 180.f; 但纯 LookAt 一般是正的！
             LabelComponent->SetWorldRotation(BillboardRot);
         }
@@ -641,7 +641,7 @@ void ATwinInstance::ApplyRepresentableFromSnapshot(const TSharedPtr<FJsonObject>
     // ── 依 PRD 规范：控制场景存在性（加载/卸载资源） ────────────
     bool bVisible = true;
     RepObj->TryGetBoolField(TEXT("is_visible"), bVisible);
-    
+
     if (!bVisible && MeshComponent->GetStaticMesh() != nullptr)
     {
         // 从场景卸载不占内存资源
@@ -704,7 +704,7 @@ void ATwinInstance::ApplySpatialFromSnapshot(const TSharedPtr<FJsonObject>& Spat
 
     FVector NewLoc = FVector(tx, ty, tz);
     FRotator NewRot = FRotator(ry, rz, rx);   // Pitch=Y, Yaw=Z, Roll=X
-    
+
     // [PRD B.3] 严格校验与钳位：Scale 下限死锁为 0.001，防止纯 0 导致负体积断言崩溃
     FVector NewScale = FVector(
         FMath::Max(0.001, sx),
@@ -750,9 +750,9 @@ void ATwinInstance::ApplyVisualFromSnapshot(const TSharedPtr<FJsonObject>& Visua
     if (VisualObj->TryGetStringField(TEXT("material_variant"), MaterialVariant) && MaterialVariant != CurrentMaterialVariant)
     {
         CurrentMaterialVariant = MaterialVariant;
-        
+
         UE_LOG(LogTemp, Log, TEXT("[孪生体] 改变视觉状态: %s → %s"), *InstanceId, *MaterialVariant);
-        
+
         if (MaterialVariant == TEXT("normal"))
         {
             RestoreOriginalMaterials();
@@ -823,7 +823,7 @@ void ATwinInstance::ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& B
 
                 LabelComponent->SetText(FText::FromString(LabelContent));
                 LabelComponent->SetVisibility(true);
-                
+
                 // 开启 Tick 以便每帧更新朝向
                 SetActorTickEnabled(true);
             }

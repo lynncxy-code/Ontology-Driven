@@ -23,17 +23,17 @@ UPCBWorkerSyncComponent::UPCBWorkerSyncComponent()
     // 路径格式：/Game/... 对应 Content/ 目录下的资产，不含扩展名
     // 修改路径后必须完整重新编译（关闭编辑器 → VS Build → 重新打开）
     static ConstructorHelpers::FObjectFinder<UAnimSequence> IdleFinder(
-        TEXT("/Game/ani/5/SkeletalMeshes/Standing_Idle_Anim.Standing_Idle_Anim"));
+        TEXT("/Game/ani/PCBWorker/SkeletalMeshes/Standing_Idle_Anim.Standing_Idle_Anim"));
     if (IdleFinder.Succeeded())
         IdleAnimAsset = IdleFinder.Object;
 
     static ConstructorHelpers::FObjectFinder<UAnimSequence> WalkFinder(
-        TEXT("/Game/ani/4/SkeletalMeshes/Walking_Anim.Walking_Anim"));
+        TEXT("/Game/ani/PCBWorker/SkeletalMeshes/Walking_Anim.Walking_Anim"));
     if (WalkFinder.Succeeded())
         WalkAnimAsset = WalkFinder.Object;
 
     static ConstructorHelpers::FObjectFinder<UAnimSequence> WorkingFinder(
-        TEXT("/Game/ani/1/SkeletalMeshes/Cards_Anim.Cards_Anim"));
+        TEXT("/Game/ani/PCBWorker/SkeletalMeshes/Cards_Anim.Cards_Anim"));
     if (WorkingFinder.Succeeded())
         WorkingAnimAsset = WorkingFinder.Object;
 }
@@ -90,7 +90,14 @@ void UPCBWorkerSyncComponent::BeginPlay()
                     *InstanceId, Name);
                 return;
             }
-            if (!AnimSkel->IsCompatibleForEditor(MeshSkeleton))
+            bool bSkeletonsCompatible = (AnimSkel == MeshSkeleton);
+#if WITH_EDITOR
+            if (MeshSkeleton)
+            {
+                bSkeletonsCompatible = AnimSkel->IsCompatibleForEditor(MeshSkeleton);
+            }
+#endif
+            if (!bSkeletonsCompatible)
             {
                 UE_LOG(LogTemp, Error,
                     TEXT("[PCBWorker:%s] ✗ [骨架不匹配] %s → 动画骨架[%s] ≠ 网格骨架[%s]")
@@ -463,4 +470,3 @@ void UPCBWorkerSyncComponent::RefreshLabel()
 }
 
 // UpdateLabelBillboard 已由 TwinLabelComponent 内部的 Tick 自动完成，无需在此实现
-

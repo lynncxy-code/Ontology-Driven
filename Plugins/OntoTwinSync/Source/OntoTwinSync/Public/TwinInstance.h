@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // TwinInstance.h
 //
 // 孪生体实例 Actor — 每个后端实例在 UE 中的渲染载体
@@ -19,8 +19,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "Dom/JsonObject.h"
-#include "TwinLabelComponent.h"
 #include "TwinInstance.generated.h"
 
 class UDigitalTwinSyncComponent;
@@ -60,7 +60,7 @@ struct FAnimRecipe
  * 由 ATwinSceneManager 管控生命周期。
  */
 UCLASS(ClassGroup=(DigitalTwin), meta=(DisplayName="孪生体实例"))
-class TEST0316_API ATwinInstance : public AActor
+class ONTOTWINSYNC_API ATwinInstance : public AActor
 {
     GENERATED_BODY()
 
@@ -107,9 +107,21 @@ public:
     UPROPERTY()
     TArray<UMaterialInterface*> OriginalMaterials;
 
-    // ── 头顶标签配置（统一 TwinLabelComponent 方案）───────────────────────
+    // ── 3D 文字标签配置 ──────────────────────────────────────────────────────
 
-    /** 标签距离模型原点的 Z 轴偏移（cm） */
+    /** 标签字体（在 Details 面板中拖入已导入的 Font 资产，支持中文） */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="标签字体"))
+    UFont* LabelFont = nullptr;
+
+    /** 标签文字大小（世界坐标单位，默认 8cm） */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="文字大小"))
+    float LabelWorldSize = 8.0f;
+
+    /** 标签颜色 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="文字颜色"))
+    FColor LabelColor = FColor::White;
+
+    /** 相对模型原点的 Z 轴偏移（cm），默认 20cm */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|文字标签", meta=(DisplayName="标签高度偏移"))
     float LabelZOffset = 20.0f;
 
@@ -146,6 +158,12 @@ public:
     /** 获取实例 ID */
     FString GetInstanceId() const { return InstanceId; }
 
+    /** Runtime Editor: stop local behavior animation while a gizmo edit owns spatial transform. */
+    FString PauseRuntimeEditorAnimation(bool& bOutWasRunning);
+
+    /** Runtime Editor: restore the behavior animation that was active before editing, if requested. */
+    void ResumeRuntimeEditorAnimation(const FString& PreviousState, bool bWasRunning);
+
 protected:
     virtual void BeginPlay() override;
     virtual void Tick(float DeltaTime) override;
@@ -155,9 +173,9 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体", meta=(AllowPrivateAccess="true"))
     UStaticMeshComponent* MeshComponent = nullptr;
 
-    /** 头顶标签组件（统一样式，显示 ui_label_content） */
+    /** 3D 文字标签组件（显示 ui_label_content） */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体", meta=(AllowPrivateAccess="true"))
-    UTwinLabelComponent* LabelComp = nullptr;
+    UTextRenderComponent* LabelComponent = nullptr;
 
 private:
     // ── 同步组件 ─────────────────────────────────────────────────────────────
@@ -176,8 +194,29 @@ private:
 
     // ── 内部方法 ─────────────────────────────────────────────────────────
 
-    /** 根据 UE 路径加载 StaticMesh */
+    /** 根据 asset_id 加载 StaticMesh（兼容 /Game 烘焙资产 与 运行时 glb 文件） */
     bool LoadMeshFromPath(const FString& MeshPath);
+
+    /** 运行时从磁盘加载 glb/gltf（glTFRuntime）；成功返回 true 并已 SetStaticMesh */
+    bool LoadRuntimeGltf(const FString& AssetId);
+
+    /** 从绝对路径加载 glb（glTFRuntime 核心，被本地/远程缓存复用） */
+    bool LoadGltfFromFile(const FString& FilePath);
+
+    /** 把 asset_id 解析成 glb 文件的绝对磁盘路径（固定目录/exe 旁 Models/） */
+    FString ResolveModelFilePath(const FString& AssetId) const;
+
+    /** ArtStudio 远程加载：artstudio:{id}:v{n} → 命中缓存即时加载，否则占位 Cube + 异步下载（3.3） */
+    void LoadRemoteGltf(const FString& StableId);
+
+    /** 设置占位立方体（加载失败/下载中） */
+    void SetPlaceholderCube();
+
+    /** 清理同一 ArtStudio 资产的旧版本缓存（保留 KeepFile），防升版后缓存堆积 */
+    void PurgeOldCacheVersions(const FString& AssetId, const FString& KeepFile);
+
+    /** 正在下载的稳定标识，防重复请求；空=无下载在途 */
+    FString PendingRemoteId;
 
     /** 把当前的材质全部存下 */
     void CacheOriginalMaterials();

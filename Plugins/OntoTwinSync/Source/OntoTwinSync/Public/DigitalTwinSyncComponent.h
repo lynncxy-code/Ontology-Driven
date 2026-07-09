@@ -1,8 +1,12 @@
-// ============================================================================
+﻿// ============================================================================
 // DigitalTwinSyncComponent.h
 // 
 // 数字孪生同步组件 — UE5 渲染适配层
-// 
+//
+// ⚠ LEGACY（1.x 链路）：对接旧版 /api/state + /api/update，配合 index.html 演示页。
+//   新场景请用 2.x 的 TwinSceneManager + TwinInstance（/api/v2/state/snapshots）。
+//   保留原因：本组件含全项目唯一的 UE→后端回写能力（PushStateToBackend）。
+//
 // 功能说明：
 //   本组件附加到场景中的飞机 Actor 上，每 0.5 秒通过 HTTP GET 请求从后端
 //   获取权威状态 JSON，并根据三大本体接口（I3DSpatial / I3DVisual / I3DBehavior）
@@ -46,7 +50,7 @@ class UMaterialInstanceDynamic;
  */
 UCLASS(ClassGroup=(DigitalTwin), meta=(BlueprintSpawnableComponent),
        DisplayName="数字孪生同步组件")
-class TEST0316_API UDigitalTwinSyncComponent : public UActorComponent
+class ONTOTWINSYNC_API UDigitalTwinSyncComponent : public UActorComponent
 {
     GENERATED_BODY()
 

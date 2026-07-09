@@ -6,13 +6,18 @@
 	"Description": "OntoTwin Nexus 数字孪生同步组件：轮询 Flask 后端状态并驱动 UE Actor（1.x 单实例组件 + 2.x 场景管理器/孪生实例）。",
 	"Category": "DigitalTwin",
 	"CreatedBy": "OntoTwin",
-	"CanContainContent": false,
+	"CanContainContent": true,
 	"IsBetaVersion": false,
 	"Installed": false,
 	"Modules": [
 		{
 			"Name": "OntoTwinSync",
 			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "DigitalFactoryBaseEditor",
+			"Type": "Editor",
 			"LoadingPhase": "Default"
 		}
 	],

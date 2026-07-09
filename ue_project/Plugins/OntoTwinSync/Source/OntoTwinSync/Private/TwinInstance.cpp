@@ -361,6 +361,37 @@ bool ATwinInstance::LoadMeshFromPath(const FString& MeshPath)
 // 可在 项目 Config/DefaultGame.ini 用 [OntoTwinSync] ModelsDir=... 覆盖，无需重编译。
 static const TCHAR* kDefaultModelsDir = TEXT("D:/SCC/DigitalFactoryBase_SCC/Models");
 
+static FString FindVersionedModelFile(const FString& Directory, const FString& FileName)
+{
+    // ArtStudio 预取文件带版本号：{id}_v{n}.glb。
+    // 用户在路径直连里常会填 {id}.glb，这里在同目录下做一次兼容查找。
+    if (!FileName.EndsWith(TEXT(".glb")))
+    {
+        return FString();
+    }
+
+    const FString Stem = FPaths::GetBaseFilename(FileName);
+    if (!Stem.IsNumeric())
+    {
+        return FString();
+    }
+
+    TArray<FString> Found;
+    IFileManager::Get().FindFiles(
+        Found,
+        *FPaths::Combine(Directory, FString::Printf(TEXT("%s_v*.glb"), *Stem)),
+        true,
+        false);
+
+    if (Found.Num() == 0)
+    {
+        return FString();
+    }
+
+    Found.Sort();
+    return FPaths::ConvertRelativePathToFull(FPaths::Combine(Directory, Found.Last()));
+}
+
 FString ATwinInstance::ResolveModelFilePath(const FString& AssetId) const
 {
     // 在候选目录里找 <file>，返回第一个存在的；都没有则返回空串。
@@ -401,6 +432,13 @@ FString ATwinInstance::ResolveModelFilePath(const FString& AssetId) const
         if (bExists)
         {
             return Candidate;
+        }
+
+        const FString VersionedCandidate = FindVersionedModelFile(FPaths::GetPath(Candidate), FileName);
+        if (!VersionedCandidate.IsEmpty())
+        {
+            UE_LOG(LogTemp, Log, TEXT("[孪生体] 版本模型路径命中: %s -> %s"), *FileName, *VersionedCandidate);
+            return VersionedCandidate;
         }
     }
 

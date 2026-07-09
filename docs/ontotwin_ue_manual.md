@@ -217,6 +217,18 @@ OntoTwin 的核心任务是将**物理世界中设备的业务属性与图纸几
 *   **容器挂载与本地读取**：
     *   利用 Docker 挂载，将 UE 侧固定的 Models 物理宿主机目录（如 `D:/SCC/DigitalFactoryBase_SCC/Models`）和后端的 `/models` 直连。
     *   后端下载完成后直接下发**本地文件名**。UE 侧通过 glTFRuntime 进行文件级本地加载，彻底规避了三维客户端的并发网络负担。
+*   **打包必须 Cook glTFRuntime Content**：
+    *   使用 glTFRuntime 时，项目 `Config/DefaultGame.ini` 必须包含 `+DirectoriesToAlwaysCook=(Path="/glTFRuntime")`。
+    *   缺少这条配置时，PIE 里模型可能正常，但打包 exe 中运行时 glb 的母材质/贴图会丢失，表现为灰白材质或占位效果。
+*   **推荐项目配置**：
+
+```ini
+[/Script/UnrealEd.ProjectPackagingSettings]
++DirectoriesToAlwaysCook=(Path="/glTFRuntime")
+
+[OntoTwinSync]
+ModelsDir=D:/SCC/DigitalFactoryBase_SCC/Models
+```
 
 </details>
 
@@ -243,3 +255,5 @@ OntoTwin 的核心任务是将**物理世界中设备的业务属性与图纸几
 | **拉取预览显示“预览已生成 0 个”** | 1. 实例尚未在“实例绑定台”铸造；2. Manager 里的 **SceneId/ZoneId** 误填了未匹配的值。 | 确认网页实例运维列表里该项目下存在已发布的实例；清空 Manager 的 SceneId (保持为空) 再拉取。 |
 | **回写时报红“回写失败：Instance not found”** | 预览 Actor 上的 `InstanceId` 被误改，或该实例在后端网页上已被删除。 | 确认实例没有在网页上做软删，重新拉取预览后再修改回写。 |
 | **“① 导出待迁移Actor”提示“导出 0 个”** | 关卡大纲里的“待迁移文件夹”名与 Manager 属性中的 `待迁移文件夹名`（默认 `ToMigrate`）不一致。 | 修改两者使其完全对齐（注意大小写），确保历史 Actor 均在文件夹内。 |
+| **PIE 模型正常，打包 exe 中 glb 材质丢失** | 项目没有 Cook glTFRuntime Content，或 exe 运行时读到的 glb 与 PIE 不是同一个文件。 | 在 `Config/DefaultGame.ini` 加 `+DirectoriesToAlwaysCook=(Path="/glTFRuntime")`，并确认 `[OntoTwinSync] ModelsDir` 指向后端 `/models` 挂载的同一个宿主机目录。 |
+| **填写 `/Game/...` 后 PIE 正常，打包 exe 显示灰盒** | `/Game/...` 是 UE 已打包资产引用，动态字符串不会自动进入 pak。 | 将对应 UE 资产目录加入 Cook，或改用 Models 目录下的 `xxx.glb` 运行时模型文件名。 |

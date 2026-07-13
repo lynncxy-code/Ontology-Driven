@@ -411,7 +411,10 @@
         </div>
         
         <!-- Iframe 嵌套现有页面 -->
-        <iframe id="main-frame" class="content-frame" src="/ontology?nexus=true" sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"></iframe>
+        <iframe id="main-frame" class="content-frame" src="/ontology?nexus=true"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-popups allow-popups-to-escape-sandbox allow-pointer-lock"
+                allow="fullscreen; clipboard-read; clipboard-write; gamepad"
+                allowfullscreen></iframe>
     </main>
 
     <script>
@@ -457,4 +460,3 @@
 </body>
 
 </html>
-

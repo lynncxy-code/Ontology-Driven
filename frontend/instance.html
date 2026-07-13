@@ -31,6 +31,32 @@
         input[type=range]:focus::-webkit-slider-runnable-track {
             background: #d1d5db;
         }
+        .runtime-stream-panel:fullscreen {
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+        }
+        .runtime-stream-body {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        .runtime-stream-viewport {
+            width: min(100%, 1120px, 103vh);
+            aspect-ratio: 16 / 9;
+            min-width: 0;
+        }
+        .runtime-stream-panel:fullscreen .runtime-stream-body {
+            flex: 1;
+            min-height: 0;
+        }
+        .runtime-stream-panel:fullscreen .runtime-stream-viewport {
+            width: 100% !important;
+            height: 100% !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            aspect-ratio: auto;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900 h-screen overflow-hidden flex flex-col font-sans antialiased">
@@ -163,6 +189,69 @@
 
         <!-- Right: Monitor Panel -->
         <div class="flex-1 flex flex-col min-h-0 bg-gray-50">
+            <!-- Runtime Stream Panel (3.6 Pixel Streaming spike) -->
+            <section ref="runtimeStreamPanelRef" class="runtime-stream-panel bg-white border-b border-gray-200 shrink-0">
+                <div class="px-6 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h2 class="text-sm font-bold text-gray-900">运行时画面</h2>
+                            <span class="text-[10px] font-mono px-2 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-600">本机调试输入</span>
+                            <span class="text-[10px] font-medium px-2 py-0.5 rounded border border-gray-200 bg-white text-gray-500 flex items-center gap-1.5">
+                                <span :class="['w-1.5 h-1.5 rounded-full', runtimeStreamStatusDotClass]"></span>
+                                {{ runtimeStreamStatusLabel }}
+                            </span>
+                        </div>
+                        <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-500">
+                            <span>当前激活数据集：<span class="text-gray-800">{{ activeDatasetLabel }}</span></span>
+                            <span>当前实例：<span class="text-gray-800">{{ selectedInst ? ((selectedInst.display_name || selectedInst.id) + ' / ' + (currentSnap?.objectTypeName || selectedInst.object_type_name || '未知类型')) : '未选中实例' }}</span></span>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input v-model.trim="runtimeStreamUrl" @keyup.enter="connectRuntimeStream" type="text"
+                               placeholder="http://127.0.0.1:8888/"
+                               class="w-[min(360px,42vw)] min-w-[220px] text-xs border border-gray-300 rounded-md px-3 py-1.5 outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
+                        <button @click="connectRuntimeStream" :disabled="!runtimeStreamUrl.trim()"
+                                class="text-xs font-medium px-3 py-1.5 rounded-md bg-gray-900 text-white hover:bg-black transition disabled:opacity-40">
+                            连接
+                        </button>
+                        <button @click="disconnectRuntimeStream" :disabled="!runtimeStreamSrc"
+                                class="text-xs font-medium px-3 py-1.5 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition disabled:opacity-40">
+                            断开
+                        </button>
+                        <button @click="clearRuntimeStreamUrl"
+                                class="text-xs font-medium px-3 py-1.5 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                            清空
+                        </button>
+                        <button @click="openRuntimeStreamWindow" :disabled="!runtimeStreamUrl.trim() && !runtimeStreamSrc"
+                                class="text-xs font-medium px-3 py-1.5 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition disabled:opacity-40">
+                            新窗口
+                        </button>
+                        <button @click="fullscreenRuntimeStream" :disabled="!runtimeStreamSrc"
+                                class="text-xs font-medium px-3 py-1.5 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition disabled:opacity-40">
+                            全屏
+                        </button>
+                    </div>
+                </div>
+                <div class="runtime-stream-body px-6 py-4">
+                    <div class="runtime-stream-viewport relative overflow-hidden rounded-lg border border-gray-200 bg-gray-950 shadow-sm">
+                        <iframe v-if="runtimeStreamSrc"
+                                :src="runtimeStreamSrc"
+                                class="absolute inset-0 h-full w-full border-0 bg-black"
+                                allow="fullscreen; autoplay; clipboard-read; clipboard-write; gamepad"
+                                allowfullscreen
+                                @load="handleRuntimeStreamLoad"
+                                @error="handleRuntimeStreamError"></iframe>
+                        <div v-else class="absolute inset-0 flex flex-col items-center justify-center px-6 text-center text-gray-300">
+                            <div class="text-sm font-medium text-white">本机推流未连接</div>
+                            <div class="mt-2 max-w-xl text-xs leading-relaxed text-gray-400">
+                                手动启动 Flask、Pixel Streaming 服务和 UE Development exe 后，输入默认 player 地址并连接。
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="runtimeStreamError" class="mt-2 text-[11px] text-red-600">{{ runtimeStreamError }}</div>
+                </div>
+            </section>
+
             <div v-if="!selectedInst" class="flex-1 flex flex-col items-center justify-center text-gray-400 space-y-3">
                 <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path></svg>
                 <span class="text-sm font-medium">从左侧清单选中一个实例进行实时监视</span>
@@ -613,6 +702,10 @@ function _affInv(m) {
 }
 function _r2(v) { return Math.round((Number(v)||0) * 100) / 100; }
 
+const RUNTIME_STREAM_STORAGE_KEY = 'ontotwin.pixelStreaming.url';
+const RUNTIME_STREAM_OLD_DEFAULT_URL = 'http://127.0.0.1:80/';
+const RUNTIME_STREAM_DEFAULT_URL = 'http://127.0.0.1:8888/';
+
 const { createApp, ref, computed, onMounted, onUnmounted, watch } = Vue;
 createApp({
     setup() {
@@ -624,6 +717,13 @@ createApp({
         const overriding = ref(false);
         const toasts = ref([]);
         let pollTimer = null;
+        const activeDataset = ref(null);
+        const runtimeStreamPanelRef = ref(null);
+        const runtimeStreamUrl = ref(RUNTIME_STREAM_DEFAULT_URL);
+        const runtimeStreamSrc = ref('');
+        const runtimeStreamStatus = ref('idle'); // idle | loading | loaded | error
+        const runtimeStreamError = ref('');
+        let runtimeStreamLoadTimer = null;
         // 3.2：位置编辑（多坐标联动）
         const posOpen = ref(false);
         const posSaving = ref(false);
@@ -717,6 +817,25 @@ createApp({
         const pendingDelete = ref(null);
         const overridePatch = ref({});
 
+        const activeDatasetLabel = computed(() => {
+            if (!activeDataset.value) return '加载中';
+            return activeDataset.value.name || activeDataset.value.project_name || activeDataset.value.id || '未命名数据集';
+        });
+
+        const runtimeStreamStatusLabel = computed(() => {
+            if (runtimeStreamStatus.value === 'loading') return '正在加载';
+            if (runtimeStreamStatus.value === 'loaded') return '已加载推流页面';
+            if (runtimeStreamStatus.value === 'error') return '加载失败';
+            return runtimeStreamUrl.value.trim() ? '未连接' : '未设置地址';
+        });
+
+        const runtimeStreamStatusDotClass = computed(() => {
+            if (runtimeStreamStatus.value === 'loading') return 'bg-gray-500 animate-pulse';
+            if (runtimeStreamStatus.value === 'loaded') return 'bg-green-600';
+            if (runtimeStreamStatus.value === 'error') return 'bg-red-600';
+            return 'bg-gray-300';
+        });
+
         watch(currentSnap, (snap) => {
             if (!snap) return;
             // Only update initialized structure of undefined values to avoid wiping slider movements during polling resets 
@@ -739,6 +858,126 @@ createApp({
             ]);
             instances.value = instRes.data;
             objectTypes.value = typeRes.data;
+        }
+
+        async function loadActiveDatasetContext() {
+            try {
+                const res = await axios.get('/api/v2/ontology/datasets');
+                const list = Array.isArray(res.data) ? res.data : [];
+                activeDataset.value = list.find(ds => ds.is_active) || null;
+            } catch (_) {
+                activeDataset.value = null;
+            }
+        }
+
+        function normalizeRuntimeStreamUrl(value) {
+            return String(value || '').trim();
+        }
+
+        function clearRuntimeStreamTimer() {
+            if (runtimeStreamLoadTimer) {
+                clearTimeout(runtimeStreamLoadTimer);
+                runtimeStreamLoadTimer = null;
+            }
+        }
+
+        async function connectRuntimeStream() {
+            const url = normalizeRuntimeStreamUrl(runtimeStreamUrl.value);
+            if (!url) {
+                runtimeStreamStatus.value = 'idle';
+                runtimeStreamError.value = '请先填写本机推流地址';
+                return;
+            }
+            runtimeStreamUrl.value = url;
+            runtimeStreamStatus.value = 'loading';
+            runtimeStreamError.value = '';
+            runtimeStreamSrc.value = '';
+            try {
+                window.localStorage.setItem(RUNTIME_STREAM_STORAGE_KEY, url);
+            } catch (_) {}
+            try {
+                await fetch(url, { mode: 'no-cors', cache: 'no-store' });
+            } catch (_) {
+                runtimeStreamStatus.value = 'error';
+                runtimeStreamError.value = '加载失败，请检查本机推流服务';
+                runtimeStreamSrc.value = '';
+                return;
+            }
+            Vue.nextTick(() => {
+                runtimeStreamSrc.value = url;
+                clearRuntimeStreamTimer();
+                runtimeStreamLoadTimer = setTimeout(() => {
+                    if (runtimeStreamStatus.value === 'loading') {
+                        runtimeStreamStatus.value = 'error';
+                        runtimeStreamError.value = '加载失败，请检查本机推流服务';
+                    }
+                }, 8000);
+            });
+        }
+
+        function disconnectRuntimeStream() {
+            clearRuntimeStreamTimer();
+            runtimeStreamSrc.value = '';
+            runtimeStreamStatus.value = 'idle';
+            runtimeStreamError.value = '';
+        }
+
+        function clearRuntimeStreamUrl() {
+            disconnectRuntimeStream();
+            runtimeStreamUrl.value = '';
+            try {
+                window.localStorage.removeItem(RUNTIME_STREAM_STORAGE_KEY);
+            } catch (_) {}
+        }
+
+        function restoreRuntimeStreamUrl() {
+            let saved = '';
+            try {
+                saved = window.localStorage.getItem(RUNTIME_STREAM_STORAGE_KEY) || '';
+            } catch (_) {}
+            if (saved.trim()) {
+                runtimeStreamUrl.value = saved.trim() === RUNTIME_STREAM_OLD_DEFAULT_URL
+                    ? RUNTIME_STREAM_DEFAULT_URL
+                    : saved.trim();
+                connectRuntimeStream();
+            }
+        }
+
+        function handleRuntimeStreamLoad() {
+            clearRuntimeStreamTimer();
+            if (runtimeStreamSrc.value) {
+                runtimeStreamStatus.value = 'loaded';
+                runtimeStreamError.value = '';
+            }
+        }
+
+        function handleRuntimeStreamError() {
+            clearRuntimeStreamTimer();
+            runtimeStreamStatus.value = 'error';
+            runtimeStreamError.value = '加载失败，请检查本机推流服务';
+        }
+
+        function openRuntimeStreamWindow() {
+            const url = normalizeRuntimeStreamUrl(runtimeStreamSrc.value || runtimeStreamUrl.value);
+            if (!url) {
+                runtimeStreamError.value = '请先填写本机推流地址';
+                return;
+            }
+            window.open(url, '_blank', 'noopener,noreferrer');
+        }
+
+        async function fullscreenRuntimeStream() {
+            if (!runtimeStreamSrc.value) return;
+            const el = runtimeStreamPanelRef.value;
+            if (!el || !el.requestFullscreen) {
+                runtimeStreamError.value = '当前浏览器不支持全屏';
+                return;
+            }
+            try {
+                await el.requestFullscreen();
+            } catch (_) {
+                runtimeStreamError.value = '全屏被浏览器拦截，请检查页面嵌入权限';
+            }
         }
 
         // ── Batch deployment methods ────────────────────────────────────
@@ -1057,12 +1296,24 @@ createApp({
             setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 3000);
         }
 
-        onMounted(loadInstances);
-        onUnmounted(stopPoll);
+        onMounted(() => {
+            loadInstances();
+            loadActiveDatasetContext();
+            restoreRuntimeStreamUrl();
+        });
+        onUnmounted(() => {
+            stopPoll();
+            clearRuntimeStreamTimer();
+        });
 
         return {
             instances, objectTypes, readyTypes, availableInstanceIds, selectedInst, currentSnap,
             spawnForm, spawning, overriding, overrideFields, overridePatch, toasts, pendingDelete,
+            activeDataset, activeDatasetLabel,
+            runtimeStreamPanelRef, runtimeStreamUrl, runtimeStreamSrc, runtimeStreamStatus,
+            runtimeStreamStatusLabel, runtimeStreamStatusDotClass, runtimeStreamError,
+            connectRuntimeStream, disconnectRuntimeStream, clearRuntimeStreamUrl, handleRuntimeStreamLoad,
+            handleRuntimeStreamError, openRuntimeStreamWindow, fullscreenRuntimeStream,
             loadInstances, spawnInstance, deleteInstance, selectInstance, applyOverride, resetOverride,
             // FR-7 规范坐标微调
             posOpen, posSaving, pos, posX, openPos, savePos, posEditCanonical, posEditUE, posEditFrame, posEditFloor,

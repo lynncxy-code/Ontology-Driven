@@ -563,7 +563,11 @@ class ProjectStore:
 
     # ── 铸造（已绑定构件 → 实例） ──────────────────────────────
     def mint_instances(self):
-        """把所有已绑定构件同步为实例：instances 与"已绑定构件集"对齐。
+        """把所有已绑定构件同步为实例。
+
+        3.4.3 起不再让 instances 与"已绑定构件集"强对齐。原因：
+        同一项目内可能同时存在 UE 历史迁移自由实例、CAD 构件实例、图片构件实例。
+        铸造某个空间源时只应 upsert 对应构件实例，不能删除其他来源实例。
         已存在的实例保留其 raw_state/last_seen（不重置在线状态）。返回铸造数量。"""
         with self._lock:
             if not self._current:
@@ -576,7 +580,7 @@ class ProjectStore:
             floor_z_cm = {}
             for ft in sp.get("floor_table") or []:
                 floor_z_cm[ft.get("floor")] = float(ft.get("z_base_mm", 0)) * scale
-            new_instances = {}
+            new_instances = dict(old)
             for comp in comps.values():
                 iid = comp.get("bound_instance_id")
                 if not iid:
@@ -608,7 +612,7 @@ class ProjectStore:
                 new_instances[iid] = rec
             self._current["instances"] = new_instances
             self._save_current()
-            return len(new_instances)
+            return len([c for c in comps.values() if c.get("bound_instance_id")])
 
 
 # ── 存储后端开关（3.4）─────────────────────────────────────────

@@ -112,6 +112,57 @@ def _migration_rid(group_key):
     return f"ri.obj.{uuid.uuid5(uuid.NAMESPACE_URL, 'ontotwin:migration:' + group_key)}"
 
 
+def _is_create_experimental(rule):
+    return bool(rule) and (rule.get("action") or "").strip().lower() == "create_experimental"
+
+
+def _experimental_type(rid, rule, source_asset):
+    name = (rule.get("suggested_object_type_name") or "").strip() or rid
+    return {
+        "rid": rid,
+        "name": name,
+        "category": "UE Migration",
+        "description": "Created from UE migration classification CSV; review before promoting.",
+        "color": "#8a8a8a",
+        "properties": [],
+        "injected_interfaces": ["I3D_Representable", "I3D_Spatial"],
+        "asset_id": None,
+        "mock_instances": [],
+        "source": "ue_migration",
+        "lifecycle_status": "EXPERIMENTAL",
+        "graph_rid": rid,
+        "source_asset_path": source_asset,
+        "classification_key": (rule.get("group_key") or "").strip(),
+    }
+
+
+def _ensure_dataset_type_node(active_proj, ot):
+    if not active_proj or not active_proj.get("dataset"):
+        return
+    ds = active_proj["dataset"]
+    graph_data = ds.setdefault("graph_data", {"nodes": [], "links": [], "categories": []})
+    nodes = graph_data.setdefault("nodes", [])
+    rid = ot.get("rid")
+    if any(n.get("rid") == rid or n.get("id") == rid for n in nodes):
+        return
+    category = ot.get("category") or "UE Migration"
+    nodes.append({
+        "id": rid,
+        "rid": rid,
+        "name": ot.get("name") or rid,
+        "category": category,
+        "description": ot.get("description", ""),
+        "injected_interfaces": ot.get("injected_interfaces", []),
+        "color": ot.get("color", "#8a8a8a"),
+        "properties": ot.get("properties", []),
+    })
+    cats = graph_data.setdefault("categories", [])
+    if not any(c.get("name") == category for c in cats):
+        cats.append({"name": category})
+    ds["node_count"] = len(nodes)
+    ds["link_count"] = len(graph_data.get("links") or [])
+
+
 def _metadata_from_actor(actor, rule, rid, source_asset):
     label = actor.get("actor_label") or actor.get("name") or actor.get("ext_guid") or ""
     source_folder = actor.get("source_folder_path") or ""
@@ -204,10 +255,15 @@ def migrate(input_path, mapping_path, classification_csv=None, dry_run=False):
         rule = classification_rules.get(group_key)
         source_asset = _best_asset_key(a) or mesh
         rid = (rule or {}).get("suggested_object_type_rid")
-        if not rid and rule and (rule.get("action") or "").strip().lower() == "create_experimental":
+        if not rid and _is_create_experimental(rule):
             rid = _migration_rid(group_key)
         rid = rid or mapping.get(source_asset) or mapping.get(mesh)
         if rid and rid in ots:
+            stats["matched"] += 1
+        elif rid and _is_create_experimental(rule):
+            ot = _experimental_type(rid, rule, source_asset)
+            ots[rid] = ot
+            _ensure_dataset_type_node(store.get_active(), ot)
             stats["matched"] += 1
         else:
             rid = LEGACY_RID
@@ -265,6 +321,19 @@ def migrate(input_path, mapping_path, classification_csv=None, dry_run=False):
                     })
                     ds["node_count"] = len(nodes)
                     print(f"已将 {LEGACY_RID} 节点追加至项目数据集的图谱节点中")
+
+    if not need_legacy and LEGACY_RID in ots and not any(
+        inst.get("object_type_rid") == LEGACY_RID for inst in insts.values()
+    ):
+        ots.pop(LEGACY_RID, None)
+        active_proj = store.get_active()
+        if active_proj and active_proj.get("dataset"):
+            graph_data = active_proj["dataset"].setdefault("graph_data", {"nodes": [], "links": [], "categories": []})
+            graph_data["nodes"] = [
+                n for n in graph_data.get("nodes", [])
+                if n.get("rid") != LEGACY_RID and n.get("id") != LEGACY_RID
+            ]
+            active_proj["dataset"]["node_count"] = len(graph_data.get("nodes") or [])
 
     print("拟迁移统计:", stats, "| Legacy 桶:", "新建" if (need_legacy and LEGACY_RID not in store.get_object_types()) else "复用/无")
 

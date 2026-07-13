@@ -114,7 +114,8 @@ import json as _json
 import tempfile
 from parser_dxf import extract_preview_data
 from coord_transform import (calibrate as coord_calibrate, apply_transform as coord_apply,
-                             canonical_to_ue as coord_canon_to_ue, invert_affine as coord_invert)
+                             canonical_to_ue as coord_canon_to_ue, invert_affine as coord_invert,
+                             build_ue_matrix as coord_build_ue_matrix)
 
 _MAPPING_FILE = os.path.join(os.path.dirname(__file__), 'block_asset_mapping.json')
 
@@ -770,8 +771,10 @@ def coord_save_components():
     取代旧的"直接 spawn 实例"。
 
     Body: {
+        "mode": "dxf" | "image",
+        "source_label": "xxx.dxf" | "image:xxx.png",
         "transform_matrix": [[a,b,tx],[c,d,ty]],
-        "items": [{"block_name", "cad_xy":[x,y], "rotation", "attribs":{"EQUIP_ID":...}}]
+        "items": [{"block_name", "cad_xy":[x,y], "source_xy":[x,y], "rotation", "attribs":{"EQUIP_ID":...}}]
     }
     重复保存按构件 id 保留已有绑定（bound_instance_id 不丢）。
     """
@@ -781,26 +784,47 @@ def coord_save_components():
     data = request.json or {}
     items = data.get("items") or []
     matrix = data.get("transform_matrix")
+    mode = (data.get("mode") or "dxf").strip().lower()
+    source_label = (data.get("source_label") or "").strip()
+    if mode not in ("dxf", "image"):
+        return jsonify({"error": f"未知 mode: {mode}"}), 400
     if not items:
         return jsonify({"error": "items 为空"}), 400
     if not matrix:
         return jsonify({"error": "缺少 transform_matrix（请先完成标定）"}), 400
 
-    # 3.1/3.2：规范系 = CAD 帧（canonical_xy = cad_xy − 规范原点）
-    # 锚点矩阵是 cad→UE；存前按 origin 组合成"规范→UE"（t' = A·origin + t），
-    # 这样 ue = M·canonical 与 ue = M_cad·cad 一致，根除 origin≠0 偏移。
+    # 3.1/3.2/3.0.2：规范系 = 来源帧坐标 − 规范原点。
+    # 每个来源保存自己的 source→UE 矩阵，避免图片源/CAD 源互相覆盖。
+    # CAD 仍可更新项目默认 canonical→UE；图片只作为独立空间源写入构件。
     profile = project_store.get_spatial_profile()
-    origin = (profile.get("canonical_origin") or [0.0, 0.0])[:2]
-    profile["ue_transform"]["matrix"] = _compose_origin(matrix, origin)
-    project_store.set_spatial_profile(profile)
+    origin = [0.0, 0.0] if mode == "image" else (profile.get("canonical_origin") or [0.0, 0.0])[:2]
+    source_to_ue_matrix = _compose_origin(matrix, origin)
+    if mode == "dxf":
+        profile["ue_transform"]["matrix"] = source_to_ue_matrix
+        project_store.set_spatial_profile(profile)
+    frame_id = "frame_image" if mode == "image" else "frame_cad"
+    frame_name = "图片平面图" if mode == "image" else "CAD 图纸"
+    frame_unit = "px" if mode == "image" else "mm"
     project_store.upsert_frame({
-        "id": "frame_cad", "name": "CAD 图纸", "kind": "cad", "unit": "mm",
+        "id": frame_id, "name": frame_name, "kind": mode, "unit": frame_unit,
         "to_canonical": {"method": "anchor", "matrix": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]},
+        "to_ue": {"method": "anchor", "matrix": source_to_ue_matrix},
         "floor": 1, "map_code": None,
     })
 
     old = project_store.get_components()
-    comps = {}
+    def _source_key(comp):
+        comp_mode = comp.get("source_mode")
+        if not comp_mode:
+            comp_mode = "image" if comp.get("frame_id") == "frame_image" else "dxf"
+        return (comp_mode, comp.get("source_label") or "")
+
+    current_source_key = (mode, source_label)
+    # 只替换当前来源的构件；保留其他 CAD/图片/历史构件，避免多空间源互相冲掉。
+    comps = {
+        cid: comp for cid, comp in old.items()
+        if _source_key(comp) != current_source_key
+    }
     errors = []
     for item in items:
         block_name = (item.get("block_name") or "").strip()
@@ -811,29 +835,34 @@ def coord_save_components():
             errors.append({"block_name": block_name, "reason": "type_not_in_active_dataset",
                            "hint": "请先在类型审核把该类型合并进当前类型库"})
             continue
-        cad_xy = item.get("cad_xy")
-        if not cad_xy or len(cad_xy) < 2:
-            errors.append({"block_name": block_name, "reason": "cad_xy 缺失或非法"})
+        source_xy = item.get("source_xy") or item.get("cad_xy")
+        if not source_xy or len(source_xy) < 2:
+            errors.append({"block_name": block_name, "reason": "来源坐标缺失或非法"})
             continue
         floor = int(item.get("floor") or 1)
-        canonical_xy = [float(cad_xy[0]) - float(origin[0]), float(cad_xy[1]) - float(origin[1])]
+        canonical_xy = [float(source_xy[0]) - float(origin[0]), float(source_xy[1]) - float(origin[1])]
         try:
-            ue = coord_canon_to_ue(profile, canonical_xy, floor)   # [x_cm, y_cm, z_cm]
+            ue_xy = coord_apply(source_to_ue_matrix, canonical_xy)
+            scale = float(((profile or {}).get("ue_transform") or {}).get("scale_to_cm", 0.1) or 0.1)
+            ue = [ue_xy[0], ue_xy[1], round(_floor_zbase_mm(profile, floor) * scale, 2)]
         except Exception as e:
             errors.append({"block_name": block_name, "reason": f"变换失败: {e}"})
             continue
         # 构件 id：按 块名+CAD坐标 取稳定短哈希 → 重存同图纸 id 不漂移，可保留绑定
-        key = f"{block_name}|{round(float(cad_xy[0]),2)}|{round(float(cad_xy[1]),2)}"
+        key = f"{mode}|{source_label}|{block_name}|{round(float(source_xy[0]),2)}|{round(float(source_xy[1]),2)}"
         cid = "cmp_" + hashlib.md5(key.encode("utf-8")).hexdigest()[:12]
         ot = _object_types.get(block_name) or {}
         comps[cid] = {
             "id": cid,
             "object_type_rid": block_name,
             "type_name": ot.get("name", block_name),
-            "frame_id": "frame_cad",
+            "frame_id": frame_id,
+            "source_mode": mode,
+            "source_label": source_label,
+            "to_ue_matrix": source_to_ue_matrix,
             "floor": floor,
-            "source_xy": [float(cad_xy[0]), float(cad_xy[1])],   # 留痕：原始源坐标
-            "cad_xy": [float(cad_xy[0]), float(cad_xy[1])],      # 兼容旧字段
+            "source_xy": [float(source_xy[0]), float(source_xy[1])],   # 留痕：原始源坐标
+            "cad_xy": [float(source_xy[0]), float(source_xy[1])],      # 兼容旧字段；图片模式语义为像素坐标
             "canonical_xy": canonical_xy,                         # 3.1：规范坐标（事实来源）
             "canonical_z": _floor_zbase_mm(profile, floor),       # 3.2：规范 Z（默认楼层基准，可微调）
             "ue_xy": [ue[0], ue[1]],                             # 派生缓存
@@ -888,7 +917,12 @@ def _rederive_components(sync_instances=True):
             c["canonical_xy"] = canon
         if c.get("canonical_z") is None:        # 旧构件无 canonical_z → 楼层基准回填
             c["canonical_z"] = _floor_zbase_mm(profile, c.get("floor", 1))
-        ue = coord_canon_to_ue(profile, canon, c.get("floor", 1))
+        source_matrix = c.get("to_ue_matrix")
+        if source_matrix:
+            ue_xy = coord_apply(source_matrix, canon)
+            ue = [ue_xy[0], ue_xy[1], 0.0]
+        else:
+            ue = coord_canon_to_ue(profile, canon, c.get("floor", 1))
         c["ue_xy"] = [ue[0], ue[1]]
         c["ue_z"] = round(float(c["canonical_z"]) * scale, 2)   # 3.2：Z 由 canonical_z 派生（可微调）
     project_store.set_components(comps)
@@ -998,18 +1032,44 @@ def spatial_preview():
 
 @app.route('/api/v2/instances/<path:instance_id>/transform', methods=['GET'])
 def instance_transform_get(instance_id):
-    """FR-7：取该实例绑定构件的当前规范坐标/朝向，供微调弹窗预填。"""
+    """FR-7：取实例当前坐标，供微调弹窗预填。
+    构件绑定实例以构件为真源；历史迁移等自由实例以 raw_state 为真源。"""
     if project_store.get_active() is None:
         return jsonify({"error": "当前无激活项目"}), 400
     comp = project_store.get_component_by_instance(instance_id)
-    if not comp:
-        return jsonify({"error": "找不到该实例对应的构件"}), 404
     profile = project_store.get_spatial_profile()
-    canon = comp.get("canonical_xy") or comp.get("cad_xy") or [0, 0]
-    floor = comp.get("floor", 1)
-    cz = comp.get("canonical_z")
-    if cz is None:
-        cz = _floor_zbase_mm(profile, floor)
+    raw = project_store.get_raw_state(instance_id)
+    if not comp and raw is None:
+        return jsonify({"error": "找不到该实例"}), 404
+
+    if comp:
+        mode = "component_bound"
+        canon = comp.get("canonical_xy") or comp.get("cad_xy") or [0, 0]
+        floor = comp.get("floor", 1)
+        cz = comp.get("canonical_z")
+        if cz is None:
+            cz = _floor_zbase_mm(profile, floor)
+        ue_xy = comp.get("ue_xy") or [0, 0]
+        ue_z = comp.get("ue_z", 0.0)
+        rotation = comp.get("rotation", 0.0)
+    else:
+        mode = "free_instance"
+        tx = float(raw.get("translation_x", 0.0) or 0.0)
+        ty = float(raw.get("translation_y", 0.0) or 0.0)
+        tz = float(raw.get("translation_z", 0.0) or 0.0)
+        rotation = float(raw.get("rotation_z", 0.0) or 0.0)
+        floor = 1
+        m = coord_build_ue_matrix(profile)
+        inv = coord_invert(m)
+        if inv:
+            canon = coord_apply(inv, [tx, ty])
+        else:
+            canon = [tx, ty]
+        scale = float(((profile or {}).get("ue_transform") or {}).get("scale_to_cm", 0.1) or 0.1)
+        cz = tz / scale if scale else tz
+        ue_xy = [tx, ty]
+        ue_z = tz
+
     # 各已标定"自定义源"的坐标（规范→源）：供多坐标面板展示第三列
     frames_out = []
     for f in project_store.list_frames():
@@ -1026,12 +1086,13 @@ def instance_transform_get(instance_id):
         frames_out.append({"id": f.get("id"), "name": f.get("name", f.get("id")),
                            "unit": f.get("unit", "mm"), "xy": xy})
     return jsonify({
+        "mode": mode,
         "canonical_xy": canon,
         "canonical_z": cz,
-        "rotation": comp.get("rotation", 0.0),
+        "rotation": rotation,
         "floor": floor,
-        "ue_xy": comp.get("ue_xy") or [0, 0],
-        "ue_z": comp.get("ue_z", 0.0),
+        "ue_xy": ue_xy,
+        "ue_z": ue_z,
         "frames": frames_out,
     })
 
@@ -1039,13 +1100,36 @@ def instance_transform_get(instance_id):
 @app.route('/api/v2/instances/<path:instance_id>/transform', methods=['PUT'])
 def instance_transform_put(instance_id):
     """FR-7 / 3.2 单实例微调：改绑定构件 canonical_xy / canonical_z / rotation / floor
-    → 重派生 → 同步实例。前端已把任一帧坐标折算成规范坐标后再传入。"""
+    → 重派生 → 同步实例；自由实例直接写 raw_state。
+    前端已把任一帧坐标折算成规范坐标后再传入。"""
     if project_store.get_active() is None:
         return jsonify({"error": "当前无激活项目"}), 400
     data = request.json or {}
     comp = project_store.get_component_by_instance(instance_id)
     if not comp:
-        return jsonify({"error": "找不到该实例对应的构件"}), 404
+        raw = project_store.get_raw_state(instance_id)
+        if raw is None:
+            return jsonify({"error": "找不到该实例"}), 404
+        profile = project_store.get_spatial_profile()
+        canon_xy = data.get("canonical_xy") or [0, 0]
+        ue_xy = coord_canon_to_ue(profile, [float(canon_xy[0]), float(canon_xy[1])], int(data.get("floor") or 1))
+        scale = float(((profile or {}).get("ue_transform") or {}).get("scale_to_cm", 0.1) or 0.1)
+        canonical_z = float(data.get("canonical_z") or 0.0)
+        ok, info = apply_writeback(project_store, instance_id, {
+            "tx": float(ue_xy[0]),
+            "ty": float(ue_xy[1]),
+            "tz": canonical_z * scale,
+            "rx": float(raw.get("rotation_x", 0.0) or 0.0),
+            "ry": float(raw.get("rotation_y", 0.0) or 0.0),
+            "rz": float(data.get("rotation") or 0.0),
+            "sx": float(raw.get("scale_x", 1.0) or 1.0),
+            "sy": float(raw.get("scale_y", 1.0) or 1.0),
+            "sz": float(raw.get("scale_z", 1.0) or 1.0),
+        }, persist=True)
+        if not ok:
+            return jsonify({"error": info.get("error", "保存失败")}), 404
+        return jsonify({"status": "ok", "mode": "free_instance", "writeback": info})
+
     patch = {}
     if "canonical_xy" in data and data["canonical_xy"]:
         patch["canonical_xy"] = [float(data["canonical_xy"][0]), float(data["canonical_xy"][1])]
@@ -1063,7 +1147,7 @@ def instance_transform_put(instance_id):
         return jsonify({"error": "无可更新字段（canonical_xy / canonical_z / rotation / floor）"}), 400
     project_store.update_component(comp["id"], patch)
     _rederive_components()
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "mode": "component_bound"})
 
 
 @app.route('/api/v2/coord/calibrate', methods=['POST'])
@@ -1373,24 +1457,125 @@ def update_state():
 # 2.3 API — 本体对象类型 (ObjectType Registry)
 # ═══════════════════════════════════════════════════════════════
 
+def _model_path_label(path):
+    text = str(path or "").strip()
+    if not text:
+        return ""
+    if text.startswith("/Game/"):
+        return text.split("/")[-1]
+    if text.startswith(artstudio_client.PREFIX):
+        return text
+    return os.path.basename(text.replace("\\", "/")) or text
+
+
+def _model_source(path, asset_id=""):
+    text = str(path or asset_id or "").strip()
+    if not text:
+        return "none"
+    if text.startswith(artstudio_client.PREFIX):
+        return "artstudio"
+    if text.startswith("/Game/") or text.startswith("/Engine/"):
+        return "ue"
+    if text.lower().endswith((".glb", ".gltf", ".fbx", ".usd", ".usdz")) or text.startswith("/static/"):
+        return "local"
+    return "manual"
+
+
+def _normalize_runtime_model_name(text):
+    """
+    将用户输入的运行时模型引用规范成 UE 可在 ModelsDir 下查找的文件名。
+
+    允许：
+      - SM_Forklift.glb
+      - SM_Forklift            -> SM_Forklift.glb
+      - /static/models/xxx.glb -> xxx.glb（旧 UI 兼容）
+    不把 /Game/... 放进这里；/Game 是 UE 已 cook 资产链路。
+    """
+    value = (text or "").strip().replace("\\", "/")
+    if not value:
+        return "", None
+    lower = value.lower()
+    if value.startswith("/Game/") or value.startswith("/Engine/"):
+        return "", None
+    if lower.startswith("/static/models/") or lower.startswith("static/models/") or lower.startswith("/models/") or lower.startswith("models/"):
+        value = value.rsplit("/", 1)[-1]
+        lower = value.lower()
+    if "/" in value:
+        return "", "运行时模型请填写 Models 目录下的文件名，例如 SM_Forklift.glb；不要填写目录路径。"
+    if lower.endswith((".glb", ".gltf")):
+        return value, None
+    if "." not in value:
+        return f"{value}.glb", None
+    return "", None
+
+
+def _model_binding_summary(rid, ot):
+    asset_id = (ot.get("asset_id") or "").strip() if isinstance(ot.get("asset_id"), str) else ot.get("asset_id")
+    ue_asset_path = (ot.get("ue_asset_path") or "").strip() if isinstance(ot.get("ue_asset_path"), str) else ot.get("ue_asset_path")
+    default_path = ue_asset_path or asset_id or ""
+    default_model = None
+    if default_path:
+        default_model = {
+            "source": _model_source(default_path, asset_id),
+            "asset_id": asset_id or "",
+            "ue_asset_path": ue_asset_path or "",
+            "path": default_path,
+            "label": _model_path_label(default_path),
+        }
+
+    groups = {}
+    for inst in instance_store.list_all():
+        if inst.get("object_type_rid") != rid:
+            continue
+        cfg = instance_store.get_render_config(inst.get("id")) or {}
+        path = (
+            inst.get("source_asset_path")
+            or cfg.get("ue_asset_path")
+            or cfg.get("asset_id")
+            or ""
+        )
+        path = str(path or "").strip()
+        if not path:
+            continue
+        g = groups.setdefault(path, {
+            "source": "ue_migration" if inst.get("source_folder_path") or inst.get("source_asset_path") else _model_source(path),
+            "path": path,
+            "label": _model_path_label(path),
+            "instance_count": 0,
+            "sample_instances": [],
+        })
+        g["instance_count"] += 1
+        if len(g["sample_instances"]) < 5:
+            g["sample_instances"].append(inst.get("id"))
+
+    return {
+        "default_model": default_model,
+        "migration_models": sorted(groups.values(), key=lambda x: (-x["instance_count"], x["path"])),
+    }
+
+
+def _object_type_response(rid, ot):
+    injected = ot.get("injected_interfaces", [])
+    return {
+        "rid": ot.get("rid", rid),
+        "name": ot.get("name", rid),
+        "category": ot.get("category", ""),
+        "description": ot.get("description", ""),
+        "color": ot.get("color", "#888888"),
+        "properties": ot.get("properties", []),
+        "injected_interfaces": injected,
+        "asset_id": ot.get("asset_id"),
+        "ue_asset_path": ot.get("ue_asset_path", ""),
+        "mock_instances": ot.get("mock_instances", []),
+        "has_representable": "I3D_Representable" in injected,
+        "model_binding": _model_binding_summary(rid, ot),
+    }
+
+
 @app.route('/api/v2/ontology/types', methods=['GET'])
 def get_object_types():
     """获取所有 ObjectType 及其接口挂载状态"""
-    result = []
-    for rid, ot in _object_types.items():
-        result.append({
-            "rid": ot["rid"],
-            "name": ot["name"],
-            "category": ot["category"],
-            "description": ot["description"],
-            "color": ot.get("color", "#888888"),
-            "properties": ot["properties"],
-            "injected_interfaces": ot.get("injected_interfaces", []),
-            "asset_id": ot.get("asset_id"),
-            "ue_asset_path": ot.get("ue_asset_path", ""),
-            "mock_instances": ot.get("mock_instances", []),
-            "has_representable": "I3D_Representable" in ot.get("injected_interfaces", [])
-        })
+    result = [_object_type_response(rid, ot) for rid, ot in _object_types.items()]
     return jsonify(result)
 
 @app.route('/api/v2/ontology/types/<object_type_rid>', methods=['GET'])
@@ -1399,7 +1584,35 @@ def get_object_type(object_type_rid):
     ot = _object_types.get(object_type_rid)
     if not ot:
         return jsonify({"error": "ObjectType not found"}), 404
-    return jsonify(ot)
+    return jsonify(_object_type_response(object_type_rid, ot))
+
+@app.route('/api/v2/object-types/<object_type_rid>/model-binding/promote', methods=['POST'])
+def promote_migration_model(object_type_rid):
+    """Promote a migrated instance model path to the ObjectType default model."""
+    ot = _object_types.get(object_type_rid)
+    if not ot:
+        return jsonify({"error": "ObjectType not found"}), 404
+    data = request.json or {}
+    source_asset_path = (data.get("source_asset_path") or data.get("path") or "").strip()
+    if not source_asset_path:
+        return jsonify({"error": "source_asset_path is required"}), 400
+
+    summary = _model_binding_summary(object_type_rid, ot)
+    known_paths = {m["path"] for m in summary.get("migration_models", [])}
+    if source_asset_path not in known_paths:
+        return jsonify({"error": "该模型不属于当前类型的历史实例模型，不能提升为默认模型"}), 400
+
+    ot["asset_id"] = source_asset_path
+    ot["ue_asset_path"] = source_asset_path
+    _persist_active_project()
+    return jsonify({
+        "status": "ok",
+        "rid": object_type_rid,
+        "asset_id": source_asset_path,
+        "ue_asset_path": source_asset_path,
+        "model_binding": _model_binding_summary(object_type_rid, ot),
+    })
+
 
 @app.route('/api/v2/ontology/inject', methods=['POST'])
 def inject_interfaces():
@@ -1507,7 +1720,9 @@ def get_transform_types():
 @app.route('/api/v2/assets', methods=['GET'])
 def list_assets():
     """
-    资产列表 — 优先从 ArtStudio 拉取，失败时回退 MOCK_ASSETS。
+    资产列表。
+    - source=studio：只返回 ArtStudio；不可达时返回空列表 + warning，不静默混入本地资产。
+    - source=mock：只返回本地默认资产库。
 
     支持服务端分页 + 分类筛选：
       ?page=1&size=10&category=1&q=&sort=newest
@@ -1519,7 +1734,7 @@ def list_assets():
     sort     = request.args.get("sort", "newest")
     q        = request.args.get("q", "")
 
-    # ── 尝试从 ArtStudio 拉取 ─────────────────────────────────
+    # ── ArtStudio：失败时不回退 MOCK，避免标签页显示错数据源 ─────────────
     if source != "mock":
         try:
             params = {"page": page, "size": size, "sort": sort}
@@ -1566,9 +1781,18 @@ def list_assets():
             })
 
         except Exception as e:
-            app.logger.warning(f"[ArtStudio] 不可用，回退 MOCK_ASSETS: {e}")
+            msg = f"ArtStudio 资产库暂不可用: {e}"
+            app.logger.warning(f"[ArtStudio] {msg}")
+            return jsonify({
+                "items": [],
+                "total": 0,
+                "page": page,
+                "size": size,
+                "_source": "studio_error",
+                "warning": msg,
+            })
 
-    # ── 回退：MOCK_ASSETS（服务端模拟分页） ────────────────────
+    # ── MOCK_ASSETS（服务端模拟分页） ───────────────────────────
     all_items = []
     for fn, meta in MOCK_ASSETS.items():
         all_items.append({
@@ -1653,8 +1877,18 @@ def bind_asset():
         if asset_meta:
             name = asset_meta.get("name", "")
 
-    # 本地运行时 glb/gltf：不在资产库里，UE 侧由 glTFRuntime 从磁盘直接加载
-    is_local_runtime = file_number.lower().endswith((".glb", ".gltf"))
+    # UE 已 cook 资产：只适合已经被项目打包进 pak 的 /Game 或 /Engine 资产。
+    is_ue_cooked_asset = file_number.startswith("/Game/") or file_number.startswith("/Engine/")
+
+    # 本地运行时 glb/gltf：不在资产库里，UE 侧由 glTFRuntime 从 ModelsDir 直接加载。
+    runtime_model_name = ""
+    runtime_warning = None
+    is_local_runtime = False
+    if not is_from_studio and asset_meta is None and not is_ue_cooked_asset:
+        runtime_model_name, runtime_warning = _normalize_runtime_model_name(file_number)
+        is_local_runtime = bool(runtime_model_name)
+        if is_local_runtime:
+            file_number = runtime_model_name
 
     # 3.3：ArtStudio 资产 → 解析 glb + 版本，组装稳定标识 artstudio:{id}:v{n}
     # 本期仅支持 glb；fbx/usd 等拒绝、不写绑定。
@@ -1668,9 +1902,13 @@ def bind_asset():
         else:
             artstudio_reject = "该资产暂不支持（本期仅支持 glb 模型，fbx/usd 待格式转换上线）"
 
-    valid = (is_from_studio and artstudio_stable_id) or asset_meta is not None or is_local_runtime
+    valid = (is_from_studio and artstudio_stable_id) or asset_meta is not None or is_local_runtime or is_ue_cooked_asset
     if artstudio_reject:
         warning = artstudio_reject
+    elif runtime_warning:
+        warning = runtime_warning
+    elif is_ue_cooked_asset:
+        warning = "这是 UE 已打包资产引用。PIE 可见不代表打包后可见；请确认该资产目录已加入 Cook，否则 exe 会显示占位盒。"
     else:
         warning = None if valid else f"资产库中未找到编号 '{file_number}'，请确认后再绑定。"
 
@@ -1682,9 +1920,11 @@ def bind_asset():
         ue_asset_path = asset_meta.get("ue_path", "")  # 从 MOCK_ASSETS 自动预填
     elif not ue_asset_path and is_local_runtime:
         ue_asset_path = file_number                    # 本地 glb 直连：UE 路径即文件名
+    elif not ue_asset_path and is_ue_cooked_asset:
+        ue_asset_path = file_number                    # UE 已 cook 资产：直接下发 /Game 或 /Engine 引用
 
-    # ── 写入绑定（ArtStudio 非 glb 拒绝时不写）────────────────────
-    if not artstudio_reject:
+    # ── 写入绑定：只有校验通过的路径才写库，避免错误路径污染 ObjectType ───────
+    if valid:
         _object_types[rid]["asset_id"] = file_number
         _object_types[rid]["ue_asset_path"] = ue_asset_path
         _persist_active_project()   # 资产绑定写回当前项目，重启不丢
@@ -1698,7 +1938,7 @@ def bind_asset():
         "format":          asset_meta.get("format", "") if asset_meta else "",
         "bounding_box":    asset_meta.get("bounding_box", {}) if asset_meta else {},
         "ue_asset_path":   ue_asset_path,
-        "_source":         "studio" if is_from_studio else ("mock" if asset_meta else ("local" if is_local_runtime else None)),
+        "_source":         "studio" if is_from_studio else ("mock" if asset_meta else ("ue_cooked" if is_ue_cooked_asset else ("local" if is_local_runtime else None))),
     })
 
 

@@ -345,7 +345,14 @@
         <div v-if="posOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="posOpen=false">
             <div class="bg-white rounded-xl shadow-xl w-[460px] max-w-[94vw] p-6">
                 <h3 class="text-base font-bold text-gray-900 mb-1">微调位置（多坐标联动）</h3>
-                <p class="text-xs text-gray-500 mb-4 leading-relaxed">改任一坐标系，其余自动联动（经规范换算）。<b>保存只写规范坐标</b>，持久生效、经得起整场重算。</p>
+                <p class="text-xs text-gray-500 mb-2 leading-relaxed">改任一坐标系，其余自动联动（经规范换算）。</p>
+                <div class="mb-4 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">坐标真源</span>
+                        <span class="text-[11px] text-gray-700">{{ posSourceLabel(pos.mode) }}</span>
+                    </div>
+                    <div class="mt-1 text-[11px] text-gray-500 leading-relaxed">{{ posSourceHint(pos.mode) }}</div>
+                </div>
                 <div class="space-y-2.5">
                     <!-- 表头 -->
                     <div class="grid grid-cols-[64px_1fr_1fr_1fr] gap-2 text-[10px] text-gray-400 font-mono px-1">
@@ -620,7 +627,7 @@ createApp({
         // 3.2：位置编辑（多坐标联动）
         const posOpen = ref(false);
         const posSaving = ref(false);
-        const pos = ref({ canonical:{x:0,y:0,z:0}, ue:{x:0,y:0,z:0}, frames:[], floor:1, rotation:0 });
+        const pos = ref({ mode:'component_bound', canonical:{x:0,y:0,z:0}, ue:{x:0,y:0,z:0}, frames:[], floor:1, rotation:0 });
         let posX = { ueM:[[1,0,0],[0,1,0],[0,0,1]], ueMInv:[[1,0,0],[0,1,0],[0,0,1]], scale:0.1, floorTable:[], frameMats:{} };
 
         const spawnForm = ref({ objectTypeRid: '', instanceId: '', x: 0, y: 0, z: 0 });
@@ -968,6 +975,7 @@ createApp({
                     frameRows.push({ id: f.id, name: f.name || f.id, unit: f.unit || 'mm', x: 0, y: 0 });
                 });
                 pos.value = {
+                    mode: t.mode || 'component_bound',
                     canonical: { x: t.canonical_xy?.[0] ?? 0, y: t.canonical_xy?.[1] ?? 0, z: t.canonical_z ?? 0 },
                     ue: { x: t.ue_xy?.[0] ?? 0, y: t.ue_xy?.[1] ?? 0, z: t.ue_z ?? 0 },
                     frames: frameRows,
@@ -979,6 +987,15 @@ createApp({
             } catch (e) {
                 toast('err', e.response?.data?.error || '无法读取该实例的坐标');
             }
+        }
+        function posSourceLabel(mode) {
+            return mode === 'free_instance' ? '自由实例' : '构件绑定';
+        }
+        function posSourceHint(mode) {
+            if (mode === 'free_instance') {
+                return '保存后直接写入该实例的空间状态，适用于 UE 历史迁移或未绑定构件的实例。';
+            }
+            return '保存后写入绑定构件，再派生更新实例位置，适用于 CAD/坐标标定流程。';
         }
         function _floorZ(fl) {
             const ft = (posX.floorTable || []).find(f => f.floor === Number(fl));
@@ -1049,6 +1066,7 @@ createApp({
             loadInstances, spawnInstance, deleteInstance, selectInstance, applyOverride, resetOverride,
             // FR-7 规范坐标微调
             posOpen, posSaving, pos, posX, openPos, savePos, posEditCanonical, posEditUE, posEditFrame, posEditFloor,
+            posSourceLabel, posSourceHint,
             // instance list filter
             instanceTypeFilter, filteredInstances, instanceTreeGroups,
             // batch

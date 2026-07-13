@@ -183,8 +183,10 @@ class ProjectStorePG(ProjectStore):
                             (pid, rid, rec.get("name"), rec.get("source"), Jsonb(rec)),
                         )
 
-                    # 3) 实例：present upsert；absent 软删（全面软删）
-                    present_ids = list(insts.keys())
+                    # 3) 实例：present upsert。
+                    # 注意：普通项目保存可能只是在保存 components / frames / dataset，
+                    # 不应把内存中暂时缺席的实例视为删除。明确删除语义由
+                    # remove / clear_instances / mint_instances 覆盖实现。
                     for iid, rec in insts.items():
                         cur.execute(
                             """INSERT INTO instance
@@ -229,19 +231,50 @@ class ProjectStorePG(ProjectStore):
                                 Jsonb(rec.get("raw_state") or {}),
                             ),
                         )
-                    if present_ids:
-                        cur.execute(
-                            """UPDATE instance SET deleted_at = now()
-                               WHERE project_id = %s AND deleted_at IS NULL
-                                 AND id <> ALL(%s)""",
-                            (pid, present_ids),
-                        )
-                    else:
-                        cur.execute(
-                            "UPDATE instance SET deleted_at = now() WHERE project_id = %s AND deleted_at IS NULL",
-                            (pid,),
-                        )
         self._dirty = False
+
+    def _soft_delete_absent_instances(self):
+        """按当前内存实例集合收敛 PG 实例表。仅用于明确的删除/重铸造操作。"""
+        if not self._current:
+            return
+        pid = self._current["id"]
+        present_ids = list((self._current.get("instances") or {}).keys())
+        with pg.get_conn() as conn:
+            with conn.cursor() as cur:
+                if present_ids:
+                    cur.execute(
+                        """UPDATE instance SET deleted_at = now()
+                           WHERE project_id = %s AND deleted_at IS NULL
+                             AND id <> ALL(%s)""",
+                        (pid, present_ids),
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE instance SET deleted_at = now() WHERE project_id = %s AND deleted_at IS NULL",
+                        (pid,),
+                    )
+
+    def remove(self, instance_id):
+        inst = super().remove(instance_id)
+        if inst is not None and self._current:
+            with pg.get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE instance SET deleted_at = now() WHERE project_id = %s AND id = %s",
+                        (self._current["id"], instance_id),
+                    )
+        return inst
+
+    def clear_instances(self):
+        with self._lock:
+            if self._current:
+                self._current["instances"] = {}
+                self._save_current()
+                self._soft_delete_absent_instances()
+
+    def mint_instances(self):
+        n = super().mint_instances()
+        return n
 
     # ── 项目列举 / 数据集 ────────────────────────────────────
     def list_projects(self):

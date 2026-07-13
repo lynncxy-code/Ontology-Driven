@@ -251,28 +251,81 @@
                         </div>
                     </div>
 
-                    <!-- GLB Asset Binding -->
+                    <!-- Model Binding -->
                     <transition name="fade">
                         <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm" v-if="hasRepresentable">
                             <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
-                                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">3D GLB 资产绑定</span>
-                                <span class="text-[10px] font-mono text-gray-400">依赖: I3D_Representable.asset_id</span>
+                                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">三维模型绑定</span>
+                                <span class="text-[10px] text-gray-400">用于 UE 预览与实例生成</span>
                             </div>
                             <div class="p-5">
+                                <div class="mb-5 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                    <div class="border border-gray-200 rounded-lg p-4 bg-white">
+                                        <div class="flex items-center justify-between mb-3">
+                                            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">类型默认模型</span>
+                                            <span v-if="defaultModel" class="text-[10px] text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded">{{ modelSourceLabel(defaultModel.source) }}</span>
+                                            <span v-else class="text-[10px] text-gray-400 bg-gray-50 border border-gray-200 px-1.5 py-0.5 rounded">未设置</span>
+                                        </div>
+                                        <template v-if="defaultModel">
+                                            <div class="text-sm font-medium text-gray-900 truncate">{{ defaultModel.label || defaultModel.path }}</div>
+                                            <div class="mt-1 text-[11px] font-mono text-gray-500 break-all">{{ defaultModel.path }}</div>
+                                            <div class="mt-3 text-[11px] text-gray-500">后续新铸造实例默认使用这个模型；已迁移实例仍可使用自己的模型。</div>
+                                        </template>
+                                        <template v-else>
+                                            <div class="text-sm text-gray-500 leading-relaxed" v-if="migrationModels.length > 0">
+                                                这个类型还没有设置默认模型，但已有实例正在使用右侧列出的模型。新铸造实例仍会使用占位模型，除非先把某个实例模型设为类型默认。
+                                            </div>
+                                            <div class="text-sm text-gray-500 leading-relaxed" v-else>
+                                                这个类型还没有设置默认模型。新铸造实例会使用占位模型，或由实例自身模型覆盖。
+                                            </div>
+                                        </template>
+                                    </div>
+
+                                    <div class="border border-gray-200 rounded-lg p-4 bg-white">
+                                        <div class="flex items-center justify-between mb-3">
+                                            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">实例已绑定模型</span>
+                                            <span class="text-[10px] text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded">{{ migrationModels.length }} 项</span>
+                                        </div>
+                                        <div v-if="migrationModels.length === 0" class="text-sm text-gray-500 leading-relaxed">暂无实例模型记录。</div>
+                                        <div v-else class="space-y-2 max-h-44 overflow-y-auto pr-1">
+                                            <div v-for="model in migrationModels" :key="model.path" class="border border-gray-100 rounded-md p-2.5 bg-gray-50/60">
+                                                <div class="flex items-start gap-2">
+                                                    <div class="flex-1 min-w-0">
+                                                        <div class="text-xs font-medium text-gray-900 truncate">{{ model.label || model.path }}</div>
+                                                        <div class="text-[10px] font-mono text-gray-500 break-all mt-0.5">{{ model.path }}</div>
+                                                        <div class="text-[10px] text-gray-500 mt-1">使用 {{ model.instance_count }} 个实例</div>
+                                                    </div>
+                                                    <button @click="promoteModel(model)" :disabled="promotingModelPath === model.path"
+                                                            class="text-[10px] px-2 py-1 border border-gray-200 rounded bg-white hover:bg-gray-100 text-gray-700 whitespace-nowrap disabled:opacity-50">
+                                                        {{ promotingModelPath === model.path ? '设置中' : '设为类型默认' }}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <!-- 三种绑定模式切换 -->
                                 <div class="flex items-center gap-3 mb-4">
                                     <div class="flex bg-gray-100 border border-gray-200 rounded-lg overflow-hidden p-1">
                                         <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='library' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('library')">ArtStudio 资产库</button>
-                                        <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='local' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('local')">默认资产库</button>
+                                        <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='local' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('local')">本地默认资产库</button>
                                         <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='manual' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('manual')">路径直连</button>
                                     </div>
                                     <!-- 数据源指示 -->
-                                    <span v-if="bindMode==='library'" class="text-[10px] font-mono ml-auto text-blue-600 bg-blue-50 border border-blue-200" style="padding:2px 8px; border-radius:4px;">
+                                    <span v-if="bindMode==='library'" class="text-[10px] font-mono ml-auto text-gray-600 bg-gray-50 border border-gray-200" style="padding:2px 8px; border-radius:4px;">
                                         ArtStudio 资产库
                                     </span>
-                                    <span v-if="bindMode==='local'" class="text-[10px] font-mono ml-auto text-yellow-700 bg-yellow-50 border border-yellow-200" style="padding:2px 8px; border-radius:4px;">
+                                    <span v-if="bindMode==='local'" class="text-[10px] font-mono ml-auto text-gray-600 bg-gray-50 border border-gray-200" style="padding:2px 8px; border-radius:4px;">
                                         本地默认资产库（40 个）
                                     </span>
+                                    <span v-if="bindMode==='manual'" class="text-[10px] font-mono ml-auto text-gray-600 bg-gray-50 border border-gray-200" style="padding:2px 8px; border-radius:4px;">
+                                        运行时 GLB / UE 已打包资产
+                                    </span>
+                                </div>
+                                <div v-if="assetLoadWarning && bindMode === 'library'"
+                                     class="mb-4 text-[11px] text-gray-600 leading-relaxed border-l-2 border-gray-300 pl-3">
+                                    {{ assetLoadWarning }}
                                 </div>
 
                                 <template v-if="bindMode === 'library'">
@@ -356,6 +409,9 @@
                                                placeholder="/Game/WarehouseProps_Bundle/Models/SM_xxx"
                                                class="flex-1 text-[11px] font-mono border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-gray-900 bg-white" />
                                     </div>
+                                    <div v-if="selectedAssetUePath && selectedAssetUePath.startsWith('/Game/')" class="mb-3 text-[11px] text-gray-500 leading-relaxed border-l-2 border-gray-300 pl-3">
+                                        该路径只在资产已加入 UE 打包 Cook 时适用于 exe；未 Cook 的资产在打包后会显示占位盒。
+                                    </div>
                                     <div class="flex items-center gap-3">
                                         <button class="text-xs font-medium bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-800 disabled:opacity-50 transition drop-shadow-sm"
                                                 :disabled="!selectedAssetFn || bindingAsset" @click="bindAsset(selectedAssetFn)">
@@ -366,9 +422,23 @@
 
                                 <!-- 路径直连 -->
                                 <template v-if="bindMode === 'manual'">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                                        <div class="border border-gray-200 rounded-md bg-white p-3">
+                                            <div class="text-xs font-semibold text-gray-900">运行时 GLB 文件名（推荐）</div>
+                                            <div class="text-[11px] text-gray-500 leading-relaxed mt-1">
+                                                填写 Models 目录下的文件名，例如 <code class="font-mono text-gray-800">SM_Forklift.glb</code>。也可以只填 <code class="font-mono text-gray-800">SM_Forklift</code>，后端会按 glb 处理。
+                                            </div>
+                                        </div>
+                                        <div class="border border-gray-200 rounded-md bg-white p-3">
+                                            <div class="text-xs font-semibold text-gray-900">UE 已打包资产引用（高级）</div>
+                                            <div class="text-[11px] text-gray-500 leading-relaxed mt-1">
+                                                填写 <code class="font-mono text-gray-800">/Game/...</code> 仅适合已加入 Cook 的 UE 资产；PIE 正常不代表打包 exe 正常。
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div class="flex gap-2">
                                         <input type="text" v-model="manualPath" @keyup.enter="bindAsset(manualPath)"
-                                               placeholder="输入相对路径，如 /static/models/drone.glb"
+                                               placeholder="SM_Forklift.glb 或 /Game/WarehouseProps_Bundle/Models/SM_Forklift.SM_Forklift"
                                                class="flex-1 text-sm font-mono border border-gray-300 rounded-md px-3 py-2 outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
                                         <button class="text-xs font-medium bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-800 disabled:opacity-50 transition drop-shadow-sm whitespace-nowrap"
                                                 :disabled="!manualPath.trim() || bindingAsset" @click="bindAsset(manualPath)">
@@ -382,10 +452,13 @@
                                     assetResult.valid ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'
                                 ]">
                                     <template v-if="assetResult.valid">
-                                        包含模型 <strong class="font-mono">{{ assetResult.file_number }}</strong> ({{ assetResult.name }})<br/>
+                                        包含模型 <strong class="font-mono">{{ assetResult.file_number }}</strong><span v-if="assetResult.name"> ({{ assetResult.name }})</span><br/>
                                         <span class="text-gray-500 mt-1 block">
-                                            来源: {{ assetResult._source === 'studio' ? 'ArtStudio' : '本地资产库' }}
+                                            来源: {{ assetSourceLabel(assetResult._source) }}
                                             <span v-if="assetResult.ue_asset_path"> | UE: <code class="font-mono">{{ assetResult.ue_asset_path }}</code></span>
+                                        </span>
+                                        <span v-if="assetResult.warning" class="text-gray-600 mt-2 block border-l-2 border-gray-300 pl-2">
+                                            {{ assetResult.warning }}
                                         </span>
                                     </template>
                                     <template v-else>请求驳回: {{ assetResult.warning || assetResult.error }}</template>
@@ -438,13 +511,16 @@ createApp({
         const selectedAssetUePath = ref('');    // 当前选中资产的 UE 路径
         const manualPath    = ref('');
         const assetResult   = ref(null);
+        const assetLoadWarning = ref('');
         const bindingAsset  = ref(false);
+        const promotingModelPath = ref('');
         const toasts        = ref([]);
         const assetPage     = ref(1);
         const assetCategory = ref("");          // 分类筛选，""=全部
         const assetOwnerType = ref("");          // 所有者筛选（ArtStudio），""=全部 / 1=个人 / 2=组织
         const assetQuery    = ref("");          // 搜索关键词
         const ASSET_PAGE_SIZE = 10;
+        let assetLoadSeq = 0;
 
         // 资产分类枚举（和 ArtStudio 一致）
         const ASSET_CATEGORIES = [
@@ -480,6 +556,14 @@ createApp({
             if (!selected.value) return false;
             const injected = selected.value.injected_interfaces || [];
             return injected.includes('I3D_Representable') || pendingInterfaces.value.has('I3D_Representable');
+        });
+
+        const defaultModel = computed(() => {
+            return selected.value?.model_binding?.default_model || null;
+        });
+
+        const migrationModels = computed(() => {
+            return selected.value?.model_binding?.migration_models || [];
         });
 
         function isInjected(rid) { return selected.value?.injected_interfaces?.includes(rid) || false; }
@@ -609,6 +693,51 @@ createApp({
             } finally { bindingAsset.value = false; }
         }
 
+        function modelSourceLabel(source) {
+            const map = {
+                artstudio: 'ArtStudio',
+                ue: 'UE 资产',
+                local: '本地模型',
+                manual: '手动绑定',
+                ue_migration: '历史迁移',
+                none: '未设置',
+            };
+            return map[source] || '模型';
+        }
+
+        function assetSourceLabel(source) {
+            const map = {
+                studio: 'ArtStudio',
+                mock: '本地默认资产库',
+                local: '运行时 GLB 文件',
+                ue_cooked: 'UE 已打包资产引用',
+            };
+            return map[source] || '手动绑定';
+        }
+
+        async function promoteModel(model) {
+            if (!selected.value || !model?.path) return;
+            promotingModelPath.value = model.path;
+            try {
+                const res = await axios.post(
+                    `/api/v2/object-types/${encodeURIComponent(selected.value.rid)}/model-binding/promote`,
+                    { source_asset_path: model.path }
+                );
+                selected.value.asset_id = res.data.asset_id;
+                selected.value.ue_asset_path = res.data.ue_asset_path;
+                selected.value.model_binding = res.data.model_binding;
+                selectedAssetFn.value = res.data.asset_id || '';
+                selectedAssetUePath.value = res.data.ue_asset_path || '';
+                manualPath.value = res.data.ue_asset_path || res.data.asset_id || '';
+                toast('ok', '已设为类型默认模型');
+                await loadTypes();
+            } catch (e) {
+                toast('err', e.response?.data?.error || '设置默认模型失败');
+            } finally {
+                promotingModelPath.value = '';
+            }
+        }
+
         function selectType(ot) {
             selected.value = { ...ot };
             pendingInterfaces.value = new Set();
@@ -635,13 +764,24 @@ createApp({
         }
 
         async function loadAssets() {
+            const requestSeq = ++assetLoadSeq;
+            const requestMode = bindMode.value;
+            if (requestMode === 'manual') {
+                allAssets.value = [];
+                assetTotal.value = 0;
+                assetSource.value = "manual";
+                assetLoadWarning.value = "";
+                return;
+            }
+
             const params = { page: assetPage.value, size: ASSET_PAGE_SIZE };
 
-            if (bindMode.value === 'local') {
+            if (requestMode === 'local') {
                 params.source = 'mock';
                 if (assetQuery.value) params.q = assetQuery.value;
             } else {
                 // ArtStudio 模式
+                params.source = 'studio';
                 if (assetOwnerType.value) params.ownerType = assetOwnerType.value;
                 if (assetCategory.value)  params.category = assetCategory.value;
                 if (assetQuery.value)     params.q = assetQuery.value;
@@ -649,13 +789,19 @@ createApp({
 
             try {
                 const { data } = await axios.get('/api/v2/assets', { params });
+                if (requestSeq !== assetLoadSeq || requestMode !== bindMode.value) return;
                 allAssets.value  = data.items || [];
                 assetTotal.value = data.total || 0;
-                assetSource.value = data._source || "mock";
-            } catch {
+                assetSource.value = data._source || (requestMode === 'local' ? "mock" : "studio");
+                assetLoadWarning.value = data.warning || "";
+            } catch (e) {
+                if (requestSeq !== assetLoadSeq || requestMode !== bindMode.value) return;
                 allAssets.value  = [];
                 assetTotal.value = 0;
-                assetSource.value = "mock";
+                assetSource.value = requestMode === 'local' ? "mock" : "studio_error";
+                assetLoadWarning.value = requestMode === 'local'
+                    ? '本地默认资产库加载失败。'
+                    : (e.response?.data?.warning || e.response?.data?.error || 'ArtStudio 资产库暂不可用。');
             }
         }
 
@@ -665,6 +811,7 @@ createApp({
             assetResult.value = null;
             selectedAssetFn.value = '';
             selectedAssetUePath.value = '';
+            assetLoadWarning.value = '';
             assetPage.value = 1;
             loadAssets();
         }
@@ -718,9 +865,11 @@ createApp({
         return {
             objectTypes, sortedObjectTypes, allInterfaces, allAssets, assetTotal, assetSource, selected,
             parentInterfaces, childInterfaces, pendingInterfaces, pendingRemove, hasRepresentable,
-            editMode, saving, bindMode, selectedAssetFn, selectedAssetUePath, manualPath, assetResult, bindingAsset, toasts,
+            defaultModel, migrationModels,
+            editMode, saving, bindMode, selectedAssetFn, selectedAssetUePath, manualPath, assetResult, assetLoadWarning, bindingAsset, promotingModelPath, toasts,
             assetPage, assetTotalPages, pagedAssets, assetCategory, assetOwnerType, assetQuery, ASSET_CATEGORIES,
             isInjected, isChecked, toggleInterface, saveInterfaces, removeInterface, bindAsset, selectType,
+            modelSourceLabel, assetSourceLabel, promoteModel,
             enterEditMode, cancelEditMode, saveEdit, loadAssets, switchBindMode, onFilterChange,
             onCategoryChange, onSearch, onPageChange,
         };

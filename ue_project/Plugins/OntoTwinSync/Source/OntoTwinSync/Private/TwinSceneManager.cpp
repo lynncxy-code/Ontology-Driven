@@ -100,6 +100,15 @@ bool IsInFolderOrChild(const FName ActorFolderName, const FString& RootFolder)
     return !CleanRoot.IsEmpty()
         && (ActorFolder == CleanRoot || ActorFolder.StartsWith(CleanRoot + TEXT("/")));
 }
+
+FString TruncateRuntimeLabel(const FString& Value, int32 MaxLength)
+{
+    if (Value.Len() <= MaxLength || MaxLength < 6)
+    {
+        return Value;
+    }
+    return Value.Left(MaxLength - 3) + TEXT("...");
+}
 }
 
 // ── 构造函数 ─────────────────────────────────────────────────────────────────
@@ -565,6 +574,12 @@ void ATwinSceneManager::ExitRuntimeEditMode()
     if (bRuntimeEditDirty)
     {
         RuntimeStatusMessage = TEXT("Save or cancel the dirty edit before leaving edit mode");
+        if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel))
+        {
+            RuntimeEditorPanel->ShowToast(
+                TEXT("Save or cancel the current change first"),
+                EOntoTwinRuntimeToastType::Warning);
+        }
         UpdateRuntimeEditorPanel();
         return;
     }
@@ -629,7 +644,32 @@ void ATwinSceneManager::TickRuntimeEditor(float DeltaTime)
         CancelRuntimeEdit();
     }
 
-    if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
+    const bool bPointerOverRuntimePanel =
+        RuntimeEditorPanel && IsValid(RuntimeEditorPanel) && RuntimeEditorPanel->IsPointerOverPanel();
+
+    RuntimeHoverPart = ERuntimeDragPart::None;
+    if (!bRuntimeDragging && !bPointerOverRuntimePanel && RuntimeSelectedInstance && IsValid(RuntimeSelectedInstance))
+    {
+        FHitResult HoverHit;
+        if (TraceRuntimeCursor(HoverHit) && RuntimeGizmo && IsValid(RuntimeGizmo))
+        {
+            const EOntoTwinRuntimeGizmoPart HoverGizmoPart = RuntimeGizmo->GetPartForComponent(HoverHit.GetComponent());
+            if (HoverGizmoPart == EOntoTwinRuntimeGizmoPart::MoveXY)
+            {
+                RuntimeHoverPart = ERuntimeDragPart::MoveXY;
+            }
+            else if (HoverGizmoPart == EOntoTwinRuntimeGizmoPart::MoveZ)
+            {
+                RuntimeHoverPart = ERuntimeDragPart::MoveZ;
+            }
+            else if (HoverGizmoPart == EOntoTwinRuntimeGizmoPart::RotateYaw)
+            {
+                RuntimeHoverPart = ERuntimeDragPart::RotateYaw;
+            }
+        }
+    }
+
+    if (!bPointerOverRuntimePanel && PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
     {
         FHitResult Hit;
         if (TraceRuntimeCursor(Hit))
@@ -641,6 +681,10 @@ void ATwinSceneManager::TickRuntimeEditor(float DeltaTime)
                 if (GizmoPart == EOntoTwinRuntimeGizmoPart::MoveXY)
                 {
                     BeginRuntimeGizmoDrag(ERuntimeDragPart::MoveXY);
+                }
+                else if (GizmoPart == EOntoTwinRuntimeGizmoPart::MoveZ)
+                {
+                    BeginRuntimeGizmoDrag(ERuntimeDragPart::MoveZ);
                 }
                 else if (GizmoPart == EOntoTwinRuntimeGizmoPart::RotateYaw)
                 {
@@ -681,6 +725,26 @@ void ATwinSceneManager::TickRuntimeEditor(float DeltaTime)
         if (RuntimeGizmo && IsValid(RuntimeGizmo))
         {
             RuntimeGizmo->UpdateForTarget(RuntimeSelectedInstance);
+
+            const auto ToGizmoPart = [](ERuntimeDragPart Part)
+            {
+                if (Part == ERuntimeDragPart::MoveXY) return EOntoTwinRuntimeGizmoPart::MoveXY;
+                if (Part == ERuntimeDragPart::MoveZ) return EOntoTwinRuntimeGizmoPart::MoveZ;
+                if (Part == ERuntimeDragPart::RotateYaw) return EOntoTwinRuntimeGizmoPart::RotateYaw;
+                return EOntoTwinRuntimeGizmoPart::None;
+            };
+            RuntimeGizmo->SetInteractionState(ToGizmoPart(RuntimeHoverPart), ToGizmoPart(RuntimeDragPart));
+
+            EOntoTwinRuntimeSnapState SnapState = EOntoTwinRuntimeSnapState::None;
+            if (RuntimeSnapFeedback == ERuntimeSnapFeedback::Grid)
+            {
+                SnapState = EOntoTwinRuntimeSnapState::Grid;
+            }
+            else if (RuntimeSnapFeedback == ERuntimeSnapFeedback::Wall)
+            {
+                SnapState = EOntoTwinRuntimeSnapState::Wall;
+            }
+            RuntimeGizmo->SetSnapFeedback(SnapState, RuntimeSnapFeedbackPoint);
         }
     }
 
@@ -833,6 +897,12 @@ void ATwinSceneManager::CheckRuntimeBindingStatus()
                 else
                 {
                     Self->RuntimeStatusMessage = FString::Printf(TEXT("Binding check failed (code=%d)"), Code);
+                    if (Self->RuntimeEditorPanel && IsValid(Self->RuntimeEditorPanel))
+                    {
+                        Self->RuntimeEditorPanel->ShowToast(
+                            TEXT("Access check failed"),
+                            EOntoTwinRuntimeToastType::Error);
+                    }
                 }
             }
 
@@ -840,6 +910,16 @@ void ATwinSceneManager::CheckRuntimeBindingStatus()
         });
 
     HttpRequest->ProcessRequest();
+}
+
+void ATwinSceneManager::RetryRuntimeBindingStatus()
+{
+    if (!bRuntimeEditMode || bRuntimeBindingRequestInFlight)
+    {
+        return;
+    }
+
+    CheckRuntimeBindingStatus();
 }
 
 void ATwinSceneManager::BindCurrentRuntimeProject()
@@ -882,11 +962,24 @@ void ATwinSceneManager::BindCurrentRuntimeProject()
                 Self->RuntimeBindingMode = TEXT("matched");
                 Self->bRuntimeCanSave = true;
                 Self->RuntimeStatusMessage = TEXT("Active dataset bound to this UE project");
+                if (Self->RuntimeEditorPanel && IsValid(Self->RuntimeEditorPanel))
+                {
+                    Self->RuntimeEditorPanel->ShowToast(
+                        TEXT("Active dataset bound"),
+                        EOntoTwinRuntimeToastType::Success);
+                }
             }
             else
             {
                 Self->bRuntimeCanSave = false;
+                Self->RuntimeBindingMode = TEXT("error");
                 Self->RuntimeStatusMessage = FString::Printf(TEXT("Bind failed (code=%d)"), Code);
+                if (Self->RuntimeEditorPanel && IsValid(Self->RuntimeEditorPanel))
+                {
+                    Self->RuntimeEditorPanel->ShowToast(
+                        TEXT("Dataset binding failed"),
+                        EOntoTwinRuntimeToastType::Error);
+                }
             }
             Self->UpdateRuntimeEditorPanel();
         });
@@ -909,6 +1002,12 @@ void ATwinSceneManager::SelectRuntimeInstance(ATwinInstance* Instance)
     if (bRuntimeEditDirty)
     {
         RuntimeStatusMessage = TEXT("Save or cancel the current edit before selecting another instance");
+        if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel))
+        {
+            RuntimeEditorPanel->ShowToast(
+                TEXT("Save or cancel the current change first"),
+                EOntoTwinRuntimeToastType::Warning);
+        }
         UpdateRuntimeEditorPanel();
         return;
     }
@@ -950,8 +1049,12 @@ void ATwinSceneManager::ClearRuntimeSelection(bool bRestoreBaseline)
     bRuntimePreviousAnimRunning = false;
     bRuntimeEditDirty = false;
     bRuntimeEditSaving = false;
+    SetRuntimeCameraLookSuppressed(false);
     bRuntimeDragging = false;
+    RuntimeHoverPart = ERuntimeDragPart::None;
     RuntimeDragPart = ERuntimeDragPart::None;
+    RuntimeSnapFeedback = ERuntimeSnapFeedback::None;
+    RuntimeSnapFeedbackPoint = FVector::ZeroVector;
 
     if (RuntimeGizmo && IsValid(RuntimeGizmo))
     {
@@ -964,15 +1067,41 @@ void ATwinSceneManager::ClearRuntimeSelection(bool bRestoreBaseline)
 bool ATwinSceneManager::TraceRuntimeCursor(FHitResult& OutHit) const
 {
     APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-    if (!PC)
+    UWorld* World = GetWorld();
+    if (!PC || !World)
     {
         return false;
+    }
+
+    FVector RayOrigin = FVector::ZeroVector;
+    FVector RayDirection = FVector::ForwardVector;
+    if (PC->DeprojectMousePositionToWorld(RayOrigin, RayDirection) &&
+        RuntimeSelectedInstance && IsValid(RuntimeSelectedInstance) &&
+        RuntimeGizmo && IsValid(RuntimeGizmo))
+    {
+        FCollisionQueryParams GizmoQueryParams(SCENE_QUERY_STAT(OntoTwinRuntimeGizmoTrace), true);
+        GizmoQueryParams.AddIgnoredActor(RuntimeSelectedInstance);
+        GizmoQueryParams.AddIgnoredActor(this);
+
+        FHitResult GizmoHit;
+        if (World->LineTraceSingleByChannel(
+            GizmoHit,
+            RayOrigin,
+            RayOrigin + RayDirection * 1000000.0f,
+            ECC_Visibility,
+            GizmoQueryParams) &&
+            GizmoHit.GetActor() == RuntimeGizmo &&
+            RuntimeGizmo->GetPartForComponent(GizmoHit.GetComponent()) != EOntoTwinRuntimeGizmoPart::None)
+        {
+            OutHit = GizmoHit;
+            return true;
+        }
     }
 
     return PC->GetHitResultUnderCursor(ECC_Visibility, false, OutHit);
 }
 
-bool ATwinSceneManager::GetRuntimeCursorPlanePoint(FVector& OutPoint) const
+bool ATwinSceneManager::GetRuntimeCursorPointOnPlane(const FPlane& Plane, FVector& OutPoint) const
 {
     APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
     if (!PC)
@@ -994,14 +1123,24 @@ bool ATwinSceneManager::GetRuntimeCursorPlanePoint(FVector& OutPoint) const
         return false;
     }
 
-    if (FMath::IsNearlyZero(RayDirection.Z))
+    const FVector PlaneNormal(Plane.X, Plane.Y, Plane.Z);
+    if (FMath::IsNearlyZero(FVector::DotProduct(RayDirection, PlaneNormal)))
     {
         return false;
     }
 
-    const float T = (RuntimeEditPlaneZ - RayOrigin.Z) / RayDirection.Z;
-    OutPoint = RayOrigin + RayDirection * T;
+    OutPoint = FMath::LinePlaneIntersection(
+        RayOrigin,
+        RayOrigin + RayDirection * 1000000.0f,
+        Plane);
     return true;
+}
+
+bool ATwinSceneManager::GetRuntimeCursorPlanePoint(FVector& OutPoint) const
+{
+    return GetRuntimeCursorPointOnPlane(
+        FPlane(FVector(0.0f, 0.0f, RuntimeDragPlaneZ), FVector::UpVector),
+        OutPoint);
 }
 
 void ATwinSceneManager::BeginRuntimeGizmoDrag(ERuntimeDragPart Part)
@@ -1020,9 +1159,56 @@ void ATwinSceneManager::BeginRuntimeGizmoDrag(ERuntimeDragPart Part)
     }
 
     RuntimeDragPart = Part;
+    RuntimeHoverPart = Part;
+    RuntimeSnapFeedback = ERuntimeSnapFeedback::None;
+    RuntimeSnapFeedbackPoint = FVector::ZeroVector;
     RuntimeDragStartTransform = RuntimeSelectedInstance->GetActorTransform();
     RuntimeDragStartYaw = RuntimeSelectedInstance->GetActorRotation().Yaw;
+    RuntimeDragPlaneZ = RuntimeEditPlaneZ;
+    if (RuntimeGizmo && IsValid(RuntimeGizmo))
+    {
+        if (Part == ERuntimeDragPart::MoveXY)
+        {
+            RuntimeDragPlaneZ = RuntimeGizmo->GetMoveInteractionPlaneZ();
+        }
+        else if (Part == ERuntimeDragPart::RotateYaw)
+        {
+            RuntimeDragPlaneZ = RuntimeGizmo->GetRotateInteractionPlaneZ();
+        }
+    }
     bRuntimeDragging = true;
+    SetRuntimeCameraLookSuppressed(true);
+
+    if (Part == ERuntimeDragPart::MoveZ)
+    {
+        APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+        const FVector ActorLocation = RuntimeSelectedInstance->GetActorLocation();
+        FVector CameraLocation = FVector::ZeroVector;
+        FRotator CameraRotation = FRotator::ZeroRotator;
+        if (PC)
+        {
+            PC->GetPlayerViewPoint(CameraLocation, CameraRotation);
+        }
+
+        FVector PlaneNormal = CameraLocation - ActorLocation;
+        PlaneNormal.Z = 0.0f;
+        if (!PlaneNormal.Normalize())
+        {
+            PlaneNormal = -CameraRotation.Vector();
+            PlaneNormal.Z = 0.0f;
+            if (!PlaneNormal.Normalize())
+            {
+                PlaneNormal = FVector::ForwardVector;
+            }
+        }
+
+        RuntimeZDragPlane = FPlane(ActorLocation, PlaneNormal);
+        if (!GetRuntimeCursorPointOnPlane(RuntimeZDragPlane, RuntimeZDragStartPoint))
+        {
+            RuntimeZDragStartPoint = ActorLocation;
+        }
+        return;
+    }
 
     FVector PlanePoint = FVector::ZeroVector;
     if (GetRuntimeCursorPlanePoint(PlanePoint))
@@ -1045,35 +1231,52 @@ void ATwinSceneManager::UpdateRuntimeGizmoDrag()
         return;
     }
 
-    FVector PlanePoint = FVector::ZeroVector;
-    if (!GetRuntimeCursorPlanePoint(PlanePoint))
-    {
-        return;
-    }
-
     FVector NewLocation = RuntimeDragStartTransform.GetLocation();
     FRotator NewRotation = RuntimeDragStartTransform.Rotator();
 
-    if (RuntimeDragPart == ERuntimeDragPart::MoveXY)
+    if (RuntimeDragPart == ERuntimeDragPart::MoveZ)
     {
-        const FVector Delta = PlanePoint - RuntimeDragStartPoint;
-        NewLocation.X += Delta.X;
-        NewLocation.Y += Delta.Y;
-        NewLocation.Z = RuntimeEditPlaneZ;
-    }
-    else if (RuntimeDragPart == ERuntimeDragPart::RotateYaw)
-    {
-        const FVector ToCursor = PlanePoint - RuntimeDragStartTransform.GetLocation();
-        if (!ToCursor.IsNearlyZero())
+        FVector ZPlanePoint = FVector::ZeroVector;
+        if (!GetRuntimeCursorPointOnPlane(RuntimeZDragPlane, ZPlanePoint))
         {
-            const float CurrentAngleDeg = FMath::RadiansToDegrees(FMath::Atan2(ToCursor.Y, ToCursor.X));
-            NewRotation.Yaw = RuntimeDragStartYaw + FMath::FindDeltaAngleDegrees(RuntimeDragStartAngleDeg, CurrentAngleDeg);
-            NewRotation.Pitch = RuntimeDragStartTransform.Rotator().Pitch;
-            NewRotation.Roll = RuntimeDragStartTransform.Rotator().Roll;
+            return;
         }
+
+        NewLocation.Z += ZPlanePoint.Z - RuntimeZDragStartPoint.Z;
+        RuntimeEditPlaneZ = NewLocation.Z;
+        RuntimeSnapFeedback = ERuntimeSnapFeedback::None;
+        RuntimeSnapFeedbackPoint = FVector::ZeroVector;
+    }
+    else
+    {
+        FVector PlanePoint = FVector::ZeroVector;
+        if (!GetRuntimeCursorPlanePoint(PlanePoint))
+        {
+            return;
+        }
+
+        if (RuntimeDragPart == ERuntimeDragPart::MoveXY)
+        {
+            const FVector Delta = PlanePoint - RuntimeDragStartPoint;
+            NewLocation.X += Delta.X;
+            NewLocation.Y += Delta.Y;
+            NewLocation.Z = RuntimeEditPlaneZ;
+        }
+        else if (RuntimeDragPart == ERuntimeDragPart::RotateYaw)
+        {
+            const FVector ToCursor = PlanePoint - RuntimeDragStartTransform.GetLocation();
+            if (!ToCursor.IsNearlyZero())
+            {
+                const float CurrentAngleDeg = FMath::RadiansToDegrees(FMath::Atan2(ToCursor.Y, ToCursor.X));
+                NewRotation.Yaw = RuntimeDragStartYaw + FMath::FindDeltaAngleDegrees(RuntimeDragStartAngleDeg, CurrentAngleDeg);
+                NewRotation.Pitch = RuntimeDragStartTransform.Rotator().Pitch;
+                NewRotation.Roll = RuntimeDragStartTransform.Rotator().Roll;
+            }
+        }
+
+        ApplyRuntimeSnaps(NewLocation, NewRotation);
     }
 
-    ApplyRuntimeSnaps(NewLocation, NewRotation);
     RuntimeSelectedInstance->SetActorLocation(NewLocation);
     RuntimeSelectedInstance->SetActorRotation(NewRotation);
     MarkRuntimeDirtyFromTransform();
@@ -1086,18 +1289,65 @@ void ATwinSceneManager::UpdateRuntimeGizmoDrag()
 
 void ATwinSceneManager::EndRuntimeGizmoDrag()
 {
+    SetRuntimeCameraLookSuppressed(false);
     bRuntimeDragging = false;
+    RuntimeHoverPart = ERuntimeDragPart::None;
     RuntimeDragPart = ERuntimeDragPart::None;
+    RuntimeSnapFeedback = ERuntimeSnapFeedback::None;
+    RuntimeSnapFeedbackPoint = FVector::ZeroVector;
 }
 
-void ATwinSceneManager::ApplyRuntimeSnaps(FVector& InOutLocation, FRotator& InOutRotation) const
+void ATwinSceneManager::SetRuntimeCameraLookSuppressed(bool bSuppress)
 {
+    if (bRuntimeCameraLookSuppressed == bSuppress)
+    {
+        return;
+    }
+
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (!PC)
+    {
+        bRuntimeCameraLookSuppressed = false;
+        bRuntimeLookInputWasAlreadyIgnored = false;
+        return;
+    }
+
+    if (bSuppress)
+    {
+        bRuntimeLookInputWasAlreadyIgnored = PC->IsLookInputIgnored();
+        if (!bRuntimeLookInputWasAlreadyIgnored)
+        {
+            PC->SetIgnoreLookInput(true);
+        }
+        bRuntimeCameraLookSuppressed = true;
+        return;
+    }
+
+    if (!bRuntimeLookInputWasAlreadyIgnored)
+    {
+        PC->SetIgnoreLookInput(false);
+    }
+    bRuntimeCameraLookSuppressed = false;
+    bRuntimeLookInputWasAlreadyIgnored = false;
+}
+
+void ATwinSceneManager::ApplyRuntimeSnaps(FVector& InOutLocation, FRotator& InOutRotation)
+{
+    RuntimeSnapFeedback = ERuntimeSnapFeedback::None;
+    RuntimeSnapFeedbackPoint = InOutLocation;
     InOutLocation.Z = RuntimeEditPlaneZ;
 
     if (bEnableGridSnap && GridSnapSizeCm > 0.0f)
     {
+        const FVector BeforeGridSnap = InOutLocation;
         InOutLocation.X = FMath::GridSnap(InOutLocation.X, GridSnapSizeCm);
         InOutLocation.Y = FMath::GridSnap(InOutLocation.Y, GridSnapSizeCm);
+        if (!FMath::IsNearlyEqual(BeforeGridSnap.X, InOutLocation.X, 0.01f) ||
+            !FMath::IsNearlyEqual(BeforeGridSnap.Y, InOutLocation.Y, 0.01f))
+        {
+            RuntimeSnapFeedback = ERuntimeSnapFeedback::Grid;
+            RuntimeSnapFeedbackPoint = InOutLocation;
+        }
     }
 
     if (!bEnableWallSnap || WallTag.IsNone() || !RuntimeSelectedInstance || !GetWorld())
@@ -1174,6 +1424,8 @@ void ATwinSceneManager::ApplyRuntimeSnaps(FVector& InOutLocation, FRotator& InOu
 
     const FVector Tangent(-Normal.Y, Normal.X, 0.0f);
     InOutRotation.Yaw = Tangent.Rotation().Yaw;
+    RuntimeSnapFeedback = ERuntimeSnapFeedback::Wall;
+    RuntimeSnapFeedbackPoint = BestClosest;
 }
 
 void ATwinSceneManager::MarkRuntimeDirtyFromTransform()
@@ -1193,6 +1445,10 @@ void ATwinSceneManager::SaveRuntimeEdit()
     if (!RuntimeSelectedInstance || !IsValid(RuntimeSelectedInstance))
     {
         RuntimeStatusMessage = TEXT("Select an instance before saving");
+        if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel))
+        {
+            RuntimeEditorPanel->ShowToast(TEXT("Select an instance first"), EOntoTwinRuntimeToastType::Info);
+        }
         UpdateRuntimeEditorPanel();
         return;
     }
@@ -1205,6 +1461,12 @@ void ATwinSceneManager::SaveRuntimeEdit()
     if (!bRuntimeCanSave)
     {
         RuntimeStatusMessage = TEXT("Binding is not matched; save disabled");
+        if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel))
+        {
+            RuntimeEditorPanel->ShowToast(
+                TEXT("Dataset access is not ready"),
+                EOntoTwinRuntimeToastType::Warning);
+        }
         UpdateRuntimeEditorPanel();
         return;
     }
@@ -1280,6 +1542,12 @@ void ATwinSceneManager::SaveRuntimeEdit()
 
                 Self->bRuntimeEditDirty = false;
                 Self->RuntimeStatusMessage = TEXT("Saved; backend snapshot applied");
+                if (Self->RuntimeEditorPanel && IsValid(Self->RuntimeEditorPanel))
+                {
+                    Self->RuntimeEditorPanel->ShowToast(
+                        TEXT("Changes saved"),
+                        EOntoTwinRuntimeToastType::Success);
+                }
             }
             else
             {
@@ -1291,6 +1559,12 @@ void ATwinSceneManager::SaveRuntimeEdit()
                 Self->RuntimeStatusMessage = Error.IsEmpty()
                     ? FString::Printf(TEXT("Save failed (code=%d)"), Code)
                     : FString::Printf(TEXT("Save failed: %s"), *Error);
+                if (Self->RuntimeEditorPanel && IsValid(Self->RuntimeEditorPanel))
+                {
+                    Self->RuntimeEditorPanel->ShowToast(
+                        TEXT("Save failed. Changes are still local."),
+                        EOntoTwinRuntimeToastType::Error);
+                }
             }
 
             Self->UpdateRuntimeEditorPanel();
@@ -1326,6 +1600,12 @@ void ATwinSceneManager::CancelRuntimeEdit()
     const bool bRestore = bRuntimeEditDirty;
     ClearRuntimeSelection(bRestore);
     RuntimeStatusMessage = bRestore ? TEXT("Edit canceled; transform restored") : TEXT("Selection cleared");
+    if (bRestore && RuntimeEditorPanel && IsValid(RuntimeEditorPanel))
+    {
+        RuntimeEditorPanel->ShowToast(
+            TEXT("Changes reverted"),
+            EOntoTwinRuntimeToastType::Info);
+    }
     UpdateRuntimeEditorPanel();
 }
 
@@ -1350,23 +1630,20 @@ FString ATwinSceneManager::GetRuntimeEditorModeText() const
 
 FString ATwinSceneManager::GetRuntimeEditorBindingText() const
 {
-    if (bRuntimeBindingRequestInFlight)
+    switch (GetRuntimeEditorAccessState())
     {
-        return TEXT("Binding: checking");
+    case EOntoTwinRuntimeAccessState::Checking:
+        return TEXT("Dataset access: checking");
+    case EOntoTwinRuntimeAccessState::Ready:
+        return TEXT("Dataset access: ready");
+    case EOntoTwinRuntimeAccessState::Unbound:
+        return TEXT("Dataset access: not bound");
+    case EOntoTwinRuntimeAccessState::Mismatch:
+        return TEXT("Dataset access: bound to another UE project");
+    case EOntoTwinRuntimeAccessState::Error:
+    default:
+        return TEXT("Dataset access: unable to verify");
     }
-    if (RuntimeBindingMode == TEXT("matched"))
-    {
-        return FString::Printf(TEXT("Binding: matched (%s)"), *UEProjectId);
-    }
-    if (RuntimeBindingMode == TEXT("unbound"))
-    {
-        return TEXT("Binding: active dataset unbound");
-    }
-    if (RuntimeBindingMode == TEXT("ue_project_mismatch"))
-    {
-        return TEXT("Binding: mismatch");
-    }
-    return FString::Printf(TEXT("Binding: %s"), *RuntimeBindingMode);
 }
 
 FString ATwinSceneManager::GetRuntimeEditorSelectionText() const
@@ -1398,9 +1675,121 @@ FString ATwinSceneManager::GetRuntimeEditorStatusText() const
     return FString::Printf(TEXT("Status: %s"), *RuntimeStatusMessage);
 }
 
+FString ATwinSceneManager::GetRuntimeEditorHeaderStateText() const
+{
+    if (bRuntimeEditSaving)
+    {
+        return TEXT("Saving");
+    }
+    if (bRuntimeDragging && RuntimeSnapFeedback == ERuntimeSnapFeedback::Wall)
+    {
+        return TEXT("Wall snap");
+    }
+    if (bRuntimeDragging && RuntimeSnapFeedback == ERuntimeSnapFeedback::Grid)
+    {
+        return TEXT("Grid snap");
+    }
+    if (bRuntimeDragging && RuntimeDragPart == ERuntimeDragPart::MoveXY)
+    {
+        return TEXT("Moving XY");
+    }
+    if (bRuntimeDragging && RuntimeDragPart == ERuntimeDragPart::MoveZ)
+    {
+        return TEXT("Moving Z");
+    }
+    if (bRuntimeDragging && RuntimeDragPart == ERuntimeDragPart::RotateYaw)
+    {
+        return TEXT("Rotating Yaw");
+    }
+    if (bRuntimeEditDirty)
+    {
+        return TEXT("Unsaved");
+    }
+    if (RuntimeHoverPart == ERuntimeDragPart::MoveXY)
+    {
+        return TEXT("Move XY");
+    }
+    if (RuntimeHoverPart == ERuntimeDragPart::MoveZ)
+    {
+        return TEXT("Move Z");
+    }
+    if (RuntimeHoverPart == ERuntimeDragPart::RotateYaw)
+    {
+        return TEXT("Rotate Yaw");
+    }
+    return TEXT("Editing");
+}
+
+FString ATwinSceneManager::GetRuntimeEditorDisplayName() const
+{
+    if (!RuntimeSelectedInstance || !IsValid(RuntimeSelectedInstance))
+    {
+        return TEXT("No instance selected");
+    }
+
+    const FString DisplayName = RuntimeSelectedInstance->GetTwinDisplayName();
+    return TruncateRuntimeLabel(DisplayName.IsEmpty() ? TEXT("Twin instance") : DisplayName, 34);
+}
+
+FString ATwinSceneManager::GetRuntimeEditorInstanceIdText() const
+{
+    if (!RuntimeSelectedInstance || !IsValid(RuntimeSelectedInstance))
+    {
+        return TEXT("-");
+    }
+
+    const FString InstanceId = RuntimeSelectedInstance->GetInstanceId();
+    if (InstanceId.Len() <= 18)
+    {
+        return InstanceId;
+    }
+    return InstanceId.Left(8) + TEXT("...") + InstanceId.Right(5);
+}
+
+bool ATwinSceneManager::GetRuntimeEditorTransform(FVector& OutLocation, float& OutYaw) const
+{
+    if (!RuntimeSelectedInstance || !IsValid(RuntimeSelectedInstance))
+    {
+        OutLocation = FVector::ZeroVector;
+        OutYaw = 0.0f;
+        return false;
+    }
+
+    OutLocation = RuntimeSelectedInstance->GetActorLocation();
+    OutYaw = RuntimeSelectedInstance->GetActorRotation().Yaw;
+    return true;
+}
+
+EOntoTwinRuntimeAccessState ATwinSceneManager::GetRuntimeEditorAccessState() const
+{
+    if (bRuntimeBindingRequestInFlight)
+    {
+        return EOntoTwinRuntimeAccessState::Checking;
+    }
+    if (RuntimeBindingMode == TEXT("matched"))
+    {
+        return EOntoTwinRuntimeAccessState::Ready;
+    }
+    if (RuntimeBindingMode == TEXT("unbound"))
+    {
+        return EOntoTwinRuntimeAccessState::Unbound;
+    }
+    if (RuntimeBindingMode == TEXT("ue_project_mismatch"))
+    {
+        return EOntoTwinRuntimeAccessState::Mismatch;
+    }
+    return EOntoTwinRuntimeAccessState::Error;
+}
+
 bool ATwinSceneManager::CanBindRuntimeProject() const
 {
     return bRuntimeEditMode && !bRuntimeBindingRequestInFlight && RuntimeBindingMode == TEXT("unbound");
+}
+
+bool ATwinSceneManager::CanRetryRuntimeBindingStatus() const
+{
+    return bRuntimeEditMode && !bRuntimeBindingRequestInFlight &&
+        GetRuntimeEditorAccessState() == EOntoTwinRuntimeAccessState::Error;
 }
 
 bool ATwinSceneManager::CanSaveRuntimeEdit() const
@@ -1411,6 +1800,15 @@ bool ATwinSceneManager::CanSaveRuntimeEdit() const
         bRuntimeEditDirty &&
         !bRuntimeEditSaving &&
         bRuntimeCanSave;
+}
+
+bool ATwinSceneManager::CanCancelRuntimeEdit() const
+{
+    return bRuntimeEditMode &&
+        RuntimeSelectedInstance &&
+        IsValid(RuntimeSelectedInstance) &&
+        bRuntimeEditDirty &&
+        !bRuntimeEditSaving;
 }
 
 bool ATwinSceneManager::HasRuntimeEditSelection() const

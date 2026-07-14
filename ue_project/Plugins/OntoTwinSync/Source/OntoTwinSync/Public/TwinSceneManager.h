@@ -33,6 +33,16 @@ class ATwinInstance;
 class AOntoTwinRuntimeGizmo;
 class UOntoTwinRuntimeEditorPanel;
 
+UENUM(BlueprintType)
+enum class EOntoTwinRuntimeAccessState : uint8
+{
+    Checking,
+    Ready,
+    Unbound,
+    Mismatch,
+    Error
+};
+
 /**
  * ATwinSceneManager
  *
@@ -168,6 +178,9 @@ public:
     void BindCurrentRuntimeProject();
 
     UFUNCTION(BlueprintCallable, Category="Runtime Editor")
+    void RetryRuntimeBindingStatus();
+
+    UFUNCTION(BlueprintCallable, Category="Runtime Editor")
     void SetRuntimeWallSnapEnabled(bool bEnabled);
 
     UFUNCTION(BlueprintCallable, Category="Runtime Editor")
@@ -178,9 +191,18 @@ public:
     FString GetRuntimeEditorSelectionText() const;
     FString GetRuntimeEditorTransformText() const;
     FString GetRuntimeEditorStatusText() const;
+    FString GetRuntimeEditorHeaderStateText() const;
+    FString GetRuntimeEditorDisplayName() const;
+    FString GetRuntimeEditorInstanceIdText() const;
+    bool GetRuntimeEditorTransform(FVector& OutLocation, float& OutYaw) const;
+    EOntoTwinRuntimeAccessState GetRuntimeEditorAccessState() const;
     bool CanBindRuntimeProject() const;
+    bool CanRetryRuntimeBindingStatus() const;
     bool CanSaveRuntimeEdit() const;
+    bool CanCancelRuntimeEdit() const;
     bool HasRuntimeEditSelection() const;
+    bool IsRuntimeEditDirty() const { return bRuntimeEditDirty; }
+    bool IsRuntimeEditSaving() const { return bRuntimeEditSaving; }
     bool IsRuntimeWallSnapEnabled() const { return bEnableWallSnap; }
     bool IsRuntimeGridSnapEnabled() const { return bEnableGridSnap; }
 
@@ -279,6 +301,8 @@ private:
     bool bRuntimeBindingRequestInFlight = false;
     bool bRuntimeCanSave = false;
     bool bRuntimeDragging = false;
+    bool bRuntimeCameraLookSuppressed = false;
+    bool bRuntimeLookInputWasAlreadyIgnored = false;
     bool bRuntimePreviousMouseCursor = false;
     bool bRuntimePreviousAnimRunning = false;
     float RuntimeLastToggleInputTime = -1000.0f;
@@ -288,11 +312,18 @@ private:
     FTransform RuntimeEditBaseline = FTransform::Identity;
     FTransform RuntimeDragStartTransform = FTransform::Identity;
     FVector RuntimeDragStartPoint = FVector::ZeroVector;
+    FVector RuntimeZDragStartPoint = FVector::ZeroVector;
+    FPlane RuntimeZDragPlane = FPlane(FVector::ZeroVector, FVector::ForwardVector);
     float RuntimeEditPlaneZ = 0.0f;
+    float RuntimeDragPlaneZ = 0.0f;
     float RuntimeDragStartAngleDeg = 0.0f;
     float RuntimeDragStartYaw = 0.0f;
-    enum class ERuntimeDragPart : uint8 { None, MoveXY, RotateYaw };
+    enum class ERuntimeDragPart : uint8 { None, MoveXY, MoveZ, RotateYaw };
+    enum class ERuntimeSnapFeedback : uint8 { None, Grid, Wall };
+    ERuntimeDragPart RuntimeHoverPart = ERuntimeDragPart::None;
     ERuntimeDragPart RuntimeDragPart = ERuntimeDragPart::None;
+    ERuntimeSnapFeedback RuntimeSnapFeedback = ERuntimeSnapFeedback::None;
+    FVector RuntimeSnapFeedbackPoint = FVector::ZeroVector;
 
     // ── 内部方法 ─────────────────────────────────────────────────────────
 
@@ -334,11 +365,13 @@ private:
     void SelectRuntimeInstance(ATwinInstance* Instance);
     void ClearRuntimeSelection(bool bRestoreBaseline);
     bool TraceRuntimeCursor(FHitResult& OutHit) const;
+    bool GetRuntimeCursorPointOnPlane(const FPlane& Plane, FVector& OutPoint) const;
     bool GetRuntimeCursorPlanePoint(FVector& OutPoint) const;
     void BeginRuntimeGizmoDrag(ERuntimeDragPart Part);
     void UpdateRuntimeGizmoDrag();
     void EndRuntimeGizmoDrag();
-    void ApplyRuntimeSnaps(FVector& InOutLocation, FRotator& InOutRotation) const;
+    void SetRuntimeCameraLookSuppressed(bool bSuppress);
+    void ApplyRuntimeSnaps(FVector& InOutLocation, FRotator& InOutRotation);
     void MarkRuntimeDirtyFromTransform();
     void ApplyRuntimeSnapshotIfPresent(const TSharedPtr<FJsonObject>& ResponseObj);
 

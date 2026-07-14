@@ -222,6 +222,7 @@ void ATwinInstance::InitializeTwin(
     const FString& InBackendBaseUrl)
 {
     InstanceId     = InInstanceId;
+    TwinDisplayName = InInstanceId;
     AssetPath      = InAssetPath;
     BackendBaseUrl = InBackendBaseUrl;
 
@@ -262,6 +263,12 @@ void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot)
     {
         UE_LOG(LogTemp, Warning, TEXT("[孪生体] ApplySnapshot: Snapshot 无效 (ID=%s)"), *InstanceId);
         return;
+    }
+
+    FString SnapshotDisplayName;
+    if (Snapshot->TryGetStringField(TEXT("displayName"), SnapshotDisplayName) && !SnapshotDisplayName.IsEmpty())
+    {
+        TwinDisplayName = SnapshotDisplayName;
     }
 
     const TSharedPtr<FJsonObject>* InterfacesObj;

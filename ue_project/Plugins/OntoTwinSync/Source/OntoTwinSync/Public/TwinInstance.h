@@ -76,6 +76,11 @@ public:
               meta=(DisplayName="实例ID"))
     FString InstanceId;
 
+    /** 后端实例显示名，供 Runtime Editor 等运行时界面使用。 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体|标识",
+              meta=(DisplayName="实例显示名"))
+    FString TwinDisplayName;
+
     /** UE 资产路径（/Game/...） */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|标识",
               meta=(DisplayName="UE资产路径"))
@@ -157,6 +162,9 @@ public:
 
     /** 获取实例 ID */
     FString GetInstanceId() const { return InstanceId; }
+
+    /** 获取后端实例显示名；为空时回退到实例 ID。 */
+    FString GetTwinDisplayName() const { return TwinDisplayName.IsEmpty() ? InstanceId : TwinDisplayName; }
 
     /** Runtime Editor: stop local behavior animation while a gizmo edit owns spatial transform. */
     FString PauseRuntimeEditorAnimation(bool& bOutWasRunning);

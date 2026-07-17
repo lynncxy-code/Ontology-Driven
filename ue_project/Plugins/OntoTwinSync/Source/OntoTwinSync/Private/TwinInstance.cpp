@@ -9,6 +9,7 @@
 
 #include "TwinInstance.h"
 #include "DigitalTwinSyncComponent.h"
+#include "OntoTwinOverlayWidget.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
@@ -26,6 +27,7 @@
 // glTFRuntime —— 运行时加载磁盘上的 glb/gltf（B2 方案，模型不参与打包）
 #include "glTFRuntimeFunctionLibrary.h"
 #include "glTFRuntimeAsset.h"
+#include "Blueprint/UserWidget.h"
 
 // ── 构造函数 ─────────────────────────────────────────────────────────────────
 
@@ -52,6 +54,26 @@ ATwinInstance::ATwinInstance()
     LabelComponent->SetTextRenderColor(LabelColor);                        // 文字颜色
     LabelComponent->SetVisibility(false);                                  // 初始隐藏
     LabelComponent->SetText(FText::GetEmpty());
+
+    OverlayWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("TwinOverlay"));
+    OverlayWidgetComponent->SetupAttachment(MeshComponent);
+    OverlayWidgetComponent->SetAbsolute(false, false, true);
+    OverlayWidgetComponent->SetWidgetSpace(EWidgetSpace::World);
+    OverlayWidgetComponent->SetDrawSize(FVector2D(720.0f, 160.0f));
+    OverlayWidgetComponent->SetDrawAtDesiredSize(false);
+    OverlayWidgetComponent->SetPivot(FVector2D(0.5f, 1.0f));
+    OverlayWidgetComponent->SetBlendMode(EWidgetBlendMode::Transparent);
+    OverlayWidgetComponent->SetTwoSided(true);
+    OverlayWidgetComponent->SetTickWhenOffscreen(false);
+    OverlayWidgetComponent->SetManuallyRedraw(true);
+    OverlayWidgetComponent->SetRedrawTime(0.0f);
+    OverlayWidgetComponent->SetWindowFocusable(false);
+    OverlayWidgetComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    OverlayWidgetComponent->SetCollisionResponseToAllChannels(ECR_Ignore);
+    OverlayWidgetComponent->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+    OverlayWidgetComponent->SetGenerateOverlapEvents(false);
+    OverlayWidgetComponent->SetVisibility(false);
+    OverlayWidgetComponent->SetWorldScale3D(FVector(0.05f));
 }
 
 // ── BeginPlay ────────────────────────────────────────────────────────────────
@@ -60,6 +82,17 @@ void ATwinInstance::BeginPlay()
 {
     Super::BeginPlay();
     InitAnimLibrary();
+    if (OverlayWidgetComponent)
+    {
+        OverlayWidgetComponent->SetWidgetClass(UOntoTwinOverlayWidget::StaticClass());
+        OverlayWidgetComponent->InitWidget();
+        WorldOverlayWidget = Cast<UOntoTwinOverlayWidget>(OverlayWidgetComponent->GetUserWidgetObject());
+        if (WorldOverlayWidget)
+        {
+            WorldOverlayWidget->SetWorldSpacePresentation(true);
+            UpdateWorldOverlayRenderTarget();
+        }
+    }
 }
 
 void ATwinInstance::Tick(float DeltaTime)
@@ -82,6 +115,17 @@ void ATwinInstance::Tick(float DeltaTime)
 
             // 如果你发现文字刚好是左右镜像反的，可以改成 BillboardRot.Yaw += 180.f; 但纯 LookAt 一般是正的！
             LabelComponent->SetWorldRotation(BillboardRot);
+        }
+    }
+
+    if (HasAlwaysOverlay() && OverlayWidgetComponent && OverlayWidgetComponent->IsVisible())
+    {
+        if (APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
+        {
+            if (APlayerCameraManager* CamManager = PC->PlayerCameraManager)
+            {
+                RefreshAlwaysOverlay(CamManager->GetCameraLocation(), true);
+            }
         }
     }
 
@@ -126,7 +170,7 @@ void ATwinInstance::Tick(float DeltaTime)
         bAnimRunning = false;
         SetActorEnableCollision(true);
         // 如果文字没显示，才真正关闭 Tick
-        if (!LabelComponent || !LabelComponent->IsVisible())
+        if ((!LabelComponent || !LabelComponent->IsVisible()) && !HasAlwaysOverlay())
         {
             SetActorTickEnabled(false);
         }
@@ -188,7 +232,7 @@ void ATwinInstance::PlayAnimationState(const FString& StateName)
     if (StateName == TEXT("idle"))
     {
         bAnimRunning = false;
-        if (!LabelComponent || !LabelComponent->IsVisible())
+        if ((!LabelComponent || !LabelComponent->IsVisible()) && !HasAlwaysOverlay())
         {
             SetActorTickEnabled(false);
         }
@@ -307,6 +351,16 @@ void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot)
     if ((*InterfacesObj)->TryGetObjectField(TEXT("I3D_Behavioral"), BehaviorObj))
     {
         ApplyBehavioralFromSnapshot(*BehaviorObj);
+    }
+
+    const TSharedPtr<FJsonObject>* OverlayObj;
+    if ((*InterfacesObj)->TryGetObjectField(TEXT("I3D_Overlay"), OverlayObj))
+    {
+        ApplyOverlayFromSnapshot(*OverlayObj);
+    }
+    else
+    {
+        ClearOverlay();
     }
 }
 
@@ -681,10 +735,42 @@ void ATwinInstance::ApplyRepresentableFromSnapshot(const TSharedPtr<FJsonObject>
 // I3D_Spatial — 空间变换
 // ═══════════════════════════════════════════════════════════════════════════
 
+void ATwinInstance::ApplyRealtimeSpatial(double X, double Y, double HeadingDeg, float HoldSeconds)
+{
+    if (bLocalOverrideLock || !FMath::IsFinite(X) || !FMath::IsFinite(Y) || !FMath::IsFinite(HeadingDeg))
+    {
+        return;
+    }
+
+    const UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    FVector NewLocation = GetActorLocation();
+    NewLocation.X = X;
+    NewLocation.Y = Y;
+
+    FRotator NewRotation = GetActorRotation();
+    NewRotation.Yaw = FMath::Fmod(HeadingDeg, 360.0);
+
+    SetActorLocationAndRotation(NewLocation, NewRotation);
+    RealtimeSpatialValidUntilSeconds =
+        static_cast<double>(World->GetTimeSeconds()) + FMath::Max(0.1f, HoldSeconds);
+}
+
+bool ATwinInstance::IsRealtimeSpatialActive() const
+{
+    const UWorld* World = GetWorld();
+    return World
+        && static_cast<double>(World->GetTimeSeconds()) <= RealtimeSpatialValidUntilSeconds;
+}
+
 void ATwinInstance::ApplySpatialFromSnapshot(const TSharedPtr<FJsonObject>& SpatialObj)
 {
-    // 🔒 本地锁定模式：保持编辑器中设置的空间变换，忽略后端数据
-    if (bLocalOverrideLock)
+    // 本地手动锁定最高优先；其次是仍有心跳的 WebSocket；最后才是 HTTP 快照。
+    if (bLocalOverrideLock || IsRealtimeSpatialActive())
     {
         return;
     }
@@ -810,7 +896,7 @@ void ATwinInstance::ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& B
                 // 空内容就隐藏标签
                 LabelComponent->SetVisibility(false);
                 LabelComponent->SetText(FText::GetEmpty());
-                if (!bAnimRunning)
+                if (!bAnimRunning && !HasAlwaysOverlay())
                 {
                     SetActorTickEnabled(false);
                 }
@@ -838,4 +924,168 @@ void ATwinInstance::ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& B
 
         UE_LOG(LogTemp, Log, TEXT("[孪生体] UI标签更新: %s → \"%s\""), *InstanceId, *LabelContent);
     }
+}
+
+void ATwinInstance::ApplyOverlayFromSnapshot(const TSharedPtr<FJsonObject>& OverlayObj)
+{
+    if (!OverlayObj.IsValid())
+    {
+        ClearOverlay();
+        return;
+    }
+
+    bool bEnabled = false;
+    OverlayObj->TryGetBoolField(TEXT("enabled"), bEnabled);
+    FString DisplayMode;
+    OverlayObj->TryGetStringField(TEXT("display_mode"), DisplayMode);
+    if (DisplayMode != TEXT("selected") && DisplayMode != TEXT("always"))
+    {
+        DisplayMode = TEXT("selected");
+    }
+
+    OverlayOffsetCm = FVector(0.0f, 0.0f, 20.0f);
+    const TSharedPtr<FJsonObject>* Anchor = nullptr;
+    const TSharedPtr<FJsonObject>* Offset = nullptr;
+    if (OverlayObj->TryGetObjectField(TEXT("anchor"), Anchor) && Anchor && Anchor->IsValid()
+        && (*Anchor)->TryGetObjectField(TEXT("offset_cm"), Offset) && Offset && Offset->IsValid())
+    {
+        double X = 0.0;
+        double Y = 0.0;
+        double Z = 20.0;
+        (*Offset)->TryGetNumberField(TEXT("x"), X);
+        (*Offset)->TryGetNumberField(TEXT("y"), Y);
+        (*Offset)->TryGetNumberField(TEXT("z"), Z);
+        OverlayOffsetCm = FVector(X, Y, Z);
+    }
+
+    bOverlayEnabled = bEnabled;
+    OverlayDisplayMode = DisplayMode;
+    CurrentOverlayData = OverlayObj;
+    ++OverlayPayloadSerial;
+
+    if (LabelComponent)
+    {
+        if (bOverlayEnabled)
+        {
+            LabelComponent->SetVisibility(false);
+        }
+        else if (!CurrentLabelContent.IsEmpty())
+        {
+            LabelComponent->SetText(FText::FromString(CurrentLabelContent));
+            LabelComponent->SetVisibility(true);
+        }
+    }
+
+    if (OverlayWidgetComponent)
+    {
+        if (!WorldOverlayWidget)
+        {
+            OverlayWidgetComponent->SetWidgetClass(UOntoTwinOverlayWidget::StaticClass());
+            OverlayWidgetComponent->InitWidget();
+            WorldOverlayWidget = Cast<UOntoTwinOverlayWidget>(OverlayWidgetComponent->GetUserWidgetObject());
+            if (WorldOverlayWidget)
+            {
+                WorldOverlayWidget->SetWorldSpacePresentation(true);
+            }
+        }
+        if (WorldOverlayWidget)
+        {
+            WorldOverlayWidget->ApplyOverlayData(OverlayObj);
+            UpdateWorldOverlayRenderTarget();
+        }
+        OverlayWidgetComponent->SetVisibility(bOverlayEnabled && HasAlwaysOverlay());
+    }
+
+    if (HasAlwaysOverlay() || (LabelComponent && LabelComponent->IsVisible()))
+    {
+        SetActorTickEnabled(true);
+    }
+    else if (!bAnimRunning)
+    {
+        SetActorTickEnabled(false);
+    }
+}
+
+void ATwinInstance::ClearOverlay()
+{
+    bOverlayEnabled = false;
+    OverlayDisplayMode.Empty();
+    CurrentOverlayData.Reset();
+    ++OverlayPayloadSerial;
+    if (OverlayWidgetComponent)
+    {
+        OverlayWidgetComponent->SetVisibility(false);
+        OverlayWidgetComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    }
+    if (LabelComponent && !CurrentLabelContent.IsEmpty())
+    {
+        LabelComponent->SetText(FText::FromString(CurrentLabelContent));
+        LabelComponent->SetVisibility(true);
+        SetActorTickEnabled(true);
+    }
+    else if (!bAnimRunning)
+    {
+        SetActorTickEnabled(false);
+    }
+}
+
+FVector ATwinInstance::GetOverlayAnchorWorldLocation() const
+{
+    if (!MeshComponent)
+    {
+        return GetActorLocation() + OverlayOffsetCm;
+    }
+    const FBoxSphereBounds Bounds = MeshComponent->Bounds;
+    const FVector BoundsTop = Bounds.Origin + FVector(0.0f, 0.0f, Bounds.BoxExtent.Z);
+    const FVector RotatedOffset = GetActorTransform().TransformVectorNoScale(OverlayOffsetCm);
+    return BoundsTop + RotatedOffset;
+}
+
+float ATwinInstance::GetOverlayRenderWidthPixels() const
+{
+    if (!OverlayWidgetComponent) return 720.0f;
+    const FVector2D CurrentSize = OverlayWidgetComponent->GetCurrentDrawSize();
+    if (CurrentSize.X > 1.0f) return CurrentSize.X;
+    return FMath::Max(1.0f, OverlayWidgetComponent->GetDrawSize().X);
+}
+
+void ATwinInstance::UpdateWorldOverlayRenderTarget()
+{
+    if (!OverlayWidgetComponent || !WorldOverlayWidget) return;
+
+    const FVector2D DesiredSize = WorldOverlayWidget->GetDesiredRenderSize();
+    const FVector2D CurrentSize = OverlayWidgetComponent->GetDrawSize();
+    if (!CurrentSize.Equals(DesiredSize, 1.0f))
+    {
+        OverlayWidgetComponent->SetDrawSize(DesiredSize);
+    }
+    OverlayWidgetComponent->RequestRenderUpdate();
+}
+
+void ATwinInstance::RefreshAlwaysOverlay(
+    const FVector& CameraLocation,
+    bool bShouldShow,
+    float WorldScale)
+{
+    if (!OverlayWidgetComponent) return;
+    const bool bVisible = bShouldShow && HasAlwaysOverlay();
+    OverlayWidgetComponent->SetVisibility(bVisible);
+    const ECollisionEnabled::Type DesiredCollision = bVisible
+        ? ECollisionEnabled::QueryOnly
+        : ECollisionEnabled::NoCollision;
+    if (OverlayWidgetComponent->GetCollisionEnabled() != DesiredCollision)
+    {
+        OverlayWidgetComponent->SetCollisionEnabled(DesiredCollision);
+    }
+    if (!bVisible) return;
+
+    const FVector AnchorLocation = GetOverlayAnchorWorldLocation();
+    OverlayWidgetComponent->SetWorldLocation(AnchorLocation);
+    if (WorldScale > 0.0f)
+    {
+        OverlayWidgetComponent->SetWorldScale3D(FVector(WorldScale));
+    }
+    FRotator LookAt = UKismetMathLibrary::FindLookAtRotation(AnchorLocation, CameraLocation);
+    LookAt.Roll = 0.0f;
+    OverlayWidgetComponent->SetWorldRotation(LookAt);
 }

@@ -29,6 +29,10 @@
 		{
 			"Name": "glTFRuntime",
 			"Enabled": true
+		},
+		{
+			"Name": "EnhancedInput",
+			"Enabled": true
 		}
 	]
 }

@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UE5 Overlay · CF-9A 发动机台架测试监控</title>
+  <!--
+    ★ 规范说明（供 AI 参考）
+    ───────────────────────────────────────────────────────────────────────
+    场景:   ue5_overlay
+    业务:   涡扇发动机台架测试实时监控（CF-9A SN0047 · 台架 #3）
+    主题:   推力验证 · 热端参数 · 振动谱分析
+
+    布局差异说明（区别于其他两个 UE5 canonical）:
+      ▸ data_viz      — 左面板(折线图+工位表) / 右面板(环形+柱+数值卡)
+      ▸ quality_track — 宽 topbar-hud(决策指挥) + 右侧图层控制面板
+      ▸ engine_test   — topbar-hud(KPI) + 左面板(雷达图+传感器巡检列表)
+                                         + 右面板(双轴折线+偏差柱+测试记录)
+
+    布局特点:
+      · 左侧雷达图展示发动机 8 测点振动特征（当前 vs 基准），是本模板独有图表类型
+      · 右侧双轴折线图（推力/燃油双 Y 轴）展示 30s 实时趋势
+      · 右侧偏差柱状图有正有负，含 markLine 零线，展示多测试段对比
+      · 扩展性：新增测试段只需追加 xAxis.data 和 series.data；新增传感器
+        只需复制 alert-center__drawer 块
+
+    图表规范（§1.1.a.chart）:
+      1. 必须用 LingJingChart.init(el, 'ue5_overlay') 初始化（禁止裸 echarts.init）
+      2. 容器结构: charts-grid charts-grid--single > chart-placeholder[id][style=height]
+      3. 颜色从 LingJingChart.getTokens('ue5_overlay').series 取值，禁止硬编码
+      4. 渐变用 echarts.graphic.LinearGradient（如需要），不用内联 style
+      5. 折线图: areaStyle.opacity ≈ 0.12，symbol: 'none'，霓虹 shadowBlur
+      6. 雷达图: 两个 dataset，当前段 + 基准振型（dashed），areaStyle.opacity 0.12/0.06
+      7. 饼/环形图: label.show: false，用 legend / tooltip 说明
+    ───────────────────────────────────────────────────────────────────────
+  -->
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-ue5-overlay.css">
+</head>
+<body>
+<main class="ue5-overlay-root">
+  <div class="ue5-overlay-background"></div>
+  <div class="ue5-overlay-viewport">
+    <img class="ue5-overlay-scene-image" src="../../assets/ue5-bg-scene.png" alt="涡扇发动机台架三维背景场景">
+  </div>
+  <div class="ue5-overlay-grid"></div>
+  <div class="ue5-overlay-center-guard"></div>
+
+  <!-- ── System Bar ─────────────────────────────────────────────────────── -->
+  <header class="ue5-overlay-system-bar">
+    <div class="ue5-overlay-system-bar__brand">
+      <span class="ue5-overlay-system-bar__brand-mark" aria-hidden="true"></span>
+      <div class="ue5-overlay-system-bar__brand-copy">
+        <span class="ue5-overlay-system-bar__brand-name">CF-9A 发动机台架测试</span>
+        <span class="ue5-overlay-system-bar__brand-subtitle">推力验证 · 热端参数 · 振动谱分析</span>
+      </div>
+    </div>
+    <nav class="ue5-overlay-system-bar__nav" aria-label="场景导航">
+      <span class="ue5-overlay-system-bar__nav-item">全局总览</span>
+      <span class="ue5-overlay-system-bar__nav-item">质量追踪</span>
+      <span class="ue5-overlay-system-bar__nav-item is-active">台架测试</span>
+    </nav>
+    <div class="ue5-overlay-system-bar__meta">
+      <span class="ue5-overlay-system-bar__meta-item">
+        <span class="ue5-overlay-system-bar__meta-dot" aria-hidden="true"></span>台架 #3 · 500ms 数据推送
+      </span>
+      <span class="ue5-overlay-system-bar__meta-item">测试工位 T-03</span>
+      <span class="ue5-overlay-system-bar__meta-item" id="sysTime">2026/03/25 · 10:47</span>
+    </div>
+  </header>
+
+  <section class="ue5-overlay-safe-area" aria-label="发动机台架测试监控视图">
+
+    <!-- ① topbar-hud：关键指标 KPI ───────────────────────────────────── -->
+    <div class="topbar-hud ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--hud"
+         aria-label="台架测试关键指标">
+      <div class="topbar-hud__headline">
+        <h1 class="topbar-hud__title">推力验证阶段 · 实时监控</h1>
+        <p class="topbar-hud__subtitle">台架 #3 · CF-9A SN0047 · 数据每 500 ms 刷新，橙/红标识越限项。</p>
+      </div>
+      <div class="topbar-hud__signal-strip" aria-label="关键指标卡片组">
+        <div class="topbar-hud__stat topbar-hud__stat--brand">
+          <span class="topbar-hud__stat-label">当前测试段</span>
+          <span class="topbar-hud__stat-value">T4</span>
+          <span class="topbar-hud__stat-meta">推力验证</span>
+        </div>
+        <div class="topbar-hud__stat topbar-hud__stat--success">
+          <span class="topbar-hud__stat-label">当前推力</span>
+          <span class="topbar-hud__stat-value">142.6</span>
+          <span class="topbar-hud__stat-meta">kN</span>
+        </div>
+        <div class="topbar-hud__stat topbar-hud__stat--success">
+          <span class="topbar-hud__stat-label">推力偏差</span>
+          <span class="topbar-hud__stat-value">+0.8%</span>
+          <span class="topbar-hud__stat-meta">基准 141.5 kN</span>
+        </div>
+        <div class="topbar-hud__stat topbar-hud__stat--warning">
+          <span class="topbar-hud__stat-label">振动烈度（mm/s）</span>
+          <span class="topbar-hud__stat-value">3.2</span>
+          <span class="topbar-hud__stat-meta">接近上限</span>
+        </div>
+        <div class="topbar-hud__stat topbar-hud__stat--critical">
+          <span class="topbar-hud__stat-label">最高排温</span>
+          <span class="topbar-hud__stat-value">847°C</span>
+          <span class="topbar-hud__stat-meta">超警戒值 840°C</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② 左侧面板：雷达图 + 传感器巡检列表 ────────────────────────── -->
+    <aside class="alert-center ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--detail"
+           aria-label="振动特征与传感器读数">
+
+      <!-- 雷达图 -->
+      <div class="alert-center__header">
+        <div class="alert-center__heading">
+          <h2 class="alert-center__title">振动特征谱</h2>
+          <p class="alert-center__summary">T4 段实测 vs 基准振型（8 测点 · mm/s）</p>
+        </div>
+      </div>
+      <div class="charts-grid charts-grid--single">
+        <div class="chart-placeholder" id="chartRadar" style="height: 196px;"
+             aria-label="发动机振动特征雷达图"></div>
+      </div>
+
+      <!-- 传感器巡检列表 -->
+      <div class="alert-center__header">
+        <div class="alert-center__heading">
+          <h2 class="alert-center__title">传感器巡检</h2>
+        </div>
+        <span class="alert-center__badge">
+          <span class="alert-center__badge-label">越限</span>
+          <span class="alert-center__badge-value">2</span>
+        </span>
+      </div>
+
+      <!-- 越限项（open = 展开显示详情） -->
+      <details class="alert-center__drawer alert-center__drawer--critical" open>
+        <summary class="alert-center__drawer-summary">
+          <span class="alert-center__severity alert-center__severity--critical"></span>
+          <div class="alert-center__drawer-headline">
+            <p class="alert-center__item-title">T5 排气温度</p>
+          </div>
+          <span class="alert-center__drawer-state">847°C</span>
+        </summary>
+        <div class="alert-center__drawer-content">
+          <p class="alert-center__item-copy">上限 840°C · 超警戒值 7°C · 传感器 EGT-05</p>
+          <div class="alert-center__actions">
+            <button class="alert-center__action alert-center__action--danger">立即处置</button>
+            <button class="alert-center__action">查看趋势</button>
+          </div>
+        </div>
+      </details>
+
+      <details class="alert-center__drawer alert-center__drawer--warning" open>
+        <summary class="alert-center__drawer-summary">
+          <span class="alert-center__severity alert-center__severity--warning"></span>
+          <div class="alert-center__drawer-headline">
+            <p class="alert-center__item-title">风扇端振动 B1</p>
+          </div>
+          <span class="alert-center__drawer-state">3.2 mm/s</span>
+        </summary>
+        <div class="alert-center__drawer-content">
+          <p class="alert-center__item-copy">上限 3.5 mm/s · 接近越限 · 传感器 VIB-F1</p>
+        </div>
+      </details>
+
+      <!-- 正常项（折叠，摘要行可见值即可） -->
+      <details class="alert-center__drawer">
+        <summary class="alert-center__drawer-summary">
+          <span class="alert-center__severity alert-center__severity--success"></span>
+          <div class="alert-center__drawer-headline">
+            <p class="alert-center__item-title">燃油压力</p>
+          </div>
+          <span class="alert-center__drawer-state">2.14 MPa</span>
+        </summary>
+        <div class="alert-center__drawer-content">
+          <p class="alert-center__item-copy">范围 2.0–2.5 MPa · 传感器 FP-01</p>
+        </div>
+      </details>
+
+      <details class="alert-center__drawer">
+        <summary class="alert-center__drawer-summary">
+          <span class="alert-center__severity alert-center__severity--success"></span>
+          <div class="alert-center__drawer-headline">
+            <p class="alert-center__item-title">高压转子转速</p>
+          </div>
+          <span class="alert-center__drawer-state">98.4% N2</span>
+        </summary>
+        <div class="alert-center__drawer-content">
+          <p class="alert-center__item-copy">范围 95–100% · 传感器 N2-01</p>
+        </div>
+      </details>
+
+      <details class="alert-center__drawer">
+        <summary class="alert-center__drawer-summary">
+          <span class="alert-center__severity alert-center__severity--info"></span>
+          <div class="alert-center__drawer-headline">
+            <p class="alert-center__item-title">压气机出口压力</p>
+          </div>
+          <span class="alert-center__drawer-state">4.87 MPa</span>
+        </summary>
+        <div class="alert-center__drawer-content">
+          <p class="alert-center__item-copy">范围 4.5–5.2 MPa · 传感器 COP-03</p>
+        </div>
+      </details>
+
+    </aside>
+
+    <!-- ③ 右侧面板：双轴折线 + 偏差柱状 + 测试段记录 ─────────────── -->
+    <aside class="detail-panel ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--detail"
+           aria-label="推力趋势与测试段分析">
+      <div class="detail-panel__header">
+        <div class="detail-panel__title-group">
+          <h2 class="detail-panel__title">推力 &amp; 燃油实时趋势</h2>
+          <div class="detail-panel__meta">
+            <span>测试段 T1–T4</span>
+            <span>500ms 采样</span>
+          </div>
+        </div>
+      </div>
+      <div class="detail-panel__body">
+
+        <!-- 双轴折线图 -->
+        <section class="detail-panel__section">
+          <h3 class="detail-panel__section-title">推力 · 燃油流量（近 30s）</h3>
+          <div class="charts-grid charts-grid--single">
+            <div class="chart-placeholder" id="chartLine" style="height: 168px;"
+                 aria-label="推力与燃油流量双轴折线图"></div>
+          </div>
+        </section>
+
+        <!-- 偏差柱状图 -->
+        <section class="detail-panel__section">
+          <h3 class="detail-panel__section-title">各测试段推力偏差（实测 vs 基准）</h3>
+          <div class="charts-grid charts-grid--single">
+            <div class="chart-placeholder" id="chartBar" style="height: 128px;"
+                 aria-label="各测试段推力偏差柱状图"></div>
+          </div>
+        </section>
+
+        <!-- 测试段记录 -->
+        <section class="detail-panel__section">
+          <h3 class="detail-panel__section-title">测试段记录</h3>
+          <div class="detail-panel__list" role="list" aria-label="测试段记录列表">
+            <div class="detail-panel__list-row" role="listitem">
+              <span class="detail-panel__list-label">
+                <span class="alert-center__severity alert-center__severity--critical">●</span>
+                &nbsp;EGT 越限 · T4 段 [10:44:32]
+              </span>
+              <span class="detail-panel__list-value">847°C &gt; 840°C</span>
+            </div>
+            <div class="detail-panel__list-row" role="listitem">
+              <span class="detail-panel__list-label">
+                <span class="alert-center__severity alert-center__severity--warning">●</span>
+                &nbsp;振动超 3.0 mm/s · T3 段 [10:39:17]
+              </span>
+              <span class="detail-panel__list-value">待确认</span>
+            </div>
+            <div class="detail-panel__list-row" role="listitem">
+              <span class="detail-panel__list-label">
+                <span class="alert-center__severity alert-center__severity--info">●</span>
+                &nbsp;油耗率波动 ±1.2% · T2 段尾 [10:35:50]
+              </span>
+              <span class="detail-panel__list-value">正常范围</span>
+            </div>
+            <div class="detail-panel__list-row" role="listitem">
+              <span class="detail-panel__list-label">
+                <span class="alert-center__severity alert-center__severity--success">●</span>
+                &nbsp;T1 段推力验证通过 [10:28:04]
+              </span>
+              <span class="detail-panel__list-value">+0.3%</span>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </aside>
+
+  </section>
+</main>
+
+<!--
+  ECharts 本地文件：请将 echarts.min.js 复制到 scripts/ 目录
+  npm: node -e "require('fs').copyFileSync('node_modules/echarts/dist/echarts.min.js','scripts/echarts.min.js')"
+-->
+<script src="../../scripts/echarts.min.js"></script>
+<script src="../../scripts/echarts-theme-lingjing.js"></script>
+<script src="../../scripts/lucide-umd-500.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  lucide.createIcons();
+
+  // 实时时钟
+  (function tickClock() {
+    var el = document.getElementById('sysTime');
+    if (!el) return;
+    var pad = function (n) { return String(n).padStart(2, '0'); };
+    var now = new Date();
+    el.textContent = now.getFullYear() + '/' + pad(now.getMonth() + 1) + '/' + pad(now.getDate()) +
+      ' · ' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+    setTimeout(tickClock, 60000);
+  })();
+
+  if (typeof echarts === 'undefined') {
+    console.warn('[engine-test] echarts 未加载，图表跳过渲染。');
+    document.querySelectorAll('.chart-placeholder').forEach(function (el) {
+      el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;' +
+        'height:100%;opacity:0.45;font-size:12px;">ECharts 未加载</div>';
+    });
+    return;
+  }
+
+  var tk = LingJingChart.getTokens('ue5_overlay');
+
+  // ── ① 雷达图：振动特征谱 ─────────────────────────────────────────
+  // 8 测点，展示当前 T4 段实测值 vs 基准振型
+  var radarChart = LingJingChart.init(document.getElementById('chartRadar'), 'ue5_overlay');
+  radarChart.setOption({
+    tooltip: { trigger: 'item' },
+    legend: {
+      data: ['T4 实测', '基准振型'],
+      right: 0, top: 0,
+      textStyle: { fontSize: 10 }
+    },
+    radar: {
+      indicator: [
+        { name: '风扇 B1', max: 5 },
+        { name: '低压 L2', max: 5 },
+        { name: '高压 H3', max: 5 },
+        { name: '涡轮 T4', max: 5 },
+        { name: '尾喷 E5', max: 5 },
+        { name: '进气 I1', max: 5 },
+        { name: '机匣 C2', max: 5 },
+        { name: '安装 M1', max: 5 }
+      ],
+      radius: '60%',
+      center: ['50%', '56%'],
+      axisLine: { lineStyle: { color: 'rgba(148,165,188,0.2)' } },
+      splitLine: { lineStyle: { color: 'rgba(148,165,188,0.12)' } },
+      splitArea: { show: false },
+      name: { textStyle: { fontSize: 10 } }
+    },
+    series: [{
+      name: '振动特征',
+      type: 'radar',
+      data: [
+        {
+          name: 'T4 实测',
+          value: [3.2, 1.8, 2.1, 2.4, 1.6, 1.3, 2.0, 1.5],
+          lineStyle: { color: tk.series[3], width: 1.5 },
+          itemStyle: { color: tk.series[3] },
+          areaStyle: { color: tk.series[3], opacity: 0.12 }
+        },
+        {
+          name: '基准振型',
+          value: [2.5, 1.6, 1.8, 2.0, 1.4, 1.2, 1.7, 1.3],
+          lineStyle: { color: tk.series[0], width: 1.5, type: 'dashed' },
+          itemStyle: { color: tk.series[0] },
+          areaStyle: { color: tk.series[0], opacity: 0.06 }
+        }
+      ]
+    }]
+  });
+
+  // ── ② 双轴折线图：推力 + 燃油流量（近 30s） ─────────────────────
+  var lineChart = LingJingChart.init(document.getElementById('chartLine'), 'ue5_overlay');
+  var xLabels = [];
+  for (var i = 29; i >= 0; i--) { xLabels.push(i === 0 ? '现在' : '-' + i + 's'); }
+
+  var thrustData = [
+    139.2, 139.8, 140.1, 140.5, 141.0, 141.4, 141.8, 142.0, 141.7, 141.9,
+    142.1, 142.3, 142.0, 142.4, 142.6, 142.5, 142.8, 142.6, 142.7, 142.6,
+    142.9, 143.0, 142.8, 142.6, 142.5, 142.7, 142.6, 142.8, 142.6, 142.6
+  ];
+  var fuelData = [
+    1.82, 1.84, 1.85, 1.86, 1.87, 1.87, 1.88, 1.88, 1.87, 1.88,
+    1.89, 1.89, 1.88, 1.90, 1.90, 1.89, 1.91, 1.90, 1.90, 1.90,
+    1.91, 1.91, 1.90, 1.90, 1.89, 1.91, 1.90, 1.91, 1.90, 1.90
+  ];
+
+  lineChart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+    legend: {
+      data: ['推力 kN', '燃油 kg/s'],
+      right: 0, top: 0,
+      textStyle: { fontSize: 10 }
+    },
+    grid: { left: 44, right: 48, top: 28, bottom: 22 },
+    xAxis: {
+      type: 'category',
+      data: xLabels,
+      axisLabel: { fontSize: 10, interval: 5 },
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: 'rgba(148,165,188,0.25)' } }
+    },
+    yAxis: [
+      {
+        type: 'value', name: 'kN',
+        min: 138, max: 145,
+        nameTextStyle: { fontSize: 9 },
+        axisLabel: { fontSize: 9 },
+        splitLine: { lineStyle: { color: 'rgba(148,165,188,0.10)' } }
+      },
+      {
+        type: 'value', name: 'kg/s',
+        min: 1.78, max: 1.96,
+        nameTextStyle: { fontSize: 9 },
+        axisLabel: { fontSize: 9 },
+        splitLine: { show: false }
+      }
+    ],
+    series: [
+      {
+        name: '推力 kN',
+        type: 'line',
+        yAxisIndex: 0,
+        data: thrustData,
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { color: tk.series[0], width: 2, shadowBlur: 6, shadowColor: tk.series[0] },
+        itemStyle: { color: tk.series[0] },
+        areaStyle: { color: tk.series[0], opacity: 0.12 }
+      },
+      {
+        name: '燃油 kg/s',
+        type: 'line',
+        yAxisIndex: 1,
+        data: fuelData,
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { color: tk.series[2], width: 1.5, type: 'dashed' },
+        itemStyle: { color: tk.series[2] },
+        areaStyle: { color: tk.series[2], opacity: 0.06 }
+      }
+    ]
+  });
+
+  // ── ③ 偏差柱状图：各测试段推力偏差 ──────────────────────────────
+  var barChart = LingJingChart.init(document.getElementById('chartBar'), 'ue5_overlay');
+  // 正偏差用品牌蓝，负偏差用警告色；T4 仍在测试中透明度略低
+  var devData = [
+    { seg: 'T1', dev: 0.3,  done: true  },
+    { seg: 'T2', dev: 0.2,  done: true  },
+    { seg: 'T3', dev: -0.2, done: true  },
+    { seg: 'T4', dev: 0.8,  done: false }  // 测试中
+  ];
+
+  barChart.setOption({
+    tooltip: {
+      trigger: 'axis',
+      formatter: function (params) {
+        var p = params[0];
+        var flag = p.value < 0 ? '' : '+';
+        return p.name + '  偏差 ' + flag + p.value + '%' +
+          (p.name === 'T4' ? '  （测试中）' : '');
+      }
+    },
+    grid: { left: 36, right: 12, top: 20, bottom: 24 },
+    xAxis: {
+      type: 'category',
+      data: devData.map(function (d) { return d.seg; }),
+      axisLine: { lineStyle: { color: 'rgba(148,165,188,0.25)' } },
+      axisLabel: { fontSize: 11 }
+    },
+    yAxis: {
+      type: 'value',
+      name: '%',
+      nameTextStyle: { fontSize: 9 },
+      axisLabel: { fontSize: 9, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: 'rgba(148,165,188,0.10)' } }
+    },
+    series: [{
+      type: 'bar',
+      barMaxWidth: 32,
+      data: devData.map(function (d) {
+        var base = d.dev < 0 ? tk.series[3] : tk.series[0];
+        return {
+          value: d.dev,
+          itemStyle: {
+            color: base,
+            opacity: d.done ? 1 : 0.55,
+            borderRadius: d.dev >= 0 ? [3, 3, 0, 0] : [0, 0, 3, 3]
+          }
+        };
+      }),
+      label: {
+        show: true,
+        position: 'top',
+        fontSize: 10,
+        formatter: function (p) {
+          return (p.value > 0 ? '+' : '') + p.value + '%';
+        }
+      },
+      markLine: {
+        silent: true,
+        symbol: 'none',
+        lineStyle: { color: 'rgba(148,165,188,0.4)', type: 'dashed', width: 1 },
+        data: [{ yAxis: 0 }]
+      }
+    }]
+  });
+
+  window.addEventListener('resize', function () { LingJingChart.resizeAll(); });
+});
+</script>
+</body>
+</html>

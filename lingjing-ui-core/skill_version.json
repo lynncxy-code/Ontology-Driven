@@ -1,0 +1,215 @@
+{
+  "_meta": {
+    "description": "灵境 UI Core 技能包版本与产物清单（单一真相源）",
+    "source_of_truth": "SKILL.md frontmatter metadata.version",
+    "note": "此文件由人工维护，每次发布时与 SKILL.md / package.json / README.md 同步更新；版本与真值源的总体说明详见 TRUTH_SOURCES.md",
+    "last_updated": "2026-04-09"
+  },
+  "version": "3.0.1",
+  "dist": {
+    "css": [
+      {
+        "file": "components/dist/lingjing-core-b-system.css",
+        "scene": "b_system",
+        "size_kb": 361,
+        "description": "B 端管理系统全量样式（含布局、组件、工具类）"
+      },
+      {
+        "file": "components/dist/lingjing-core-ue5-overlay.css",
+        "scene": "ue5_overlay",
+        "size_kb": 268,
+        "description": "UE5 Web Overlay / 数字孪生叠加层样式"
+      },
+      {
+        "file": "components/dist/lingjing-core-website.css",
+        "scene": "website",
+        "size_kb": 355,
+        "description": "营销/企业门户网站样式"
+      },
+      {
+        "file": "components/dist/lingjing-core-presentation.css",
+        "scene": "presentation",
+        "size_kb": 372,
+        "description": "专业演示/汇报幻灯片样式"
+      }
+    ],
+    "js": [
+      {
+        "file": "components/dist/lingjing-core-ue5-bridge.js",
+        "scene": "ue5_overlay",
+        "size_kb": 2,
+        "description": "UE5 场景桥接脚本（事件桥接、面板拖拽）"
+      },
+      {
+        "file": "components/dist/lingjing-core-website.js",
+        "scene": "website",
+        "size_kb": 1,
+        "description": "网站场景交互脚本"
+      },
+      {
+        "file": "scripts/lucide-umd-500.js",
+        "scene": "all",
+        "size_kb": 574,
+        "description": "Lucide 图标库本地构建（500 个图标），页面加载后调用 lucide.createIcons()"
+      },
+      {
+        "file": "scripts/echarts.min.js",
+        "scene": "all",
+        "size_kb": 1010,
+        "description": "Apache ECharts v5.6.0 完整构建（UMD，已随技能包分发）",
+        "load_order": "先于 echarts-theme-lingjing.js 加载"
+      },
+      {
+        "file": "scripts/echarts-theme-lingjing.js",
+        "scene": "all",
+        "size_kb": 8,
+        "description": "ECharts 灵境主题包：5 个场景主题注册 + LingJingChart.init() 初始化助手。",
+        "requires": "scripts/echarts.min.js（已含于包内）",
+        "load_order": "echarts.min.js → echarts-theme-lingjing.js → 业务脚本",
+        "themes": {
+          "lingjing-ue5":          "UE5 Overlay 深色 HUD（霓虹发光）",
+          "lingjing-b-system":     "B 端浅色专业",
+          "lingjing-b-dark":       "B 端深色",
+          "lingjing-website":      "营销门户浅色",
+          "lingjing-presentation": "专业演示高对比度"
+        }
+      }
+    ]
+  },
+  "assets": {
+    "logo_flat": {
+      "file": "assets/logo-flat.png",
+      "size_kb": 4.4,
+      "usage": "品牌 Logo（B端 + 网站），浅色/深色主题统一使用，放入项目 assets/ 目录后引用"
+    }
+  },
+  "data": {
+    "class_registry": {
+      "file": "data/class_registry.json",
+      "description": "类名真值注册表，供 skill-audit.js 和 ux-spec-lint.js 调用",
+      "stats": {
+        "canonical": 1394,
+        "utility": 448,
+        "alias": 18,
+        "deprecated": 13,
+        "demo_only": 5,
+        "total": 1878
+      },
+      "rebuild_cmd": "node scripts/build-registry.js"
+    },
+    "task_router": {
+      "file": "data/task_router.json",
+      "description": "任务 → 场景 → 模板推荐路由表"
+    },
+    "template_router": {
+      "file": "data/template_router.json",
+      "description": "模板 → 场景 / 分级 / 使用范围索引（从 scene_coverage_matrix.yml 与 skill_version.json 同步）"
+    }
+  },
+  "scripts": {
+    "skill-audit": {
+      "file": "scripts/skill-audit.js",
+      "description": "HTML 审计器，8 项检查（含 bare_echarts_init），集成到 SKILL.md §0.0.1.audit",
+      "usage": "node scripts/skill-audit.js <html文件> [--scene b_system|website|ue5_overlay|presentation]"
+    },
+    "build-registry": {
+      "file": "scripts/build-registry.js",
+      "description": "从 dist CSS 重新生成 class_registry.json",
+      "usage": "node scripts/build-registry.js"
+    },
+    "echarts-theme": {
+      "file": "scripts/echarts-theme-lingjing.js",
+      "description": "ECharts 主题注册 + LingJingChart 初始化助手",
+      "usage": "在 HTML 中 <script src='scripts/echarts.min.js'></script><script src='scripts/echarts-theme-lingjing.js'></script> 后调用 LingJingChart.init(el, scene)"
+    }
+  },
+  "docs": {
+    "recipes": "docs/reference/b-system-composition-recipes.md",
+    "b_system_playbook": "docs/operations/b-system-layout-playbook.md",
+    "ue5_overlay_playbook": "docs/operations/ue5-overlay-layout-playbook.md",
+    "css_token_reference": "docs/reference/css-token-reference.md"
+  },
+  "examples": {
+    "structure": "按四大场景分目录：b-system/ ue5-overlay/ website/ presentation/ shared/ anti-pattern/",
+    "canonical": {
+      "b_system": [
+        "examples/b-system/b-system-complete.html",
+        "examples/b-system/b-system-charts.html"
+      ],
+      "ue5_overlay": [
+        "examples/ue5-overlay/ue5_overlay_quality_tracking.html",
+        "examples/ue5-overlay/ue5_overlay_data_viz.html",
+        "examples/ue5-overlay/ue5_overlay_dashboard.html"
+      ],
+      "website": [
+        "examples/website/website-complete.html"
+      ]
+    },
+    "candidate": {
+      "b_system": [
+        "examples/b-system/b-system-production-plan.html",
+        "examples/b-system/b-system-saas.html",
+        "examples/b-system/b-system-task-list-top-filters.html",
+        "examples/b-system/b-system-advanced-list-with-left-filter-panel.html",
+        "examples/b-system/b-system-detail-order.html"
+      ],
+      "website": [
+        "examples/website/website-feature-solution.html"
+      ],
+      "ue5_overlay": [
+        "examples/ue5-overlay/ue5_overlay_sidepanel_dock_layout.html",
+        "examples/ue5-overlay/digital_twin_overlay_dashboard.html",
+        "examples/ue5-overlay/ue5_overlay_minimal_no_hud.html"
+      ],
+      "presentation": [
+        "examples/presentation/presentation-product.html",
+        "examples/presentation/presentation-business.html",
+        "examples/presentation/presentation-planning.html"
+      ]
+    },
+    "demo": {
+      "b_system": [
+        "examples/b-system/b-system-showcase.html",
+        "examples/b-system/b-system-sidebar.html"
+      ],
+      "website": [
+        "examples/website/website-showcase.html"
+      ],
+      "shared": [
+        "examples/shared/core-icon-library.html"
+      ]
+    },
+    "blacklist": {
+      "b_system": [
+        "examples/b-system/b-system-showcase.html",
+        "examples/b-system/b-system-sidebar.html"
+      ],
+      "ue5_overlay": [
+        "examples/ue5-overlay/ue5_overlay_mock_bridge.html"
+      ],
+      "website": [
+        "examples/website/website-showcase.html"
+      ],
+      "presentation": [
+        "examples/presentation/presentation-work-report.html",
+        "examples/presentation/presentation-minimal.html"
+      ]
+    },
+    "limited": {
+      "ai_assistant": [
+        "examples/b-system/b-system-ai-assistant.html"
+      ],
+      "ue5_overlay": [
+        "examples/ue5-overlay/ue5_overlay_engine_test.html"
+      ]
+    }
+  },
+  "version_sync": {
+    "files_to_update_on_release": [
+      "SKILL.md (frontmatter metadata.version — 主真相源)",
+      "package.json (version字段)",
+      "README.md (版本徽章 + 说明)",
+      "skill_version.json (本文件 version + dist stats + last_updated)"
+    ]
+  }
+}

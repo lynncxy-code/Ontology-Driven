@@ -1,0 +1,546 @@
+<div id="overlay-entry-prototypes">
+  <style>
+    #overlay-entry-prototypes {
+      display: grid;
+      gap: 24px;
+      color: var(--foreground);
+    }
+
+    #overlay-entry-prototypes .scenario {
+      display: grid;
+      gap: 16px;
+    }
+
+    #overlay-entry-prototypes .scenario-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    #overlay-entry-prototypes .scenario-name {
+      display: grid;
+      gap: 4px;
+    }
+
+    #overlay-entry-prototypes .scenario-name h3,
+    #overlay-entry-prototypes .scenario-name p {
+      margin: 0;
+    }
+
+    #overlay-entry-prototypes .stage-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    #overlay-entry-prototypes .mock-screen {
+      border-top: 1px solid var(--border);
+      min-height: 310px;
+    }
+
+    #overlay-entry-prototypes .mock-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    #overlay-entry-prototypes .mock-topbar strong {
+      font-weight: 500;
+    }
+
+    #overlay-entry-prototypes .mock-layout {
+      display: grid;
+      grid-template-columns: minmax(150px, 0.8fr) minmax(220px, 1.4fr) minmax(190px, 1fr);
+      min-height: 250px;
+    }
+
+    #overlay-entry-prototypes .mock-column {
+      padding: 16px;
+      min-width: 0;
+    }
+
+    #overlay-entry-prototypes .mock-column + .mock-column {
+      border-left: 1px solid var(--border);
+    }
+
+    #overlay-entry-prototypes .column-title {
+      margin: 0 0 12px;
+      font-weight: 500;
+    }
+
+    #overlay-entry-prototypes .wire-list,
+    #overlay-entry-prototypes .wire-form,
+    #overlay-entry-prototypes .wire-stack {
+      display: grid;
+      gap: 8px;
+    }
+
+    #overlay-entry-prototypes .wire-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    #overlay-entry-prototypes .wire-row.is-selected {
+      padding-left: 8px;
+      border-left: 2px solid var(--primary);
+      background: var(--muted);
+    }
+
+    #overlay-entry-prototypes .wire-field {
+      display: grid;
+      gap: 4px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    #overlay-entry-prototypes .wire-value {
+      padding: 8px 10px;
+      border: 1px solid var(--input);
+      color: var(--foreground);
+      background: var(--background);
+    }
+
+    #overlay-entry-prototypes .wire-value.inherited {
+      border-style: dashed;
+      color: var(--muted-foreground);
+    }
+
+    #overlay-entry-prototypes .preview {
+      display: grid;
+      gap: 8px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--card-foreground);
+    }
+
+    #overlay-entry-prototypes .preview-title {
+      font-weight: 500;
+    }
+
+    #overlay-entry-prototypes .preview-divider {
+      height: 1px;
+      background: var(--border);
+    }
+
+    #overlay-entry-prototypes .preview-metric {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    #overlay-entry-prototypes .ue-stage {
+      position: relative;
+      min-height: 250px;
+      background: var(--muted);
+      overflow: hidden;
+    }
+
+    #overlay-entry-prototypes .ue-floor {
+      position: absolute;
+      left: 8%;
+      right: 8%;
+      bottom: 18%;
+      height: 1px;
+      background: var(--border);
+      transform: skewY(-5deg);
+    }
+
+    #overlay-entry-prototypes .ue-model {
+      position: absolute;
+      left: 25%;
+      bottom: 18%;
+      width: 22%;
+      height: 35%;
+      border: 2px solid var(--muted-foreground);
+      background: var(--background);
+    }
+
+    #overlay-entry-prototypes .ue-panel {
+      position: absolute;
+      left: 50%;
+      top: 12%;
+      width: min(42%, 260px);
+    }
+
+    #overlay-entry-prototypes .ue-link {
+      position: absolute;
+      left: 43%;
+      top: 45%;
+      width: 12%;
+      height: 1px;
+      background: var(--foreground);
+      transform: rotate(-25deg);
+      transform-origin: left center;
+    }
+
+    #overlay-entry-prototypes .source-to-editor {
+      display: grid;
+      grid-template-columns: minmax(150px, 0.7fr) minmax(300px, 2fr);
+      min-height: 250px;
+    }
+
+    #overlay-entry-prototypes .source-pane,
+    #overlay-entry-prototypes .editor-pane {
+      padding: 16px;
+      min-width: 0;
+    }
+
+    #overlay-entry-prototypes .editor-pane {
+      border-left: 1px solid var(--border);
+    }
+
+    #overlay-entry-prototypes .editor-grid {
+      display: grid;
+      grid-template-columns: minmax(120px, 0.7fr) minmax(180px, 1.2fr) minmax(160px, 1fr);
+      gap: 16px;
+    }
+
+    #overlay-entry-prototypes .path-summary {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding-top: 4px;
+      color: var(--muted-foreground);
+    }
+
+    #overlay-entry-prototypes [hidden] {
+      display: none !important;
+    }
+
+    @media (max-width: 720px) {
+      #overlay-entry-prototypes .mock-layout,
+      #overlay-entry-prototypes .source-to-editor,
+      #overlay-entry-prototypes .editor-grid {
+        grid-template-columns: 1fr;
+      }
+
+      #overlay-entry-prototypes .mock-column + .mock-column,
+      #overlay-entry-prototypes .editor-pane {
+        border-left: 0;
+        border-top: 1px solid var(--border);
+      }
+
+      #overlay-entry-prototypes .ue-panel {
+        left: 42%;
+        width: 52%;
+      }
+    }
+  </style>
+
+  <section class="card scenario" data-scenario="split-pages">
+    <div class="scenario-head">
+      <div class="scenario-name">
+        <h3>方案 1：分散到现有页面</h3>
+        <p class="text-small text-muted">本体页维护类型默认，实例页维护单台覆盖。</p>
+      </div>
+      <div class="stage-tabs" aria-label="方案一使用步骤">
+        <button type="button" class="btn" data-step="type" aria-pressed="true">1 类型默认</button>
+        <button type="button" class="btn" data-step="instance" aria-pressed="false">2 实例覆盖</button>
+        <button type="button" class="btn" data-step="result" aria-pressed="false">3 UE 结果</button>
+      </div>
+    </div>
+
+    <div class="mock-screen" data-screen="type">
+      <div class="mock-topbar">
+        <strong>本体配置中心 / 空压机</strong>
+        <button type="button" class="btn btn-primary">保存类型默认</button>
+      </div>
+      <div class="mock-layout">
+        <div class="mock-column">
+          <p class="column-title">设备类型</p>
+          <div class="wire-list">
+            <div class="wire-row">机器人</div>
+            <div class="wire-row is-selected">空压机</div>
+            <div class="wire-row">AGV</div>
+          </div>
+        </div>
+        <div class="mock-column">
+          <p class="column-title">I3D_Overlay 默认配置</p>
+          <div class="wire-form">
+            <div class="wire-field"><span class="text-small text-muted">模板</span><div class="wire-value">标题 + 状态 + 指标</div></div>
+            <div class="wire-field"><span class="text-small text-muted">标题</span><div class="wire-value">绑定：设备名称</div></div>
+            <div class="wire-field"><span class="text-small text-muted">指标</span><div class="wire-value">状态、温度、压力</div></div>
+          </div>
+        </div>
+        <div class="mock-column">
+          <p class="column-title">模板预览</p>
+          <div class="preview">
+            <div class="preview-title">空压机</div>
+            <div class="text-small text-muted">运行中</div>
+            <div class="preview-divider"></div>
+            <div class="preview-metric"><span>温度</span><span>42 °C</span></div>
+            <div class="preview-metric"><span>压力</span><span>0.82 MPa</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mock-screen" data-screen="instance" hidden>
+      <div class="mock-topbar">
+        <strong>实例运维 / 空压机 A-03</strong>
+        <button type="button" class="btn btn-primary">保存实例覆盖</button>
+      </div>
+      <div class="mock-layout">
+        <div class="mock-column">
+          <p class="column-title">实例列表</p>
+          <div class="wire-list">
+            <div class="wire-row">空压机 A-01</div>
+            <div class="wire-row">空压机 A-02</div>
+            <div class="wire-row is-selected">空压机 A-03</div>
+          </div>
+        </div>
+        <div class="mock-column">
+          <p class="column-title">本实例覆盖</p>
+          <div class="wire-form">
+            <div class="wire-field"><span class="text-small text-muted">模板</span><div class="wire-value inherited">继承：标题 + 状态 + 指标</div></div>
+            <div class="wire-field"><span class="text-small text-muted">标题</span><div class="wire-value">空压机 A-03</div></div>
+            <div class="wire-field"><span class="text-small text-muted">指标</span><div class="wire-value inherited">继承：状态、温度、压力</div></div>
+          </div>
+        </div>
+        <div class="mock-column">
+          <p class="column-title">实例预览</p>
+          <div class="preview">
+            <div class="preview-title">空压机 A-03</div>
+            <div class="text-small text-muted">运行中</div>
+            <div class="preview-divider"></div>
+            <div class="preview-metric"><span>温度</span><span>42 °C</span></div>
+            <div class="preview-metric"><span>压力</span><span>0.82 MPa</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mock-screen" data-screen="result" hidden>
+      <div class="mock-topbar"><strong>UE 场景</strong><span class="text-small text-muted">快照同步后显示</span></div>
+      <div class="ue-stage" role="img" aria-label="空压机模型顶部显示信息面板">
+        <div class="ue-floor"></div>
+        <div class="ue-model"></div>
+        <div class="ue-link"></div>
+        <div class="preview ue-panel">
+          <div class="preview-title">空压机 A-03</div>
+          <div class="text-small text-muted">运行中</div>
+          <div class="preview-divider"></div>
+          <div class="preview-metric"><span>温度</span><span>42 °C</span></div>
+          <div class="preview-metric"><span>压力</span><span>0.82 MPa</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="path-summary text-small">
+      <span>两个编辑页面</span><span>两套入口</span><span>切页完成继承与覆盖</span>
+    </div>
+  </section>
+
+  <section class="card scenario" data-scenario="single-workbench">
+    <div class="scenario-head">
+      <div class="scenario-name">
+        <h3>方案 2：全部放到场景交互工作台</h3>
+        <p class="text-small text-muted">从项目导航进入，再在同一编辑器内切换类型和实例。</p>
+      </div>
+      <div class="stage-tabs" aria-label="方案二使用步骤">
+        <button type="button" class="btn" data-step="type" aria-pressed="true">1 选择类型</button>
+        <button type="button" class="btn" data-step="instance" aria-pressed="false">2 切换实例</button>
+        <button type="button" class="btn" data-step="result" aria-pressed="false">3 UE 结果</button>
+      </div>
+    </div>
+
+    <div class="mock-screen" data-screen="type">
+      <div class="mock-topbar"><strong>场景交互 / 信息面板</strong><button type="button" class="btn btn-primary">保存类型默认</button></div>
+      <div class="mock-layout">
+        <div class="mock-column">
+          <p class="column-title">类型与实例</p>
+          <div class="wire-list">
+            <div class="wire-row is-selected">空压机 · 类型默认</div>
+            <div class="wire-row">空压机 A-01</div>
+            <div class="wire-row">空压机 A-02</div>
+            <div class="wire-row">空压机 A-03</div>
+          </div>
+        </div>
+        <div class="mock-column">
+          <p class="column-title">类型默认配置</p>
+          <div class="wire-form">
+            <div class="wire-field"><span class="text-small text-muted">模板</span><div class="wire-value">标题 + 状态 + 指标</div></div>
+            <div class="wire-field"><span class="text-small text-muted">插槽绑定</span><div class="wire-value">设备名称、状态、温度、压力</div></div>
+            <div class="wire-field"><span class="text-small text-muted">显示方式</span><div class="wire-value">选中实例时显示</div></div>
+          </div>
+        </div>
+        <div class="mock-column">
+          <p class="column-title">统一预览</p>
+          <div class="preview">
+            <div class="preview-title">空压机</div>
+            <div class="text-small text-muted">运行中</div>
+            <div class="preview-divider"></div>
+            <div class="preview-metric"><span>温度</span><span>42 °C</span></div>
+            <div class="preview-metric"><span>压力</span><span>0.82 MPa</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mock-screen" data-screen="instance" hidden>
+      <div class="mock-topbar"><strong>场景交互 / 信息面板 / 空压机 A-03</strong><button type="button" class="btn btn-primary">保存实例覆盖</button></div>
+      <div class="mock-layout">
+        <div class="mock-column">
+          <p class="column-title">类型与实例</p>
+          <div class="wire-list">
+            <div class="wire-row">空压机 · 类型默认</div>
+            <div class="wire-row">空压机 A-01</div>
+            <div class="wire-row">空压机 A-02</div>
+            <div class="wire-row is-selected">空压机 A-03</div>
+          </div>
+        </div>
+        <div class="mock-column">
+          <p class="column-title">实例覆盖</p>
+          <div class="wire-form">
+            <div class="wire-field"><span class="text-small text-muted">模板</span><div class="wire-value inherited">继承类型默认</div></div>
+            <div class="wire-field"><span class="text-small text-muted">标题</span><div class="wire-value">空压机 A-03</div></div>
+            <div class="wire-field"><span class="text-small text-muted">其他字段</span><div class="wire-value inherited">继承类型默认</div></div>
+          </div>
+        </div>
+        <div class="mock-column">
+          <p class="column-title">统一预览</p>
+          <div class="preview">
+            <div class="preview-title">空压机 A-03</div>
+            <div class="text-small text-muted">运行中</div>
+            <div class="preview-divider"></div>
+            <div class="preview-metric"><span>温度</span><span>42 °C</span></div>
+            <div class="preview-metric"><span>压力</span><span>0.82 MPa</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mock-screen" data-screen="result" hidden>
+      <div class="mock-topbar"><strong>UE 场景</strong><span class="text-small text-muted">快照同步后显示</span></div>
+      <div class="ue-stage" role="img" aria-label="统一工作台配置的信息面板显示在空压机模型顶部">
+        <div class="ue-floor"></div>
+        <div class="ue-model"></div>
+        <div class="ue-link"></div>
+        <div class="preview ue-panel">
+          <div class="preview-title">空压机 A-03</div>
+          <div class="text-small text-muted">运行中</div>
+          <div class="preview-divider"></div>
+          <div class="preview-metric"><span>温度</span><span>42 °C</span></div>
+          <div class="preview-metric"><span>压力</span><span>0.82 MPa</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="path-summary text-small">
+      <span>一个编辑器</span><span>一个全局入口</span><span>在树中切换类型与实例</span>
+    </div>
+  </section>
+
+  <section class="card scenario" data-scenario="hybrid">
+    <div class="scenario-head">
+      <div class="scenario-name">
+        <h3>方案 3：统一工作台 + 上下文快捷入口</h3>
+        <p class="text-small text-muted">从当前类型或实例直接进入同一个编辑器，并自动定位对象。</p>
+      </div>
+      <div class="stage-tabs" aria-label="方案三使用步骤">
+        <button type="button" class="btn" data-step="type" aria-pressed="true">1 类型入口</button>
+        <button type="button" class="btn" data-step="instance" aria-pressed="false">2 实例入口</button>
+        <button type="button" class="btn" data-step="result" aria-pressed="false">3 UE 结果</button>
+      </div>
+    </div>
+
+    <div class="mock-screen" data-screen="type">
+      <div class="mock-topbar"><strong>从本体配置中心进入</strong><span class="text-small text-muted">自动定位：空压机 · 类型默认</span></div>
+      <div class="source-to-editor">
+        <div class="source-pane">
+          <p class="column-title">本体配置中心</p>
+          <div class="wire-stack">
+            <div class="wire-row is-selected">空压机</div>
+            <div class="wire-field"><span class="text-small text-muted">已挂载能力</span><div>I3D_Overlay</div></div>
+            <button type="button" class="btn btn-primary btn-block">配置默认面板</button>
+          </div>
+        </div>
+        <div class="editor-pane">
+          <p class="column-title">场景交互工作台 / 空压机</p>
+          <div class="editor-grid">
+            <div class="wire-list"><div class="wire-row is-selected">类型默认</div><div class="wire-row">A-01</div><div class="wire-row">A-03</div></div>
+            <div class="wire-form"><div class="wire-field"><span class="text-small text-muted">模板</span><div class="wire-value">标题 + 状态 + 指标</div></div><div class="wire-field"><span class="text-small text-muted">字段</span><div class="wire-value">状态、温度、压力</div></div></div>
+            <div class="preview"><div class="preview-title">空压机</div><div class="text-small text-muted">运行中</div><div class="preview-divider"></div><div class="preview-metric"><span>温度</span><span>42 °C</span></div><div class="preview-metric"><span>压力</span><span>0.82 MPa</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mock-screen" data-screen="instance" hidden>
+      <div class="mock-topbar"><strong>从实例运维页进入</strong><span class="text-small text-muted">自动定位：空压机 A-03</span></div>
+      <div class="source-to-editor">
+        <div class="source-pane">
+          <p class="column-title">实例运维</p>
+          <div class="wire-stack">
+            <div class="wire-row is-selected">空压机 A-03</div>
+            <div class="wire-field"><span class="text-small text-muted">面板状态</span><div>继承类型默认</div></div>
+            <button type="button" class="btn btn-primary btn-block">配置实例面板</button>
+          </div>
+        </div>
+        <div class="editor-pane">
+          <p class="column-title">场景交互工作台 / 空压机 A-03</p>
+          <div class="editor-grid">
+            <div class="wire-list"><div class="wire-row">类型默认</div><div class="wire-row">A-01</div><div class="wire-row is-selected">A-03</div></div>
+            <div class="wire-form"><div class="wire-field"><span class="text-small text-muted">模板</span><div class="wire-value inherited">继承类型默认</div></div><div class="wire-field"><span class="text-small text-muted">标题</span><div class="wire-value">空压机 A-03</div></div></div>
+            <div class="preview"><div class="preview-title">空压机 A-03</div><div class="text-small text-muted">运行中</div><div class="preview-divider"></div><div class="preview-metric"><span>温度</span><span>42 °C</span></div><div class="preview-metric"><span>压力</span><span>0.82 MPa</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mock-screen" data-screen="result" hidden>
+      <div class="mock-topbar"><strong>UE 场景</strong><span class="text-small text-muted">无论从哪个入口编辑，运行结果相同</span></div>
+      <div class="ue-stage" role="img" aria-label="通过快捷入口配置的信息面板显示在空压机模型顶部">
+        <div class="ue-floor"></div>
+        <div class="ue-model"></div>
+        <div class="ue-link"></div>
+        <div class="preview ue-panel">
+          <div class="preview-title">空压机 A-03</div>
+          <div class="text-small text-muted">运行中</div>
+          <div class="preview-divider"></div>
+          <div class="preview-metric"><span>温度</span><span>42 °C</span></div>
+          <div class="preview-metric"><span>压力</span><span>0.82 MPa</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="path-summary text-small">
+      <span>一个编辑器</span><span>全局入口 + 两个快捷入口</span><span>进入后自动定位上下文</span>
+    </div>
+  </section>
+
+  <script>
+    (() => {
+      const root = document.getElementById('overlay-entry-prototypes');
+      if (!root) return;
+
+      root.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-step]');
+        if (!button || !root.contains(button)) return;
+
+        const scenario = button.closest('[data-scenario]');
+        if (!scenario) return;
+        const step = button.dataset.step;
+
+        scenario.querySelectorAll('button[data-step]').forEach((item) => {
+          item.setAttribute('aria-pressed', String(item === button));
+        });
+
+        scenario.querySelectorAll('[data-screen]').forEach((screen) => {
+          screen.hidden = screen.dataset.screen !== step;
+        });
+      });
+    })();
+  </script>
+</div>

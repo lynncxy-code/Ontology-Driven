@@ -1,0 +1,345 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商务报告模板 - 灵境品牌</title>
+    <link rel="stylesheet" href="../../components/dist/lingjing-core-presentation.css">
+    <script src="../../scripts/lucide-umd-500.js"></script>
+    <!--
+      presentation · business_report deck 模板
+      scene = presentation / page_type = business_report / grade = candidate / use_scope = default
+
+      适用场景（Yes）：
+      - 阶段性经营汇报 / 季度业务回顾（QBR）
+      - 管理层评审会、董事会报告等章节化讲述场景
+      - 以「封面 + 目录 + 指标回顾 + 分析 + 趋势 + 计划」为主线的业务报告 deck
+
+      不适用场景（No）：
+      - 日常运营 dashboard / drill-down 明细查询
+      - 日常登录型工作台 / b_system 列表或详情页
+      - 长期在线 website 专题页或营销落地页
+
+      对 AI 来说，本模板应被视为「business review / QBR deck 壳」，
+      而不是通用 dashboard、report builder 或 website 页面。
+    -->
+</head>
+<body>
+    <div class="presentation-container">
+        <div class="presentation-particles" id="particles"></div>
+        <div class="presentation-floating-shapes">
+            <div class="presentation-shape presentation-shape-1"></div>
+            <div class="presentation-shape presentation-shape-2"></div>
+            <div class="presentation-shape presentation-shape-3"></div>
+        </div>
+
+        <div class="presentation-slide slide-cover active" data-slide="1">
+            <div class="slide-content">
+                <div class="presentation-glass-card presentation-glass-card-large">
+                    <h1 class="slide-cover-title">2026年度经营分析报告</h1>
+                    <p class="slide-cover-subtitle">Business Performance Review</p>
+                    <div class="slide-cover-meta">
+                        <div class="slide-cover-meta-item">
+                            <i data-lucide="calendar"></i>
+                            <span>2026年1月</span>
+                        </div>
+                        <div class="slide-cover-meta-item">
+                            <i data-lucide="user"></i>
+                            <span>数据分析部</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 目录页：汇报章节总览，帮助受众建立整体结构预期 -->
+        <div class="presentation-slide slide-toc" data-slide="2">
+            <div class="slide-content">
+                <h2 class="slide-title">报告目录</h2>
+                <p class="slide-subtitle">Table of Contents</p>
+                <div class="presentation-glass-card width-full">
+                    <ul class="slide-toc-list">
+                        <li class="slide-toc-item">
+                            <div class="slide-toc-number">01</div>
+                            <div class="slide-toc-text">关键指标回顾</div>
+                        </li>
+                        <li class="slide-toc-item">
+                            <div class="slide-toc-number">02</div>
+                            <div class="slide-toc-text">经营数据分析</div>
+                        </li>
+                        <li class="slide-toc-item">
+                            <div class="slide-toc-number">03</div>
+                            <div class="slide-toc-text">市场竞争分析</div>
+                        </li>
+                        <li class="slide-toc-item">
+                            <div class="slide-toc-number">04</div>
+                            <div class="slide-toc-text">趋势与洞察</div>
+                        </li>
+                        <li class="slide-toc-item">
+                            <div class="slide-toc-number">05</div>
+                            <div class="slide-toc-text">下一步计划</div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 章节 01：关键指标回顾（KPI 回顾页，用于快速对齐业务成绩概览） -->
+        <div class="presentation-slide" data-slide="3">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="slide-title">关键指标回顾</h2>
+                    <p class="slide-subtitle">Key Performance Indicators</p>
+                </div>
+                <div class="presentation-card-grid">
+                    <div class="presentation-card-grid-item presentation-glass-card">
+                        <div class="presentation-stat-number">87.5%</div>
+                        <div class="presentation-stat-label">目标完成率</div>
+                        <div class="presentation-stat-change positive">
+                            <i data-lucide="trending-up"></i>
+                            <span>+12.3%</span>
+                        </div>
+                    </div>
+                    <div class="presentation-card-grid-item presentation-glass-card">
+                        <div class="presentation-stat-number">2.4M</div>
+                        <div class="presentation-stat-label">活跃用户</div>
+                        <div class="presentation-stat-change positive">
+                            <i data-lucide="trending-up"></i>
+                            <span>+8.7%</span>
+                        </div>
+                    </div>
+                    <div class="presentation-card-grid-item presentation-glass-card">
+                        <div class="presentation-stat-number">98.2</div>
+                        <div class="presentation-stat-label">客户满意度</div>
+                        <div class="presentation-stat-change positive">
+                            <i data-lucide="trending-up"></i>
+                            <span>+2.1</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="presentation-slide" data-slide="4">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="slide-title">经营数据分析</h2>
+                    <p class="slide-subtitle">Business Data Analysis</p>
+                </div>
+                <div class="presentation-glass-card width-full">
+                    <div class="presentation-highlight-box">
+                        <!-- 提示：下面的要点仅为示例业务内容，实际项目请替换为本企业/本行业的关键发现 -->
+                        <h3>核心发现</h3>
+                        <div class="slide-body">
+                            <ul>
+                                <li>本季度收入增长显著，同比增长23.5%，主要得益于新产品线的成功推出</li>
+                                <li>用户留存率提升至68.2%，用户粘性明显增强</li>
+                                <li>成本控制成效显著，运营成本下降8.3%</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="grid-2-cols mt-xl">
+                        <div class="presentation-timeline-item">
+                            <div class="presentation-timeline-date">Q1 2026</div>
+                            <div class="presentation-timeline-title">产品升级</div>
+                            <div class="presentation-timeline-desc">完成核心功能优化，性能提升40%</div>
+                        </div>
+                        <div class="presentation-timeline-item">
+                            <div class="presentation-timeline-date">Q2 2026</div>
+                            <div class="presentation-timeline-title">市场扩展</div>
+                            <div class="presentation-timeline-desc">拓展3个新市场，用户增长加速</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 章节 03：市场竞争分析（对比我们与主要竞品，在关键维度上的差异） -->
+        <div class="presentation-slide" data-slide="5">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="slide-title">市场竞争分析</h2>
+                    <p class="slide-subtitle">Market & Competition Analysis</p>
+                </div>
+                <div class="presentation-glass-card width-full">
+                    <table class="presentation-comparison-table">
+                        <thead>
+                            <tr>
+                                <th>指标维度</th>
+                                <th>我们</th>
+                                <th>竞品A</th>
+                                <th>竞品B</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>市场份额</td>
+                                <td>24.5%</td>
+                                <td>18.2%</td>
+                                <td>15.8%</td>
+                            </tr>
+                            <tr>
+                                <td>用户满意度</td>
+                                <td>4.8/5</td>
+                                <td>4.3/5</td>
+                                <td>4.5/5</td>
+                            </tr>
+                            <tr>
+                                <td>技术优势</td>
+                                <td>领先</td>
+                                <td>持平</td>
+                                <td>持平</td>
+                            </tr>
+                            <tr>
+                                <td>增长速度</td>
+                                <td>+23.5%</td>
+                                <td>+12.8%</td>
+                                <td>+15.3%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="presentation-slide" data-slide="6">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="slide-title">趋势与洞察</h2>
+                    <p class="slide-subtitle">Trends & Insights</p>
+                </div>
+                <div class="presentation-glass-card width-full">
+                    <div class="presentation-feature-list">
+                        <div class="presentation-feature-item">
+                            <div class="presentation-feature-icon">
+                                <i data-lucide="trending-up"></i>
+                            </div>
+                            <div class="presentation-feature-content">
+                                <div class="presentation-feature-title">数字化转型加速</div>
+                                <div class="presentation-feature-desc">行业数字化进程加快，智能化需求持续增长，为我们提供了广阔的发展空间</div>
+                            </div>
+                        </div>
+                        <div class="presentation-feature-item">
+                            <div class="presentation-feature-icon">
+                                <i data-lucide="users"></i>
+                            </div>
+                            <div class="presentation-feature-content">
+                                <div class="presentation-feature-title">用户体验成为核心竞争力</div>
+                                <div class="presentation-feature-desc">用户体验成为核心竞争力，需持续优化产品体验，提升用户满意度</div>
+                            </div>
+                        </div>
+                        <div class="presentation-feature-item">
+                            <div class="presentation-feature-icon">
+                                <i data-lucide="zap"></i>
+                            </div>
+                            <div class="presentation-feature-content">
+                                <div class="presentation-feature-title">技术创新驱动增长</div>
+                                <div class="presentation-feature-desc">技术创新是持续增长的关键，需持续投入研发</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 章节 05：下一步计划（行动方向与关键目标，支撑决策与后续追踪） -->
+        <div class="presentation-slide" data-slide="7">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="slide-title">下一步计划</h2>
+                    <p class="slide-subtitle">Next Steps</p>
+                </div>
+                <div class="presentation-glass-card width-full">
+                    <div class="grid-2-cols">
+                        <div>
+                            <h3 class="mb-md">重点方向</h3>
+                            <div class="flex gap-md flex-wrap mb-md">
+                                <span class="presentation-badge primary">产品优化</span>
+                                <span class="presentation-badge success">市场拓展</span>
+                                <span class="presentation-badge warning">团队建设</span>
+                            </div>
+                            <div class="slide-body">
+                                <p><strong>Q3 2026目标</strong></p>
+                                <ul>
+                                    <li>完成产品3.0版本发布</li>
+                                    <li>拓展5个新市场</li>
+                                    <li>用户增长300万</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="presentation-card-grid">
+                            <div class="presentation-card-grid-item presentation-glass-card">
+                                <div class="presentation-stat-number">3.0</div>
+                                <div class="presentation-stat-label">产品版本</div>
+                            </div>
+                            <div class="presentation-card-grid-item presentation-glass-card">
+                                <div class="presentation-stat-number">5+</div>
+                                <div class="presentation-stat-label">新市场</div>
+                            </div>
+                            <div class="presentation-card-grid-item presentation-glass-card">
+                                <div class="presentation-stat-number">300万</div>
+                                <div class="presentation-stat-label">用户增长</div>
+                            </div>
+                            <div class="presentation-card-grid-item presentation-glass-card">
+                                <div class="presentation-stat-number">99分</div>
+                                <div class="presentation-stat-label">客户满意度</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 收尾页：感谢 / Contact / 可选 Q&A 引导，不承载新的业务内容 -->
+        <div class="presentation-slide slide-closing" data-slide="8">
+            <div class="slide-content">
+                <div class="presentation-glass-card presentation-glass-card-medium">
+                    <h1 class="slide-closing-title">感谢聆听</h1>
+                    <p class="slide-closing-subtitle">Thank You</p>
+                    <div class="slide-closing-contact">
+                        <span><i data-lucide="mail"></i> contact@lingjing.ai</span>
+                        <span><i data-lucide="globe"></i> www.lingjing.ai</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="presentation-theme-toggle">
+        <button class="presentation-theme-btn" id="themeToggle">
+            <i data-lucide="sun" class="icon-light"></i>
+            <i data-lucide="moon" class="icon-dark" style="display: none;"></i>
+            <span>切换主题</span>
+        </button>
+    </div>
+
+    <div class="presentation-nav-buttons">
+        <button class="presentation-nav-btn" id="prevBtn" disabled>
+            <i data-lucide="chevron-left"></i>
+        </button>
+        <button class="presentation-nav-btn" id="nextBtn">
+            <i data-lucide="chevron-right"></i>
+        </button>
+    </div>
+
+    <div class="presentation-slide-indicators" id="slideIndicators"></div>
+    <div class="presentation-progress-bar" id="progressBar"></div>
+
+    <div id="presentation-modal" class="presentation-modal">
+        <div class="presentation-modal-content">
+            <div class="presentation-modal-header">
+                <span class="presentation-modal-title">预览</span>
+                <button class="presentation-modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="presentation-modal-body" id="presentation-modal-body"></div>
+        </div>
+    </div>
+
+    <script src="../../scripts/presentation-template.js"></script>
+    <script>
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    </script>
+</body>
+</html>

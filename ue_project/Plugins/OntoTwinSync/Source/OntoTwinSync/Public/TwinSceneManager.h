@@ -31,7 +31,11 @@
 
 class ATwinInstance;
 class AOntoTwinRuntimeGizmo;
+class APlayerController;
+class IWebSocket;
 class UOntoTwinRuntimeEditorPanel;
+class UOntoTwinOverlayWidget;
+class UTwinInteractionManagerComponent;
 
 UENUM(BlueprintType)
 enum class EOntoTwinRuntimeAccessState : uint8
@@ -100,6 +104,26 @@ public:
               meta=(DisplayName="离线阈值(次)"))
     int32 OfflineThreshold = 3;
 
+    /** 连接 AGV 实时状态流；HTTP 快照仍负责实例建档、模型绑定与非空间属性。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接|WebSocket",
+              meta=(DisplayName="启用实时WebSocket"))
+    bool bEnableRealtimeWebSocket = true;
+
+    /** OntoTwin 中间层实时目标地址。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接|WebSocket",
+              meta=(DisplayName="实时WebSocket URL"))
+    FString RealtimeWebSocketUrl = TEXT("ws://10.191.12.40:8080/ws/targets");
+
+    /** WebSocket 断开后的重连间隔。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接|WebSocket",
+              meta=(DisplayName="重连间隔(秒)", ClampMin="0.5", ClampMax="60.0"))
+    float RealtimeReconnectSeconds = 3.0f;
+
+    /** 收到实时帧后，HTTP 在这段时间内不得覆盖该实例的空间坐标。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接|WebSocket",
+              meta=(DisplayName="实时空间优先保持(秒)", ClampMin="0.1", ClampMax="10.0"))
+    float RealtimeSpatialHoldSeconds = 1.0f;
+
     // ═══════════════════════════════════════════════════════════════════════
     // 实例配置
     // ═══════════════════════════════════════════════════════════════════════
@@ -108,6 +132,38 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="实例配置",
               meta=(DisplayName="孪生体蓝图类"))
     TSubclassOf<ATwinInstance> InstanceClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="顶部信息面板",
+              meta=(DisplayName="启用顶部信息面板"))
+    bool bEnableOverlays = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="顶部信息面板",
+              meta=(DisplayName="选中面板类"))
+    TSubclassOf<UOntoTwinOverlayWidget> OverlayWidgetClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="顶部信息面板",
+              meta=(DisplayName="常显最大距离(cm)", ClampMin="100.0", ClampMax="1000000.0"))
+    float OverlayCullDistanceCm = 50000.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="顶部信息面板",
+              meta=(DisplayName="常显最大数量", ClampMin="1", ClampMax="500"))
+    int32 MaxVisibleAlwaysOverlays = 100;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="顶部信息面板|可读性",
+              meta=(DisplayName="常显目标屏幕宽度(px)", ClampMin="120.0", ClampMax="600.0"))
+    float AlwaysOverlayTargetScreenWidthPx = 260.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="顶部信息面板|可读性",
+              meta=(DisplayName="常显最小世界缩放", ClampMin="0.01", ClampMax="1.0"))
+    float AlwaysOverlayMinWorldScale = 0.06f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="顶部信息面板|可读性",
+              meta=(DisplayName="常显最大世界缩放", ClampMin="0.01", ClampMax="2.0"))
+    float AlwaysOverlayMaxWorldScale = 0.35f;
+
+    /** 4.0 场景交互运行组件。人物、输入、路线和心跳不进入 SceneManager 主体。 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="场景交互")
+    UTwinInteractionManagerComponent* InteractionManager;
 
     // ═══════════════════════════════════════════════════════════════════════
     // Runtime Editor（打包 exe 内的轻量场景编辑入口）
@@ -205,6 +261,14 @@ public:
     bool IsRuntimeEditSaving() const { return bRuntimeEditSaving; }
     bool IsRuntimeWallSnapEnabled() const { return bEnableWallSnap; }
     bool IsRuntimeGridSnapEnabled() const { return bEnableGridSnap; }
+    bool IsRuntimeEditModeActive() const { return bRuntimeEditMode; }
+
+    /** 共享选择入口：人物模块只产生选择事件，Overlay 仍负责内容与 Widget 生命周期。 */
+    void SelectOverlayFromSceneInteraction(ATwinInstance* Instance);
+    void ClearOverlayFromSceneInteraction();
+
+    /** 构造不含坐标的 WebSocket 健康快照，随现有 UE 心跳回报后端。 */
+    TSharedRef<FJsonObject> BuildRealtimeChannelHealth() const;
 
     /** 把当前 UE 工程身份绑定到后端当前激活数据集（数据集之后只接受该工程的 UE 请求） */
     UFUNCTION(CallInEditor, Category="连接",
@@ -274,6 +338,21 @@ private:
     UPROPERTY()
     TMap<FString, ATwinInstance*> InstanceRegistry;
 
+    /** AGV 实时状态流。它只更新 InstanceRegistry 中由 HTTP 已创建的 Actor。 */
+    TSharedPtr<IWebSocket> RealtimeSocket;
+    FTimerHandle RealtimeReconnectTimerHandle;
+    int32 RealtimeConnectionGeneration = 0;
+    int64 RealtimeFrameCount = 0;
+    int64 RealtimeLastSourceTimestampMs = 0;
+    double RealtimeLastFramePlatformSeconds = -1.0;
+    FString RealtimeConnectionState = TEXT("disabled");
+    FString RealtimeLastError;
+    TMap<FString, FString> RealtimeTargetStates;
+    TSet<FString> RealtimeAppliedInstanceIds;
+    bool bRealtimeReconnectScheduled = false;
+    bool bRealtimeClosing = false;
+    TSet<FString> RealtimeMissingInstanceWarnings;
+
     /** 编辑器预览 Actor（transient，不入 .umap；由 ClearPreview 清理） */
     UPROPERTY(Transient)
     TArray<ATwinInstance*> PreviewActors;
@@ -294,6 +373,17 @@ private:
 
     UPROPERTY()
     UOntoTwinRuntimeEditorPanel* RuntimeEditorPanel = nullptr;
+
+    UPROPERTY()
+    ATwinInstance* OverlaySelectedInstance = nullptr;
+
+    UPROPERTY()
+    UOntoTwinOverlayWidget* SelectedOverlayWidget = nullptr;
+
+    uint64 SelectedOverlayPayloadSerial = 0;
+
+    bool bOverlayPointerInputActive = false;
+    bool bOverlayPreviousMouseCursor = false;
 
     bool bRuntimeEditMode = false;
     bool bRuntimeEditDirty = false;
@@ -341,6 +431,11 @@ private:
     /** HTTP 响应回调 */
     void OnPollResponse(FHttpRequestPtr HttpRequest, FHttpResponsePtr Response, bool bWasSuccessful);
 
+    /** 连接、消费并自动重连 AGV 实时状态流。 */
+    void ConnectRealtimeWebSocket();
+    void ScheduleRealtimeReconnect();
+    void HandleRealtimeMessage(const FString& Message);
+
     /** 编辑器预览 HTTP 回调：把快照 spawn 成 transient 预览 Actor */
     void OnPreviewResponse(FHttpRequestPtr HttpRequest, FHttpResponsePtr Response, bool bWasSuccessful);
 
@@ -354,6 +449,11 @@ private:
     void DestroyTwinInstance(const FString& InstanceId);
 
     void TickRuntimeEditor(float DeltaTime);
+    void TickOverlays();
+    void SelectOverlayInstance(ATwinInstance* Instance, bool bAllowAnyMode = false);
+    void ClearOverlaySelection();
+    void UpdateAlwaysOverlays(APlayerController* PlayerController);
+    void UpdateOverlayPointerInput(APlayerController* PlayerController, bool bShouldOwnPointer);
     void RequestRuntimeEditToggle();
     void EnterRuntimeEditMode();
     void ExitRuntimeEditMode();

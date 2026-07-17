@@ -1,0 +1,493 @@
+Category,Token Name,Light Value,Dark Value,Description
+Color,color-aero-blue,#0066CC,#0084FF,Aero-Intelligence Blue (灵航蓝) - Core Identity
+Color,color-aero-blue-100,#E1EFFE,#0A2448,Light Aero-Blue (100)
+Color,color-aero-blue-200,#B3D3F6,#143B6E,Light Aero-Blue (200)
+Color,color-aero-blue-300,#85B7EE,#1E5294,Light Aero-Blue (300)
+Color,color-aero-blue-400,#579BE6,#2869BA,Light Aero-Blue (400)
+Color,color-aero-blue-500,#297FDE,#3280E0,Medium Aero-Blue (500)
+Color,color-aero-blue-600,#0066CC,#3C97E6,Dark Aero-Blue (600)
+Color,color-aero-blue-700,#0052A3,#46AEEC,Dark Aero-Blue (700)
+Color,color-aero-blue-800,#003D7A,#50C5F2,Dark Aero-Blue (800)
+Color,color-aero-blue-900,#002951,#5AD2FF,Dark Aero-Blue (900)
+Color,color-pulse-cyan,#0099AA,#00E5FF,Pulse-Energy Cyan (脉冲青) - High Energy
+Color,color-pulse-cyan-100,#E5FBFF,#0A3336,Light Pulse-Cyan (100)
+Color,color-pulse-cyan-200,#B3F7FF,#144D51,Light Pulse-Cyan (200)
+Color,color-pulse-cyan-300,#80F3FF,#1E676C,Light Pulse-Cyan (300)
+Color,color-pulse-cyan-400,#4EEFFF,#288186,Light Pulse-Cyan (400)
+Color,color-pulse-cyan-500,#1CEBFF,#329BA0,Medium Pulse-Cyan (500)
+Color,color-pulse-cyan-600,#00D7E5,#3CA5A9,Dark Pulse-Cyan (600)
+Color,color-pulse-cyan-700,#00B3C1,#46BFC3,Dark Pulse-Cyan (700)
+Color,color-pulse-cyan-800,#008FA1,#50D9DB,Dark Pulse-Cyan (800)
+Color,color-pulse-cyan-900,#006B79,#5AE7E9,Dark Pulse-Cyan (900)
+Color,color-signal-green,#00A383,#00FFC8,Signal-Safe Green (信标绿) - Success/Status
+Color,color-signal-green-100,#E6FEF9,#0A362E,Light Signal-Green (100)
+Color,color-signal-green-200,#B3FDF1,#145045,Light Signal-Green (200)
+Color,color-signal-green-300,#80FBE9,#1E6A5D,Light Signal-Green (300)
+Color,color-signal-green-400,#4EFBE1,#288475,Light Signal-Green (400)
+Color,color-signal-green-500,#1CFAD9,#329E8D,Medium Signal-Green (500)
+Color,color-signal-green-600,#00E6C8,#3CA895,Dark Signal-Green (600)
+Color,color-signal-green-700,#00C2A8,#46B29D,Dark Signal-Green (700)
+Color,color-signal-green-800,#009E88,#50CCB5,Dark Signal-Green (800)
+Color,color-signal-green-900,#007A68,#5AE6CD,Dark Signal-Green (900)
+Color,color-warning-amber,#D97706,#FFB020,Warning-Alert Amber (警示橙) - Warning/Caution
+Color,color-error-red,#DC2626,#FF4D4F,Error-Critical Red (核心红) - Error/Critical
+Color,color-info-indigo,#4338CA,#818CF8,Info-Indigo (信息靛) - Information/Context
+Color,theme-primary,#0066CC,#0084FF,Core brand color (Aero-Blue)
+Color,theme-secondary,#0099AA,#00E5FF,Secondary color (Pulse-Cyan)
+Color,theme-accent,#00A383,#00FFC8,Accent color (Signal-Green)
+Color,theme-bg-base,#EFF6FF,#02040A,Page background color (Aero White / Deep Space)
+Color,bg-card,"rgba(255, 255, 255, 0.9)","rgba(15, 30, 60, 0.8)",Card background (Blue Tinted Glass)
+Color,bg-card-light,"rgba(255, 255, 255, 0.95)","rgba(15, 30, 60, 0.7)",Light card background
+Color,bg-card-heavy,"rgba(255, 255, 255, 0.85)","rgba(15, 30, 60, 0.9)",Heavy card background
+Color,bg-card-solid,"#FFFFFF","rgba(20, 40, 80, 0.95)",Solid card background
+Color,bg-card-gradient,"linear-gradient(135deg, rgba(255,255,255,0.9), rgba(240,245,255,0.9))","linear-gradient(135deg, rgba(15,30,60,0.9), rgba(10,20,40,0.9))",Gradient card background
+Color,bg-glass,"rgba(255, 255, 255, 0.98)","rgba(10, 20, 40, 0.85)",Glass background (Deep Blue Glass)
+Color,bg-glass-hover,"rgba(255, 255, 255, 0.75)","rgba(20, 40, 70, 0.9)",Glass background hover state
+Color,bg-glass-accent,"linear-gradient(135deg, rgba(255,255,255,0.9), rgba(225,239,254,0.9))","linear-gradient(135deg, rgba(15,30,60,0.9), rgba(0,132,255,0.1))",Accent glass background
+Color,theme-border-base,"rgba(28, 102, 196, 0.4)","rgba(0, 132, 255, 0.4)",Base border color
+Color,chart-1,#0084FF,#0084FF,Chart sequence color 1 (Aero)
+Color,chart-2,#00E5FF,#00E5FF,Chart sequence color 2 (Pulse)
+Color,chart-3,#00FFC8,#00FFC8,Chart sequence color 3 (Signal)
+Color,chart-4,#FBBF24,#FBBF24,Chart sequence color 4
+Color,chart-5,#818CF8,#818CF8,Chart sequence color 5
+Color,input-bg,#FFFFFF,"rgba(30, 41, 59, 0.8)",Input field background (Semi-transparent Slate)
+Color,option-bg,#FFFFFF,#05080F,Dropdown option background (Deep Space Black)
+Color,text-placeholder,#9CA3AF,"rgba(156, 163, 175, 0.6)",Placeholder text color
+Effect,glass-opacity,0.98,0.85,Glassmorphism opacity
+Effect,glass-opacity-light,0.95,0.75,Light glassmorphism opacity
+Effect,glass-opacity-heavy,0.90,0.90,Heavy glassmorphism opacity
+Effect,glass-blur,16px,24px,Glassmorphism blur amount
+Effect,glass-blur-light,8px,16px,Light glassmorphism blur amount
+Effect,glass-blur-heavy,24px,32px,Heavy glassmorphism blur amount
+Effect,glass-border,"1px solid rgba(28, 102, 196, 0.15)","1px solid rgba(0, 132, 255, 0.2)",Glassmorphism border
+Effect,glass-border-light,"1px solid rgba(28, 102, 196, 0.10)","1px solid rgba(0, 132, 255, 0.15)",Light glassmorphism border
+Effect,glass-border-heavy,"1px solid rgba(28, 102, 196, 0.20)","1px solid rgba(0, 132, 255, 0.25)",Heavy glassmorphism border
+Effect,glass-border-double,"1px solid rgba(28, 102, 196, 0.15), 1px solid rgba(255, 255, 255, 0.1) inset","1px solid rgba(0, 132, 255, 0.2), 1px solid rgba(255, 255, 255, 0.1) inset",Double glassmorphism border
+Effect,glass-shadow,"0 8px 32px rgba(28, 102, 196, 0.08)","0 8px 32px rgba(0, 132, 255, 0.15), 0 1px 2px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)",Card shadow (Deep Space)
+Effect,glass-shadow-light,"0 4px 16px rgba(28, 102, 196, 0.04)","0 4px 16px rgba(0, 132, 255, 0.08), 0 1px 1px rgba(0, 0, 0, 0.2)",Light glassmorphism shadow
+Effect,glass-shadow-heavy,"0 12px 48px rgba(28, 102, 196, 0.12)","0 12px 48px rgba(0, 132, 255, 0.25), 0 2px 4px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15)",Heavy glassmorphism shadow
+Effect,shadow-hover,"0 12px 24px rgba(0, 132, 255, 0.2)","0 12px 40px rgba(0, 132, 255, 0.3), 0 2px 4px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15)",Interactive hover shadow (Blue Glow)
+Effect,shadow-floating,"0 16px 32px rgba(0, 132, 255, 0.25)","0 16px 48px rgba(0, 132, 255, 0.4), 0 4px 8px rgba(0, 0, 0, 0.5)",Floating element shadow
+Effect,shadow-depth,"0 20px 40px rgba(0, 0, 0, 0.15)","0 20px 40px rgba(0, 0, 0, 0.6)",Depth shadow for layered elements
+Effect,inner-shadow,"inset 0 1px 0 0 rgba(255, 255, 255, 0.9)","inset 0 1px 0 0 rgba(255, 255, 255, 0.1)",Inner highlight for depth
+Effect,inner-shadow-heavy,"inset 0 2px 4px rgba(0, 0, 0, 0.05)","inset 0 2px 4px rgba(0, 0, 0, 0.3)",Heavy inner shadow
+Effect,glow-primary,"0 0 12px rgba(0, 102, 204, 0.3)","0 0 20px rgba(0, 132, 255, 0.4)",Primary color glow effect
+Effect,glow-secondary,"0 0 12px rgba(0, 153, 170, 0.3)","0 0 20px rgba(0, 229, 255, 0.4)",Secondary color glow effect
+Effect,glow-accent,"0 0 12px rgba(0, 163, 131, 0.3)","0 0 20px rgba(0, 255, 200, 0.4)",Accent color glow effect
+Effect,ambient-light,"0 0 20px rgba(0, 132, 255, 0.05)","0 0 30px rgba(0, 132, 255, 0.1)",Ambient light reflection effect
+Effect,card-hover-border,"1px solid rgba(0, 102, 204, 0.4)","1px solid #0084FF",Card hover border highlight
+Typography,font-h1,"""Kingsoft Cloud"", ""Noto Sans SC"", sans-serif"","""Kingsoft Cloud"", ""Noto Sans SC"", sans-serif"",Primary heading font
+Typography,font-h2,"""Source Han Mono CN Bold"", ""Noto Sans SC"", sans-serif"","""Source Han Mono CN Bold"", ""Noto Sans SC"", sans-serif"",Secondary heading font
+Typography,font-body,"""Source Han Mono CN Regular"", """Noto Sans SC""", sans-serif"","""Source Han Mono CN Regular"", """Noto Sans SC""", sans-serif"",Body text font
+Typography,font-display,"""Space Grotesk"", ""Inter"", sans-serif"","""Space Grotesk"", ""Inter"", sans-serif"",Display font for large headings
+Typography,font-mono,"""Source Han Mono CN"", ""JetBrains Mono"", monospace"","""Source Han Mono CN"", ""JetBrains Mono"", monospace"",Monospace font for code and data
+Typography,font-light,"""Inter"", ""Noto Sans SC"", sans-serif"","""Inter"", ""Noto Sans SC"", sans-serif"",Light weight font
+Typography,font-medium,"""Inter Medium"", ""Noto Sans SC Medium"", sans-serif"","""Inter Medium"", ""Noto Sans SC Medium"", sans-serif"",Medium weight font
+Typography,font-semibold,"""Inter SemiBold"", ""Noto Sans SC SemiBold"", sans-serif"","""Inter SemiBold"", ""Noto Sans SC SemiBold"", sans-serif"",Semi-bold weight font
+Typography,font-bold,"""Inter Bold"", ""Noto Sans SC Bold"", sans-serif"","""Inter Bold"", ""Noto Sans SC Bold"", sans-serif"",Bold weight font
+
+/* 字号系统 */
+Typography,font-size-xs,0.75rem,0.75rem,Extra small font size (12px)
+Typography,font-size-sm,0.875rem,0.875rem,Small font size (14px)
+Typography,font-size-base,1rem,1rem,Base font size (16px)
+Typography,font-size-md,1.125rem,1.125rem,Medium font size (18px)
+Typography,font-size-lg,1.25rem,1.25rem,Large font size (20px)
+Typography,font-size-xl,1.5rem,1.5rem,Extra large font size (24px)
+Typography,font-size-2xl,2rem,2rem,2x extra large font size (32px)
+Typography,font-size-3xl,2.5rem,2.5rem,3x extra large font size (40px)
+Typography,font-size-4xl,3rem,3rem,4x extra large font size (48px)
+Typography,font-size-5xl,3.5rem,3.5rem,5x extra large font size (56px)
+Typography,font-size-6xl,4rem,4rem,6x extra large font size (64px)
+
+/* 行高系统 */
+Typography,line-height-tight,1.2,1.2,Tight line height
+Typography,line-height-snug,1.33,1.33,Snug line height
+Typography,line-height-normal,1.5,1.5,Normal line height
+Typography,line-height-relaxed,1.625,1.625,Relaxed line height
+Typography,line-height-loose,2,2,Loose line height
+
+/* 字间距系统 */
+Typography,letter-spacing-tighter,-0.05em,-0.05em,Tighter letter spacing
+Typography,letter-spacing-tight,-0.025em,-0.025em,Tight letter spacing
+Typography,letter-spacing-normal,0,0,Normal letter spacing
+Typography,letter-spacing-wide,0.025em,0.025em,Wide letter spacing
+Typography,letter-spacing-wider,0.05em,0.05em,Wider letter spacing
+Typography,letter-spacing-widest,0.1em,0.1em,Widest letter spacing
+
+/* 字体搭配推荐 */
+Typography,font-pairing-tech,"""Space Grotesk"", """DM Sans"", sans-serif","""Space Grotesk"", """DM Sans"", sans-serif",Tech startup font pairing
+Typography,font-pairing-minimal,"""Inter"", """Inter"", sans-serif","""Inter"", """Inter"", sans-serif",Minimalist font pairing
+Typography,font-pairing-professional,"""Poppins"", """Open Sans"", sans-serif","""Poppins"", """Open Sans"", sans-serif",Professional font pairing
+Typography,font-pairing-elegant,"""Outfit"", """Work Sans"", sans-serif","""Outfit"", """Work Sans"", sans-serif",Elegant font pairing
+
+/* Google Fonts 集成 */
+Typography,google-fonts-tech,@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap'),@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap'),Tech font import
+Typography,google-fonts-minimal,@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'),@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'),Minimal font import
+Typography,google-fonts-professional,@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap'),@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap'),Professional font import
+Typography,google-fonts-elegant,@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap'),@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap'),Elegant font import
+Spacing,spacing-xs,4px,4px,Extra small spacing
+Spacing,spacing-sm,8px,8px,Small spacing
+Spacing,spacing-md,16px,16px,Medium spacing
+Spacing,spacing-lg,24px,24px,Large spacing
+Spacing,spacing-xl,32px,32px,Extra large spacing
+Spacing,spacing-grid-gap,24px,32px,Grid layout gap (Wider in dark mode for shadows)
+Radius,radius-lg,10px,10px,Large border radius (Card/Modal)
+Radius,radius-md,6px,6px,Medium border radius (Button/Input)
+Radius,radius-sm,4px,4px,Small border radius (Tag/Badge)
+Color,bg-icon-scenario,"rgba(0, 102, 204, 0.15)","rgba(0, 132, 255, 0.2)",Scenario icon background tint
+Color,gradient-overlay-scenario,"linear-gradient(180deg, rgba(0, 102, 204, 0.4), rgba(0, 153, 170, 0.4))","linear-gradient(180deg, rgba(2, 4, 10, 0.8), rgba(0, 20, 40, 0.6))",Scenario card image overlay gradient
+Effect,ue-bg-glass,"linear-gradient(135deg, rgba(255,255,255,0.4), rgba(255,255,255,0.2))","linear-gradient(145deg, rgba(255, 255, 255, 0.15) 0%, rgba(40, 50, 60, 0.7) 100%)",High-fidelity UE card background (Optimized)
+Effect,ue-border-glow,"1px solid rgba(255,255,255,0.6)","1px solid rgba(255, 255, 255, 0.4)",UE Card border with higher definition (Optimized)
+Effect,ue-border-glow-hover,"1px solid rgba(255,255,255,0.6)","1px solid rgba(255, 255, 255, 0.4)",UE Card border (no hover effect)
+Effect,ue-shadow-prism,"0 8px 32px rgba(0, 102, 204, 0.15), 0 1px 0 rgba(255,255,255,0.4) inset","0 16px 48px rgba(0, 0, 0, 0.7), 0 0 40px rgba(0, 132, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 0 20px rgba(255, 255, 255, 0.05)",Prismatic shadow for UE elements (Optimized)
+Effect,ue-prism-edge,"linear-gradient(to right, rgba(255,255,255,0.8), rgba(255,255,255,0.4) 50%, transparent)","linear-gradient(to right, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.1) 50%, transparent)",Prismatic top highlight edge
+Color,ue-text-highlight,#0052A3,#00E5FF,High contrast text for UE overlays
+Color,glass-light,rgba(240, 245, 250, 0.95),-,Glass background light mode
+Color,glass-dark,-,rgba(2, 4, 6, 0.9),Glass background dark mode
+Color,glass-border-light,rgba(28, 102, 196, 0.4),-,Glass border light mode
+Color,glass-border-dark,-,rgba(0, 132, 255, 0.3),Glass border dark mode
+Effect,glass-gradient,"linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 100%)","linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 100%)",Subtle gradient overlay for glass
+Effect,ue-gradient-data-highlight,"bg-gradient-to-br from-black/80 to-black/50","bg-gradient-to-br from-black/90 to-black/60",Dark gradient for inner content grouping (UE Child)
+
+/* 指标文字规范 */
+Typography,font-metric,"""Source Han Mono CN Bold"", monospace, sans-serif","""Source Han Mono CN Bold"", monospace, sans-serif",Metric value font (Mono Space)
+Typography,font-metric-label,"""Source Han Mono CN Regular"", monospace, sans-serif","""Source Han Mono CN Regular"", monospace, sans-serif",Metric label font (Mono Space)
+Typography,font-metric-change,"""Source Han Mono CN"", monospace, sans-serif","""Source Han Mono CN"", monospace, sans-serif",Metric change font (Mono Space)
+
+/* 指标文字大小梯度 */
+Typography,font-size-metric-xl,3rem,3rem,Extra large metric value
+Typography,font-size-metric-lg,2.5rem,2.5rem,Large metric value
+Typography,font-size-metric-md,2rem,2rem,Medium metric value
+Typography,font-size-metric-sm,1.5rem,1.5rem,Small metric value
+Typography,font-size-metric-xs,1.25rem,1.25rem,Extra small metric value
+Typography,font-size-metric-label,0.9rem,0.9rem,Metric label font size
+Typography,font-size-metric-change,0.8rem,0.8rem,Metric change font size
+
+/* 指标文字权重 */
+Typography,font-weight-metric,700,700,Metric value font weight
+Typography,font-weight-metric-label,400,400,Metric label font weight
+Typography,font-weight-metric-change,500,500,Metric change font weight
+
+/* 指标文字颜色 */
+Color,metric-value-primary,#0066CC,#0084FF,Primary metric value color (Aero-Blue)
+Color,metric-value-secondary,#0099AA,#00E5FF,Secondary metric value color (Pulse-Cyan)
+Color,metric-value-accent,#00A383,#00FFC8,Accent metric value color (Signal-Green)
+Color,metric-label,rgba(107, 114, 128, 0.8),rgba(255, 255, 255, 0.7),Metric label color
+Color,metric-change-positive,#00A383,#00FFC8,Positive metric change color
+Color,metric-change-negative,#DC2626,#FF4D4F,Negative metric change color
+Color,ue-timeline-histogram-bg,bg-slate-300/50,bg-slate-400/50,Timeline histogram bar color (UE Only)
+Effect,ue-vignette-gradient,-,"radial-gradient(ellipse at center, transparent 10%, rgba(10, 20, 40, 0.5) 60%, rgba(2, 8, 20, 0.95) 100%)",Full screen vignette gradient (UE Only)
+Color,ue-timeline-label,text-slate-500,text-slate-300,Timeline time axis label color (UE Only)
+Component-Size,btn-height-sm,24px,24px,Button Height (Small)
+Component-Size,btn-height-md,32px,32px,Button Height (Medium - Default)
+Component-Size,btn-height-lg,40px,40px,Button Height (Large)
+Component-Size,btn-padding-sm,0 12px,0 12px,Button Padding (Small)
+Component-Size,btn-padding-md,0 16px,0 16px,Button Padding (Medium)
+Component-Size,btn-padding-lg,0 24px,0 24px,Button Padding (Large)
+Component-Size,btn-font-sm,12px,12px,Button Font Size (Small)
+Component-Size,btn-font-md,14px,14px,Button Font Size (Medium)
+Component-Size,btn-font-lg,16px,16px,Button Font Size (Large)
+Radius,radius-btn-sm,2px,2px,Button Radius (Small)
+Radius,radius-btn-md,4px,4px,Button Radius (Medium)
+Radius,radius-btn-lg,6px,6px,Button Radius (Large)
+Icon-Size,icon-sm,16px,16px,Icon Size (Small)
+Icon-Size,icon-md,20px,20px,Icon Size (Medium)
+Icon-Size,icon-lg,24px,24px,Icon Size (Large)
+Icon-Size,icon-xl,32px,32px,Icon Size (Extra Large)
+Animation,anim-duration-instant,50ms,50ms,Instant transition
+Animation,anim-duration-fast,150ms,150ms,Fast transition (Hover/Click)
+Animation,anim-duration-normal,300ms,300ms,Normal transition (Fade/Slide)
+Animation,anim-duration-slow,500ms,500ms,Slow transition (Panel Open/Close)
+Animation,anim-duration-slower,800ms,800ms,Slower transition (Complex Animations)
+Animation,anim-duration-xslow,1200ms,1200ms,Extra slow transition (Entrances/Exits)
+Animation,anim-ease-in,cubic-bezier(0.55, 0.085, 0.68, 0.53),cubic-bezier(0.55, 0.085, 0.68, 0.53),Ease In (Acceleration)
+Animation,anim-ease-out,cubic-bezier(0.215, 0.61, 0.355, 1),cubic-bezier(0.215, 0.61, 0.355, 1),Ease Out (Deceleration)
+Animation,anim-ease-in-out,cubic-bezier(0.645, 0.045, 0.355, 1),cubic-bezier(0.645, 0.045, 0.355, 1),Ease In Out (Standard)
+Animation,anim-ease-bounce,cubic-bezier(0.68, -0.55, 0.265, 1.55),cubic-bezier(0.68, -0.55, 0.265, 1.55),Bounce effect
+Animation,anim-ease-elastic,cubic-bezier(0.68, -0.6, 0.32, 1.6),cubic-bezier(0.68, -0.6, 0.32, 1.6),Elastic effect
+Animation,anim-ease-back,cubic-bezier(0.68, -0.55, 0.265, 1.55),cubic-bezier(0.68, -0.55, 0.265, 1.55),Back effect
+Animation,anim-type-fade,"opacity 0.3s ease-in-out","opacity 0.3s ease-in-out",Fade animation
+Animation,anim-type-slide,"transform 0.3s ease-in-out, opacity 0.3s ease-in-out","transform 0.3s ease-in-out, opacity 0.3s ease-in-out",Slide animation
+Animation,anim-type-scale,"transform 0.3s ease-in-out, opacity 0.3s ease-in-out","transform 0.3s ease-in-out, opacity 0.3s ease-in-out",Scale animation
+Animation,anim-type-rotate,"transform 0.5s ease-in-out","transform 0.5s ease-in-out",Rotate animation
+Animation,anim-type-bounce,"transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55)","transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55)",Bounce animation
+Animation,anim-type-pulse,"transform 0.6s ease-in-out infinite","transform 0.6s ease-in-out infinite",Pulse animation
+Animation,anim-type-shake,"transform 0.5s ease-in-out","transform 0.5s ease-in-out",Shake animation
+Animation,anim-type-flip,"transform 0.6s ease-in-out, opacity 0.6s ease-in-out","transform 0.6s ease-in-out, opacity 0.6s ease-in-out",Flip animation
+Animation,anim-hover-lift,"transform translateY(-4px), box-shadow 0.3s ease-in-out","transform translateY(-4px), box-shadow 0.3s ease-in-out",Hover lift effect
+Animation,anim-hover-glow,"box-shadow 0.3s ease-in-out, border-color 0.3s ease-in-out","box-shadow 0.3s ease-in-out, border-color 0.3s ease-in-out",Hover glow effect
+Animation,anim-hover-scale,"transform 0.2s ease-in-out","transform 0.2s ease-in-out",Hover scale effect
+Animation,anim-hover-underline,"text-decoration 0.3s ease-in-out, color 0.3s ease-in-out","text-decoration 0.3s ease-in-out, color 0.3s ease-in-out",Hover underline effect
+Animation,anim-focus-ring,"box-shadow 0.2s ease-in-out, outline 0.2s ease-in-out","box-shadow 0.2s ease-in-out, outline 0.2s ease-in-out",Focus ring effect
+Animation,anim-loading-spin,"transform 1s linear infinite","transform 1s linear infinite",Loading spin animation
+
+/* Material Design 3 弹性缓动函数 */
+Animation,anim-ease-emphasized,cubic-bezier(0.2, 0.0, 0, 1.0),cubic-bezier(0.2, 0.0, 0, 1.0),Emphasized easing (M3 Standard)
+Animation,anim-ease-emphasized-decelerate,cubic-bezier(0.05, 0.7, 0.1, 1.0),cubic-bezier(0.05, 0.7, 0.1, 1.0),Emphasized decelerate (M3 Entrance)
+Animation,anim-ease-emphasized-accelerate,cubic-bezier(0.3, 0.0, 0.8, 0.15),cubic-bezier(0.3, 0.0, 0.8, 0.15),Emphasized accelerate (M3 Exit)
+Animation,anim-ease-breathing,cubic-bezier(0.4, 0.0, 0.6, 1.0),cubic-bezier(0.4, 0.0, 0.6, 1.0),Breathing easing (Expressive)
+Animation,anim-ease-breathing-out,cubic-bezier(0.4, 0.0, 0.2, 1.0),cubic-bezier(0.4, 0.0, 0.2, 1.0),Breathing out easing
+Animation,anim-ease-aero,cubic-bezier(0.25, 0.1, 0.25, 1.0),cubic-bezier(0.25, 0.1, 0.25, 1.0),Aero easing (Intelligent Aviation)
+Animation,anim-ease-aero-smooth,cubic-bezier(0.4, 0.0, 0.2, 1.0),cubic-bezier(0.4, 0.0, 0.2, 1.0),Aero smooth easing
+
+/* 状态层令牌 */
+State,state-layer-opacity,0.08,0.12,State layer opacity (Default)
+State,state-layer-opacity-hover,0.12,0.16,State layer opacity (Hover)
+State,state-layer-opacity-focus,0.12,0.16,State layer opacity (Focus)
+State,state-layer-opacity-pressed,0.12,0.16,State layer opacity (Pressed)
+State,state-layer-opacity-dragged,0.16,0.20,State layer opacity (Dragged)
+State,state-layer-color,currentColor,currentColor,State layer color
+State,state-layer-color-primary,#0066CC,#0084FF,State layer color (Primary)
+State,state-layer-color-secondary,#0099AA,#00E5FF,State layer color (Secondary)
+State,state-layer-color-accent,#00A383,#00FFC8,State layer color (Accent)
+
+/* 交互状态令牌 */
+State,state-default-opacity,1,1,Default state opacity
+State,state-hover-opacity,1,1,Hover state opacity
+State,state-focus-opacity,1,1,Focus state opacity
+State,state-active-opacity,0.9,0.9,Active state opacity
+State,state-disabled-opacity,0.5,0.5,Disabled state opacity
+State,state-loading-opacity,0.6,0.6,Loading state opacity
+
+/* 状态边框和阴影令牌 */
+State,state-hover-border,"1px solid rgba(0, 132, 255, 0.4)","1px solid rgba(0, 132, 255, 0.4)",Hover state border
+State,state-focus-border,"1px solid #0066CC","1px solid #0084FF",Focus state border
+State,state-focus-ring,"0 0 0 3px rgba(0, 102, 204, 0.3)","0 0 0 3px rgba(0, 132, 255, 0.3)",Focus state ring
+State,state-hover-shadow,"0 12px 24px rgba(0, 132, 255, 0.2)","0 12px 40px rgba(0, 132, 255, 0.3)",Hover state shadow
+State,state-active-shadow,"0 4px 12px rgba(0, 132, 255, 0.3)","0 4px 12px rgba(0, 132, 255, 0.3)",Active state shadow
+
+/* 状态变换令牌 */
+State,state-hover-transform,translateY(-2px),translateY(-2px),Hover state transform
+State,state-active-transform,scale(0.98),scale(0.98),Active state transform
+
+/* 功能状态色彩令牌 */
+State,state-success-color,#00A383,#00FFC8,Success state color
+State,state-error-color,#DC2626,#FF4D4F,Error state color
+State,state-warning-color,#D97706,#FFB020,Warning state color
+State,state-info-color,#0066CC,#0084FF,Info state color
+
+/* 状态光晕令牌 */
+State,state-success-glow,"0 0 20px rgba(0, 255, 200, 0.3)","0 0 20px rgba(0, 255, 200, 0.3)",Success state glow
+State,state-error-glow,"0 0 20px rgba(220, 38, 38, 0.3)","0 0 20px rgba(220, 38, 38, 0.3)",Error state glow
+State,state-warning-glow,"0 0 20px rgba(217, 119, 6, 0.3)","0 0 20px rgba(217, 119, 6, 0.3)",Warning state glow
+State,state-info-glow,"0 0 20px rgba(0, 102, 204, 0.3)","0 0 20px rgba(0, 132, 255, 0.3)",Info state glow
+
+/* 状态动画令牌 */
+State,state-success-animation,pulse 0.5s ease-out,pulse 0.5s ease-out,Success state animation
+State,state-error-animation,shake 0.5s ease-out,shake 0.5s ease-out,Error state animation
+
+/* 加载状态令牌 */
+State,state-loading-spinner-color,#0099AA,#00E5FF,Loading spinner color
+
+/* 形状令牌 */
+Shape,shape-corner-none,0px,0px,No corner radius
+Shape,shape-corner-extra-small,4px,4px,Extra small corner radius
+Shape,shape-corner-small,8px,8px,Small corner radius
+Shape,shape-corner-medium,12px,12px,Medium corner radius
+Shape,shape-corner-large,16px,16px,Large corner radius
+Shape,shape-corner-extra-large,24px,24px,Extra large corner radius
+Shape,shape-corner-full,9999px,9999px,Full corner radius (Circle)
+
+/* 2x Grid 系统 */
+Grid,grid-unit,2px,2px,Base grid unit (2x Grid)
+Grid,grid-unit-2,4px,4px,2x grid unit (4px)
+Grid,grid-unit-4,8px,8px,4x grid unit (8px)
+Grid,grid-unit-6,12px,12px,6x grid unit (12px)
+Grid,grid-unit-8,16px,16px,8x grid unit (16px)
+Grid,grid-unit-10,20px,20px,10x grid unit (20px)
+Grid,grid-unit-12,24px,24px,12x grid unit (24px)
+Grid,grid-unit-16,32px,32px,16x grid unit (32px)
+Grid,grid-unit-20,40px,40px,20x grid unit (40px)
+Grid,grid-unit-24,48px,48px,24x grid unit (48px)
+Animation,anim-progress-pulse,"opacity 1s ease-in-out infinite","opacity 1s ease-in-out infinite",Progress pulse animation
+Table,ue-table-header-bg,-,rgba(0, 102, 204, 0.15),UE Table Header Background (Aero Tint)
+Table,ue-table-row-hover,-,linear-gradient(90deg, rgba(0, 132, 255, 0.1), transparent),UE Table Row Hover Gradient
+Table,ue-table-border,-,rgba(255, 255, 255, 0.08),UE Table Minimal Divider
+Table,ue-table-text-header,-,#00E5FF,UE Table Header Text (Pulse Cyan)
+Component-Size,table-cell-padding-y,12px,12px,Table Cell Vertical Padding
+Component-Size,table-cell-padding-x,16px,16px,Table Cell Horizontal Padding
+Button,btn-primary-bg-gradient,"linear-gradient(90deg, #0066CC 0%, #0099AA 100%)","linear-gradient(90deg, #0084FF 0%, #00E5FF 100%)",Primary Button Background Gradient
+Button,btn-primary-border,none,none,Primary Button Border Style
+Button,btn-primary-hover,"linear-gradient(90deg, #0052A3 0%, #008FA1 100%)","linear-gradient(90deg, #0066CC 0%, #00D7E5 100%)",Primary Button Hover Gradient
+Button,btn-outline-bg,"transparent","rgba(255,255,255,0.05)",Outline Button Background
+Button,btn-outline-border,"1px solid rgba(0, 102, 204, 0.4)","1px solid rgba(0, 132, 255, 0.4)",Outline Button Border
+Button,btn-outline-hover,"1px solid rgba(0, 102, 204, 0.6)","1px solid #0084FF",Outline Button Hover Border
+Button,btn-ghost-bg,"transparent","transparent",Ghost Button Background
+Button,btn-ghost-hover,"rgba(0, 102, 204, 0.1)","rgba(0, 132, 255, 0.1)",Ghost Button Hover Background
+Button,btn-secondary-bg,"rgba(0, 153, 170, 0.1)","rgba(0, 229, 255, 0.1)",Secondary Button Background
+Button,btn-secondary-border,"1px solid rgba(0, 153, 170, 0.3)","1px solid rgba(0, 229, 255, 0.3)",Secondary Button Border
+Button,btn-secondary-hover,"rgba(0, 153, 170, 0.2)","rgba(0, 229, 255, 0.2)",Secondary Button Hover Background
+Input,input-bg,"#FFFFFF","rgba(30, 41, 59, 0.8)",Input field background
+Input,input-bg-hover,"#F9FAFB","rgba(40, 56, 80, 0.9)",Input field hover background
+Input,input-bg-focus,"#FFFFFF","rgba(40, 56, 80, 0.95)",Input field focus background
+Input,input-border,"1px solid rgba(28, 102, 196, 0.3)","1px solid rgba(255, 255, 255, 0.15)",Input field border
+Input,input-border-hover,"1px solid rgba(0, 102, 204, 0.4)","1px solid rgba(0, 132, 255, 0.3)",Input field hover border
+Input,input-border-focus,"1px solid rgba(0, 102, 204, 0.6)","1px solid rgba(0, 132, 255, 0.6)",Input field focus border
+Card,card-padding,"24px","24px",Card padding
+Card,card-padding-sm,"16px","16px",Small card padding
+Card,card-padding-lg,"32px","32px",Large card padding
+Card,card-border-radius,"10px","10px",Card border radius
+Card,card-border-radius-sm,"6px","6px",Small card border radius
+Card,card-border-radius-lg,"12px","12px",Large card border radius
+Card,card-shadow,"0 8px 32px rgba(28, 102, 196, 0.08)","0 8px 32px rgba(0, 132, 255, 0.15), 0 1px 2px rgba(0, 0, 0, 0.3)",Card shadow
+Card,card-shadow-hover,"0 12px 40px rgba(0, 132, 255, 0.2)","0 12px 48px rgba(0, 132, 255, 0.25), 0 2px 4px rgba(0, 0, 0, 0.4)",Card hover shadow
+Card,card-border,"1px solid rgba(28, 102, 196, 0.15)","1px solid rgba(0, 132, 255, 0.2)",Card border
+Card,card-border-hover,"1px solid rgba(0, 102, 204, 0.4)","1px solid #0084FF",Card hover border
+Card,card-transition,"all 0.3s cubic-bezier(0.4, 0, 0.2, 1)","all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",Card transition effect
+Effect,glass-card-bg,"rgba(255, 255, 255, 0.1)","rgba(20, 30, 40, 0.6)",Glass Card Background (High Transparency)
+Effect,glass-card-border,"1px solid rgba(255, 255, 255, 0.2)","1px solid rgba(255, 255, 255, 0.2)",Glass Card Border (20% White)
+Effect,glass-card-shadow,"0 8px 32px rgba(0, 0, 0, 0.1)","0 8px 32px rgba(0, 0, 0, 0.3)",Glass Card Shadow (Soft Diffusion)
+Effect,glass-card-backdrop,blur(12px),blur(12px),Glass Card Backdrop Filter
+Effect,gradient-primary,"linear-gradient(90deg, #0066CC 0%, #0099AA 100%)","linear-gradient(90deg, #0084FF 0%, #00E5FF 100%)",Primary Button Background Gradient
+Color,color-primary-rgb,0,102,204,Primary Color RGB Values (Light Mode)
+Color,color-primary-rgb-dark,0,132,255,Primary Color RGB Values (Dark Mode)
+Button,btn-ue-bg,"rgba(0, 102, 204, 0.1)","rgba(0, 132, 255, 0.1)",UE Button Background
+Button,btn-ue-border,"1px solid rgba(0, 102, 204, 0.3)","1px solid rgba(0, 132, 255, 0.3)",UE Button Border
+Button,btn-ue-text,#0066CC,#0084FF,UE Button Text Color
+Effect,ue-stats-hud-bg,rgba(0, 0, 0, 0.7),rgba(0, 0, 0, 0.8),UE Stats HUD Background
+Effect,ue-stats-hud-border,"1px solid rgba(0, 153, 170, 0.3)","1px solid rgba(0, 229, 255, 0.3)",UE Stats HUD Border
+Effect,ue-stats-hud-padding,12px,12px,UE Stats HUD Padding
+Effect,ue-stats-hud-font-size,0.8rem,0.8rem,UE Stats HUD Font Size
+Effect,ue-stats-hud-backdrop,blur(12px),blur(12px),UE Stats HUD Backdrop Filter
+Effect,ue-viewport-overlay,"radial-gradient(ellipse at center, rgba(10, 20, 40, 0.2) 0%, rgba(2, 4, 10, 0.4) 100%)","radial-gradient(ellipse at center, rgba(10, 20, 40, 0.3) 0%, rgba(2, 4, 10, 0.5) 100%)",UE Viewport Overlay Gradient
+
+/* 图表设计令牌 */
+Color,chart-line-primary,#0084FF,#0084FF,Primary line chart color
+Color,chart-line-secondary,#00E5FF,#00E5FF,Secondary line chart color
+Color,chart-line-accent,#00FFC8,#00FFC8,Accent line chart color
+Color,chart-area-fill,"rgba(0, 132, 255, 0.1)","rgba(0, 132, 255, 0.15)",Area chart fill color
+Color,chart-grid,"rgba(28, 102, 196, 0.2)","rgba(255, 255, 255, 0.1)",Chart grid color
+Color,chart-tooltip-bg,#FFFFFF,"rgba(10, 20, 40, 0.9)",Chart tooltip background
+Color,chart-tooltip-border,"rgba(28, 102, 196, 0.3)","rgba(0, 132, 255, 0.3)",Chart tooltip border
+
+/* 响应式设计令牌 */
+Breakpoint,breakpoint-xs,480px,480px,Extra small breakpoint (small mobile)
+Breakpoint,breakpoint-sm,640px,640px,Small breakpoint (mobile)
+Breakpoint,breakpoint-md,768px,768px,Medium breakpoint (tablet)
+Breakpoint,breakpoint-lg,1024px,1024px,Large breakpoint (desktop)
+Breakpoint,breakpoint-xl,1280px,1280px,Extra large breakpoint (large desktop)
+Breakpoint,breakpoint-2xl,1536px,1536px,2x extra large breakpoint (ultrawide)
+Breakpoint,breakpoint-3xl,1920px,1920px,3x extra large breakpoint (4K desktop)
+Breakpoint,breakpoint-4xl,2560px,2560px,4x extra large breakpoint (ultrawide 4K)
+Responsive,container-sm,640px,640px,Small container width
+Responsive,container-md,768px,768px,Medium container width
+Responsive,container-lg,1024px,1024px,Large container width
+Responsive,container-xl,1280px,1280px,Extra large container width
+Responsive,container-2xl,1536px,1536px,2x extra large container width
+Responsive,container-fluid,100%,100%,Fluid container width
+Responsive,grid-columns-xs,2,2,Grid columns (extra small)
+Responsive,grid-columns-sm,3,3,Grid columns (small)
+Responsive,grid-columns-md,4,4,Grid columns (medium)
+Responsive,grid-columns-lg,6,6,Grid columns (large)
+Responsive,grid-columns-xl,8,8,Grid columns (extra large)
+Responsive,grid-columns-2xl,12,12,Grid columns (2x extra large)
+Responsive,grid-gap-xs,8px,8px,Grid gap (extra small)
+Responsive,grid-gap-sm,12px,12px,Grid gap (small)
+Responsive,grid-gap-md,16px,16px,Grid gap (medium)
+Responsive,grid-gap-lg,24px,24px,Grid gap (large)
+Responsive,grid-gap-xl,32px,32px,Grid gap (extra large)
+Responsive,padding-xs,12px,12px,Padding (extra small)
+Responsive,padding-sm,16px,16px,Padding (small)
+Responsive,padding-md,24px,24px,Padding (medium)
+Responsive,padding-lg,32px,32px,Padding (large)
+Responsive,padding-xl,48px,48px,Padding (extra large)
+
+/* 表单设计令牌 */
+Color,input-border,"rgba(28, 102, 196, 0.3)","rgba(255, 255, 255, 0.15)",Input border color
+Color,input-border-focus,"rgba(0, 102, 204, 0.6)","rgba(0, 132, 255, 0.6)",Input border focus color
+Color,input-text,#000000,#FFFFFF,Input text color
+Color,input-placeholder,#9CA3AF,"rgba(156, 163, 175, 0.6)",Input placeholder color
+
+/* 导航设计令牌 */
+Color,nav-bg,#FFFFFF,"rgba(2, 4, 10, 0.95)",Navigation background
+Color,nav-border,"rgba(28, 102, 196, 0.2)","rgba(0, 132, 255, 0.2)",Navigation border
+Color,nav-text,#000000,#FFFFFF,Navigation text color
+Color,nav-text-active,#0066CC,#0084FF,Navigation active text color
+Color,nav-text-hover,#0099AA,#00E5FF,Navigation hover text color
+
+
+
+
+
+/* 图表设计指南 */
+Chart,chart-type-line,Line Chart,Line Chart,Time-series data visualization
+Chart,chart-type-area,Area Chart,Area Chart,Time-series with volume visualization
+Chart,chart-type-bar,Bar Chart,Bar Chart,Categorical data comparison
+Chart,chart-type-pie,Pie Chart,Pie Chart,Part-to-whole relationship
+Chart,chart-type-radar,Radar Chart,Radar Chart,Multi-dimensional comparison
+Chart,chart-type-gauge,Gauge Chart,Gauge Chart,KPI performance tracking
+Chart,chart-type-heatmap,Heatmap,Heatmap,Matrix data visualization
+Chart,chart-type-scatter,Scatter Plot,Scatter Plot,Correlation analysis
+
+/* 图表库推荐 */
+Chart,chart-library-chartjs,Chart.js,Chart.js,Lightweight charting library
+Chart,chart-library-echarts,ECharts,ECharts,Comprehensive charting library
+Chart,chart-library-d3,D3.js,D3.js,Low-level data visualization library
+
+/* 图标库配置 */
+Icon,icon-library-default,Lucide Icons,Lucide Icons,Default icon library for Lingjing Core
+Icon,icon-library-lucide,Lucide Icons,Lucide Icons,Modern, clean line icons
+Icon,icon-library-phosphor,Phosphor Icons,Phosphor Icons,Lightweight icons with multiple styles
+Icon,icon-library-heroicons,Heroicons,Heroicons,Functional, clean icons
+Icon,icon-library-feather,Feather Icons,Feather Icons,Lightweight line icons
+Icon,icon-library-material,Material Symbols,Material Symbols,Modern, scalable icons
+
+/* 图标库 CDN 链接 */
+Icon,icon-cdn-lucide,https://unpkg.com/lucide@latest,https://unpkg.com/lucide@latest,Lucide Icons CDN
+Icon,icon-cdn-phosphor,https://unpkg.com/phosphor-icons@latest,https://unpkg.com/phosphor-icons@latest,Phosphor Icons CDN
+Icon,icon-cdn-heroicons,https://unpkg.com/heroicons@latest,https://unpkg.com/heroicons@latest,Heroicons CDN
+Icon,icon-cdn-feather,https://unpkg.com/feather-icons@latest,https://unpkg.com/feather-icons@latest,Feather Icons CDN
+Icon,icon-cdn-material,https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined,https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined,Material Symbols CDN
+
+/* 图标样式令牌 */
+Icon,icon-color-primary,#0066CC,#0084FF,Primary icon color (Aero-Blue)
+Icon,icon-color-secondary,#0099AA,#00E5FF,Secondary icon color (Pulse-Cyan)
+Icon,icon-color-accent,#00A383,#00FFC8,Accent icon color (Signal-Green)
+Icon,icon-color-disabled,#9CA3AF,#6B7280,Disabled icon color
+Icon,icon-color-muted,#6B7280,#9CA3AF,Muted icon color
+Icon,icon-size-xs,12px,12px,Extra small icon size
+Icon,icon-size-sm,16px,16px,Small icon size
+Icon,icon-size-md,20px,20px,Medium icon size
+Icon,icon-size-lg,24px,24px,Large icon size
+Icon,icon-size-xl,32px,32px,Extra large icon size
+Icon,icon-size-2xl,48px,48px,2x extra large icon size
+Icon,icon-padding-sm,4px,4px,Small icon padding
+Icon,icon-padding-md,8px,8px,Medium icon padding
+Icon,icon-padding-lg,12px,12px,Large icon padding
+Icon,icon-bg-circle-sm,24px,24px,Small icon circle background
+Icon,icon-bg-circle-md,32px,32px,Medium icon circle background
+Icon,icon-bg-circle-lg,40px,40px,Large icon circle background
+Icon,icon-bg-color-primary,rgba(0, 102, 204, 0.1),rgba(0, 132, 255, 0.1),Primary icon background color
+Icon,icon-bg-color-secondary,rgba(0, 153, 170, 0.1),rgba(0, 229, 255, 0.1),Secondary icon background color
+Icon,icon-bg-color-accent,rgba(0, 163, 131, 0.1),rgba(0, 255, 200, 0.1),Accent icon background color
+Icon,icon-border-radius,50%,50%,Icon border radius (circle)
+
+/* 性能优化令牌 */
+Performance,image-format-hero,WebP,WebP,Hero image format
+Performance,image-format-content,WebP,WebP,Content image format
+Performance,image-format-icon,SVG,SVG,Icon image format
+Performance,image-quality-hero,85,85,Hero image quality
+Performance,image-quality-content,75,75,Content image quality
+Performance,image-quality-thumbnail,70,70,Thumbnail image quality
+Performance,font-display,swap,swap,Font display strategy
+Performance,font-preload,true,true,Font preload strategy
+Performance,css-minify,true,true,CSS minification
+Performance,js-minify,true,true,JavaScript minification
+Performance,js-tree-shaking,true,true,JavaScript tree shaking
+Performance,code-splitting,true,true,Code splitting
+Performance,preload-critical,true,true,Preload critical resources
+Performance,preload-images,true,true,Preload images
+Performance,preload-fonts,true,true,Preload fonts
+Performance,browser-cache,max-age=31536000,max-age=31536000,Browser cache duration
+Performance,cdn-enabled,true,true,CDN enabled
+Performance,gzip-compression,true,true,Gzip compression
+Performance,brotli-compression,true,true,Brotli compression
+Performance,render-blocking-optimization,true,true,Render blocking optimization
+Performance,defer-non-critical-js,true,true,Defer non-critical JavaScript
+Performance,async-scripts,true,true,Async scripts
+Performance,animation-performance,transform-opacity,transform-opacity,Animation performance properties
+Performance,paint-optimization,true,true,Paint optimization
+Performance,layout-thrashing-avoidance,true,true,Layout thrashing avoidance
+Performance,memory-optimization,true,true,Memory optimization
+Performance,network-optimization,true,true,Network optimization
+Performance,accessibility-optimization,true,true,Accessibility optimization

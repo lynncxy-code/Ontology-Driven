@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>坐标标定工作台 | OntoTwin Nexus</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/nexus_titlebar.css">
 <script src="coord_transform.js"></script>
+<script src="spatial_canvas.js"></script>
 <style>
 :root{
   /* ── 灰阶（结构色）── */
@@ -32,9 +34,6 @@
 html,body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text);height:100%;overflow:hidden;-webkit-font-smoothing:antialiased}
 body.embedded-mode{background:#fafaf7}
 .workbench{display:flex;height:100vh;flex-direction:column}
-.wb-header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
-.wb-header h1{font-size:18px;letter-spacing:-.02em}
-.wb-header .eyebrow{display:inline-flex;padding:2px 8px;border-radius:999px;background:var(--surface-subtle);border:1px solid var(--border);font-size:10px;font-family:monospace;letter-spacing:.04em;text-transform:uppercase;color:var(--text-soft);margin-left:10px}
 .wb-body{flex:1;display:flex;overflow:hidden}
 .canvas-area{flex:7;position:relative;background:#fbfbf7;border-right:1px solid var(--border);overflow:hidden}
 #mainCanvas{display:block;width:100%;height:100%;cursor:crosshair}
@@ -219,6 +218,11 @@ body.embedded-mode{background:#fafaf7}
 .mode-tab{padding:5px 14px;font-size:12px;font-weight:600;border-radius:6px;cursor:pointer;border:none;background:transparent;color:var(--text-muted);transition:all .15s}
 .mode-tab.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .mode-tab:hover:not(.active){color:var(--text)}
+.panel-modebar{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface)}
+.panel-modebar .mode-tabs{width:100%;margin-right:0}
+.panel-modebar .mode-tab{flex:1}
+.panel-mode-actions{display:flex;align-items:center;gap:8px;min-width:0}
+.panel-dataset{flex:1;min-width:0;justify-content:flex-start;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Image marker */
 .marker-row{display:flex;align-items:center;gap:6px;padding:8px;background:var(--surface-subtle);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12px}
 .marker-row .marker-idx{font-weight:700;color:var(--ink);width:20px}
@@ -228,6 +232,22 @@ body.embedded-mode{background:#fafaf7}
 .marker-row .del-btn:hover{background:#fee2e2}
 .copy-btn{cursor:pointer;color:var(--text-soft);display:inline-flex;align-items:center;padding:2px;border-radius:4px;transition:all 0.15s}
 .copy-btn:hover{color:var(--accent);background:var(--accent-light)}
+.image-frame-loader{margin-top:var(--s3);padding:var(--s3);border:1px solid var(--line);border-radius:var(--r-md);background:var(--bg-2)}
+.image-frame-loader .loader-row{display:flex;gap:var(--s2);align-items:center}
+.image-frame-loader select{flex:1;min-width:0;padding:7px 10px;border:1px solid var(--line-2);border-radius:var(--r-sm);background:var(--bg);color:var(--ink);font-size:var(--t-sm)}
+.image-config-grid{display:grid;grid-template-columns:1fr 110px;gap:var(--s2);margin-bottom:var(--s3)}
+.image-config-grid .wide{grid-column:1/-1}
+.image-config-grid label{display:flex;flex-direction:column;gap:var(--s1);font-size:var(--t-xs);color:var(--ink-2)}
+.image-config-grid input{width:100%;padding:7px 10px;border:1px solid var(--line-2);border-radius:var(--r-sm);font-size:var(--t-sm);background:var(--bg);color:var(--ink)}
+.image-config-grid input:focus,.image-frame-loader select:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px rgba(26,26,26,.06)}
+.image-persist-status{display:flex;align-items:center;gap:var(--s2);padding:8px 10px;margin-bottom:var(--s3);border-left:2px solid var(--line-2);background:var(--bg-2);font-size:var(--t-xs);color:var(--ink-2)}
+.image-persist-status.published{border-left-color:var(--ok)}
+.image-persist-status.draft{border-left-color:var(--warn)}
+.image-anchor-reference{display:flex;align-items:center;gap:3px;font-size:10px;color:var(--ink-2);white-space:nowrap}
+.image-anchor-reference input{width:auto;accent-color:var(--ink)}
+.image-persist-actions{display:flex;gap:var(--s2);margin-top:var(--s3)}
+.image-persist-actions .btn{flex:1}
+#imgStep1{overflow-y:auto;padding-right:2px}
 .zoom-controls { position:absolute; bottom:16px; right:16px; display:flex; flex-direction:column; gap:4px; background:var(--surface); padding:4px; border-radius:6px; border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,.05); z-index:10; }
 .zoom-controls button { background:transparent; border:none; width:28px; height:28px; border-radius:4px; cursor:pointer; font-weight:600; font-size:16px; color:var(--text); transition:background 0.15s; display:flex; align-items:center; justify-content:center; }
 .zoom-controls button:hover { background:var(--surface-subtle); color:var(--accent); }
@@ -263,20 +283,10 @@ body.embedded-mode{background:#fafaf7}
 </head>
 <body>
 <div class="workbench">
-  <header class="wb-header">
-    <div style="display:flex;align-items:center">
-      <h1>坐标标定工作台</h1>
-      <span class="eyebrow" id="modeBadge">CAD MODE</span>
-      <div class="mode-tabs" style="margin-left:16px">
-        <button class="mode-tab active" id="modeTabCad" onclick="switchMode('dxf')">CAD 标定</button>
-        <button class="mode-tab" id="modeTabImg" onclick="switchMode('image')">图片标定</button>
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <span id="activeDsBadge" style="font-size:11px;color:var(--text-muted);background:var(--surface-subtle);padding:4px 10px;border-radius:999px;border:1px solid var(--border);cursor:pointer" data-tip="点击切换激活数据集" onclick="openDatasetPicker()">
-        数据集：加载中…
-      </span>
-      <button class="btn btn-sm" id="btnReset" onclick="resetAll()" style="display:none">重新开始</button>
+  <header class="nexus-titlebar">
+    <div class="nexus-titlebar__main">
+      <h1 class="nexus-titlebar__title">坐标标定工作台</h1>
+      <p class="nexus-titlebar__subtitle">将 CAD 图纸或平面图标定到 UE 世界坐标，统一设备构件与空间底图的位置基准</p>
     </div>
   </header>
   <div class="wb-body">
@@ -298,7 +308,17 @@ body.embedded-mode{background:#fafaf7}
       <div class="canvas-info" id="canvasInfo">缩放: 100% | 鼠标: —</div>
     </div>
     <div class="panel-area">
-      <!-- === CAD MODE PANELS === -->
+      <div class="panel-modebar">
+        <div class="mode-tabs">
+          <button class="mode-tab active" id="modeTabCad" onclick="switchMode('dxf')">CAD 标定</button>
+          <button class="mode-tab" id="modeTabImg" onclick="switchMode('image')">图片标定</button>
+        </div>
+        <div class="panel-mode-actions">
+          <button class="btn btn-ghost btn-sm panel-dataset" id="activeDsBadge" data-tip="点击切换激活数据集" onclick="openDatasetPicker()">数据集：加载中…</button>
+          <button class="btn btn-sm" id="btnReset" onclick="resetAll()" style="display:none">重新开始</button>
+        </div>
+      </div>
+      <!-- === CAD 标定面板 === -->
       <div id="cadPanels">
         <div class="step-bar">
           <div class="step-tab active" data-step="1" onclick="goToStep(1)">① 上传</div>
@@ -464,7 +484,7 @@ body.embedded-mode{background:#fafaf7}
           </div>
         </div>
       </div>
-      <!-- === IMAGE MODE PANELS === -->
+      <!-- === 图片标定面板 === -->
       <div id="imgPanels" style="display:none;flex-direction:column;height:100%">
         <div class="step-bar">
           <div class="step-tab active" data-step="i1" onclick="imgGoToStep(1)">① 上传与标定</div>
@@ -475,18 +495,38 @@ body.embedded-mode{background:#fafaf7}
           <!-- IMG STEP 1 -->
           <div class="step-panel active" id="imgStep1">
             <label class="upload-zone" for="imgFileInput">
-              <input type="file" id="imgFileInput" accept=".png,.jpg,.jpeg,.bmp,.webp" onchange="imgHandleUpload(event)">
-              <div class="upload-icon" style="background:#ea580c"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>
+              <input type="file" id="imgFileInput" accept=".png,.jpg,.jpeg,.webp" onchange="imgHandleUpload(event)">
+              <div class="upload-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>
               <h3>上传平面图图片</h3>
-              <p>支持 PNG / JPG / BMP / WebP<br><small>图片仅在本地浏览器处理，不上传服务器</small></p>
+              <p>支持 PNG / JPG / WebP，单文件不超过 20 MB<br><small>图片会保存到当前项目，可在人物漫游中继续使用</small></p>
             </label>
+            <div class="image-frame-loader" id="imgFrameLoader">
+              <div class="section-title">已保存空间底图</div>
+              <div class="loader-row">
+                <select id="imgFrameSelect" aria-label="选择已保存空间底图"><option value="">暂无已保存底图</option></select>
+                <button class="btn btn-sm" id="imgLoadFrameBtn" onclick="imgLoadSelectedFrame()" disabled>加载</button>
+              </div>
+              <p class="hint">加载服务器中的原图、锚点和标定版本，不依赖本机浏览器缓存。</p>
+            </div>
             <div id="imgAnchorPanel" style="display:none">
               <div class="section-title" style="margin-top:16px">锚点标定</div>
-              <p class="hint" style="margin-top:0;margin-bottom:12px">在图片上点击已知位置放置锚点，然后填写对应的 UE 世界坐标（cm）</p>
+              <p class="hint" style="margin-top:0;margin-bottom:12px">至少添加 3 个不共线锚点，填写 UE 世界坐标 XYZ（cm），并选择一个实际地面点作为 Z 基准。</p>
+              <div class="image-config-grid">
+                <label>底图名称<input id="imgFrameName" maxlength="120" oninput="imgUpdateFrameField('name',this.value)" placeholder="例如：一层漫游底图"></label>
+                <label>楼层<input id="imgFrameFloor" type="number" min="1" max="10000" value="1" oninput="imgUpdateFrameField('floor',this.value)"></label>
+                <label class="wide">UE 运行关卡（Level）<input id="imgFrameLevel" oninput="imgUpdateFrameField('ueLevel',this.value)" placeholder="当前 EXE 场景，例如：/Game/Maps/Main"></label>
+              </div>
+              <p class="hint" style="margin:8px 0 0">运行关卡是 UE 当前加载的场景地图，不是建筑楼层；同一张底图只能用于它绑定的运行关卡。</p>
+              <div class="image-persist-status draft" id="imgPersistStatus"><span class="dot dot-warn"></span><span>新底图尚未保存标定草稿</span></div>
               <div id="imgAnchorList"></div>
-              <button class="btn btn-primary btn-sm" id="imgBtnCalibrate" style="margin-top:10px;width:100%" onclick="imgDoCalibrate()" disabled>计算变换（至少 2 个锚点）</button>
+              <button class="btn btn-sm" id="imgBtnCalibrate" style="margin-top:10px;width:100%" onclick="imgDoCalibrate()" disabled>计算变换（至少 3 个锚点）</button>
               <div id="imgMetricsPanel" style="display:none"></div>
-              <button class="btn btn-primary btn-sm" id="imgBtnToStep2" style="margin-top:10px;width:100%;display:none" onclick="imgGoToStep(2)">下一步：标注构件</button>
+              <div class="image-persist-actions">
+                <button class="btn btn-sm" id="imgSaveDraftBtn" onclick="imgSaveFrameDraft(false)" disabled>保存标定草稿</button>
+                <button class="btn btn-primary btn-sm" id="imgPublishBtn" onclick="imgSaveFrameDraft(true)" disabled>发布空间底图</button>
+              </div>
+              <button class="btn btn-sm" id="imgGoRoutesBtn" style="margin-top:10px;width:100%;display:none" onclick="imgGoToRoutes()">去配置漫游路线</button>
+              <button class="btn btn-sm" id="imgBtnToStep2" style="margin-top:10px;width:100%;display:none" onclick="imgGoToStep(2)">下一步：标注构件</button>
             </div>
           </div>
           <!-- IMG STEP 2 -->
@@ -687,6 +727,16 @@ function saveSession(){
     },
     img: {
       src: imgState.imageObj ? imgState.imageObj.src : null,
+      imageUrl: imgState.imageUrl || null,
+      frameId: imgState.frameId || null,
+      draftRevision: imgState.draftRevision || 0,
+      calibrationRevision: imgState.calibrationRevision || 0,
+      persistStatus: imgState.persistStatus || 'draft',
+      frameName: imgState.frameName || null,
+      floor: imgState.floor || 1,
+      floorId: imgState.floorId || 'floor-1',
+      ueLevel: imgState.ueLevel || '',
+      floorReferenceAnchorId: imgState.floorReferenceAnchorId || '',
       sourceName: imgState.sourceName || null,
       sourceKey: imgState.sourceKey || null,
       imgW:imgState.imgW, imgH:imgState.imgH,
@@ -700,7 +750,7 @@ async function restoreSession(){
   try{ snap = await SessionDB.load(); }catch(e){ return; }
   if(!snap || !snap._ts || (Date.now()-snap._ts) > SessionDB.TTL) return;
   const hasCad = snap.cad && snap.cad.previewData;
-  const hasImg = snap.img && snap.img.src;
+  const hasImg = snap.img && (snap.img.src || snap.img.imageUrl || snap.img.frameId);
   if(!hasCad && !hasImg) return;
   try{
     LAYER_COLORS = snap.layerColors || {};
@@ -708,11 +758,22 @@ async function restoreSession(){
     // 恢复图片模式
     if(hasImg){
       const im=snap.img;
-      await new Promise(r=>{ const img=new Image(); img.onload=()=>{imgState.imageObj=img;r();}; img.onerror=()=>r(); img.src=im.src; });
+      const restoredSource=im.imageUrl||(im.frameId?`/api/v2/spatial-frames/${encodeURIComponent(im.frameId)}/image`:im.src);
+      await new Promise(r=>{ const img=new Image(); img.onload=()=>{imgState.imageObj=img;r();}; img.onerror=()=>r(); img.src=restoredSource; });
+      imgState.imageUrl=im.imageUrl||restoredSource;
+      imgState.frameId=im.frameId||'';
+      imgState.draftRevision=Number(im.draftRevision||0);
+      imgState.calibrationRevision=Number(im.calibrationRevision||0);
+      imgState.persistStatus=im.persistStatus||'draft';
+      imgState.frameName=im.frameName||im.sourceName||'图片空间底图';
+      imgState.floor=Number(im.floor||1);
+      imgState.floorId=im.floorId||`floor-${imgState.floor}`;
+      imgState.ueLevel=im.ueLevel||'';
+      imgState.floorReferenceAnchorId=im.floorReferenceAnchorId||'';
       imgState.sourceName=im.sourceName||'restored-image';
       imgState.sourceKey=im.sourceKey||imgState.sourceName;
       imgState.imgW=im.imgW; imgState.imgH=im.imgH;
-      imgState.anchors=im.anchors||[]; imgState.matrix=im.matrix||null; imgState.metrics=im.metrics||null;
+      imgState.anchors=(im.anchors||[]).map(imgNormalizeAnchor); imgState.matrix=im.matrix||null; imgState.metrics=im.metrics||null;
       imgState.markers=im.markers||[]; imgState.currentStep=im.currentStep||1;
     }
     // 恢复 CAD 模式
@@ -735,6 +796,8 @@ async function restoreSession(){
       document.querySelector('#imgPanels .upload-zone').style.display='none';
       document.getElementById('btnReset').style.display='';
       imgRenderAnchorList();
+      imgSyncFrameForm();
+      imgRenderPersistStatus();
       imgRenderMarkerList();
       if(imgState.matrix){ imgRenderMetrics(); document.getElementById('imgBtnToStep2').style.display=''; }
       imgGoToStep(imgState.currentStep||1);
@@ -766,6 +829,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
   // M4: 加载激活数据集，刷新 header 与写入策略 UI
   await loadActiveDataset(true);
+  await imgRefreshFrameList();
   // U6: 自动恢复上次未完成的工作（若有）
   await restoreSession();
 });
@@ -1073,6 +1137,7 @@ function syncToolbarUI() {
 // ── Canvas ──
 const canvas = document.getElementById('mainCanvas');
 const ctx = canvas.getContext('2d');
+const SpatialCanvas = window.OntoTwinSpatialCanvas;
 let camX = 0, camY = 0, camScale = 1;
 let isDragging = false, dragStartX = 0, dragStartY = 0, camStartX = 0, camStartY = 0;
 
@@ -1099,40 +1164,32 @@ setTimeout(resizeCanvas, 50);
 // 让标定画布看起来与 UE 顶视图同向，打点 1:1，无需脑内旋转。锚点点击经 s2w 反算回真 CAD。
 let DisplayM = [[1,0],[0,1]], DisplayMInv = [[1,0],[0,1]];
 function _buildDisplayM(disp) {
-  disp = disp || {};
-  const am = disp.axis_map || {x:'+x', y:'+y'};
-  const av = s => [ String(s).endsWith('x') ? 0 : 1, String(s).startsWith('-') ? -1 : 1 ];
-  const [ix,sxg] = av(am.x||'+x'), [iy,syg] = av(am.y||'+y');
-  const axis = [[0,0],[0,0]]; axis[0][ix] = sxg; axis[1][iy] = syg;
-  const flip = disp.flip ? [[-1,0],[0,1]] : [[1,0],[0,1]];
-  const th = (disp.rotation_deg||0) * Math.PI/180;
-  const rot = [[Math.cos(th),-Math.sin(th)],[Math.sin(th),Math.cos(th)]];
-  const mul = (a,b)=>[[a[0][0]*b[0][0]+a[0][1]*b[1][0], a[0][0]*b[0][1]+a[0][1]*b[1][1]],
-                      [a[1][0]*b[0][0]+a[1][1]*b[1][0], a[1][0]*b[0][1]+a[1][1]*b[1][1]]];
-  return mul(rot, mul(flip, axis));
+  return SpatialCanvas.buildDisplayMatrix(disp);
 }
 function setDisplayOrient(disp) {
   DisplayM = _buildDisplayM(disp);
-  const det = (DisplayM[0][0]*DisplayM[1][1] - DisplayM[0][1]*DisplayM[1][0]) || 1;
-  DisplayMInv = [[DisplayM[1][1]/det, -DisplayM[0][1]/det], [-DisplayM[1][0]/det, DisplayM[0][0]/det]];
+  DisplayMInv = SpatialCanvas.invert2(DisplayM);
 }
-function _orient(m, sx, sy) {
-  const cx = canvas.width/devicePixelRatio/2, cy = canvas.height/devicePixelRatio/2;
-  const dx = sx-cx, dy = sy-cy;
-  return [m[0][0]*dx + m[0][1]*dy + cx, m[1][0]*dx + m[1][1]*dy + cy];
+function _viewportOptions(cx=camX, cy=camY, scale=camScale) {
+  return {
+    cameraX:cx,
+    cameraY:cy,
+    scale,
+    displayMatrix:DisplayM,
+    displayMatrixInverse:DisplayMInv,
+    canvasWidth:canvas.width/devicePixelRatio,
+    canvasHeight:canvas.height/devicePixelRatio,
+  };
 }
 // World to screen (Y 翻转: CAD的Y向上 → 屏幕的Y向下) + 显示朝向
 function w2s(wx, wy) {
-  const sx = (wx - camX) * camScale + canvas.width / devicePixelRatio / 2;
-  const sy = -(wy - camY) * camScale + canvas.height / devicePixelRatio / 2;
-  return _orient(DisplayM, sx, sy);
+  const project = State.mode === 'image' ? SpatialCanvas.imageToScreen : SpatialCanvas.worldToScreen;
+  return project([wx, wy], _viewportOptions());
 }
 // Screen to world（先撤显示朝向，再相机反投影）
 function s2w(sx, sy, cx = camX, cy = camY, scale = camScale) {
-  const p = _orient(DisplayMInv, sx, sy);
-  const wx = (p[0] - canvas.width / devicePixelRatio / 2) / scale + cx;
-  const wy = -(p[1] - canvas.height / devicePixelRatio / 2) / scale + cy;
-  return [wx, wy];
+  const unproject = State.mode === 'image' ? SpatialCanvas.screenToImage : SpatialCanvas.screenToWorld;
+  return unproject([sx, sy], _viewportOptions(cx, cy, scale));
 }
 
 // ── 3.1 空间剖面：画布朝向声明（读/写 /spatial/profile） ──
@@ -1220,10 +1277,12 @@ canvas.addEventListener('wheel', e => {
   e.preventDefault();
   const zoomSpeed = 0.0015;
   const factor = Math.exp(-e.deltaY * zoomSpeed);
-  const [wx, wy] = s2w(e.offsetX, e.offsetY);
-  camScale = Math.max(0.00001, Math.min(10000, camScale * factor));
-  camX = wx - (e.offsetX - canvas.width / devicePixelRatio / 2) / camScale;
-  camY = wy + (e.offsetY - canvas.height / devicePixelRatio / 2) / camScale;
+  const before = s2w(e.offsetX, e.offsetY);
+  const nextScale = Math.max(0.00001, Math.min(10000, camScale * factor));
+  const after = s2w(e.offsetX, e.offsetY, camX, camY, nextScale);
+  camScale = nextScale;
+  camX += before[0] - after[0];
+  camY += before[1] - after[1];
   draw();
   updateCanvasInfo(e);
 }, {passive:false});
@@ -1330,7 +1389,7 @@ function updateCanvasInfo(e) {
   
   const [adjX, adjY] = AlignAssist.getAdjustedCoord(wx, wy);
   document.getElementById('canvasInfo').textContent =
-    `缩放: ${(camScale*100).toFixed(0)}% | CAD: (${adjX.toFixed(1)}, ${adjY.toFixed(1)})${adjStr}`;
+    `缩放: ${(camScale*100).toFixed(0)}% | ${State.mode === 'image' ? '图片像素' : 'CAD'}: (${adjX.toFixed(1)}, ${adjY.toFixed(1)})${adjStr}`;
 }
 
 function fitView() {
@@ -1344,9 +1403,17 @@ function fitView() {
     camX = (b.min[0]+b.max[0]) / 2;
     camY = (b.min[1]+b.max[1]) / 2;
   } else if (State.mode === 'image' && imgState.imageObj) {
-    camScale = Math.max(0.00001, Math.min(cw / imgState.imgW, ch / imgState.imgH) * 0.95);
-    camX = imgState.imgW / 2;
-    camY = imgState.imgH / 2;
+    const fit = SpatialCanvas.fitImage({
+      canvasWidth:cw,
+      canvasHeight:ch,
+      imageWidth:imgState.imgW,
+      imageHeight:imgState.imgH,
+      displayMatrix:DisplayM,
+      padding:.95,
+    });
+    camScale = fit.scale;
+    camX = fit.cameraX;
+    camY = fit.cameraY;
   }
   draw();
   updateCanvasInfo({offsetX: cw/2, offsetY: ch/2});
@@ -2773,7 +2840,10 @@ function resetAll() {
     if (ca) ca.style.display = '';
     goToStep(1); draw();
   } else {
-    imgState.imageObj = null; imgState.sourceName = ''; imgState.sourceKey = ''; imgState.imgW = 0; imgState.imgH = 0;
+    imgState.imageObj = null; imgState.imageUrl=''; imgState.frameId=''; imgState.draftRevision=0;
+    imgState.calibrationRevision=0; imgState.persistStatus='draft'; imgState.frameName='';
+    imgState.floor=1; imgState.floorId='floor-1'; imgState.ueLevel=''; imgState.floorReferenceAnchorId='';
+    imgState.sourceName = ''; imgState.sourceKey = ''; imgState.imgW = 0; imgState.imgH = 0;
     imgState.anchors = []; imgState.matrix = null; imgState.metrics = null;
     imgState.markers = []; imgState.currentStep = 1;
     document.getElementById('imgAnchorPanel').style.display = 'none';
@@ -2784,6 +2854,7 @@ function resetAll() {
     document.getElementById('imgAnchorList').innerHTML = '';
     document.getElementById('markerList').innerHTML = '';
     document.getElementById('imgFileInput').value = '';
+    imgSyncFrameForm(); imgRenderPersistStatus(); imgRefreshFrameList();
     imgGoToStep(1); draw();
   }
 }
@@ -2798,7 +2869,6 @@ function switchMode(mode) {
   State.mode = mode;
   document.getElementById('modeTabCad').classList.toggle('active', mode === 'dxf');
   document.getElementById('modeTabImg').classList.toggle('active', mode === 'image');
-  document.getElementById('modeBadge').textContent = mode === 'dxf' ? 'CAD MODE' : 'IMAGE MODE';
   document.getElementById('cadPanels').style.display = mode === 'dxf' ? '' : 'none';
   document.getElementById('imgPanels').style.display = mode === 'image' ? 'flex' : 'none';
   document.getElementById('btnReset').style.display = 'none';
@@ -2810,52 +2880,202 @@ function switchMode(mode) {
 // ═══════════════════════════════════════════════════════════════
 const imgState = {
   imageObj: null,
+  imageUrl: '',
+  frameId: '',
+  draftRevision: 0,
+  calibrationRevision: 0,
+  persistStatus: 'draft',
+  frameName: '',
+  floor: 1,
+  floorId: 'floor-1',
+  ueLevel: '',
+  floorReferenceAnchorId: '',
   sourceName: '',
   sourceKey: '',
   imgW: 0, imgH: 0,
-  anchors: [],      // {pixelXY:[x,y], ueXY:[x,y]}
+  anchors: [],      // {id,pixelXY:[x,y],ueXYZ:[x,y,z]}
   matrix: null,
   metrics: null,
   markers: [],      // {pixelXY:[x,y], name:'', deviceId:''}
   currentStep: 1,
 };
 
+function imgNormalizeAnchor(anchor, index=0) {
+  const xyz=anchor?.ueXYZ||anchor?.ueXY||[0,0,0];
+  return {
+    id:String(anchor?.id||`anchor-${Date.now()}-${index+1}`),
+    pixelXY:[Number(anchor?.pixelXY?.[0]||0),Number(anchor?.pixelXY?.[1]||0)],
+    ueXYZ:[Number(xyz[0]||0),Number(xyz[1]||0),Number(xyz[2]||0)],
+  };
+}
+
+function imgMetricsFromFrame(frame) {
+  const metrics=frame?.transform?.metrics;
+  if(!metrics)return null;
+  return {
+    rmse:Number(metrics.rmse_cm||0),
+    scaleX:Number(metrics.scale_x||0),
+    scaleY:Number(metrics.scale_y||0),
+    scaleConsistencyPct:Number(metrics.scale_consistency_pct||0),
+    perAnchorResiduals:(metrics.per_anchor_residuals||[]).map(item=>Number(item.residual_cm||0)),
+  };
+}
+
+function imgSyncFrameForm() {
+  const name=document.getElementById('imgFrameName');
+  const floor=document.getElementById('imgFrameFloor');
+  const level=document.getElementById('imgFrameLevel');
+  if(name)name.value=imgState.frameName||imgState.sourceName||'';
+  if(floor)floor.value=imgState.floor||1;
+  if(level)level.value=imgState.ueLevel||'';
+}
+
+function imgUpdateFrameField(field,value) {
+  if(field==='name')imgState.frameName=String(value||'');
+  if(field==='ueLevel')imgState.ueLevel=String(value||'');
+  if(field==='floor'){
+    const floor=Math.max(1,Math.min(10000,Number(value)||1));
+    imgState.floor=floor;imgState.floorId=`floor-${floor}`;
+  }
+  imgState.persistStatus='draft';
+  imgRenderPersistStatus();
+  scheduleSave();
+}
+
+function imgRenderPersistStatus() {
+  const el=document.getElementById('imgPersistStatus');
+  if(!el)return;
+  const published=imgState.persistStatus==='published';
+  el.className='image-persist-status '+(published?'published':'draft');
+  el.innerHTML=`<span class="dot ${published?'dot-ok':'dot-warn'}"></span><span>${published
+    ? `已发布 · 标定版本 ${Number(imgState.calibrationRevision||0)}`
+    : `标定草稿 · 草稿版本 ${Number(imgState.draftRevision||0)}`}</span>`;
+  const canCalibrate=imgState.anchors.length>=3;
+  const save=document.getElementById('imgSaveDraftBtn');
+  const publish=document.getElementById('imgPublishBtn');
+  const routes=document.getElementById('imgGoRoutesBtn');
+  if(save)save.disabled=!imgState.frameId||!canCalibrate;
+  if(publish)publish.disabled=!imgState.frameId||!canCalibrate||!imgState.matrix||!imgState.floorReferenceAnchorId||!imgState.ueLevel.trim();
+  if(routes)routes.style.display=published?'':'none';
+}
+
+function imgGoToRoutes(){
+  const frameId=encodeURIComponent(imgState.frameId||'');
+  location.assign(`/interaction?nexus=true&feature=routes${frameId?`&frame_id=${frameId}`:''}`);
+}
+
+async function imgRefreshFrameList(selectedId='') {
+  const select=document.getElementById('imgFrameSelect');
+  const button=document.getElementById('imgLoadFrameBtn');
+  if(!select||!button)return;
+  try{
+    const res=await fetch('/api/v2/spatial-frames');
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.message||data.error||'加载失败');
+    const frames=data.frames||[];
+    select.innerHTML='';
+    if(!frames.length){
+      const option=document.createElement('option');option.value='';option.textContent='暂无已保存底图';select.appendChild(option);
+      button.disabled=true;return;
+    }
+    frames.forEach(frame=>{
+      const option=document.createElement('option');option.value=frame.id;
+      option.textContent=`${frame.name||frame.id} · ${frame.status==='published'?'已发布':'草稿'} · 第 ${frame.floor||1} 层`;
+      select.appendChild(option);
+    });
+    select.value=selectedId||imgState.frameId||frames[0].id;
+    button.disabled=!select.value;
+    select.onchange=()=>{button.disabled=!select.value;};
+  }catch(error){
+    select.innerHTML='<option value="">底图列表加载失败</option>';button.disabled=true;
+    console.warn('空间底图列表加载失败',error);
+  }
+}
+
+async function imgLoadImageSource(source) {
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>resolve(img);
+    img.onerror=()=>reject(new Error('服务器图片无法读取'));
+    img.src=source+(source.includes('?')?'&':'?')+'v='+Date.now();
+  });
+}
+
+async function imgApplyFrame(frame) {
+  const imageUrl=frame.image_url||`/api/v2/spatial-frames/${encodeURIComponent(frame.id)}/image`;
+  const image=await imgLoadImageSource(imageUrl);
+  imgState.imageObj=image;
+  imgState.imageUrl=imageUrl;
+  imgState.frameId=frame.id;
+  imgState.draftRevision=Number(frame.draft_revision||0);
+  imgState.calibrationRevision=Number(frame.calibration_revision||0);
+  imgState.persistStatus=frame.status||'draft';
+  imgState.frameName=frame.name||frame.image?.original_name||frame.id;
+  imgState.floor=Number(frame.floor||1);
+  imgState.floorId=frame.floor_id||`floor-${imgState.floor}`;
+  imgState.ueLevel=frame.ue_level||'';
+  imgState.sourceName=frame.image?.original_name||frame.name||frame.id;
+  imgState.sourceKey=frame.image?.sha256||frame.id;
+  imgState.imgW=Number(frame.image?.width_px||image.naturalWidth);
+  imgState.imgH=Number(frame.image?.height_px||image.naturalHeight);
+  imgState.anchors=(frame.anchors||[]).map((anchor,index)=>imgNormalizeAnchor({
+    id:anchor.id,pixelXY:anchor.source_px,ueXYZ:anchor.ue_world_cm,
+  },index));
+  imgState.floorReferenceAnchorId=frame.floor_reference?.captured_from_anchor_id||'';
+  imgState.matrix=frame.to_ue?.matrix||null;
+  imgState.metrics=imgMetricsFromFrame(frame);
+  imgState.markers=[];
+  imgState.currentStep=1;
+  document.getElementById('imgAnchorPanel').style.display='';
+  document.querySelector('#imgPanels .upload-zone').style.display='none';
+  document.getElementById('btnReset').style.display='';
+  imgSyncFrameForm();imgRenderAnchorList();imgRenderMarkerList();imgRenderPersistStatus();
+  if(imgState.metrics)imgRenderMetrics();
+  else document.getElementById('imgMetricsPanel').style.display='none';
+  document.getElementById('imgBtnToStep2').style.display=imgState.matrix?'':'none';
+  imgGoToStep(1);
+  camX=imgState.imgW/2;camY=imgState.imgH/2;fitView();scheduleSave();
+}
+
+async function imgLoadSelectedFrame() {
+  const frameId=document.getElementById('imgFrameSelect')?.value;
+  if(!frameId)return;
+  const button=document.getElementById('imgLoadFrameBtn');
+  if(button){button.disabled=true;button.textContent='加载中';}
+  try{
+    const res=await fetch(`/api/v2/spatial-frames/${encodeURIComponent(frameId)}`);
+    const frame=await res.json();
+    if(!res.ok)throw new Error(frame.message||frame.error||'加载失败');
+    await imgApplyFrame(frame);
+    toast('空间底图已加载','ok');
+  }catch(error){toast('加载失败：'+error.message,'err');}
+  finally{if(button){button.disabled=false;button.textContent='加载';}}
+}
+
 // ── Image Upload ──
-function imgHandleUpload(e) {
+async function imgHandleUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
-  imgState.sourceName = file.name || `image-${Date.now()}`;
-  imgState.sourceKey = `${imgState.sourceName}|${file.size || 0}|${file.lastModified || 0}`;
-  const reader = new FileReader();
-  reader.onload = function(ev) {
-    const img = new Image();
-    img.onload = function() {
-      // A newly selected image starts a new draft. Never carry cached points
-      // from the previous image into the new canvas.
-      imgState.anchors = [];
-      imgState.matrix = null;
-      imgState.metrics = null;
-      imgState.markers = [];
-      imgState.currentStep = 1;
-      imgState.imageObj = img;
-      imgState.imgW = img.naturalWidth;
-      imgState.imgH = img.naturalHeight;
-      document.getElementById('imgAnchorPanel').style.display = '';
-      document.querySelector('#imgPanels .upload-zone').style.display = 'none';
-      document.getElementById('btnReset').style.display = '';
-      document.getElementById('imgMetricsPanel').style.display = 'none';
-      document.getElementById('imgBtnToStep2').style.display = 'none';
-      imgRenderAnchorList();
-      imgRenderMarkerList();
-      imgGoToStep(1);
-      camX = imgState.imgW / 2;
-      camY = imgState.imgH / 2;
-      fitView();
-      scheduleSave();
-    };
-    img.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
+  const uploadZone=document.querySelector('#imgPanels .upload-zone');
+  uploadZone.style.pointerEvents='none';uploadZone.style.opacity='.55';
+  try{
+    const form=new FormData();
+    form.append('file',file);
+    form.append('name',file.name||`image-${Date.now()}`);
+    form.append('floor','1');
+    form.append('floor_id','floor-1');
+    const res=await fetch('/api/v2/spatial-frames/assets',{method:'POST',body:form});
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.message||data.error||'上传失败');
+    await imgApplyFrame(data.frame);
+    await imgRefreshFrameList(data.frame.id);
+    toast('图片已保存为项目标定草稿','ok');
+  }catch(error){
+    e.target.value='';
+    toast('图片上传失败：'+error.message,'err');
+  }finally{
+    uploadZone.style.pointerEvents='';uploadZone.style.opacity='';
+  }
 }
 
 // ── Image Step Navigation ──
@@ -2889,8 +3109,18 @@ function imgGoToStep(n) {
 
 // ── Image Anchors ──
 function imgAddAnchor(wx, wy) {
-  imgState.anchors.push({ pixelXY: [Math.round(wx), Math.round(wy)], ueXY: [0, 0] });
+  if (wx < 0 || wy < 0 || wx > imgState.imgW || wy > imgState.imgH) {
+    toast('请在图片范围内放置标定锚点', 'warn');
+    return;
+  }
+  imgState.anchors.push({
+    id:`anchor-${Date.now()}-${imgState.anchors.length+1}`,
+    pixelXY:[Math.round(wx),Math.round(wy)],
+    ueXYZ:[0,0,0],
+  });
+  imgState.persistStatus='draft';
   imgRenderAnchorList();
+  imgRenderPersistStatus();
   draw();
   scheduleSave();
 }
@@ -2906,26 +3136,40 @@ function imgRenderAnchorList() {
     div.innerHTML = `<span class="idx">#${i+1}</span>
       <span style="font-size:10px;color:var(--text-soft)">PX(${a.pixelXY[0]},${a.pixelXY[1]})</span>
       <span style="font-size:10px">UE:</span>
-      <input type="number" value="${a.ueXY[0]}" onchange="imgUpdateAnchorUE(${i},0,this.value)" placeholder="X">
-      <input type="number" value="${a.ueXY[1]}" onchange="imgUpdateAnchorUE(${i},1,this.value)" placeholder="Y">
+      <input type="number" value="${a.ueXYZ[0]}" onchange="imgUpdateAnchorUE(${i},0,this.value)" placeholder="X" data-tip="UE X，单位 cm">
+      <input type="number" value="${a.ueXYZ[1]}" onchange="imgUpdateAnchorUE(${i},1,this.value)" placeholder="Y" data-tip="UE Y，单位 cm">
+      <input type="number" value="${a.ueXYZ[2]}" onchange="imgUpdateAnchorUE(${i},2,this.value)" placeholder="Z" data-tip="UE 地面 Z，单位 cm">
+      <label class="image-anchor-reference"><input type="radio" name="imgFloorReference" ${imgState.floorReferenceAnchorId===a.id?'checked':''} onchange="imgSelectFloorReference('${a.id}')">地面</label>
       <span class="residual">${res !== null ? res+'cm' : ''}</span>
       <span class="del-btn" onclick="imgDeleteAnchor(${i})" data-tip="删除锚点"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span>`;
     el.appendChild(div);
   });
-  document.getElementById('imgBtnCalibrate').disabled = imgState.anchors.length < 2;
+  document.getElementById('imgBtnCalibrate').disabled = imgState.anchors.length < 3;
   document.getElementById('imgBtnCalibrate').textContent =
-    imgState.anchors.length < 2 ? '计算变换（至少 2 个锚点）' : `计算变换（${imgState.anchors.length} 个锚点）`;
+    imgState.anchors.length < 3 ? '计算变换（至少 3 个锚点）' : `计算变换（${imgState.anchors.length} 个锚点）`;
+  imgRenderPersistStatus();
 }
 
 function imgUpdateAnchorUE(idx, axis, val) {
-  imgState.anchors[idx].ueXY[axis] = parseFloat(val) || 0;
+  imgState.anchors[idx].ueXYZ[axis] = parseFloat(val) || 0;
+  imgState.persistStatus='draft';
   if (imgState.matrix) imgDoCalibrate();
-  else scheduleSave();
+  else {imgRenderPersistStatus();scheduleSave();}
+}
+
+function imgSelectFloorReference(anchorId) {
+  imgState.floorReferenceAnchorId=anchorId;
+  imgState.persistStatus='draft';
+  imgRenderPersistStatus();
+  scheduleSave();
 }
 
 function imgDeleteAnchor(idx) {
+  const removed=imgState.anchors[idx];
   imgState.anchors.splice(idx, 1);
-  if (imgState.anchors.length >= 2) imgDoCalibrate();
+  if(removed&&removed.id===imgState.floorReferenceAnchorId)imgState.floorReferenceAnchorId='';
+  imgState.persistStatus='draft';
+  if (imgState.anchors.length >= 3) imgDoCalibrate();
   else {
     imgState.matrix = null; imgState.metrics = null;
     document.getElementById('imgMetricsPanel').style.display = 'none';
@@ -2938,10 +3182,11 @@ function imgDeleteAnchor(idx) {
 function imgDoCalibrate() {
   try {
     const src = imgState.anchors.map(a => a.pixelXY);
-    const dst = imgState.anchors.map(a => a.ueXY);
+    const dst = imgState.anchors.map(a => a.ueXYZ.slice(0,2));
     const result = CoordTransform.calibrate(src, dst);
     imgState.matrix = result.matrix;
     imgState.metrics = result;
+    imgState.persistStatus='draft';
     imgRenderMetrics();
     imgRenderAnchorList();
     draw();
@@ -2956,8 +3201,8 @@ function imgRenderMetrics() {
   const mp = document.getElementById('imgMetricsPanel');
   mp.style.display = '';
   let statusClass, statusText;
-  if (m.rmse < 50) { statusClass='status-ok'; statusText='合格'; }
-  else if (m.rmse < 200) { statusClass='status-warn'; statusText='偏大'; }
+  if (m.rmse <= 20) { statusClass='status-ok'; statusText='可发布'; }
+  else if (m.rmse <= 50) { statusClass='status-warn'; statusText='需要调整'; }
   else { statusClass='status-err'; statusText='不可用'; }
   mp.innerHTML = `<div class="metrics-card">
     <div class="rmse-label">RMSE 残差</div>
@@ -2965,11 +3210,72 @@ function imgRenderMetrics() {
     <span class="status-badge ${statusClass}">${statusText}</span>
     <div class="scale-info">缩放 X: ${m.scaleX} | Y: ${m.scaleY} | 一致性: ${m.scaleConsistencyPct}%</div>
   </div>`;
-  document.getElementById('imgBtnToStep2').style.display = (m.rmse < 200) ? '' : 'none';
+  document.getElementById('imgBtnToStep2').style.display = (m.rmse <= 20) ? '' : 'none';
+  imgRenderPersistStatus();
+}
+
+async function imgSaveFrameDraft(publishAfter=false) {
+  if(!imgState.frameId){toast('请先上传并保存图片','warn');return;}
+  if(imgState.anchors.length<3||!imgState.matrix){toast('请先使用至少 3 个不共线锚点计算变换','warn');return;}
+  if(publishAfter&&!imgState.floorReferenceAnchorId){toast('请选择一个实际地面锚点作为 Z 基准','warn');return;}
+  if(publishAfter&&!imgState.ueLevel.trim()){toast('发布前请填写绑定的 UE Level','warn');return;}
+  const saveButton=document.getElementById('imgSaveDraftBtn');
+  const publishButton=document.getElementById('imgPublishBtn');
+  const activeButton=publishAfter?publishButton:saveButton;
+  const oldText=activeButton.textContent;
+  activeButton.disabled=true;activeButton.textContent=publishAfter?'发布中':'保存中';
+  try{
+    const payload={
+      expected_draft_revision:imgState.draftRevision,
+      name:imgState.frameName||imgState.sourceName||'图片空间底图',
+      floor:imgState.floor,
+      floor_id:imgState.floorId,
+      ue_level:imgState.ueLevel.trim(),
+      floor_reference_anchor_id:imgState.floorReferenceAnchorId||null,
+      anchors:imgState.anchors.map(anchor=>({
+        id:anchor.id,
+        source_px:anchor.pixelXY.map(Number),
+        ue_world_cm:anchor.ueXYZ.map(Number),
+      })),
+    };
+    const draftRes=await fetch(`/api/v2/spatial-frames/${encodeURIComponent(imgState.frameId)}/draft`,{
+      method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),
+    });
+    const draftData=await draftRes.json();
+    if(!draftRes.ok)throw new Error(draftData.message||draftData.error||'草稿保存失败');
+    const draft=draftData.frame;
+    imgState.draftRevision=Number(draft.draft_revision||0);
+    imgState.persistStatus=draft.status||'draft';
+    imgState.matrix=draft.to_ue?.matrix||imgState.matrix;
+    imgState.metrics=imgMetricsFromFrame(draft)||imgState.metrics;
+    if(!publishAfter){
+      imgRenderPersistStatus();imgRenderMetrics();await imgRefreshFrameList(imgState.frameId);
+      toast('标定草稿已保存','ok');scheduleSave();return;
+    }
+    const publishRes=await fetch(`/api/v2/spatial-frames/${encodeURIComponent(imgState.frameId)}/publish`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({expected_draft_revision:imgState.draftRevision}),
+    });
+    const publishData=await publishRes.json();
+    if(!publishRes.ok)throw new Error(publishData.message||publishData.error||'发布失败');
+    const published=publishData.frame;
+    imgState.persistStatus='published';
+    imgState.calibrationRevision=Number(published.calibration_revision||0);
+    imgState.draftRevision=Number(published.draft_revision||imgState.draftRevision);
+    imgRenderPersistStatus();
+    await imgRefreshFrameList(imgState.frameId);
+    toast('空间底图已发布，可用于人物漫游路线','ok',4200);
+    scheduleSave();
+  }catch(error){toast((publishAfter?'发布失败：':'保存失败：')+error.message,'err');}
+  finally{activeButton.textContent=oldText;imgRenderPersistStatus();}
 }
 
 // ── Image Markers ──
 function imgAddMarker(wx, wy) {
+  if (wx < 0 || wy < 0 || wx > imgState.imgW || wy > imgState.imgH) {
+    toast('请在图片范围内放置构件标记', 'warn');
+    return;
+  }
   imgState.markers.push({ pixelXY: [Math.round(wx), Math.round(wy)], name: '', deviceId: '', type: '' });
   imgRenderMarkerList();
   draw();
@@ -3075,10 +3381,7 @@ draw = function() {
   if (State.mode === 'image') {
     // Draw image
     if (imgState.imageObj) {
-      const [sx, sy] = w2s(0, 0);
-      const sw = imgState.imgW * camScale;
-      const sh = imgState.imgH * camScale;
-      ctx.drawImage(imgState.imageObj, sx, sy, sw, sh);
+      SpatialCanvas.drawImage(ctx, imgState.imageObj, _viewportOptions());
     }
     // Calibration anchors belong to step 1 only. Keeping them visible while
     // annotating components makes restored sessions look like duplicate marks.
@@ -3094,9 +3397,9 @@ draw = function() {
     if (imgState.currentStep >= 2) imgState.markers.forEach((m, i) => {
       const [sx, sy] = w2s(m.pixelXY[0], m.pixelXY[1]);
       ctx.beginPath(); ctx.arc(sx, sy, 7, 0, Math.PI*2);
-      ctx.fillStyle = '#ea580c44'; ctx.fill();
-      ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 2; ctx.stroke();
-      ctx.font = 'bold 10px Inter'; ctx.fillStyle = '#ea580c';
+      ctx.fillStyle = 'rgba(26,26,26,.18)'; ctx.fill();
+      ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.font = 'bold 10px Inter'; ctx.fillStyle = '#1a1a1a';
       ctx.fillText(`#${i+1}`, sx+11, sy-4);
       // UE coords label
       if (imgState.matrix) {
@@ -3143,6 +3446,7 @@ async function imgSaveComponents() {
   const payload = {
     source_label: 'image:' + (imgState.sourceKey || imgState.sourceName || document.getElementById('imgFileInput')?.files[0]?.name || `image-${Date.now()}`),
     mode: 'image',
+    frame_id: imgState.frameId || null,
     transform_matrix: imgState.matrix,
     items,
   };

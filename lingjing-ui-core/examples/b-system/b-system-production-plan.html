@@ -1,0 +1,403 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>战斗机生产计划总览 - LingJing Core</title>
+  <!-- 此处使用技能包仓库内的示例路径；若落到调用方项目，请先放入项目自己的样式目录再回写引用 -->
+
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+
+  <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+  <div class="b-layout-sidebar">
+    <!-- 侧边栏 -->
+    <aside class="b-sidebar" id="sidebar">
+      <div class="b-sidebar-header">
+        <div class="b-sidebar-logo">
+          <img src="../../assets/logo-flat.png" alt="灵境" height="32">
+        </div>
+        <span class="b-sidebar-brand">战机生产控制台</span>
+      </div>
+
+      <nav class="b-sidebar-nav b-scrollable">
+        <ul class="b-sidebar-nav-list">
+          <li class="b-sidebar-nav-item">
+            <a href="#dashboard" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="layout-dashboard"></i></span>
+              <span class="b-sidebar-nav-text">生产驾驶舱</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#plan" class="b-sidebar-nav-link active">
+              <span class="b-sidebar-nav-icon"><i data-lucide="calendar-range"></i></span>
+              <span class="b-sidebar-nav-text">生产计划总览</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#quality" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="shield-check"></i></span>
+              <span class="b-sidebar-nav-text">质检与缺陷</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#workstation" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="panel-left"></i></span>
+              <span class="b-sidebar-nav-text">工位负荷</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <div class="b-sidebar-footer">
+        <button class="b-sidebar-toggle" onclick="toggleSidebar()">
+          <span class="b-sidebar-toggle-icon"><i data-lucide="chevron-left"></i></span>
+          <span class="b-sidebar-toggle-text">收起导航</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="b-main">
+      <header class="b-header">
+        <div class="b-header-left">
+          <div class="b-breadcrumb">
+            <div class="b-breadcrumb-item">
+              <a href="#" class="b-breadcrumb-link">战机生产</a>
+              <span class="b-breadcrumb-separator">/</span>
+            </div>
+            <div class="b-breadcrumb-item">
+              <span class="b-breadcrumb-current">生产计划总览</span>
+            </div>
+          </div>
+        </div>
+        <div class="b-header-right">
+          <button class="btn-icon" title="切换主题" onclick="toggleTheme()">
+            <i data-lucide="moon"></i>
+          </button>
+          <button class="btn-icon" title="通知">
+            <i data-lucide="bell"></i>
+          </button>
+        </div>
+
+      </header>
+
+      <div class="b-content b-scrollable">
+        <!-- 高级数据表格区域 -->
+        <div class="advanced-data-table">
+            <!-- 左侧：表格与筛选 -->
+            <div class="advanced-data-table-main">
+              <!-- 表格卡片（头部集成筛选 + 操作） -->
+              <div class="card-solid">
+                <div class="table-card-header">
+                  <div class="table-card-header-actions">
+                    <button class="btn-primary">
+                      <i data-lucide="plus"></i>
+                      <span>新建工单</span>
+                    </button>
+                    <span class="table-toolbar-meta">当前批次：2026-Q2 · 计划工单 24 条</span>
+                  </div>
+                  <div class="filter-bar">
+                    <div class="filter-bar-main">
+                      <input class="search-input" type="text" placeholder="搜索工单号、机号 or 批次…" />
+                      <select class="filter-select">
+                        <option>全部机型</option>
+                        <option>JX-21A</option>
+                        <option>JX-21B</option>
+                      </select>
+                      <select class="filter-select">
+                        <option>全部工段</option>
+                        <option>机体装配</option>
+                        <option>航电集成</option>
+                        <option>发动机安装</option>
+                      </select>
+                    </div>
+                    <div class="filter-bar-extra">
+                      <button class="btn-outline">
+                        <i data-lucide="sliders-horizontal"></i>
+                        <span>更多筛选</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="data-table-container">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          <input type="checkbox" aria-label="全选工单" />
+                        </th>
+                        <th>工单号</th>
+                        <th>机号</th>
+                        <th>机型</th>
+                        <th>批次</th>
+                        <th>当前工段</th>
+                        <th>状态</th>
+                        <th>计划开始</th>
+                        <th>计划完成</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><input type="checkbox" /></td>
+                        <td>WO-2026-001</td>
+                        <td>JX-21A-013</td>
+                        <td>JX-21A</td>
+                        <td>试制批</td>
+                        <td>机体装配</td>
+                        <td>
+                          <span class="badge success">按计划</span>
+                        </td>
+                        <td>2026-03-01</td>
+                        <td>2026-04-15</td>
+                      </tr>
+                      <tr>
+                        <td><input type="checkbox" /></td>
+                        <td>WO-2026-008</td>
+                        <td>JX-21B-004</td>
+                        <td>JX-21B</td>
+                        <td>首批量产</td>
+                        <td>航电集成</td>
+                        <td>
+                          <span class="badge warning">存在风险</span>
+                        </td>
+                        <td>2026-02-18</td>
+                        <td>2026-04-30</td>
+                      </tr>
+                      <tr>
+                        <td><input type="checkbox" /></td>
+                        <td>WO-2026-012</td>
+                        <td>JX-21A-017</td>
+                        <td>JX-21A</td>
+                        <td>验证批</td>
+                        <td>发动机安装</td>
+                        <td>
+                          <span class="badge-secondary">待开工</span>
+                        </td>
+                        <td>2026-03-20</td>
+                        <td>2026-05-05</td>
+                      </tr>
+                      <tr>
+                        <td><input type="checkbox" /></td>
+                        <td>WO-2026-015</td>
+                        <td>JX-21B-006</td>
+                        <td>JX-21B</td>
+                        <td>小批试产</td>
+                        <td>结构件加工</td>
+                        <td>
+                          <span class="badge danger">已滞后</span>
+                        </td>
+                        <td>2026-02-01</td>
+                        <td>2026-03-20</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- 底部分页 -->
+                <div class="pagination mt-md">
+                  <button class="nav-pagination-item"><i data-lucide="chevron-left"></i></button>
+                  <button class="nav-pagination-item active">1</button>
+                  <button class="nav-pagination-item">2</button>
+                  <button class="nav-pagination-item">3</button>
+                  <button class="nav-pagination-item"><i data-lucide="chevron-right"></i></button>
+                </div>
+              </div>
+
+              <!-- 批量操作条（示意） -->
+              <div class="batch-action-bar">
+                <div class="batch-action-bar-inner">
+                  <div class="batch-action-summary">
+                    <span class="batch-action-counter">已选中 2 条工单</span>
+                    <span>可进行批量调整或锁定计划。</span>
+                  </div>
+                  <div class="batch-action-actions">
+                    <button class="btn-ghost">
+                      <i data-lucide="calendar-clock"></i>
+                      <span>调整计划完成时间</span>
+                    </button>
+                    <div class="batch-action-actions-right">
+                      <button class="btn-outline">
+                        <i data-lucide="alert-triangle"></i>
+                        <span>标记为重点跟踪</span>
+                      </button>
+                      <button class="btn-primary">
+                        <i data-lucide="lock"></i>
+                        <span>锁定排产</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- 右侧：筛选与详情 -->
+            <div class="advanced-data-table-side">
+              <div class="filter-panel">
+                <div class="filter-panel-header">
+                  <div>
+                    <div class="filter-panel-title">生产筛选条件</div>
+                    <div>快速缩小关注范围</div>
+                  </div>
+                  <button class="btn-text">清空</button>
+                </div>
+                <div class="filter-panel-body">
+                  <label class="form-group">
+                    <span class="form-label">批次</span>
+                    <select class="form-select">
+                      <option>全部批次</option>
+                      <option>试制批</option>
+                      <option>验证批</option>
+                      <option>小批试产</option>
+                    </select>
+                  </label>
+                  <label class="form-group">
+                    <span class="form-label">状态</span>
+                    <select class="form-select">
+                      <option>全部状态</option>
+                      <option>按计划</option>
+                      <option>存在风险</option>
+                      <option>已滞后</option>
+                      <option>待开工</option>
+                    </select>
+                  </label>
+                  <label class="form-group">
+                    <span class="form-label">计划完成时间</span>
+                    <input type="date" class="form-input" />
+                  </label>
+                </div>
+                <div class="filter-panel-footer">
+                  <button class="btn-outline">重置</button>
+                  <button class="btn-primary">应用筛选</button>
+                </div>
+              </div>
+
+              <div class="detail-panel">
+                <div class="detail-panel-header">
+                  <div>
+                    <div class="detail-panel-title">工单 WO-2026-008</div>
+                    <div class="detail-panel__meta">JX-21B-004 · 航电集成 · 首批量产</div>
+                  </div>
+                  <span class="badge warning">存在风险</span>
+                </div>
+                <div class="detail-panel__body">
+                  <div class="status-timeline">
+                  <div class="status-timeline-item">
+                    <div class="status-timeline-dot"></div>
+                    <div class="status-timeline-content">
+                      <div class="status-timeline-title">结构件加工完成</div>
+                      <div class="status-timeline-time">2026-01-12 · 提前 3 天完成</div>
+                      <div class="text-secondary">关键承力结构件加工结束，质检通过。</div>
+                    </div>
+                  </div>
+                  <div class="status-timeline-item">
+                    <div class="status-timeline-dot"></div>
+                    <div class="status-timeline-content">
+                      <div class="status-timeline-title">机体装配完成</div>
+                      <div class="status-timeline-time">2026-02-05 · 按计划</div>
+                      <div class="text-secondary">机体总装完成，进入航电集成准备阶段。</div>
+                    </div>
+                  </div>
+                  <div class="status-timeline-item">
+                    <div class="status-timeline-dot"></div>
+                    <div class="status-timeline-content">
+                      <div class="status-timeline-title">航电集成进行中</div>
+                      <div class="status-timeline-time">当前阶段 · 预计延迟 5 天</div>
+                      <div class="text-secondary">部分关键部件交付延迟，需要重新评估排产。</div>
+                    </div>
+                  </div>
+
+                  </div>
+                </div>
+                <div class="detail-panel-footer">
+                  <button class="btn-outline">查看工艺路线</button>
+                  <button class="btn-primary">调整阶段计划</button>
+                </div>
+
+              </div>
+
+              <div class="checklist-panel">
+                <div class="checklist-panel-header">
+                  <div>
+                    <div class="checklist-panel-title">航电集成前置检查</div>
+                    <div class="checklist-panel-meta">确保进入当前工段前的关键条件满足</div>
+                  </div>
+                </div>
+                <ul class="checklist-panel-list">
+                  <li class="checklist-panel-item">
+                    <input type="checkbox" checked />
+                    <span>机体结构件全部通过超声 / X 光检测</span>
+                  </li>
+                  <li class="checklist-panel-item">
+                    <input type="checkbox" checked />
+                    <span>线缆束装配工装校验完成</span>
+                  </li>
+                  <li class="checklist-panel-item">
+                    <input type="checkbox" />
+                    <span>关键航电部件到料齐套</span>
+                  </li>
+                  <li class="checklist-panel-item">
+                    <input type="checkbox" />
+                    <span>工艺变更单评审通过</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="comparison-card">
+                <div>
+                  <div class="comparison-card-column-title">当前批次 · 计划 vs 实际</div>
+                  <div class="comparison-card-metric">
+                    <span class="comparison-card-label">平均工单延误</span>
+                    <span class="comparison-card-value">+3.2 天</span>
+                  </div>
+                  <div class="comparison-card-metric">
+                    <span class="comparison-card-label">按期完成率</span>
+                    <span class="comparison-card-value">82%</span>
+                  </div>
+                </div>
+                <div>
+                  <div class="comparison-card-column-title">上一批次 · 参考</div>
+                  <div class="comparison-card-metric">
+                    <span class="comparison-card-label">平均工单延误</span>
+                    <span class="comparison-card-value">+1.1 天</span>
+                  </div>
+                  <div class="comparison-card-metric">
+                    <span class="comparison-card-label">按期完成率</span>
+                    <span class="comparison-card-value">91%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function toggleSidebar() {
+      var sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('collapsed');
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+    }
+
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+
+    if (window.lucide) {
+      window.lucide.createIcons();
+    }
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,70 @@
+# OS files
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+.venv/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.eslintcache
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.next/
+.nuxt/
+.output/
+out/
+
+# Cache
+.cache/
+.parcel-cache/
+.turbo/
+.vite/
+.nyc_output/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Test
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
+
+# AI Tool Work Directory
+.codebuddy/
+
+# Generated reports inside examples/
+examples/**/audit-report.json
+
+*.zip

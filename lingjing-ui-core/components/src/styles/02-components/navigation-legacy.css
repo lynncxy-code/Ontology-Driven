@@ -1,0 +1,238 @@
+/* v3.1 legacy navigation bridge: migrated from components.css */
+
+/* -------------------------- */
+/* 导航组件（旧 API 兼容层） */
+/* -------------------------- */
+
+/* 说明：基础导航结构已迁移至 02-components/navigation.css */
+
+/* 面包屑旧链接与当前项 */
+.nav-breadcrumb-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+}
+
+.nav-breadcrumb-link:hover {
+  color: var(--color-aero-blue);
+  background: rgba(0, 102, 204, 0.08);
+}
+
+.nav-breadcrumb-current {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* 旧版标签页项 */
+.nav-tabs-item {
+  padding: var(--spacing-md) var(--spacing-lg);
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+  position: relative;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.nav-tabs-item:hover {
+  color: var(--color-aero-blue);
+  background: rgba(0, 102, 204, 0.05);
+}
+
+.nav-tabs-item.active {
+  color: var(--color-aero-blue);
+  border-bottom-color: var(--color-aero-blue);
+  background: rgba(0, 102, 204, 0.05);
+}
+
+.nav-tabs-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-aero-blue);
+  box-shadow: 0 0 8px rgba(0, 102, 204, 0.4);
+}
+
+/* 旧版顶部导航项 */
+.nav-top-item {
+  padding: var(--spacing-md) var(--spacing-md);
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+  border-radius: var(--radius-sm);
+  position: relative;
+}
+
+.nav-top-item:hover {
+  color: var(--color-aero-blue);
+  background: rgba(0, 102, 204, 0.08);
+}
+
+.nav-top-item.active {
+  color: var(--color-aero-blue);
+}
+
+.nav-top-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: var(--spacing-md);
+  right: var(--spacing-md);
+  height: 2px;
+  background: var(--color-aero-blue);
+  box-shadow: 0 0 8px rgba(0, 102, 204, 0.4);
+}
+
+/* 分页旧版禁用态补丁（保留 :disabled 兼容） */
+.nav-pagination-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+
+/* Legacy Breadcrumb & Pagination (迁移自 forms-b.css) */
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.breadcrumb a {
+  color: var(--color-aero-blue);
+  text-decoration: none;
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+}
+
+.breadcrumb a:hover {
+  color: var(--color-pulse-cyan);
+  text-decoration: underline;
+}
+
+[data-theme="dark"] .breadcrumb a {
+  color: var(--color-aero-blue);
+}
+
+[data-theme="dark"] .breadcrumb a:hover {
+  color: var(--color-aero-blue);
+  filter: brightness(1.2);
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xl);
+  flex-wrap: wrap;
+}
+
+.pagination button {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-glass);
+  border: var(--glass-border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+  min-width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pagination button:hover:not(:disabled) {
+  background: var(--color-aero-blue);
+  color: white;
+  border-color: var(--color-aero-blue);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 102, 204, 0.2);
+}
+
+.pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination button.active {
+  background: var(--color-aero-blue);
+  color: white;
+  border-color: var(--color-aero-blue);
+  font-weight: 600;
+}
+
+[data-theme="dark"] .pagination button {
+  background: rgba(10, 20, 40, 0.6);
+  border-color: rgba(0, 132, 255, 0.2);
+}
+
+[data-theme="dark"] .pagination button:hover:not(:disabled) {
+  background: var(--color-aero-blue);
+  border-color: var(--color-aero-blue);
+}
+
+[data-theme="dark"] .pagination button.active {
+  background: var(--color-aero-blue);
+  border-color: var(--color-aero-blue);
+}
+
+/* 深色模式导航 */
+[data-theme="dark"] .nav-breadcrumb-link:hover {
+  background: rgba(0, 132, 255, 0.15);
+}
+
+[data-theme="dark"] .nav-tabs-item:hover {
+  background: rgba(0, 132, 255, 0.1);
+}
+
+[data-theme="dark"] .nav-tabs-item.active {
+  background: rgba(0, 132, 255, 0.15);
+}
+
+
+
+
+
+@media (max-width: 768px) {
+  .breadcrumb {
+    font-size: var(--font-size-xs);
+  }
+}
+
+@media (max-width: 480px) {
+  .pagination {
+    gap: var(--spacing-xs);
+  }
+
+  .pagination button {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-xs);
+  }
+}
+
+/* -------------------------- */
+/* 旧布局导航壳已迁移至 layout-system.css */
+/* navigation-legacy.css 仅保留导航组件旧 API 兼容层 */
+/* -------------------------- */
+
+
+

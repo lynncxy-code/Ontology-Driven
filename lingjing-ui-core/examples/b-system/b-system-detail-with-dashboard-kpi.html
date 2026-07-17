@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工单详情（误用仪表盘壳） - 灵境Core B端示例</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+  <script src="../../scripts/echarts.min.js"></script>
+  <script src="../../scripts/echarts-theme-lingjing.js"></script>
+  <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+  <div class="b-layout-sidebar">
+    <aside class="b-sidebar" id="sidebar">
+      <div class="b-sidebar-header">
+        <div class="b-sidebar-logo">
+          <img src="../../assets/logo-flat.png" alt="灵境" height="32">
+        </div>
+        <span class="b-sidebar-brand">灵境Core</span>
+      </div>
+      <nav class="b-sidebar-nav b-scrollable">
+        <ul class="b-sidebar-nav-list">
+          <li class="b-sidebar-nav-item">
+            <a href="#orders" class="b-sidebar-nav-link active">
+              <span class="b-sidebar-nav-icon"><i data-lucide="file-text"></i></span>
+              <span class="b-sidebar-nav-text">工单详情</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+      <div class="b-sidebar-footer">
+        <button class="b-sidebar-toggle" onclick="toggleSidebarCollapse()">
+          <span class="b-sidebar-toggle-icon"><i data-lucide="chevrons-left"></i></span>
+          <span class="b-sidebar-toggle-text">收起</span>
+        </button>
+      </div>
+    </aside>
+    <div class="b-sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <main class="b-main">
+      <header class="b-header">
+        <div class="b-header-left">
+          <nav class="b-breadcrumb">
+            <div class="b-breadcrumb-item">
+              <a href="#" class="b-breadcrumb-link">工单管理</a>
+              <span class="b-breadcrumb-separator">/</span>
+            </div>
+            <div class="b-breadcrumb-item">
+              <span class="b-breadcrumb-current">工单详情 #WO-2026-00019</span>
+            </div>
+          </nav>
+        </div>
+        <div class="b-header-right">
+          <button class="btn-secondary">返回列表</button>
+          <button class="btn-primary">提交审批</button>
+        </div>
+      </header>
+
+      <div class="b-content">
+        <!-- 误用：在详情页顶部堆叠 Dashboard KPI 壳（stats-grid） -->
+        <div class="stats-grid">
+          <div class="b-stat-card" data-color="blue">
+            <div class="b-stat-header">
+              <span class="b-stat-label">本部门待处理工单</span>
+              <i data-lucide="alert-circle" class="b-stat-icon"></i>
+            </div>
+            <div class="b-stat-value">42</div>
+            <div class="b-stat-change positive">
+              <i data-lucide="trending-up"></i>
+              <span>+12.5% 较上周</span>
+            </div>
+          </div>
+          <div class="b-stat-card" data-color="orange">
+            <div class="b-stat-header">
+              <span class="b-stat-label">平均处理时长</span>
+              <i data-lucide="timer" class="b-stat-icon"></i>
+            </div>
+            <div class="b-stat-value">3.2 天</div>
+            <div class="b-stat-change neutral">
+              <i data-lucide="minus"></i>
+              <span>与上周持平</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 详情主体仍然是单工单信息，但已经被仪表盘壳挤压到下方 -->
+        <div class="grid-cols-2">
+          <div class="content-card">
+            <div class="card-header">
+              <h3 class="card-title">基本信息</h3>
+            </div>
+            <div class="form-group">
+              <label class="form-label">工单编号</label>
+              <div>WO-2026-00019</div>
+            </div>
+          </div>
+          <div class="content-card">
+            <div class="card-header">
+              <h3 class="card-title">关联对象</h3>
+            </div>
+            <div class="form-group">
+              <label class="form-label">机型 / 架次</label>
+              <div>A320 / B-5678</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    window.addEventListener('DOMContentLoaded', function () {
+      if (window.lucide && window.lucide.createIcons) {
+        window.lucide.createIcons();
+      }
+    });
+  </script>
+</body>
+</html>

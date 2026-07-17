@@ -1,0 +1,317 @@
+/**
+ * LingJing Core - 动态网格系统 v3.0
+ *
+ * 功能：
+ * - 动态自适应网格
+ * - 响应式断点系统
+ * - 灵活的网格配置
+ * - 向后兼容原有工具类
+ */
+
+/* ========================================
+   断点系统
+   ======================================== */
+:root {
+  --breakpoint-xs: 0;
+  --breakpoint-sm: 480px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+}
+
+/* ========================================
+   动态网格系统
+   ======================================== */
+
+/* 基础动态网格 */
+.grid-dynamic {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--grid-min-width, 250px)), 1fr));
+  gap: var(--grid-gap, var(--spacing-lg));
+  width: 100%;
+}
+
+/* 动态网格变体 - 不同最小宽度 */
+.grid-dynamic-2 {
+  --grid-min-width: 280px;
+}
+
+.grid-dynamic-3 {
+  --grid-min-width: 220px;
+}
+
+.grid-dynamic-4 {
+  --grid-min-width: 200px;
+}
+
+.grid-dynamic-5 {
+  --grid-min-width: 180px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .grid-dynamic {
+    --grid-min-width: 100%;
+  }
+
+  .grid-dynamic-2,
+  .grid-dynamic-3,
+  .grid-dynamic-4,
+  .grid-dynamic-5 {
+    --grid-min-width: 100%;
+  }
+}
+
+/* ========================================
+   固定网格系统
+   ======================================== */
+
+/* 2列网格 */
+.grid-fixed-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-lg);
+}
+
+/* 3列网格 */
+.grid-fixed-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-lg);
+}
+
+/* 4列网格 */
+.grid-fixed-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-lg);
+}
+
+/* 5列网格 */
+.grid-fixed-5 {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--spacing-lg);
+}
+
+/* 响应式断点 - 固定网格 */
+@media (max-width: 1024px) {
+  .grid-fixed-4,
+  .grid-fixed-5 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .grid-fixed-2,
+  .grid-fixed-3,
+  .grid-fixed-4,
+  .grid-fixed-5 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ========================================
+   混合网格系统
+   ======================================== */
+
+/* 主从布局 - 左侧固定，右侧自适应 */
+.grid-master-detail {
+  display: grid;
+  grid-template-columns: var(--master-width, 300px) 1fr;
+  gap: var(--spacing-lg);
+}
+
+/* 侧边栏布局 - 左侧自适应，右侧固定 */
+.grid-sidebar {
+  display: grid;
+  grid-template-columns: 1fr var(--sidebar-width, 280px);
+  gap: var(--spacing-lg);
+}
+
+/* 中心内容布局 - 左右固定，中间自适应 */
+.grid-center {
+  display: grid;
+  grid-template-columns: var(--left-width, 200px) 1fr var(--right-width, 200px);
+  gap: var(--spacing-lg);
+}
+
+/* 响应式混合网格 */
+@media (max-width: 768px) {
+  .grid-master-detail,
+  .grid-sidebar,
+  .grid-center {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ========================================
+   自定义网格
+   ======================================== */
+
+/* 通过 CSS 变量自定义网格 */
+.grid-custom {
+  display: grid;
+  grid-template-columns: var(--grid-template-columns, repeat(auto-fit, minmax(250px, 1fr)));
+  grid-template-rows: var(--grid-template-rows, auto);
+  gap: var(--grid-gap, var(--spacing-lg));
+}
+
+/* ========================================
+   Masonry 网格（瀑布流）替代方案
+   ======================================== */
+
+/* 使用 column 实现瀑布流 */
+.masonry {
+  column-count: var(--masonry-columns, 3);
+  column-gap: var(--spacing-lg);
+}
+
+.masonry-item {
+  break-inside: avoid;
+  margin-bottom: var(--spacing-lg);
+}
+
+/* 响应式瀑布流 */
+@media (max-width: 1024px) {
+  .masonry {
+    --masonry-columns: 2;
+  }
+}
+
+@media (max-width: 768px) {
+  .masonry {
+    --masonry-columns: 1;
+  }
+}
+
+/* ========================================
+   网格对齐
+   ======================================== */
+
+/* 水平对齐 */
+.grid-align-start { justify-items: start; }
+.grid-align-center { justify-items: center; }
+.grid-align-end { justify-items: end; }
+.grid-align-stretch { justify-items: stretch; }
+
+/* 垂直对齐 */
+.grid-items-start { align-items: start; }
+.grid-items-center { align-items: center; }
+.grid-items-end { align-items: end; }
+.grid-items-stretch { align-items: stretch; }
+
+/* ========================================
+   网格跨越
+   ======================================== */
+
+/* 跨列 */
+.col-span-2 { grid-column: span 2; }
+.col-span-3 { grid-column: span 3; }
+.col-span-4 { grid-column: span 4; }
+.col-span-full { grid-column: 1 / -1; }
+
+/* 跨行 */
+.row-span-2 { grid-row: span 2; }
+.row-span-3 { grid-row: span 3; }
+.row-span-4 { grid-row: span 4; }
+
+/* ========================================
+   响应式工具类
+   ======================================== */
+
+/* 显示/隐藏 */
+.hidden { display: none !important; }
+
+@media (max-width: 480px) {
+  .hidden-xs { display: none !important; }
+}
+
+@media (max-width: 768px) {
+  .hidden-sm { display: none !important; }
+}
+
+@media (max-width: 1024px) {
+  .hidden-md { display: none !important; }
+}
+
+@media (min-width: 1025px) {
+  .hidden-lg { display: none !important; }
+}
+
+/* 可见性 */
+.visible-xs { display: none !important; }
+.visible-sm { display: none !important; }
+.visible-md { display: none !important; }
+.visible-lg { display: none !important; }
+
+@media (max-width: 480px) {
+  .visible-xs { display: block !important; }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+  .visible-sm { display: block !important; }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .visible-md { display: block !important; }
+}
+
+@media (min-width: 1025px) {
+  .visible-lg { display: block !important; }
+}
+
+/* ========================================
+   容器查询支持（实验性）
+   ======================================== */
+
+@container (min-width: 500px) {
+  .grid-dynamic {
+    --grid-min-width: 200px;
+  }
+}
+
+/* ========================================
+   性能优化
+   ======================================== */
+
+/* 使用 contain 属性优化渲染 */
+.grid-dynamic,
+.grid-fixed-2,
+.grid-fixed-3,
+.grid-fixed-4,
+.grid-fixed-5 {
+  contain: layout style;
+}
+
+/* ========================================
+   降级方案
+   ======================================== */
+
+/* Grid 不支持时的降级 */
+@supports not (display: grid) {
+  .grid-dynamic {
+    display: flex;
+    flex-wrap: wrap;
+    margin: calc(var(--grid-gap, var(--spacing-lg)) / -2);
+  }
+
+  .grid-dynamic > * {
+    flex: 0 0 auto;
+    width: calc(100% - var(--grid-gap, var(--spacing-lg)));
+    margin: calc(var(--grid-gap, var(--spacing-lg)) / 2);
+  }
+
+  @media (min-width: 768px) {
+    .grid-dynamic > * {
+      width: calc(50% - var(--grid-gap, var(--spacing-lg)));
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .grid-dynamic > * {
+      width: calc(33.333% - var(--grid-gap, var(--spacing-lg)));
+    }
+  }
+}

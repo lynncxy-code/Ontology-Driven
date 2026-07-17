@@ -9,6 +9,7 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/nexus_titlebar.css" />
     
     <!-- ECharts (local /vendor) -->
     <script src="/vendor/echarts-5.5.0.min.js" integrity="sha384-o5uz97et3bErHvpKfD4Jz4n0JfhJDWABFuF4NP+iEEDxE1VwMWJ19QGR0lqFZnr6" crossorigin="anonymous"></script>
@@ -23,8 +24,6 @@
             --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
 
-        body.embedded-mode .top-nav { display: none !important; }
-
         body {
             font-family: var(--font-ui);
             background: var(--bg-base);
@@ -35,17 +34,6 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-        }
-
-        .top-nav {
-            height: 56px;
-            background: var(--panel-bg);
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            padding: 0 24px;
-            font-size: 14px;
-            font-weight: 500;
         }
 
         .main-content {
@@ -502,10 +490,12 @@
 </head>
 
 <body>
-    <nav class="top-nav" style="flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;height:auto;padding:10px 24px">
-        <div style="font-size:15px;font-weight:600;color:var(--text-main)">语义图谱总览</div>
-        <div style="font-size:12px;font-weight:400;color:var(--text-secondary)">浏览本体类型库的结构，切换当前生效的数据集</div>
-    </nav>
+    <header class="nexus-titlebar">
+        <div class="nexus-titlebar__main">
+            <h1 class="nexus-titlebar__title">语义图谱总览</h1>
+            <p class="nexus-titlebar__subtitle">浏览本体类型库的结构，切换当前生效的数据集</p>
+        </div>
+    </header>
 
     <div class="main-content">
         <div id="loading" class="loading-overlay">加载图谱数据中...</div>

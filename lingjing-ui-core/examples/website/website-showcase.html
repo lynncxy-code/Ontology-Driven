@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>灵境组件 - 营销网站展示</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-website.css">
+  
+  <!-- Lucide Icons -->
+  <script src="../../scripts/lucide-umd-500.js"></script>
+  
+</head>
+<body>
+  <div>
+    <!-- 顶部导航栏 - 使用网站专用导航组件 -->
+    <nav class="website-nav website-nav-glass">
+      <div class="website-nav-container">
+        <div class="website-nav-brand">
+          <a href="#" class="website-brand-logo">
+            <img src="../../assets/logo-flat.png" id="siteLogo" alt="灵境" height="36">
+            <span class="website-brand-text">灵境设计</span>
+          </a>
+        </div>
+
+        <div class="website-nav-links">
+          <a href="#features" class="website-nav-link active">特性</a>
+          <a href="#pricing" class="website-nav-link">定价</a>
+          <a href="#buttons" class="website-nav-link">按钮</a>
+          <a href="#navigation" class="website-nav-link">导航</a>
+          <a href="#cards" class="website-nav-link">卡片</a>
+        </div>
+
+        <div class="website-nav-actions">
+          <button class="website-btn-outline" style="padding: var(--spacing-xs) var(--spacing-md); font-size: var(--font-size-sm);">登录</button>
+          <button class="website-btn-primary" style="padding: var(--spacing-xs) var(--spacing-md); font-size: var(--font-size-sm);">开始使用</button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- 主题切换按钮 -->
+    <button class="btn-icon" id="themeToggle" aria-label="切换主题">
+      <span >🌙</span>
+    </button>
+
+    <!-- Hero 区域 -->
+    <section class="website-hero">
+      <div class="website-hero-content">
+        <h1 class="website-hero-title">灵境组件 - 营销网站展示</h1>
+        <p class="website-hero-description">
+          展示灵境设计系统中所有网站类组件，包括 Navigation、Hero、Feature、Pricing、Button、CTA 等
+        </p>
+        <div class="website-hero-actions">
+          <a href="#navigation" class="website-btn-primary large">探索组件</a>
+          <a href="#pricing" class="website-btn-outline large">查看定价</a>
+        </div>
+      </div>
+    </section>
+
+    <div class="container" style="max-width: 1400px; margin: 0 auto; padding: 0 var(--spacing-xl);">
+      
+      <!-- 导航组件展示 -->
+      <section id="navigation" class="website-section">
+        <h2 class="website-section-title">导航组件</h2>
+        <p class="website-section-description">展示面包屑、标签导航和分页组件（顶部导航已在页面顶部展示）</p>
+
+        <!-- 网站导航说明 -->
+        <div class="content-card" style="background: linear-gradient(135deg, rgba(0, 132, 255, 0.05), rgba(99, 102, 241, 0.05)); border: 2px solid var(--brand-primary);">
+          <div class="text-secondary font-bold text-sm" style="color: var(--brand-primary);">💡 网站顶部导航（当前页面正在使用）</div>
+          <p style="color: var(--text-secondary); margin-bottom: var(--spacing-md);">
+            本页面顶部的导航栏使用 <code style="background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px; color: var(--brand-primary);">.website-nav</code> + 
+            <code style="background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px; color: var(--brand-primary);">.website-nav-glass</code> 组件，
+            图标使用 <code style="background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px; color: var(--brand-primary);">Lucide Icons</code>
+          </p>
+          <details style="margin-top: var(--spacing-md);">
+            <summary style="cursor: pointer; font-weight: 600; color: var(--text-primary); margin-bottom: var(--spacing-sm);">查看代码示例</summary>
+            <pre style="background: var(--bg-elevated); padding: var(--spacing-md); border-radius: var(--radius-md); overflow-x: auto; font-size: 13px;"><code>&lt;nav class="website-nav website-nav-glass"&gt;
+  &lt;div class="website-nav-container"&gt;
+    &lt;div class="website-nav-brand"&gt;
+      &lt;a href="#" class="website-brand-logo"&gt;
+        &lt;i data-lucide="grid-3x3" class="website-logo-icon"&gt;&lt;/i&gt;
+        &lt;span class="website-brand-text"&gt;公司名称&lt;/span&gt;
+      &lt;/a&gt;
+    &lt;/div&gt;
+    &lt;div class="website-nav-links"&gt;
+      &lt;a href="#" class="website-nav-link active"&gt;首页&lt;/a&gt;
+      &lt;a href="#" class="website-nav-link"&gt;产品&lt;/a&gt;
+      &lt;a href="#" class="website-nav-link"&gt;关于&lt;/a&gt;
+    &lt;/div&gt;
+    &lt;div class="website-nav-actions"&gt;
+      &lt;button class="website-btn-outline"&gt;登录&lt;/button&gt;
+      &lt;button class="website-btn-primary"&gt;注册&lt;/button&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/nav&gt;
+
+&lt;!-- 必须初始化Lucide图标 --&gt;
+&lt;script&gt;
+  lucide.createIcons();
+&lt;/script&gt;</code></pre>
+          </details>
+        </div>
+
+        <!-- 面包屑导航 -->
+        <div class="content-card">
+          <div class="text-secondary font-bold text-sm">Breadcrumb 面包屑导航</div>
+          <nav class="nav-breadcrumb">
+            <a href="#" class="nav-breadcrumb-item">首页</a>
+            <span class="nav-breadcrumb-separator">/</span>
+            <a href="#" class="nav-breadcrumb-item">产品中心</a>
+            <span class="nav-breadcrumb-separator">/</span>
+            <a href="#" class="nav-breadcrumb-item">解决方案</a>
+            <span class="nav-breadcrumb-separator">/</span>
+            <span class="nav-breadcrumb-item active">详情页</span>
+          </nav>
+        </div>
+
+        <!-- 标签导航 -->
+        <div class="content-card">
+          <div class="text-secondary font-bold text-sm">Tab Navigation 标签导航</div>
+          <div class="nav-tabs">
+            <button class="nav-tab active">全部项目</button>
+            <button class="nav-tab">进行中 <span class="nav-tab-badge">8</span></button>
+            <button class="nav-tab">已完成 <span class="nav-tab-badge">24</span></button>
+            <button class="nav-tab">已归档</button>
+          </div>
+        </div>
+
+        <!-- 分页器 -->
+        <div class="content-card">
+          <div class="text-secondary font-bold text-sm">Pagination 分页器</div>
+          <nav class="nav-pagination">
+            <button class="nav-pagination-item nav-pagination-prev disabled">上一页</button>
+            <button class="nav-pagination-item active">1</button>
+            <button class="nav-pagination-item">2</button>
+            <button class="nav-pagination-item">3</button>
+            <button class="nav-pagination-item">4</button>
+            <button class="nav-pagination-item">5</button>
+            <span class="nav-pagination-ellipsis">...</span>
+            <button class="nav-pagination-item">10</button>
+            <button class="nav-pagination-item nav-pagination-next">下一页</button>
+          </nav>
+        </div>
+
+        <!-- 简化分页器 -->
+        <div class="content-card">
+          <div class="text-secondary font-bold text-sm">Simple Pagination 简化分页器</div>
+          <nav class="nav-pagination nav-pagination-simple">
+            <button class="nav-pagination-item nav-pagination-prev">上一页</button>
+            <span class="nav-pagination-info">第 1 页 / 共 10 页</span>
+            <button class="nav-pagination-item nav-pagination-next">下一页</button>
+          </nav>
+        </div>
+      </section>
+
+      <!-- 按钮组件展示 -->
+      <section id="buttons" class="website-section">
+        <h2 class="website-section-title">按钮组件</h2>
+        <p class="website-section-description">展示不同样式、尺寸和状态的按钮</p>
+
+        <!-- 主按钮 -->
+        <div class="content-card">
+          <div class="text-secondary font-bold text-sm">Primary 主按钮（渐变）</div>
+          <div class="flex gap-md flex-wrap items-center">
+            <button class="website-btn-primary">默认尺寸</button>
+            <button class="website-btn-primary large">大尺寸</button>
+            <button class="website-btn-primary" style="opacity: 0.5; cursor: not-allowed;" disabled>禁用状态</button>
+          </div>
+        </div>
+
+        <!-- 次要按钮 -->
+        <div class="content-card">
+          <div class="text-secondary font-bold text-sm">Secondary 次要按钮（轮廓）</div>
+          <div class="flex gap-md flex-wrap items-center">
+            <button class="website-btn-outline">默认尺寸</button>
+            <button class="website-btn-outline large">大尺寸</button>
+            <button class="website-btn-outline" style="opacity: 0.5; cursor: not-allowed;" disabled>禁用状态</button>
+          </div>
+        </div>
+
+        <!-- 图标按钮 -->
+        <div class="content-card">
+          <div class="text-secondary font-bold text-sm">Icon 图标按钮</div>
+          <div class="flex gap-md flex-wrap items-center">
+            <button class="website-theme-toggle" aria-label="搜索">
+              <div class="icon-search"></div>
+            </button>
+            <button class="website-theme-toggle" aria-label="设置">
+              <div class="icon-settings"></div>
+            </button>
+            <button class="website-theme-toggle" aria-label="更多">
+              <div class="icon-more"></div>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 特性区域 -->
+      <section id="features" class="website-section">
+        <h2 class="website-section-title">特性卡片</h2>
+        <p class="website-section-description">展示产品特性的卡片组件</p>
+
+        <div class="website-solutions-grid">
+          <div class="feature-card">
+            <div class="icon-rocket"></div>
+            <h3 class="feature-title">极致性能</h3>
+            <p class="feature-description">
+              基于现代 CSS 架构，零 JavaScript 依赖，加载速度极快，为用户提供流畅体验
+            </p>
+          </div>
+
+          <div class="feature-card">
+            <div class="icon-palette"></div>
+            <h3 class="feature-title">美观设计</h3>
+            <p class="feature-description">
+              玻璃拟态设计风格，精心打磨的视觉细节，支持亮暗主题无缝切换
+            </p>
+          </div>
+
+          <div class="feature-card">
+            <div class="icon-mobile"></div>
+            <h3 class="feature-title">响应式布局</h3>
+            <p class="feature-description">
+              完美适配移动端、平板、桌面端，提供一致的用户体验
+            </p>
+          </div>
+
+          <div class="feature-card">
+            <div class="icon-accessibility"></div>
+            <h3 class="feature-title">无障碍访问</h3>
+            <p class="feature-description">
+              遵循 WCAG 标准，支持键盘导航、屏幕阅读器，让每个人都能使用
+            </p>
+          </div>
+
+          <div class="feature-card">
+            <div class="icon-tool"></div>
+            <h3 class="feature-title">易于定制</h3>
+            <p class="feature-description">
+              基于 CSS 变量系统，可快速调整颜色、间距、圆角等设计参数
+            </p>
+          </div>
+
+          <div class="feature-card">
+            <div class="icon-package"></div>
+            <h3 class="feature-title">开箱即用</h3>
+            <p class="feature-description">
+              丰富的组件库，完善的文档，复制代码即可使用，提升开发效率
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 定价区域 -->
+      <section id="pricing" class="website-section">
+        <h2 class="website-section-title">定价方案</h2>
+        <p class="website-section-description">选择适合您的方案</p>
+
+        <div class="flex gap-lg flex-wrap">
+          <div class="pricing-card">
+            <div class="pricing-header">
+              <h3 class="pricing-title">免费版</h3>
+              <div class="pricing-price">
+                <span class="price-currency">¥</span>
+                <span class="price-amount">0</span>
+                <span class="price-period">/月</span>
+              </div>
+            </div>
+            <ul class="pricing-features">
+              <li class="feature-item">✓ 基础组件库</li>
+              <li class="feature-item">✓ 响应式布局</li>
+              <li class="feature-item">✓ 主题切换</li>
+              <li class="feature-item disabled">✗ 高级组件</li>
+              <li class="feature-item disabled">✗ 技术支持</li>
+            </ul>
+            <button class="pricing-cta website-btn-outline">开始使用</button>
+          </div>
+
+          <div class="pricing-card featured">
+            <div class="pricing-badge">推荐</div>
+            <div class="pricing-header">
+              <h3 class="pricing-title">专业版</h3>
+              <div class="pricing-price">
+                <span class="price-currency">¥</span>
+                <span class="price-amount">299</span>
+                <span class="price-period">/月</span>
+              </div>
+            </div>
+            <ul class="pricing-features">
+              <li class="feature-item">✓ 全部组件库</li>
+              <li class="feature-item">✓ 响应式布局</li>
+              <li class="feature-item">✓ 主题定制</li>
+              <li class="feature-item">✓ 高级组件</li>
+              <li class="feature-item">✓ 邮件支持</li>
+            </ul>
+            <button class="pricing-cta website-btn-primary">立即购买</button>
+          </div>
+
+          <div class="pricing-card">
+            <div class="pricing-header">
+              <h3 class="pricing-title">企业版</h3>
+              <div class="pricing-price">
+                <span class="price-currency">¥</span>
+                <span class="price-amount">999</span>
+                <span class="price-period">/月</span>
+              </div>
+            </div>
+            <ul class="pricing-features">
+              <li class="feature-item">✓ 全部组件库</li>
+              <li class="feature-item">✓ 私有部署</li>
+              <li class="feature-item">✓ 源码授权</li>
+              <li class="feature-item">✓ 定制开发</li>
+              <li class="feature-item">✓ 7x24 技术支持</li>
+            </ul>
+            <button class="pricing-cta website-btn-outline">联系销售</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA 区域 -->
+      <section class="website-section">
+        <h2 class="website-section-title">行动召唤 (CTA)</h2>
+        <p class="website-section-description">引导用户采取行动的区域</p>
+
+        <div class="content-card">
+          <div class="cta-section">
+            <h2 class="cta-title">准备好开始了吗？</h2>
+            <p class="cta-description">
+              立即使用灵境组件，快速构建美观的网站和应用
+            </p>
+            <div class="cta-actions">
+              <button class="website-btn-primary large">免费试用</button>
+              <button class="website-btn-outline large">查看文档</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 卡片组件 -->
+      <section class="website-section">
+        <h2 class="website-section-title">卡片组件</h2>
+        <p class="website-section-description">展示不同样式的卡片</p>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--spacing-lg);">
+          <div class="card">
+            <h3 class="card-title">基础卡片</h3>
+            <p class="card-description">
+              这是一个基础卡片组件，使用玻璃拟态效果，支持深色主题。
+            </p>
+          </div>
+
+          <div class="card hover">
+            <h3 class="card-title">悬停效果卡片</h3>
+            <p class="card-description">
+              鼠标悬停时会有提升效果，适合可点击的卡片。
+            </p>
+          </div>
+
+          <div class="card interactive">
+            <h3 class="card-title">交互式卡片</h3>
+            <p class="card-description">
+              点击时有明显的交互反馈，适合需要用户操作的场景。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 表单组件 -->
+      <section class="website-section">
+        <h2 class="website-section-title">表单组件</h2>
+        <p class="website-section-description">网站常用的表单元素</p>
+
+        <div class="content-card">
+          <form style="max-width: 600px;">
+            <div class="form-group">
+              <label class="form-label" for="name">姓名</label>
+              <input type="text" id="name" class="form-input" placeholder="请输入您的姓名">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="email">邮箱</label>
+              <input type="email" id="email" class="form-input" placeholder="your@email.com">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="message">留言</label>
+              <textarea id="message" class="form-textarea" rows="4" placeholder="请输入您的留言"></textarea>
+            </div>
+
+            <button type="submit" class="website-btn-primary">提交</button>
+          </form>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Footer 区域 -->
+    <footer class="website-footer">
+      <div class="website-footer-content">
+        <div class="website-footer-column">
+          <h3 class="website-footer-title">灵境组件</h3>
+          <p class="website-footer-description">
+            现代化的 CSS 组件库，为开发者提供美观、高效的 UI 解决方案
+          </p>
+        </div>
+
+        <div class="website-footer-column">
+          <h4 class="">产品</h4>
+          <ul class="website-footer-list">
+            <li><a href="#features">特性</a></li>
+            <li><a href="#pricing">定价</a></li>
+            <li><a href="#docs">文档</a></li>
+            <li><a href="#examples">示例</a></li>
+          </ul>
+        </div>
+
+        <div class="website-footer-column">
+          <h4 class="">资源</h4>
+          <ul class="website-footer-list">
+            <li><a href="#blog">博客</a></li>
+            <li><a href="#guide">指南</a></li>
+            <li><a href="#changelog">更新日志</a></li>
+            <li><a href="#faq">常见问题</a></li>
+          </ul>
+        </div>
+
+        <div class="website-footer-column">
+          <h4 class="">关于</h4>
+          <ul class="website-footer-list">
+            <li><a href="#about">关于我们</a></li>
+            <li><a href="#contact">联系我们</a></li>
+            <li><a href="#privacy">隐私政策</a></li>
+            <li><a href="#terms">服务条款</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="website-footer-bottom">
+        <p>© 2026 灵境组件. All rights reserved.</p>
+      </div>
+    </footer>
+  </div>
+
+  <!-- 主题切换脚本 + 交互增强 -->
+  <script>
+    // 0. 初始化 Lucide Icons（必需）
+    if (typeof lucide !== 'undefined') {
+      lucide.createIcons();
+    }
+
+    // 1. 主题切换
+    const themeToggle = document.getElementById('themeToggle');
+    const html = document.documentElement;
+    const themeIcon = document.querySelector('.theme-icon');
+
+    // 初始化主题
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    html.setAttribute('data-theme', savedTheme);
+    updateThemeIcon(savedTheme);
+    themeToggle.addEventListener('click', () => {
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      updateThemeIcon(newTheme);
+    });
+
+    function updateThemeIcon(theme) {
+      themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+    }
+
+    // 2. 网站导航栏交互
+    // 平滑滚动到锚点
+    document.querySelectorAll('.website-nav-link').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const targetId = link.getAttribute('href');
+        const targetSection = document.querySelector(targetId);
+        if (targetSection) {
+          const navHeight = document.querySelector('.website-nav').offsetHeight;
+          const targetPosition = targetSection.offsetTop - navHeight;
+          window.scrollTo({ top: targetPosition, behavior: 'smooth' });
+        }
+      });
+    });
+
+    // 滚动高亮导航链接
+    const sections = ['navigation', 'buttons', 'features', 'pricing', 'cards'];
+    const navLinks = document.querySelectorAll('.website-nav-link');
+
+    window.addEventListener('scroll', () => {
+      // 导航栏滚动效果
+      const nav = document.querySelector('.website-nav');
+      if (window.scrollY > 50) {
+        nav.classList.add('scrolled');
+      } else {
+        nav.classList.remove('scrolled');
+      }
+
+      // 高亮当前导航链接
+      let current = '';
+      const navHeight = nav.offsetHeight;
+      sections.forEach(sectionId => {
+        const section = document.getElementById(sectionId);
+        if (section) {
+          const sectionTop = section.offsetTop - navHeight - 50;
+          const sectionBottom = sectionTop + section.clientHeight;
+          if (window.pageYOffset >= sectionTop && window.pageYOffset < sectionBottom) {
+            current = sectionId;
+          }
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === `#${current}`) {
+          link.classList.add('active');
+        }
+      });
+    });
+
+    // 3. 卡片涟漪效果
+    function createRipple(event, element) {
+      const rect = element.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      const ripple = document.createElement('div');
+      ripple.className = 'card-ripple-effect';
+      ripple.style.cssText = `
+        position: absolute;
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(0, 132, 255, 0.3), transparent);
+        left: ${x}px;
+        top: ${y}px;
+        transform: translate(-50%, -50%) scale(0);
+        animation: card-ripple 0.6s ease-out;
+        pointer-events: none;
+        z-index: 0;
+      `;
+
+      element.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 600);
+    }
+
+    // 绑定涟漪效果到所有卡片
+    document.querySelectorAll('.feature-card, .pricing-card, .card').forEach(card => {
+      card.addEventListener('mouseenter', (e) => createRipple(e, card));
+    });
+
+    // 3. 滚动入场动画
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = '1';
+          entry.target.style.transform = 'translateY(0)';
+        }
+      });
+    }, observerOptions);
+
+    // 为卡片添加入场动画
+    document.querySelectorAll('.feature-card, .pricing-card, .card').forEach(card => {
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(20px)';
+      card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+      observer.observe(card);
+    });
+
+    // 4. 平滑滚动
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function(e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          const offsetTop = target.offsetTop - 80;
+          window.scrollTo({ top: offsetTop, behavior: 'smooth' });
+        }
+      });
+    });
+  </script>
+</body>
+</html>

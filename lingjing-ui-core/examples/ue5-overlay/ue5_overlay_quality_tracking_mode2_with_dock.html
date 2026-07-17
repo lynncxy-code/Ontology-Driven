@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UE5 Overlay · 质量追踪（Mode 2 误加 Dock 反例）</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-ue5-overlay.css">
+</head>
+<body>
+  <!-- 基于 canonical Mode 2 质量追踪模板的简化反例：保留 HUD + 单侧详情 + world-marker，
+       但额外错误引入了底部 Dock（ue5-overlay-bottom-dock），用于触发 Mode 2 Guard。 -->
+  <main class="ue5-overlay-root">
+    <div class="ue5-overlay-background"></div>
+    <div class="ue5-overlay-viewport">
+      <img class="ue5-overlay-scene-image" src="../../assets/ue5-bg-scene.png" alt="航空制造三维背景场景">
+    </div>
+    <div class="ue5-overlay-grid"></div>
+    <div class="ue5-overlay-center-guard"></div>
+
+    <header class="ue5-overlay-system-bar">
+      <div class="ue5-overlay-system-bar__brand">
+        <span class="ue5-overlay-system-bar__brand-mark" aria-hidden="true"></span>
+        <div class="ue5-overlay-system-bar__brand-copy">
+          <span class="ue5-overlay-system-bar__brand-name">C919 总装线 · 质量追踪（反例）</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="ue5-overlay-safe-area ue5-overlay-safe-area--quality" aria-label="质量追踪视图（Mode 2 反例）">
+      <div class="topbar-hud topbar-hud--with-sidepanel topbar-hud--quality ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--hud">
+        <div class="topbar-hud__headline">
+          <h1 class="topbar-hud__title">当前班次质量态势</h1>
+        </div>
+      </div>
+
+      <section class="quality-cluster-panel ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--detail" aria-label="质量问题聚集区">
+        <div class="quality-cluster-panel__header">
+          <h2 class="quality-cluster-panel__title">质量问题聚集区</h2>
+        </div>
+      </section>
+
+      <aside class="detail-panel quality-cause-panel ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--detail" aria-label="根因诊断">
+        <div class="detail-panel__header">
+          <h2 class="detail-panel__title">根因诊断</h2>
+        </div>
+      </aside>
+
+      <div class="ue5-overlay-layer ue5-overlay-layer--marker" aria-label="三维对象标注">
+        <article class="world-marker world-marker--critical">
+          <div class="world-marker__label">
+            <div class="world-marker__label-top">
+              <span class="world-marker__title">设备簇 · S4 对接扭矩工装</span>
+              <span class="world-marker__status">P1</span>
+            </div>
+          </div>
+          <span class="world-marker__line" aria-hidden="true"></span>
+          <span class="world-marker__anchor" aria-hidden="true"></span>
+        </article>
+      </div>
+
+      <!-- 反例：在 Mode 2 页面中错误引入 Dock 结构，应触发 ue5_mode2_dock_or_double_panel_forbidden ERROR -->
+      <div class="ue5-overlay-bottom-dock ue5-overlay-panel" aria-label="错误加入的底部 Dock 反例">
+        <div class="pj-ue5-timeline" id="tlContainer">
+          <div class="pj-ue5-timeline__rail"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

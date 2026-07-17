@@ -1,0 +1,97 @@
+/**
+ * DataPanel Component
+ * 
+ * 用于展示结构化数据的面板，支持多级风险状态绑定。
+ * 遵循灵境 UX 规范中的实时监控模式。
+ */
+
+.data-panel {
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--glass-shadow-light);
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+  position: relative;
+  overflow: hidden;
+}
+
+.data-panel:hover {
+  box-shadow: var(--glass-shadow), var(--glow-primary);
+}
+
+/* 风险状态绑定 - 通过 data-risk-level 属性 */
+.data-panel[data-risk-level="warning"] {
+  border-color: var(--warning-base);
+  background-color: rgba(217, 119, 6, 0.05);
+  animation: lingjing-pulse 2s infinite;
+}
+
+.data-panel[data-risk-level="critical"] {
+  border-color: var(--error-base);
+  background-color: rgba(220, 38, 38, 0.08);
+  animation: lingjing-flash 1s infinite;
+}
+
+.data-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--glass-border-light);
+  padding-bottom: var(--spacing-sm);
+}
+
+.data-panel-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.data-panel-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.data-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.data-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.data-value {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.data-unit {
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+  margin-left: 2px;
+  color: var(--text-secondary);
+}
+
+/* 深色模式适配 */
+[data-theme="dark"] .data-panel {
+  background: var(--bg-card-heavy);
+}
+
+[data-theme="dark"] .data-panel[data-risk-level="warning"] {
+  box-shadow: 0 0 15px rgba(255, 176, 32, 0.2);
+}
+
+[data-theme="dark"] .data-panel[data-risk-level="critical"] {
+  box-shadow: 0 0 20px rgba(255, 77, 79, 0.3);
+}

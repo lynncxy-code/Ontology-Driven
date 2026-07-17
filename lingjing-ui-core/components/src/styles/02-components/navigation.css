@@ -1,0 +1,473 @@
+/**
+ * Navigation Components
+ * LingJing Core Design System v1.5.1+
+ *
+ * 包含导航组件:
+ * - Breadcrumb (面包?
+ * - Top Nav (顶部导航)
+ * - Tab Navigation (标签导航)
+ * - Pagination (分页?
+ */
+
+/* ========================================
+   Breadcrumb (面包?
+   ======================================== */
+
+/**
+ * .nav-breadcrumb
+ * 描述: 面包屑导?
+ * 用法: <nav class="nav-breadcrumb"><a>首页</a> / <a>列表</a> / <span>详情</span></nav>
+ */
+.nav-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs, 4px);
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-secondary);
+}
+
+.nav-breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs, 4px);
+  text-decoration: none;
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
+}
+
+.nav-breadcrumb-item:hover {
+  color: var(--brand-primary);
+}
+
+.nav-breadcrumb-item.active {
+  color: var(--text-primary);
+  font-weight: 500;
+  cursor: default;
+}
+
+.nav-breadcrumb-separator {
+  color: var(--text-tertiary);
+  user-select: none;
+}
+
+/* ========================================
+   Top Nav (顶部导航)
+   ======================================== */
+
+/**
+ * .nav-top
+ * 描述: 顶部主导航栏
+ * 用法: <nav class="nav-top">...</nav>
+ */
+.nav-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md, 16px) var(--spacing-lg, 24px);
+  background: var(--bg-base);
+  border-bottom: 1px solid var(--border-primary);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-top-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+  font-size: var(--font-size-lg, 20px);
+  font-weight: 700;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.nav-top-logo {
+  width: 32px;
+  height: 32px;
+}
+
+.nav-top-links {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md, 16px);
+}
+
+.nav-top-link {
+  position: relative;
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+  font-size: var(--font-size-base, 16px);
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.nav-top-link:hover {
+  color: var(--text-primary);
+}
+
+.nav-top-link.active {
+  color: var(--brand-primary);
+}
+
+.nav-top-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: -17px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--brand-primary);
+}
+
+.nav-top-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+}
+
+/* Dark Mode */
+[data-theme="dark"] .nav-top {
+  background: var(--bg-elevated);
+}
+
+/* ========================================
+  User Menu (用户菜单)
+  ======================================== */
+
+.user-menu-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.user-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-glass);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+}
+
+.user-menu-trigger:hover {
+  background: var(--bg-glass-accent);
+  border-color: var(--color-aero-blue);
+}
+
+.user-menu-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-aero-blue);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.user-menu-name {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.user-menu-dropdown-content {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--glass-shadow);
+  padding: var(--spacing-sm);
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+}
+
+.user-menu-dropdown.open .user-menu-dropdown-content {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  color: var(--text-primary);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+
+.user-menu-item:hover {
+  background: var(--bg-glass-accent);
+  color: var(--color-aero-blue);
+}
+
+.user-menu-divider {
+  height: 1px;
+  background: var(--glass-border-light);
+  margin: var(--spacing-sm) 0;
+}
+
+[data-theme="dark"] .user-menu-item:hover {
+  background: var(--bg-status-info);
+}
+
+/* ========================================
+  Tab Navigation (标签导航)
+  ======================================== */
+
+/**
+ * .nav-tabs
+ * 描述: 标签页导?
+ * 用法: <div class="nav-tabs">...</div>
+ */
+.nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+  border-bottom: 1px solid var(--border-primary);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.nav-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.nav-tab {
+  position: relative;
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+  font-size: var(--font-size-base, 16px);
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.nav-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.nav-tab.active {
+  color: var(--brand-primary);
+  border-bottom-color: var(--brand-primary);
+}
+
+.nav-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-left: var(--spacing-xs, 4px);
+  font-size: var(--font-size-xs, 12px);
+  font-weight: 600;
+  background: var(--bg-card-solid);
+  color: var(--text-secondary);
+  border-radius: var(--radius-full, 999px);
+}
+
+
+.nav-tab.active .nav-tab-badge {
+  background: var(--brand-primary);
+  color: white;
+}
+
+/* ========================================
+   Pagination (分页?
+   ======================================== */
+
+/**
+ * .nav-pagination
+ * 描述: 分页导航
+ * 用法: <div class="nav-pagination">...</div>
+ */
+.nav-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs, 4px);
+}
+
+.nav-pagination-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 var(--spacing-sm, 8px);
+  font-size: var(--font-size-sm, 14px);
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.nav-pagination-item:hover:not(.disabled):not(.active) {
+  color: var(--brand-primary);
+  border-color: var(--brand-primary);
+  background: var(--bg-secondary);
+}
+
+.nav-pagination-item.active {
+  color: white;
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
+  cursor: default;
+}
+
+.nav-pagination-item.disabled {
+  color: var(--text-placeholder);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+
+.nav-pagination-ellipsis {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  color: var(--text-tertiary);
+  user-select: none;
+}
+
+.nav-pagination-prev,
+.nav-pagination-next {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs, 4px);
+}
+
+/* Pagination Variants */
+.nav-pagination-simple {
+  gap: var(--spacing-md, 16px);
+}
+
+.nav-pagination-simple .nav-pagination-info {
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-secondary);
+}
+
+/* Dark Mode */
+[data-theme="dark"] .nav-pagination-item {
+  background: var(--bg-card-heavy);
+}
+
+/* ========================================
+   Responsive Design
+   ======================================== */
+
+@media (max-width: 768px) {
+  .nav-top {
+    padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+  }
+
+  .nav-top-links {
+    display: none;
+  }
+
+  .nav-top-mobile-menu {
+    display: flex;
+  }
+
+  .nav-tabs {
+    gap: var(--spacing-xs, 4px);
+  }
+
+  .nav-tab {
+    padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+    font-size: var(--font-size-sm, 14px);
+  }
+
+  .nav-pagination {
+    gap: 2px;
+  }
+
+  .nav-pagination-item {
+    min-width: 32px;
+    height: 32px;
+    font-size: var(--font-size-xs, 12px);
+  }
+
+  /* Hide some pagination items on mobile */
+  .nav-pagination-item:not(.active):not(.nav-pagination-prev):not(.nav-pagination-next) {
+    display: none;
+  }
+
+  .nav-pagination-item.active {
+    display: flex;
+  }
+}
+
+/* ========================================
+   Accessibility
+   ======================================== */
+
+/* Focus Visible */
+.nav-breadcrumb-item:focus-visible,
+.nav-top-link:focus-visible,
+.nav-tab:focus-visible,
+.nav-pagination-item:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm, 4px);
+}
+
+/* Screen Reader Only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .nav-breadcrumb-item,
+  .nav-top-link,
+  .nav-tab,
+  .nav-pagination-item {
+    transition: none;
+  }
+}

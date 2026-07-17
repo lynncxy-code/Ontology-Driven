@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <title>测试反例 · list 误用左侧筛选面板</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+</head>
+<body>
+  <div class="b-layout-sidebar">
+    <aside class="b-sidebar">
+      <div class="b-sidebar-header"><span class="b-sidebar-brand">反例</span></div>
+      <nav class="b-sidebar-nav"><ul class="b-sidebar-nav-list"><li class="b-sidebar-nav-item"><a class="b-sidebar-nav-link active">列表</a></li></ul></nav>
+    </aside>
+    <main class="b-main">
+      <header class="b-header">
+        <div class="b-header-left"><nav class="b-breadcrumb"><div class="b-breadcrumb-item"><span class="b-breadcrumb-current">设备列表（反例）</span></div></nav></div>
+        <div class="b-header-right"></div>
+      </header>
+      <div class="b-content">
+        <section class="content-card advanced-data-table">
+          <aside class="advanced-data-table-side filter-panel" aria-label="左侧高级筛选面板">
+            <h2 class="card-title">筛选条件（反例）</h2>
+            <div class="form-group"><label class="form-label">状态</label><select class="form-select"><option>全部</option><option>在线</option><option>离线</option></select></div>
+          </aside>
+          <div class="advanced-data-table-main">
+            <div class="card-header">
+              <h2 class="card-title">设备列表</h2>
+            </div>
+            <div class="data-table-container">
+              <table class="data-table">
+                <thead><tr><th>设备编号</th><th>名称</th><th>状态</th></tr></thead>
+                <tbody><tr><td>D-001</td><td>扭矩工装</td><td><span class="badge badge-success">在线</span></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

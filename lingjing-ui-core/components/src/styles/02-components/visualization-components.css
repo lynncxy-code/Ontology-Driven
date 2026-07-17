@@ -1,0 +1,676 @@
+/* Lingjing Core - 可视化组件组（第5周） */
+
+/* -------------------------- */
+/* 图表主题变量 */
+/* -------------------------- */
+
+.chart-theme-light {
+  --chart-bg: var(--bg-card);
+  --chart-surface: var(--bg-glass);
+  --chart-border: var(--theme-border-light);
+  --chart-grid: rgba(15, 23, 42, 0.08);
+  --chart-axis: rgba(15, 23, 42, 0.45);
+  --chart-text: var(--text-primary);
+  --chart-text-muted: var(--text-secondary);
+  --chart-positive: var(--color-signal-green);
+  --chart-warning: var(--color-warning-amber);
+  --chart-negative: var(--color-alert-red);
+  --chart-accent: var(--color-aero-blue);
+  --chart-accent-soft: rgba(0, 102, 204, 0.15);
+}
+
+.chart-theme-dark {
+  --chart-bg: rgba(8, 16, 32, 0.75);
+  --chart-surface: rgba(8, 16, 32, 0.45);
+  --chart-border: rgba(0, 132, 255, 0.2);
+  --chart-grid: rgba(148, 163, 184, 0.15);
+  --chart-axis: rgba(148, 163, 184, 0.45);
+  --chart-text: var(--text-primary);
+  --chart-text-muted: var(--text-secondary);
+  --chart-positive: var(--color-signal-green);
+  --chart-warning: var(--color-warning-amber);
+  --chart-negative: var(--color-alert-red);
+  --chart-accent: var(--color-aero-blue);
+  --chart-accent-soft: rgba(0, 132, 255, 0.2);
+}
+
+/* -------------------------- */
+/* 图表容器卡片 */
+/* -------------------------- */
+
+.chart-card {
+  background: var(--chart-bg, var(--bg-card));
+  border: 1px solid var(--chart-border, var(--glass-border));
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  overflow: hidden;
+}
+
+.chart-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+}
+
+.chart-card-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--chart-text, var(--text-primary));
+  margin: 0;
+}
+
+.chart-card-subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--chart-text-muted, var(--text-secondary));
+  margin: var(--spacing-xs) 0 0 0;
+}
+
+.chart-card-body {
+  min-height: 160px;
+}
+
+.chart-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--font-size-xs);
+  color: var(--chart-text-muted, var(--text-secondary));
+}
+
+/* -------------------------- */
+/* 指标趋势 */
+/* -------------------------- */
+
+.metric-trend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.metric-trend-main {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-md);
+}
+
+.metric-trend-value {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--chart-text, var(--text-primary));
+}
+
+.metric-trend-unit {
+  font-size: var(--font-size-sm);
+  color: var(--chart-text-muted, var(--text-secondary));
+}
+
+.metric-trend-change {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.metric-trend-change.positive {
+  color: var(--chart-positive, var(--color-signal-green));
+}
+
+.metric-trend-change.negative {
+  color: var(--chart-negative, var(--color-alert-red));
+}
+
+.metric-trend-bar {
+  height: 8px;
+  background: var(--chart-accent-soft, rgba(0, 102, 204, 0.12));
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.metric-trend-bar > span {
+  display: block;
+  height: 100%;
+  width: var(--metric-value, 60%);
+  background: linear-gradient(90deg, var(--chart-accent, var(--color-aero-blue)), var(--color-pulse-cyan));
+  border-radius: inherit;
+}
+
+.metric-trend-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-xs);
+  color: var(--chart-text-muted, var(--text-secondary));
+}
+
+/* -------------------------- */
+/* 进度环 */
+/* -------------------------- */
+
+.progress-ring {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: conic-gradient(var(--chart-accent, var(--color-aero-blue)) calc(var(--progress-value, 68) * 1%), var(--chart-grid, rgba(15, 23, 42, 0.1)) 0);
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+
+.progress-ring::before {
+  content: '';
+  position: absolute;
+  inset: 10px;
+  border-radius: 50%;
+  background: var(--chart-bg, var(--bg-card));
+  border: 1px solid var(--chart-border, var(--glass-border));
+}
+
+.progress-ring-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+
+.progress-ring-value {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--chart-text, var(--text-primary));
+}
+
+.progress-ring-label {
+  font-size: var(--font-size-xs);
+  color: var(--chart-text-muted, var(--text-secondary));
+}
+
+/* -------------------------- */
+/* 时间轴条 */
+/* -------------------------- */
+
+.timeline-strip {
+  display: grid;
+  gap: var(--spacing-md);
+}
+
+.timeline-strip-item {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: var(--spacing-md);
+  align-items: center;
+}
+
+.timeline-strip-time {
+  font-size: var(--font-size-xs);
+  color: var(--chart-text-muted, var(--text-secondary));
+}
+
+.timeline-strip-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--chart-accent-soft, rgba(0, 102, 204, 0.12));
+  overflow: hidden;
+}
+
+.timeline-strip-bar > span {
+  display: block;
+  height: 100%;
+  width: var(--timeline-value, 50%);
+  background: linear-gradient(90deg, var(--chart-accent, var(--color-aero-blue)), var(--color-pulse-cyan));
+}
+
+.timeline-strip-label {
+  margin-top: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--chart-text, var(--text-primary));
+}
+
+/* -------------------------- */
+/* 遥测仪表组 */
+/* -------------------------- */
+
+.telemetry-gauge-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.telemetry-gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-lg);
+  background: var(--chart-surface, var(--bg-glass));
+  border: 1px solid var(--chart-border, var(--glass-border));
+}
+
+.telemetry-gauge-arc {
+  width: 120px;
+  height: 60px;
+  position: relative;
+  overflow: hidden;
+}
+
+.telemetry-gauge-arc::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 0;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 270deg,
+    var(--chart-accent, var(--color-aero-blue)) 0deg,
+    var(--chart-accent, var(--color-aero-blue)) calc(var(--gauge-value, 70) * 1.8deg),
+    var(--chart-grid, rgba(15, 23, 42, 0.1)) calc(var(--gauge-value, 70) * 1.8deg),
+    var(--chart-grid, rgba(15, 23, 42, 0.1)) 180deg,
+    transparent 180deg,
+    transparent 360deg
+  );
+}
+
+.telemetry-gauge-arc::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 10px;
+  width: 100px;
+  height: 100px;
+  background: var(--chart-bg, var(--bg-card));
+  border-radius: 50%;
+  border: 1px solid var(--chart-border, var(--glass-border));
+}
+
+
+
+
+.telemetry-gauge-value {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--chart-text, var(--text-primary));
+}
+
+.telemetry-gauge-label {
+  font-size: var(--font-size-xs);
+  color: var(--chart-text-muted, var(--text-secondary));
+}
+
+/* -------------------------- */
+/* 运营告警热力矩阵 */
+/* -------------------------- */
+
+.ops-alert-heatmap {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.ops-alert-heat-cell {
+  width: 100%;
+  padding-bottom: 100%;
+  border-radius: 6px;
+  background: rgba(0, 102, 204, 0.1);
+  position: relative;
+  border: 1px solid transparent;
+}
+
+.ops-alert-heat-cell[data-level="1"] {
+  background: rgba(0, 102, 204, 0.12);
+}
+
+.ops-alert-heat-cell[data-level="2"] {
+  background: rgba(0, 153, 170, 0.2);
+}
+
+.ops-alert-heat-cell[data-level="3"] {
+  background: rgba(245, 158, 11, 0.25);
+}
+
+.ops-alert-heat-cell[data-level="4"] {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.ops-alert-heat-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  color: var(--chart-text-muted, var(--text-secondary));
+}
+
+.ops-alert-heat-legend span {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+/* -------------------------- */
+/* 时间序列趋势（多维） */
+/* -------------------------- */
+
+.trend-chart-container {
+  position: relative;
+  width: 100%;
+  height: 240px;
+  display: flex;
+  flex-direction: column;
+}
+
+.trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.trend-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  color: var(--chart-text-muted, var(--text-secondary));
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.trend-legend-item:hover {
+  opacity: 0.8;
+}
+
+.trend-legend-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+/* -------------------------- */
+/* 供应链网络拓扑 */
+/* -------------------------- */
+
+.network-topology {
+  position: relative;
+  width: 100%;
+  height: 400px;
+  background: radial-gradient(circle at center, rgba(0, 102, 204, 0.05) 0%, transparent 70%);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.network-node {
+  position: absolute;
+  width: 40px;
+  height: 400px; /* Placeholder logic for layout */
+}
+
+.node-point {
+  width: 12px;
+  height: 12px;
+  background: var(--chart-accent, var(--color-aero-blue));
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--chart-accent, var(--color-aero-blue));
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.node-point:hover {
+  transform: scale(1.4);
+}
+
+.node-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 8px;
+  white-space: nowrap;
+  font-size: var(--font-size-xs);
+  color: var(--chart-text, var(--text-primary));
+}
+
+.node-link {
+  position: absolute;
+  background: var(--chart-accent, var(--color-aero-blue));
+  opacity: 0.2;
+  transform-origin: left center;
+  height: 1px;
+}
+
+/* -------------------------- */
+/* 实时KPI仪表盘 */
+/* -------------------------- */
+
+.kpi-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.kpi-hero-card {
+  padding: var(--spacing-xl);
+  border-radius: var(--radius-xl);
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border-medium);
+  position: relative;
+  overflow: hidden;
+  transition: all var(--anim-duration-normal) var(--anim-ease-emphasized);
+  box-shadow:
+    var(--glass-inset-shadow),
+    var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi-hero-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--glass-border-hover);
+  box-shadow:
+    var(--shadow-lg),
+    var(--glow-primary),
+    inset 0 0 16px rgba(0, 132, 255, 0.08);
+}
+
+
+.kpi-hero-card::before {
+  content: '';
+  position: absolute;
+  top: -30%;
+  right: -30%;
+  width: 160%;
+  height: 160%;
+  background: radial-gradient(
+    circle at 75% 25%, 
+    rgba(0, 132, 255, 0.45) 0%, 
+    rgba(0, 229, 255, 0.2) 20%, 
+    rgba(0, 132, 255, 0.05) 40%,
+    transparent 70%
+  );
+  filter: blur(40px);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 1;
+}
+
+
+.kpi-hero-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.kpi-hero-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.kpi-hero-value {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -1.5px;
+  margin: var(--spacing-sm) 0;
+  background: linear-gradient(180deg, #FFFFFF 0%, rgba(255, 255, 255, 0.6) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+}
+
+[data-theme="light"] .kpi-hero-value {
+  background: linear-gradient(180deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+  -webkit-background-clip: text;
+}
+
+
+
+.kpi-hero-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.kpi-hero-status.up {
+  background: rgba(0, 163, 131, 0.1);
+  color: var(--color-signal-green);
+}
+
+.kpi-hero-status.down {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-alert-red);
+}
+
+.pulse-indicator {
+  width: 8px;
+  height: 8px;
+  background: var(--color-signal-green);
+  border-radius: 50%;
+  position: relative;
+  display: inline-block;
+  margin-right: 8px;
+}
+
+.pulse-indicator::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 2px solid var(--color-signal-green);
+  border-radius: 50%;
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.5); opacity: 0.8; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+/* -------------------------- */
+/* 地理信息热力图 */
+/* -------------------------- */
+
+.geo-heatmap-container {
+  height: 400px;
+  background: var(--bg-dark);
+  border-radius: var(--radius-lg);
+  position: relative;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.geo-marker {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: radial-gradient(circle, var(--color-pulse-cyan) 0%, transparent 70%);
+  transform: translate(-50%, -50%);
+}
+
+.geo-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-card);
+  border: 1px solid var(--glass-border);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.geo-marker:hover .geo-popup {
+  opacity: 1;
+}
+
+/* -------------------------- */
+/* 桑基图 (Sankey Flow) */
+/* -------------------------- */
+
+.sankey-container {
+  height: 300px;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xl);
+  padding: var(--spacing-lg);
+}
+
+.sankey-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  height: 100%;
+  gap: var(--spacing-md);
+}
+
+.sankey-node {
+  background: var(--chart-accent-soft, rgba(0, 102, 204, 0.12));
+  border-left: 4px solid var(--chart-accent, var(--color-aero-blue));
+  padding: var(--spacing-sm);
+  min-width: 100px;
+  border-radius: 0 4px 4px 0;
+}
+
+.sankey-node-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--chart-text, var(--text-primary));
+}
+
+.sankey-node-value {
+  font-size: 10px;
+  color: var(--chart-text-muted, var(--text-secondary));
+}
+
+@media (max-width: 768px) {
+  .chart-card {
+    padding: var(--spacing-lg);
+  }
+
+
+  .timeline-strip-item {
+    grid-template-columns: 1fr;
+  }
+
+  .progress-ring {
+    width: 96px;
+    height: 96px;
+  }
+}

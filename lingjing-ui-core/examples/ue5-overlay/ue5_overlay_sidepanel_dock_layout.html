@@ -1,0 +1,569 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UE5 Overlay — 双侧面板 + 底部时间轴 骨架模板</title>
+  <!--
+    布局模式 5：双侧面板 + 底部时间轴（数字孪生监控全布局）
+    scene = ue5_overlay / page_type = overlay_full_layout / use_scope = limited
+    参考文档：docs/ue5-overlay-layout-playbook.md § 布局模式 5
+    样式入口：lingjing-core-ue5-overlay.css
+
+    ⚠ 本模板是「数字孪生驾驶舱 cockpit」布局草图：
+    - 仅在 PRD 明确为数字孪生驾驶舱 / Mode 5 时，由人工确认后使用
+    - 不应作为通用 overlay / 简单告警视图 / 单 HUD 场景的默认壳
+    - AI 使用时应更多视为 layout 参考，而不是所有 overlay 的终极模板
+
+    ────────────────────────────────────────────────────────
+    库的 .ue5-overlay-safe-area 是 position:absolute; inset:0 的 CSS Grid：
+      grid-template-columns: [左面板宽] [1fr 中央] [右面板宽]
+      grid-template-rows:    [safe-top 168px] [1fr 内容] [bottom-height 88px]
+      padding-top:           system-bar-height + spacing
+
+    本模板覆写方式：
+      - 去掉顶部空行（改为 2 行：1fr + 底部）
+      - 覆写 padding-top 使面板紧贴 system-bar 下方
+      - 覆写面板宽度变量使其随视口响应
+      - 覆写底部高度变量
+      - 通过 grid-column / grid-row 精确放置面板和底部 dock
+    ────────────────────────────────────────────────────────
+  -->
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-ue5-overlay.css">
+  <!-- 布局模式 5 项目级覆写（pj-ue5-* 规约，§2.6） -->
+  <link rel="stylesheet" href="pj-ue5-sidepanel-dock.css">
+</head>
+<body>
+<main class="ue5-overlay-root">
+
+  <!-- 背景与视口 -->
+  <div class="ue5-overlay-background"></div>
+  <div class="ue5-overlay-viewport">
+    <img class="ue5-overlay-scene-image" src="../../assets/ue5-bg-scene.png" alt="三维场景"
+         style="width:100%;height:100%;object-fit:cover;object-position:center 30%;">
+  </div>
+  <div class="ue5-overlay-grid"></div>
+  <div class="ue5-overlay-center-guard"></div>
+
+  <!-- ① 系统顶部导航栏（框架层，默认必须保留） -->
+  <header class="ue5-overlay-system-bar">
+    <div class="ue5-overlay-system-bar__brand">
+      <span class="ue5-overlay-system-bar__brand-mark" aria-hidden="true"></span>
+      <div class="ue5-overlay-system-bar__brand-copy">
+        <span class="ue5-overlay-system-bar__brand-name">灵境数字孪生平台</span>
+        <span class="ue5-overlay-system-bar__brand-subtitle">歼35A 生产监控</span>
+      </div>
+    </div>
+    <nav class="ue5-overlay-system-bar__nav">
+      <a href="#" class="ue5-overlay-system-bar__nav-item">总装监控</a>
+      <a href="#" class="ue5-overlay-system-bar__nav-item">质量管理</a>
+      <a href="#" class="ue5-overlay-system-bar__nav-item">交付计划</a>
+    </nav>
+    <div class="ue5-overlay-system-bar__meta">
+      <span class="ue5-overlay-system-bar__meta-item">
+        <i class="ue5-overlay-system-bar__meta-dot"></i>数据链路正常
+      </span>
+      <span class="ue5-overlay-system-bar__meta-item" id="systemTime">--:--:--</span>
+    </div>
+  </header>
+
+  <!-- ② 安全区（库的 CSS Grid，已被 <style> 覆写为 2 行） -->
+  <section class="ue5-overlay-safe-area" aria-label="数字孪生 Mode 5 驾驶舱主界面（limited，仅 cockpit 场景）">
+
+    <!-- World Marker（绝对定位，叠加在三维场景上） -->
+    <div class="world-marker world-marker--warning ue5-overlay-layer ue5-overlay-layer--marker"
+         style="position:absolute; top:42%; left:40%;">
+      <div class="world-marker__card">
+        <span class="world-marker__title">液压系统安装区</span>
+        <span class="world-marker__status">1 项 NCR 待整改</span>
+        <button class="world-marker__action">查看详情</button>
+      </div>
+    </div>
+    <div class="world-marker world-marker--info ue5-overlay-layer ue5-overlay-layer--marker"
+         style="position:absolute; top:56%; left:60%;">
+      <div class="world-marker__card">
+        <span class="world-marker__title">航电系统安装区</span>
+        <span class="world-marker__status">进行中 91%</span>
+      </div>
+    </div>
+
+    <!-- 左侧面板（grid-column:1, grid-row:1） -->
+    <aside class="detail-panel detail-panel--pinned ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--detail pj-ue5-layout-left"
+           aria-label="生产进度">
+      <div class="detail-panel__header">
+        <div class="detail-panel__title-group">
+          <h1 class="detail-panel__title">灵境数字孪生监控平台</h1>
+          <span class="detail-panel__eyebrow">J35A-0012</span>
+        </div>
+        <div class="detail-panel__meta">
+          <span>总装集成 · 第 4 阶段 / 共 6 阶段</span>
+          <span id="leftPanelTime">2026-03-26</span>
+        </div>
+      </div>
+
+      <div class="detail-panel__body">
+
+        <div class="detail-panel__section">
+          <h2 class="detail-panel__section-title">整机进度</h2>
+          <div class="detail-panel__metrics">
+            <article class="detail-panel__metric">
+              <span class="detail-panel__metric-value">64%</span>
+              <span class="detail-panel__metric-label">整机进度</span>
+              <span class="detail-panel__metric-meta">计划完工 2026-06-15，偏差 +3 天，187/294 工序完成</span>
+            </article>
+          </div>
+          <div class="charts-grid charts-grid--single">
+            <div class="chart-placeholder" id="progressChart" style="height:160px;"></div>
+          </div>
+        </div>
+
+        <div class="detail-panel__section">
+          <h2 class="detail-panel__section-title">当前工序 · 总装集成</h2>
+          <div class="detail-panel__list">
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>AS-401 前机身与中机身对接</span>
+                <span class="ue5-overlay-status ue5-overlay-status--success">已完成</span>
+              </div>
+              <span class="detail-panel__list-value">100%</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>AS-402 进气道安装与密封检验</span>
+                <span class="ue5-overlay-status ue5-overlay-status--success">已完成</span>
+              </div>
+              <span class="detail-panel__list-value">100%</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>AS-403 主起落架舱安装</span>
+                <span class="ue5-overlay-status ue5-overlay-status--info">进行中</span>
+              </div>
+              <span class="detail-panel__list-value">78%</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>AS-404 发动机短舱集成</span>
+                <span class="ue5-overlay-status ue5-overlay-status--info">进行中</span>
+              </div>
+              <span class="detail-panel__list-value">45%</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>AS-405 垂尾与平尾安装</span>
+                <span class="ue5-overlay-status">待开始</span>
+              </div>
+              <span class="detail-panel__list-value">0%</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>AS-406 全机密封性气压检测</span>
+                <span class="ue5-overlay-status">待开始</span>
+              </div>
+              <span class="detail-panel__list-value">0%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-panel__section">
+          <h2 class="detail-panel__section-title">今日人力负荷</h2>
+          <div class="detail-panel__metrics">
+            <article class="detail-panel__metric">
+              <span class="detail-panel__metric-value">42 人</span>
+              <span class="detail-panel__metric-label">在岗</span>
+              <span class="detail-panel__metric-meta">基准 50 人，负荷率 84%，加班 8 人</span>
+            </article>
+          </div>
+          <div class="quality-meter quality-meter--dominant" style="width:84%;"></div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- 右侧面板（grid-column:3, grid-row:1） -->
+    <aside class="detail-panel detail-panel--pinned ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--detail pj-ue5-layout-right"
+           aria-label="质量与里程碑">
+
+      <!--
+        条件告警横幅（ue5-critical-banner）：
+          · 默认 style="display:none"，detail-panel__body 通过 flex:1 自动填满
+          · 有告警时移除 display:none 即可展示横幅
+          · 禁止用 visibility:hidden 替代（会留白）
+        [DEMO] 下方横幅已激活（移除了 display:none）以展示告警态样式，
+               生产环境初始状态请恢复 style="display:none"
+      -->
+      <div class="ue5-critical-banner" id="criticalBanner">
+        <span class="ue5-critical-banner__pill">告警</span>
+        <strong class="ue5-critical-banner__title">❌ NCR 超限</strong>
+        <p class="ue5-critical-banner__copy">累计 3 项（基准 ≤ 2），1 项开口待整改</p>
+        <div class="ue5-critical-banner__actions">
+          <button class="ue5-critical-banner__action ue5-critical-banner__action--primary">查看详情</button>
+          <button class="ue5-critical-banner__action" onclick="this.closest('.ue5-critical-banner').style.display='none'">忽略</button>
+        </div>
+      </div>
+
+      <div class="detail-panel__body">
+
+        <div class="detail-panel__section">
+          <h2 class="detail-panel__section-title">系统装配状态</h2>
+          <div class="detail-panel__list">
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>航电系统</span>
+                <span class="ue5-overlay-status ue5-overlay-status--info">进行中</span>
+              </div>
+              <span class="detail-panel__list-value">91%</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>飞控系统</span>
+                <span class="ue5-overlay-status ue5-overlay-status--success">已完成</span>
+              </div>
+              <span class="detail-panel__list-value">100%</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>液压系统</span>
+                <span class="ue5-overlay-status ue5-overlay-status--warning">1 ⚠</span>
+              </div>
+              <span class="detail-panel__list-value">88%</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>燃油系统</span>
+                <span class="ue5-overlay-status ue5-overlay-status--info">进行中</span>
+              </div>
+              <span class="detail-panel__list-value">72%</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>武器挂载接口</span>
+                <span class="ue5-overlay-status ue5-overlay-status--info">进行中</span>
+              </div>
+              <span class="detail-panel__list-value">55%</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>隐身涂层</span>
+                <span class="ue5-overlay-status">待开始</span>
+              </div>
+              <span class="detail-panel__list-value">0%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-panel__section">
+          <h2 class="detail-panel__section-title">质量监控</h2>
+          <div class="detail-panel__list">
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>FPY 一次合格率</span>
+                <span class="ue5-overlay-status ue5-overlay-status--warning">⚠ 略低</span>
+              </div>
+              <span class="detail-panel__list-value">96.8% / ≥97%</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>累计 NCR 数</span>
+                <span class="ue5-overlay-status ue5-overlay-status--critical">❌ 超限</span>
+              </div>
+              <span class="detail-panel__list-value">3 / ≤2</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>尺寸超差项</span>
+                <span class="ue5-overlay-status ue5-overlay-status--warning">⚠</span>
+              </div>
+              <span class="detail-panel__list-value">1 / 0</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>力矩检验通过率</span>
+                <span class="ue5-overlay-status ue5-overlay-status--success">✓</span>
+              </div>
+              <span class="detail-panel__list-value">100%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-panel__section">
+          <h2 class="detail-panel__section-title">关键里程碑</h2>
+          <div class="detail-panel__list">
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>总装封闭</span>
+                <span class="ue5-overlay-status ue5-overlay-status--info">进行中</span>
+              </div>
+              <span class="detail-panel__list-value">2026-04-20</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>地面系统联调</span>
+                <span class="ue5-overlay-status">待开始</span>
+              </div>
+              <span class="detail-panel__list-value">2026-05-05</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>整机气密试验</span>
+                <span class="ue5-overlay-status">待开始</span>
+              </div>
+              <span class="detail-panel__list-value">2026-05-28</span>
+            </div>
+            <div class="detail-panel__list-row">
+              <div class="detail-panel__list-label">
+                <span>出厂交付</span>
+                <span class="ue5-overlay-status">待开始</span>
+              </div>
+              <span class="detail-panel__list-value">2026-06-15</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!--
+      底部 Dock：纯时间轴（Mode 5 cockpit 专属模块）
+      - 用于表达长周期生产里程碑时间轴
+      - 普通 overlay 场景一般不需要引入完整 Dock，仅在 cockpit/数字孪生场景按 PRD 选择是否保留
+    -->
+    <div class="ue5-overlay-bottom-dock ue5-overlay-panel" aria-label="生产里程碑时间轴">
+
+      <!--
+        横向时间轴（pj-ue5-timeline）
+        ── 结构 ──────────────────────────────────────────────
+        单个 position:relative 容器内，所有元素绝对定位：
+          .pj-ue5-timeline__rail           主轴线（top:50%）
+          .pj-ue5-timeline__cursor         今日游标（贯穿全高）
+          .pj-ue5-timeline__node-label     事件标签（bottom:50%+11px）
+          .pj-ue5-timeline__dot            事件圆点（top:50% 居中）
+          .pj-ue5-timeline__tick           月份刻度（top:50%，刻度向下）
+        ── 定位 ──────────────────────────────────────────────
+        left:X% 由 JS 按日期比例计算（dateToPct 函数）
+      -->
+      <div class="pj-ue5-timeline" id="tlContainer">
+        <!-- 由 buildTimeline() 动态生成 -->
+      </div>
+
+    </div>
+
+    <!-- Tooltip -->
+    <div class="ue-tooltip" id="tlTooltip"
+         style="display:none;position:fixed;z-index:9999;pointer-events:none;">
+      <strong id="tlTipTitle"></strong>
+      <p id="tlTipDate" style="margin:3px 0 0;opacity:0.72;font-size:11px;"></p>
+    </div>
+
+  </section>
+
+</main>
+
+<script src="../../scripts/lucide-umd-500.js"></script>
+<script src="../../scripts/echarts.min.js"></script>
+<script src="../../scripts/echarts-theme-lingjing.js"></script>
+<script>
+/* =======================================================================
+   [DEMO NOTICE] 本文件中的时间轴与里程碑数据仅作为 Mode 5 cockpit 示例：
+   - TL_RANGE / TL_EVENTS 为示例项目数据，不是规范要求的字段或事件列表
+   - AI 参考时应关注「单容器 + 绝对定位节点 + 百分比 left 布局」这一结构模式
+   - 普通 overlay/dashboard 场景不应照搬完整时间轴实现
+   ======================================================================= */
+
+/* ================================================================
+   时间轴数据配置（修改此处即可定制）
+   ================================================================ */
+var TL_RANGE  = { start: '2025-08-01', end: '2026-09-01' };
+var TL_EVENTS = [
+  { date: '2025-09-01', label: '项目开工',    type: 'done'   },
+  { date: '2025-11-15', label: '◆ 机体对合',  type: 'done'   },
+  { date: '2026-01-20', label: '◆ 系统预装',  type: 'done'   },
+  { date: '2026-02-28', label: '动力集成',     type: 'done'   },
+  { date: '2026-03-05', label: '总装开始',     type: 'done'   },
+  { date: '2026-03-18', label: '⚠ NCR-007',  type: 'alert'  },
+  { date: '2026-03-26', label: '▶ 今日',      type: 'active' },
+  { date: '2026-04-20', label: '◆ 总装封闭',  type: 'future' },
+  { date: '2026-05-28', label: '◆ 气密试验',  type: 'future' },
+  { date: '2026-06-15', label: '◆ 出厂交付',  type: 'future' },
+];
+
+/* ================================================================
+   日期 → 百分比（2% 两端留白）
+   ================================================================ */
+var _s = new Date(TL_RANGE.start).getTime();
+var _e = new Date(TL_RANGE.end).getTime();
+var PAD = 2;
+
+function pct(dateStr) {
+  return PAD + ((new Date(dateStr).getTime() - _s) / (_e - _s)) * (100 - PAD * 2);
+}
+
+/* 判断某日是否为季度首月（1/4/7/10 月的 1 日） */
+function isQuarterStart(d) {
+  return d.getDate() === 1 && d.getMonth() % 3 === 0;
+}
+/* 季度标签：Q1'26 格式 */
+function quarterLabel(d) {
+  return 'Q' + (Math.floor(d.getMonth() / 3) + 1) + "'" + String(d.getFullYear()).slice(2);
+}
+/* 月份标签：8月/9月 格式 */
+function monthLabel(d) {
+  return (d.getMonth() + 1) + '月';
+}
+
+/* ================================================================
+   构建时间轴 DOM
+   ── 刻度生成：双循环保证月份刻度精确落在 1 号
+      Loop A：7 天步进 → 周刻度（跳过月首日，由 Loop B 覆盖）
+      Loop B：逐月遍历 1 号 → 月/季刻度 + 标签
+   ================================================================ */
+function buildTimeline() {
+  var cont = document.getElementById('tlContainer');
+  if (!cont) return;
+
+  /* ① 轴线 */
+  var rail = document.createElement('div');
+  rail.className = 'pj-ue5-timeline__rail';
+  cont.appendChild(rail);
+
+  /* ② 今日游标 */
+  var todayEv = TL_EVENTS.find(function(e) { return e.type === 'active'; });
+  if (todayEv) {
+    var cursor = document.createElement('div');
+    cursor.className = 'pj-ue5-timeline__cursor';
+    cursor.style.left = pct(todayEv.date) + '%';
+    cont.appendChild(cursor);
+  }
+
+  var dEnd = new Date(TL_RANGE.end);
+
+  /* ③ Loop A：周刻度（7 天步进，跳过月首日） */
+  var dw = new Date(TL_RANGE.start);
+  while (dw <= dEnd) {
+    if (dw.getDate() !== 1) {
+      var tick = document.createElement('div');
+      tick.className  = 'pj-ue5-timeline__tick';
+      tick.style.left = pct(dw.toISOString().split('T')[0]) + '%';
+      var mark = document.createElement('div');
+      mark.className  = 'pj-ue5-timeline__tick-mark';
+      tick.appendChild(mark);
+      cont.appendChild(tick);
+    }
+    dw.setDate(dw.getDate() + 7);
+  }
+
+  /* ④ Loop B：月/季刻度，精确落在每月 1 号 */
+  var dm = new Date(TL_RANGE.start);
+  dm.setDate(1);
+  /* 如果 start 本身不是 1 号，挪到下月 1 号 */
+  if (dm < new Date(TL_RANGE.start)) dm.setMonth(dm.getMonth() + 1);
+  while (dm <= dEnd) {
+    var isQ  = isQuarterStart(dm);
+    var cls2 = 'pj-ue5-timeline__tick ' + (isQ ? 'pj-ue5-timeline__tick--quarter' : 'pj-ue5-timeline__tick--month');
+    var tick2 = document.createElement('div');
+    tick2.className  = cls2;
+    tick2.style.left = pct(dm.toISOString().split('T')[0]) + '%';
+    var mark2 = document.createElement('div');
+    mark2.className  = 'pj-ue5-timeline__tick-mark';
+    tick2.appendChild(mark2);
+    var lbl2 = document.createElement('span');
+    lbl2.className   = 'pj-ue5-timeline__tick-label';
+    lbl2.textContent = isQ ? quarterLabel(dm) : monthLabel(dm);
+    tick2.appendChild(lbl2);
+    cont.appendChild(tick2);
+    dm.setMonth(dm.getMonth() + 1);
+  }
+
+  /* ④ 里程碑：标签 + 圆点（渲染在刻度之上） */
+  var tooltip  = document.getElementById('tlTooltip');
+  var tipTitle = document.getElementById('tlTipTitle');
+  var tipDate  = document.getElementById('tlTipDate');
+
+  TL_EVENTS.forEach(function(ev) {
+    var p = pct(ev.date) + '%';
+
+    /* 标签 */
+    var lbl = document.createElement('span');
+    lbl.className   = 'pj-ue5-timeline__node-label pj-ue5-timeline__node-label--' + ev.type;
+    lbl.style.left  = p;
+    lbl.textContent = ev.label;
+    cont.appendChild(lbl);
+
+    /* 圆点 */
+    var dot = document.createElement('div');
+    dot.className = 'pj-ue5-timeline__dot pj-ue5-timeline__dot--' + ev.type;
+    dot.style.left = p;
+    dot.setAttribute('data-date',  ev.date);
+    dot.setAttribute('data-label', ev.label);
+    cont.appendChild(dot);
+
+    /* 悬停提示 */
+    dot.addEventListener('mouseenter', function() {
+      tipTitle.textContent = ev.label;
+      tipDate.textContent  = ev.date;
+      tooltip.style.display = 'block';
+    });
+    dot.addEventListener('mousemove', function(e) {
+      tooltip.style.left = (e.clientX + 14) + 'px';
+      tooltip.style.top  = (e.clientY - 52) + 'px';
+    });
+    dot.addEventListener('mouseleave', function() {
+      tooltip.style.display = 'none';
+    });
+  });
+}
+
+/* ================================================================
+   图表
+   ================================================================ */
+function initCharts() {
+  var el = document.getElementById('progressChart');
+  if (!el || typeof LingJingChart === 'undefined') return;
+  var chart = LingJingChart.init(el, 'ue5_overlay');
+  var tk = typeof LingJingChart.getTokens === 'function'
+         ? LingJingChart.getTokens('ue5_overlay') : {};
+  chart.setOption({
+    series: [{
+      type: 'pie',
+      radius: ['55%', '78%'],
+      center: ['50%', '50%'],
+      data: [
+        { value: 64, name: '已完成', itemStyle: { color: (tk.series && tk.series[1]) || '#02c39a' } },
+        { value: 18, name: '进行中', itemStyle: { color: (tk.series && tk.series[0]) || '#4f8df5' } },
+        { value: 18, name: '待开始', itemStyle: { color: 'rgba(185,201,220,0.2)' } }
+      ],
+      label: { show: false },
+      emphasis: { disabled: true }
+    }]
+  });
+}
+
+/* ================================================================
+   时间更新
+   ================================================================ */
+function tick() {
+  var now = new Date();
+  var p   = function(n) { return String(n).padStart(2, '0'); };
+  var full  = now.getFullYear() + '-' + p(now.getMonth()+1) + '-' + p(now.getDate())
+            + ' ' + p(now.getHours()) + ':' + p(now.getMinutes()) + ':' + p(now.getSeconds());
+  var short = p(now.getHours()) + ':' + p(now.getMinutes());
+  var s = document.getElementById('systemTime'); if (s) s.textContent = full;
+  var d = document.getElementById('dockTime');   if (d) d.textContent = short;
+}
+
+/* ================================================================
+   初始化
+   ================================================================ */
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  buildTimeline();
+  initCharts();
+  tick();
+  setInterval(tick, 1000);
+  if (typeof LingJingChart !== 'undefined') {
+    window.addEventListener('resize', function() { LingJingChart.resizeAll(); });
+  }
+});
+</script>
+</body>
+</html>

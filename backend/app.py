@@ -13,6 +13,8 @@ from mapping_store import (
 from ontology_parser import validate_files, parse_ontology_csvs
 from writeback import apply_writeback          # FR-5：UE→ontotwin 空间回写
 from ue_project_binding import bind_active_dataset, check_request_matches_active, request_ue_project
+from realtime_channel import enrich_instances_with_realtime_channel
+from scene_interaction.service import get_runtime_status
 
 # ── App Setup ───────────────────────────────────────────────────
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
@@ -76,6 +78,10 @@ def serve_ontology():
 @app.route('/instance')
 def serve_instance():
     return app.send_static_file('instance.html')
+
+@app.route('/interaction')
+def serve_interaction():
+    return app.send_static_file('interaction.html')
 
 @app.route('/ontology_graph')
 def serve_ontology_graph():
@@ -802,15 +808,31 @@ def coord_save_components():
     if mode == "dxf":
         profile["ue_transform"]["matrix"] = source_to_ue_matrix
         project_store.set_spatial_profile(profile)
-    frame_id = "frame_image" if mode == "image" else "frame_cad"
+    requested_frame_id = str(data.get("frame_id") or "").strip()
+    frame_id = requested_frame_id if mode == "image" and requested_frame_id else (
+        "frame_image" if mode == "image" else "frame_cad"
+    )
     frame_name = "图片平面图" if mode == "image" else "CAD 图纸"
     frame_unit = "px" if mode == "image" else "mm"
-    project_store.upsert_frame({
-        "id": frame_id, "name": frame_name, "kind": mode, "unit": frame_unit,
-        "to_canonical": {"method": "anchor", "matrix": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]},
-        "to_ue": {"method": "anchor", "matrix": source_to_ue_matrix},
-        "floor": 1, "map_code": None,
-    })
+    existing_frame = project_store.get_frame(frame_id) if requested_frame_id else None
+    if mode == "image" and requested_frame_id:
+        if not existing_frame or existing_frame.get("kind") != "image":
+            return jsonify({"error": "找不到当前图片对应的项目空间底图"}), 400
+        existing_to_ue = existing_frame.get("to_ue") or {}
+        existing_matrix = existing_to_ue.get("matrix") if isinstance(existing_to_ue, dict) else existing_to_ue
+        if not existing_matrix:
+            return jsonify({"error": "当前空间底图尚未保存有效标定"}), 400
+        source_to_ue_matrix = existing_matrix
+        frame_name = existing_frame.get("name") or frame_name
+    else:
+        # 兼容旧图片/CAD 工作流；4.0.1 项目图片 Frame 已由 spatial_assets 模块维护，
+        # 保存构件时不得再覆盖其图片身份、锚点、版本或 Z 基准。
+        project_store.upsert_frame({
+            "id": frame_id, "name": frame_name, "kind": mode, "unit": frame_unit,
+            "to_canonical": {"method": "anchor", "matrix": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]},
+            "to_ue": {"method": "anchor", "matrix": source_to_ue_matrix},
+            "floor": 1, "map_code": None,
+        })
 
     old = project_store.get_components()
     def _source_key(comp):
@@ -1564,6 +1586,7 @@ def _object_type_response(rid, ot):
         "color": ot.get("color", "#888888"),
         "properties": ot.get("properties", []),
         "injected_interfaces": injected,
+        "interface_configs": ot.get("interface_configs", {}),
         "asset_id": ot.get("asset_id"),
         "ue_asset_path": ot.get("ue_asset_path", ""),
         "mock_instances": ot.get("mock_instances", []),
@@ -1632,7 +1655,7 @@ def inject_interfaces():
     # 校验：若要挂载子接口，必须先有 I3D_Representable
     current = set(_object_types[rid].get("injected_interfaces", []))
     adding = set(interfaces)
-    child_ifaces = {"I3D_Spatial", "I3D_Visual", "I3D_Behavioral"}
+    child_ifaces = {"I3D_Spatial", "I3D_Visual", "I3D_Behavioral", "I3D_Overlay"}
     if adding & child_ifaces and "I3D_Representable" not in (current | adding):
         return jsonify({"error": "子能力接口需要先挂载 I3D_Representable"}), 400
 
@@ -2025,7 +2048,9 @@ def list_instances():
     切换数据集后，不属于当前数据集的实例自动隐藏（不删除，切回即恢复）。
     """
     all_inst = instance_store.list_all()
-    return jsonify([i for i in all_inst if i["object_type_rid"] in _object_types])
+    visible = [i for i in all_inst if i["object_type_rid"] in _object_types]
+    runtime_status = get_runtime_status(project_store.get_active_id())
+    return jsonify(enrich_instances_with_realtime_channel(visible, runtime_status))
 
 @app.route('/api/v2/instances', methods=['POST'])
 def spawn_instance():
@@ -2100,6 +2125,7 @@ def _build_render_config(object_type_rid):
     asset_meta = MOCK_ASSETS.get(asset_id, {})
     return {
         "injected_interfaces": list(ot.get("injected_interfaces", [])),
+        "interface_configs": dict(ot.get("interface_configs") or {}),
         "asset_id": asset_id,
         "ue_asset_path": ot.get("ue_asset_path") or asset_meta.get("ue_path") or asset_id,
         "object_type_name": ot.get("name", object_type_rid),
@@ -2186,6 +2212,29 @@ def _build_snapshot(instance_id):
             "fx_trigger":       raw.get("fx_trigger", ""),
             "ui_label_content": raw.get("ui_label_content", instance_id)
         }
+
+    if "I3D_Overlay" in injected:
+        try:
+            from overlay.service import resolve_overlay_interface
+            overlay_type = ot if ot_rid in _object_types else {
+                "rid": ot_rid,
+                "name": ot_name,
+                "injected_interfaces": injected,
+                "interface_configs": cfg.get("interface_configs") or {},
+            }
+            overlay_instance = dict(inst_meta)
+            overlay_instance["render_config"] = cfg
+            overlay_instance["raw_state"] = raw
+            overlay_payload = resolve_overlay_interface(
+                overlay_type,
+                overlay_instance,
+                raw_state=raw,
+                online=online,
+            )
+            if overlay_payload is not None:
+                interfaces["I3D_Overlay"] = overlay_payload
+        except Exception as overlay_error:
+            print(f"[overlay] snapshot resolve failed instance={instance_id}: {overlay_error}")
 
     hierarchy_path = inst_meta.get("hierarchy_path") or [ot_name]
     if not isinstance(hierarchy_path, list):
@@ -2880,7 +2929,7 @@ def activate_dataset():
 
 
 def _normalize_graph_data(graph):
-    """读取端归一化：补齐节点 id/symbolSize/category，并在 categories 为空时从节点派生。
+    """读取端归一化：补齐节点 id/symbolSize/category，并补全节点实际引用的分类。
     保证任何来源（CAD 提交 / CSV 导入 / 旧数据）建的数据集，预览时节点都有身份、
     有分类、有图例，不再渲染成无结构散点（修复"新建数据集预览图谱空白"）。"""
     if not isinstance(graph, dict):
@@ -2893,14 +2942,23 @@ def _normalize_graph_data(graph):
             n["symbolSize"] = 30
         if not n.get("category"):
             n["category"] = "Core"
-    if not graph.get("categories"):
-        seen, cats = set(), []
-        for n in nodes:
-            c = n.get("category") or "Core"
-            if c not in seen:
-                seen.add(c)
-                cats.append({"name": c})
-        graph["categories"] = cats
+
+    # categories 不能只在完全为空时才派生。直接入库或后续增量追加节点时，调用方
+    # 很容易只更新 nodes，导致新节点引用了尚未注册的分类；ECharts graph 会忽略
+    # 这类节点。保留已有分类元数据，同时把所有节点实际使用的分类补齐。
+    seen, categories = set(), []
+    for category in graph.get("categories") or []:
+        normalized = category if isinstance(category, dict) else {"name": category}
+        name = normalized.get("name")
+        if name and name not in seen:
+            seen.add(name)
+            categories.append(normalized)
+    for n in nodes:
+        category = n.get("category") or "Core"
+        if isinstance(category, str) and category not in seen:
+            seen.add(category)
+            categories.append({"name": category})
+    graph["categories"] = categories
     graph.setdefault("links", [])
     return graph
 
@@ -4284,6 +4342,21 @@ except Exception as _lite_err:
 
 # 启动时从 ProjectStore 恢复数据集 + 激活态 + 类型表（须在所有函数定义之后调用）
 _init_from_project_store()
+
+
+def _refresh_object_types_after_overlay_save():
+    global _object_types
+    _object_types = project_store.get_object_types()
+
+
+from overlay import register_overlay_routes
+register_overlay_routes(app, project_store, _refresh_object_types_after_overlay_save)
+
+from scene_interaction import register_scene_interaction_routes
+register_scene_interaction_routes(app, project_store)
+
+from spatial_assets import register_spatial_asset_routes
+register_spatial_asset_routes(app, project_store)
 
 if __name__ == '__main__':
     # threaded=True：支持并发请求（UE 多实例同时拉模型下载代理流，单线程会串行超时）

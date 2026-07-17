@@ -20,10 +20,12 @@
 #include "GameFramework/Actor.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
+#include "Components/WidgetComponent.h"
 #include "Dom/JsonObject.h"
 #include "TwinInstance.generated.h"
 
 class UDigitalTwinSyncComponent;
+class UOntoTwinOverlayWidget;
 
 // ============================================================================
 // 动画配方结构体（内置库使用）
@@ -160,11 +162,26 @@ public:
     /** 应用后端快照到 Actor（由 SceneManager 每 500ms 调用） */
     void ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot);
 
+    /** 应用 WebSocket 实时空间数据；保持期内优先于 HTTP 快照。 */
+    void ApplyRealtimeSpatial(double X, double Y, double HeadingDeg, float HoldSeconds);
+
+    /** 当前实例的空间坐标是否仍由实时流持有。 */
+    bool IsRealtimeSpatialActive() const;
+
     /** 获取实例 ID */
     FString GetInstanceId() const { return InstanceId; }
 
     /** 获取后端实例显示名；为空时回退到实例 ID。 */
     FString GetTwinDisplayName() const { return TwinDisplayName.IsEmpty() ? InstanceId : TwinDisplayName; }
+
+    bool HasSelectedOverlay() const { return bOverlayEnabled && OverlayDisplayMode == TEXT("selected"); }
+    bool HasAlwaysOverlay() const { return bOverlayEnabled && OverlayDisplayMode == TEXT("always"); }
+    bool HasOverlay() const { return bOverlayEnabled && CurrentOverlayData.IsValid(); }
+    FVector GetOverlayAnchorWorldLocation() const;
+    float GetOverlayRenderWidthPixels() const;
+    TSharedPtr<FJsonObject> GetOverlayData() const { return CurrentOverlayData; }
+    uint64 GetOverlayPayloadSerial() const { return OverlayPayloadSerial; }
+    void RefreshAlwaysOverlay(const FVector& CameraLocation, bool bShouldShow, float WorldScale = -1.0f);
 
     /** Runtime Editor: stop local behavior animation while a gizmo edit owns spatial transform. */
     FString PauseRuntimeEditorAnimation(bool& bOutWasRunning);
@@ -184,6 +201,9 @@ protected:
     /** 3D 文字标签组件（显示 ui_label_content） */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体", meta=(AllowPrivateAccess="true"))
     UTextRenderComponent* LabelComponent = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体|顶部信息面板", meta=(AllowPrivateAccess="true"))
+    UWidgetComponent* OverlayWidgetComponent = nullptr;
 
 private:
     // ── 同步组件 ─────────────────────────────────────────────────────────────
@@ -237,6 +257,12 @@ private:
     void ApplyVisualFromSnapshot(const TSharedPtr<FJsonObject>& VisualObj);
     void ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& BehaviorObj);
     void ApplyRepresentableFromSnapshot(const TSharedPtr<FJsonObject>& RepObj);
+    void ApplyOverlayFromSnapshot(const TSharedPtr<FJsonObject>& OverlayObj);
+    void UpdateWorldOverlayRenderTarget();
+    void ClearOverlay();
+
+    /** UE 世界时间；超过该时刻后 HTTP 空间快照可自动接管。 */
+    double RealtimeSpatialValidUntilSeconds = -1.0;
 
     /** 当前材质变体缓存 */
     FString CurrentMaterialVariant;
@@ -249,6 +275,15 @@ private:
 
     /** 当前标签文字缓存（防止重复刷新）*/
     FString CurrentLabelContent;
+
+    UPROPERTY()
+    UOntoTwinOverlayWidget* WorldOverlayWidget = nullptr;
+
+    TSharedPtr<FJsonObject> CurrentOverlayData;
+    FString OverlayDisplayMode;
+    FVector OverlayOffsetCm = FVector(0.0f, 0.0f, 20.0f);
+    bool bOverlayEnabled = false;
+    uint64 OverlayPayloadSerial = 0;
 
     // ── 程序化动画状态 ────────────────────────────────────────────────
     /** 内置动画配方字典（state名 → 执行配方）*/

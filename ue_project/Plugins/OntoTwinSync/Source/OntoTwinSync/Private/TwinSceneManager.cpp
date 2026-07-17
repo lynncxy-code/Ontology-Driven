@@ -12,8 +12,13 @@
 
 #include "TwinSceneManager.h"
 #include "OntoTwinRuntimeEditorPanel.h"
+#include "OntoTwinOverlayWidget.h"
 #include "OntoTwinRuntimeGizmo.h"
 #include "TwinInstance.h"
+#include "SceneInteraction/TwinInteractionManagerComponent.h"
+#include "IWebSocket.h"
+#include "WebSocketsModule.h"
+#include "Modules/ModuleManager.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "Engine/Engine.h"
@@ -116,6 +121,7 @@ FString TruncateRuntimeLabel(const FString& Value, int32 MaxLength)
 ATwinSceneManager::ATwinSceneManager()
 {
     PrimaryActorTick.bCanEverTick = true;
+    InteractionManager = CreateDefaultSubobject<UTwinInteractionManagerComponent>(TEXT("SceneInteractionManager"));
     UEProjectName = FApp::GetProjectName();
     UEProjectId = FString::Printf(TEXT("ueproj_%s"), *UEProjectName);
 }
@@ -129,6 +135,34 @@ void ATwinSceneManager::BeginPlay()
 
     // 启动定时轮询（FR-4：孪生实例全部由数据库驱动动态 spawn，不再接管关卡预置 Actor）
     SetPollTimerInterval(PollInterval, 1.0f);
+
+    bRealtimeClosing = false;
+    if (bEnableRealtimeWebSocket)
+    {
+        if (!FModuleManager::Get().IsModuleLoaded(TEXT("WebSockets")))
+        {
+            FModuleManager::Get().LoadModule(TEXT("WebSockets"));
+        }
+        if (!FHttpModule::Get().GetProxyAddress().IsEmpty())
+        {
+            UE_LOG(LogTemp, Warning,
+                TEXT("[OntoTwinWS] UE HTTP 代理仍处于启用状态，内网 WebSocket 可能被代理拦截: %s"),
+                *FHttpModule::Get().GetProxyAddress());
+        }
+        ConnectRealtimeWebSocket();
+    }
+    else
+    {
+        RealtimeConnectionState = TEXT("disabled");
+    }
+
+    if (bEnableOverlays && !bEnableRuntimeEditor)
+    {
+        if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+        {
+            EnableInput(PC);
+        }
+    }
 
     if (bEnableRuntimeEditor)
     {
@@ -171,8 +205,22 @@ void ATwinSceneManager::BeginPlay()
 void ATwinSceneManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     GetWorldTimerManager().ClearTimer(PollTimerHandle);
+    GetWorldTimerManager().ClearTimer(RealtimeReconnectTimerHandle);
+    bRealtimeClosing = true;
+    RealtimeConnectionState = TEXT("disabled");
+    ++RealtimeConnectionGeneration;
+    if (RealtimeSocket.IsValid() && RealtimeSocket->IsConnected())
+    {
+        RealtimeSocket->Close();
+    }
+    RealtimeSocket.Reset();
     bRuntimeEditDirty = false;
     ExitRuntimeEditMode();
+    if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+    {
+        UpdateOverlayPointerInput(PC, false);
+    }
+    ClearOverlaySelection();
 
     if (RuntimeGizmo && IsValid(RuntimeGizmo))
     {
@@ -198,6 +246,257 @@ void ATwinSceneManager::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
     TickRuntimeEditor(DeltaTime);
+    TickOverlays();
+}
+
+void ATwinSceneManager::TickOverlays()
+{
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (!PC)
+    {
+        if (!bEnableOverlays) ClearOverlaySelection();
+        return;
+    }
+
+    const bool bPointerOverRuntimePanel =
+        RuntimeEditorPanel && IsValid(RuntimeEditorPanel) && RuntimeEditorPanel->IsPointerOverPanel();
+    const bool bInteractionOwnsSelection =
+        InteractionManager && InteractionManager->IsRoamingActive();
+
+    bool bHasSelectedOverlay = false;
+    if (bEnableOverlays)
+    {
+        for (const auto& Pair : InstanceRegistry)
+        {
+            if (Pair.Value && IsValid(Pair.Value) && Pair.Value->HasSelectedOverlay())
+            {
+                bHasSelectedOverlay = true;
+                break;
+            }
+        }
+    }
+
+    UpdateOverlayPointerInput(
+        PC,
+        bEnableOverlays && bHasSelectedOverlay && !bInteractionOwnsSelection && !bRuntimeEditMode);
+
+    if (!bEnableOverlays)
+    {
+        ClearOverlaySelection();
+        return;
+    }
+
+    if (!bInteractionOwnsSelection && !bPointerOverRuntimePanel
+        && PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
+    {
+        FHitResult Hit;
+        ATwinInstance* HitInstance = nullptr;
+        if (TraceRuntimeCursor(Hit))
+        {
+            HitInstance = Cast<ATwinInstance>(Hit.GetActor());
+        }
+        if (HitInstance && HitInstance->HasSelectedOverlay())
+        {
+            SelectOverlayInstance(HitInstance);
+        }
+        else
+        {
+            ClearOverlaySelection();
+        }
+    }
+    else if (bRuntimeEditMode && RuntimeSelectedInstance && IsValid(RuntimeSelectedInstance)
+        && RuntimeSelectedInstance->HasSelectedOverlay())
+    {
+        SelectOverlayInstance(RuntimeSelectedInstance);
+    }
+
+    if (!bInteractionOwnsSelection && !bRuntimeEditMode
+        && PC->WasInputKeyJustPressed(EKeys::Escape))
+    {
+        ClearOverlaySelection();
+    }
+
+    if (OverlaySelectedInstance &&
+        (!IsValid(OverlaySelectedInstance)
+            || (bInteractionOwnsSelection
+                ? !OverlaySelectedInstance->HasOverlay()
+                : !OverlaySelectedInstance->HasSelectedOverlay())))
+    {
+        ClearOverlaySelection();
+    }
+
+    if (OverlaySelectedInstance && SelectedOverlayWidget)
+    {
+        const uint64 PayloadSerial = OverlaySelectedInstance->GetOverlayPayloadSerial();
+        if (PayloadSerial != SelectedOverlayPayloadSerial)
+        {
+            SelectedOverlayWidget->ApplyOverlayData(OverlaySelectedInstance->GetOverlayData());
+            SelectedOverlayPayloadSerial = PayloadSerial;
+        }
+
+        FVector2D ScreenPosition;
+        int32 ViewportX = 0;
+        int32 ViewportY = 0;
+        PC->GetViewportSize(ViewportX, ViewportY);
+        const bool bProjected = PC->ProjectWorldLocationToScreen(
+            OverlaySelectedInstance->GetOverlayAnchorWorldLocation(), ScreenPosition, true);
+        const bool bOnScreen = bProjected && ScreenPosition.X >= 0.0f && ScreenPosition.Y >= 0.0f
+            && ScreenPosition.X <= ViewportX && ScreenPosition.Y <= ViewportY;
+        SelectedOverlayWidget->SetVisibility(
+            bOnScreen ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+        if (bOnScreen)
+        {
+            SelectedOverlayWidget->SetPositionInViewport(ScreenPosition, false);
+        }
+    }
+
+    UpdateAlwaysOverlays(PC);
+}
+
+void ATwinSceneManager::UpdateOverlayPointerInput(
+    APlayerController* PlayerController,
+    bool bShouldOwnPointer)
+{
+    if (!PlayerController) return;
+
+    if (bShouldOwnPointer)
+    {
+        if (!bOverlayPointerInputActive)
+        {
+            bOverlayPreviousMouseCursor = PlayerController->bShowMouseCursor;
+            bOverlayPointerInputActive = true;
+
+            FInputModeGameAndUI InputMode;
+            InputMode.SetHideCursorDuringCapture(false);
+            InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+            PlayerController->SetInputMode(InputMode);
+        }
+        PlayerController->bShowMouseCursor = true;
+        return;
+    }
+
+    if (!bOverlayPointerInputActive) return;
+    bOverlayPointerInputActive = false;
+
+    const bool bAnotherSystemOwnsInput = bRuntimeEditMode
+        || (InteractionManager && InteractionManager->IsRoamingActive());
+    if (bAnotherSystemOwnsInput) return;
+
+    PlayerController->bShowMouseCursor = bOverlayPreviousMouseCursor;
+    if (!bOverlayPreviousMouseCursor)
+    {
+        PlayerController->SetInputMode(FInputModeGameOnly());
+    }
+}
+
+void ATwinSceneManager::SelectOverlayInstance(ATwinInstance* Instance, bool bAllowAnyMode)
+{
+    if (!Instance || !IsValid(Instance)
+        || (bAllowAnyMode ? !Instance->HasOverlay() : !Instance->HasSelectedOverlay()))
+    {
+        return;
+    }
+    if (OverlaySelectedInstance != Instance)
+    {
+        OverlaySelectedInstance = Instance;
+        SelectedOverlayPayloadSerial = 0;
+    }
+
+    if (!SelectedOverlayWidget)
+    {
+        APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+        if (!PC) return;
+        UClass* WidgetClass = OverlayWidgetClass
+            ? OverlayWidgetClass.Get() : UOntoTwinOverlayWidget::StaticClass();
+        SelectedOverlayWidget = CreateWidget<UOntoTwinOverlayWidget>(PC, WidgetClass);
+        if (!SelectedOverlayWidget) return;
+        SelectedOverlayWidget->SetAlignmentInViewport(FVector2D(0.5f, 1.0f));
+        SelectedOverlayWidget->AddToViewport(900);
+    }
+}
+
+void ATwinSceneManager::ClearOverlaySelection()
+{
+    OverlaySelectedInstance = nullptr;
+    SelectedOverlayPayloadSerial = 0;
+    if (SelectedOverlayWidget && IsValid(SelectedOverlayWidget))
+    {
+        SelectedOverlayWidget->RemoveFromParent();
+    }
+    SelectedOverlayWidget = nullptr;
+}
+
+void ATwinSceneManager::SelectOverlayFromSceneInteraction(ATwinInstance* Instance)
+{
+    SelectOverlayInstance(Instance, true);
+}
+
+void ATwinSceneManager::ClearOverlayFromSceneInteraction()
+{
+    ClearOverlaySelection();
+}
+
+void ATwinSceneManager::UpdateAlwaysOverlays(APlayerController* PlayerController)
+{
+    if (!PlayerController || !PlayerController->PlayerCameraManager) return;
+    const FVector CameraLocation = PlayerController->PlayerCameraManager->GetCameraLocation();
+    const float HorizontalFovRadians = FMath::DegreesToRadians(FMath::Clamp(
+        PlayerController->PlayerCameraManager->GetFOVAngle(), 5.0f, 170.0f));
+    const float MaxDistanceSquared = FMath::Square(FMath::Max(100.0f, OverlayCullDistanceCm));
+    int32 ViewportX = 0;
+    int32 ViewportY = 0;
+    PlayerController->GetViewportSize(ViewportX, ViewportY);
+
+    TArray<TPair<float, ATwinInstance*>> Candidates;
+    for (const TPair<FString, ATwinInstance*>& Pair : InstanceRegistry)
+    {
+        ATwinInstance* Instance = Pair.Value;
+        if (!Instance || !IsValid(Instance) || !Instance->HasAlwaysOverlay())
+        {
+            if (Instance && IsValid(Instance)) Instance->RefreshAlwaysOverlay(CameraLocation, false);
+            continue;
+        }
+        const FVector Anchor = Instance->GetOverlayAnchorWorldLocation();
+        const float DistanceSquared = FVector::DistSquared(CameraLocation, Anchor);
+        FVector2D ScreenPosition;
+        const bool bProjected = PlayerController->ProjectWorldLocationToScreen(Anchor, ScreenPosition, true);
+        const bool bOnScreen = bProjected && ScreenPosition.X >= 0.0f && ScreenPosition.Y >= 0.0f
+            && ScreenPosition.X <= ViewportX && ScreenPosition.Y <= ViewportY;
+        if (DistanceSquared <= MaxDistanceSquared && bOnScreen)
+        {
+            Candidates.Emplace(DistanceSquared, Instance);
+        }
+        else
+        {
+            Instance->RefreshAlwaysOverlay(CameraLocation, false);
+        }
+    }
+
+    Candidates.Sort([](const TPair<float, ATwinInstance*>& A, const TPair<float, ATwinInstance*>& B)
+    {
+        return A.Key < B.Key;
+    });
+    const int32 VisibleCount = FMath::Min(MaxVisibleAlwaysOverlays, Candidates.Num());
+    for (int32 Index = 0; Index < Candidates.Num(); ++Index)
+    {
+        ATwinInstance* Instance = Candidates[Index].Value;
+        if (Index >= VisibleCount)
+        {
+            Instance->RefreshAlwaysOverlay(CameraLocation, false);
+            continue;
+        }
+
+        const float DistanceCm = FMath::Sqrt(Candidates[Index].Key);
+        const float WorldViewportWidthCm = 2.0f * DistanceCm
+            * FMath::Tan(HorizontalFovRadians * 0.5f);
+        const float DesiredWorldWidthCm = WorldViewportWidthCm
+            * (FMath::Max(1.0f, AlwaysOverlayTargetScreenWidthPx) / FMath::Max(1, ViewportX));
+        const float RenderWidthPx = FMath::Max(1.0f, Instance->GetOverlayRenderWidthPixels());
+        const float MinScale = FMath::Min(AlwaysOverlayMinWorldScale, AlwaysOverlayMaxWorldScale);
+        const float MaxScale = FMath::Max(AlwaysOverlayMinWorldScale, AlwaysOverlayMaxWorldScale);
+        const float WorldScale = FMath::Clamp(DesiredWorldWidthCm / RenderWidthPx, MinScale, MaxScale);
+        Instance->RefreshAlwaysOverlay(CameraLocation, true, WorldScale);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -379,6 +678,241 @@ void ATwinSceneManager::OnPollResponse(
     }
 }
 
+void ATwinSceneManager::ConnectRealtimeWebSocket()
+{
+    if (bRealtimeClosing)
+    {
+        return;
+    }
+    if (!bEnableRealtimeWebSocket)
+    {
+        RealtimeConnectionState = TEXT("disabled");
+        return;
+    }
+    if (RealtimeWebSocketUrl.IsEmpty())
+    {
+        RealtimeConnectionState = TEXT("error");
+        RealtimeLastError = TEXT("WebSocket URL is empty");
+        return;
+    }
+
+    bRealtimeReconnectScheduled = false;
+    RealtimeConnectionState = TEXT("connecting");
+    const int32 ThisGeneration = ++RealtimeConnectionGeneration;
+
+    if (RealtimeSocket.IsValid())
+    {
+        if (RealtimeSocket->IsConnected())
+        {
+            RealtimeSocket->Close();
+        }
+        RealtimeSocket.Reset();
+    }
+
+    // 与现场 MetaverseClient 保持一致。部分 libwebsockets 构建需要一个客户端协议名。
+    RealtimeSocket = FWebSocketsModule::Get().CreateWebSocket(RealtimeWebSocketUrl, TEXT("ws"));
+
+    RealtimeSocket->OnConnected().AddWeakLambda(this, [this, ThisGeneration]()
+    {
+        if (ThisGeneration != RealtimeConnectionGeneration) return;
+        RealtimeConnectionState = TEXT("connected");
+        RealtimeLastError.Empty();
+        UE_LOG(LogTemp, Log, TEXT("[OntoTwinWS] 已连接 %s"), *RealtimeWebSocketUrl);
+    });
+
+    RealtimeSocket->OnConnectionError().AddWeakLambda(
+        this, [this, ThisGeneration](const FString& Error)
+    {
+        if (ThisGeneration != RealtimeConnectionGeneration) return;
+        RealtimeConnectionState = TEXT("error");
+        RealtimeLastError = Error;
+        UE_LOG(LogTemp, Warning, TEXT("[OntoTwinWS] 连接错误: %s"), *Error);
+        ScheduleRealtimeReconnect();
+    });
+
+    RealtimeSocket->OnClosed().AddWeakLambda(
+        this, [this, ThisGeneration](int32 StatusCode, const FString& Reason, bool bWasClean)
+    {
+        if (ThisGeneration != RealtimeConnectionGeneration) return;
+        RealtimeConnectionState = TEXT("disconnected");
+        RealtimeLastError = Reason;
+        UE_LOG(LogTemp, Warning,
+            TEXT("[OntoTwinWS] 已断开 code=%d clean=%s reason=%s"),
+            StatusCode, bWasClean ? TEXT("true") : TEXT("false"), *Reason);
+        if (!bRealtimeClosing)
+        {
+            ScheduleRealtimeReconnect();
+        }
+    });
+
+    RealtimeSocket->OnMessage().AddWeakLambda(
+        this, [this, ThisGeneration](const FString& Message)
+    {
+        if (ThisGeneration != RealtimeConnectionGeneration) return;
+        HandleRealtimeMessage(Message);
+    });
+
+    RealtimeSocket->Connect();
+}
+
+void ATwinSceneManager::ScheduleRealtimeReconnect()
+{
+    if (bRealtimeClosing || bRealtimeReconnectScheduled || !GetWorld())
+    {
+        return;
+    }
+
+    bRealtimeReconnectScheduled = true;
+    RealtimeConnectionState = TEXT("reconnecting");
+    GetWorldTimerManager().SetTimer(
+        RealtimeReconnectTimerHandle,
+        FTimerDelegate::CreateWeakLambda(this, [this]()
+        {
+            bRealtimeReconnectScheduled = false;
+            ConnectRealtimeWebSocket();
+        }),
+        FMath::Max(0.5f, RealtimeReconnectSeconds),
+        false);
+}
+
+void ATwinSceneManager::HandleRealtimeMessage(const FString& Message)
+{
+    TSharedPtr<FJsonObject> Frame;
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Message);
+    if (!FJsonSerializer::Deserialize(Reader, Frame) || !Frame.IsValid())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[OntoTwinWS] 无法解析状态帧"));
+        return;
+    }
+
+    const TArray<TSharedPtr<FJsonValue>>* Targets = nullptr;
+    if (!Frame->TryGetArrayField(TEXT("targets"), Targets))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[OntoTwinWS] 状态帧缺少 targets"));
+        return;
+    }
+
+    int32 AppliedCount = 0;
+    TMap<FString, FString> FrameTargetStates;
+    TSet<FString> FrameAppliedInstanceIds;
+    for (const TSharedPtr<FJsonValue>& Value : *Targets)
+    {
+        const TSharedPtr<FJsonObject>* Target = nullptr;
+        if (!Value.IsValid() || !Value->TryGetObject(Target) || !Target || !Target->IsValid())
+        {
+            continue;
+        }
+
+        FString InstanceId;
+        FString State;
+        if (!(*Target)->TryGetStringField(TEXT("key"), InstanceId) || InstanceId.IsEmpty())
+        {
+            continue;
+        }
+
+        (*Target)->TryGetStringField(TEXT("state"), State);
+        if (State.IsEmpty())
+        {
+            State = TEXT("active");
+        }
+        FrameTargetStates.Add(InstanceId, State.ToLower());
+        if (State.Equals(TEXT("lost"), ESearchCase::IgnoreCase))
+        {
+            continue;
+        }
+
+        double X = 0.0;
+        double Y = 0.0;
+        double Heading = 0.0;
+        if (!(*Target)->TryGetNumberField(TEXT("x"), X)
+            || !(*Target)->TryGetNumberField(TEXT("y"), Y)
+            || !(*Target)->TryGetNumberField(TEXT("heading"), Heading))
+        {
+            continue;
+        }
+
+        ATwinInstance** Found = InstanceRegistry.Find(InstanceId);
+        if (Found && *Found && IsValid(*Found))
+        {
+            (*Found)->ApplyRealtimeSpatial(X, Y, Heading, RealtimeSpatialHoldSeconds);
+            RealtimeMissingInstanceWarnings.Remove(InstanceId);
+            FrameAppliedInstanceIds.Add(InstanceId);
+            ++AppliedCount;
+        }
+        else if (!RealtimeMissingInstanceWarnings.Contains(InstanceId))
+        {
+            RealtimeMissingInstanceWarnings.Add(InstanceId);
+            UE_LOG(LogTemp, Warning,
+                TEXT("[OntoTwinWS] 收到 %s，但 HTTP 档案尚未创建对应 TwinInstance"),
+                *InstanceId);
+        }
+    }
+
+    double SourceTimestampMs = 0.0;
+    if (Frame->TryGetNumberField(TEXT("source_timestamp_ms"), SourceTimestampMs)
+        || Frame->TryGetNumberField(TEXT("timestamp_ms"), SourceTimestampMs))
+    {
+        RealtimeLastSourceTimestampMs = FMath::Max<int64>(0, static_cast<int64>(SourceTimestampMs));
+    }
+    RealtimeTargetStates = MoveTemp(FrameTargetStates);
+    RealtimeAppliedInstanceIds = MoveTemp(FrameAppliedInstanceIds);
+    RealtimeLastFramePlatformSeconds = FPlatformTime::Seconds();
+    ++RealtimeFrameCount;
+    if (RealtimeFrameCount == 1 || RealtimeFrameCount % 300 == 0)
+    {
+        UE_LOG(LogTemp, Log,
+            TEXT("[OntoTwinWS] 状态帧=%lld targets=%d applied=%d"),
+            RealtimeFrameCount, Targets->Num(), AppliedCount);
+    }
+}
+
+TSharedRef<FJsonObject> ATwinSceneManager::BuildRealtimeChannelHealth() const
+{
+    const TSharedRef<FJsonObject> Health = MakeShared<FJsonObject>();
+    Health->SetBoolField(TEXT("enabled"), bEnableRealtimeWebSocket);
+    Health->SetStringField(TEXT("connection_state"),
+        bEnableRealtimeWebSocket ? RealtimeConnectionState : TEXT("disabled"));
+
+    const double LastFrameAgeMs = RealtimeLastFramePlatformSeconds >= 0.0
+        ? FMath::Max(0.0, (FPlatformTime::Seconds() - RealtimeLastFramePlatformSeconds) * 1000.0)
+        : -1.0;
+    const bool bFrameFresh = bEnableRealtimeWebSocket
+        && RealtimeConnectionState == TEXT("connected")
+        && LastFrameAgeMs >= 0.0
+        && LastFrameAgeMs <= FMath::Max(0.1f, RealtimeSpatialHoldSeconds) * 1000.0;
+
+    Health->SetStringField(TEXT("active_source"), bFrameFresh ? TEXT("websocket") : TEXT("http_snapshot"));
+    if (LastFrameAgeMs >= 0.0)
+    {
+        Health->SetNumberField(TEXT("last_frame_age_ms"), LastFrameAgeMs);
+    }
+    else
+    {
+        Health->SetField(TEXT("last_frame_age_ms"), MakeShared<FJsonValueNull>());
+    }
+    Health->SetNumberField(TEXT("frame_count"), static_cast<double>(RealtimeFrameCount));
+    Health->SetNumberField(TEXT("source_timestamp_ms"), static_cast<double>(RealtimeLastSourceTimestampMs));
+    Health->SetNumberField(TEXT("target_count"), RealtimeTargetStates.Num());
+    Health->SetNumberField(TEXT("applied_target_count"), RealtimeAppliedInstanceIds.Num());
+    Health->SetStringField(TEXT("error"), RealtimeLastError);
+
+    TArray<FString> InstanceIds;
+    RealtimeTargetStates.GetKeys(InstanceIds);
+    InstanceIds.Sort();
+    TArray<TSharedPtr<FJsonValue>> Targets;
+    Targets.Reserve(InstanceIds.Num());
+    for (const FString& InstanceId : InstanceIds)
+    {
+        const TSharedRef<FJsonObject> Target = MakeShared<FJsonObject>();
+        Target->SetStringField(TEXT("instance_id"), InstanceId);
+        Target->SetStringField(TEXT("state"), RealtimeTargetStates.FindRef(InstanceId));
+        Target->SetBoolField(TEXT("applied"), RealtimeAppliedInstanceIds.Contains(InstanceId));
+        Targets.Add(MakeShared<FJsonValueObject>(Target));
+    }
+    Health->SetArrayField(TEXT("targets"), Targets);
+    return Health;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 实例处理
 // ═══════════════════════════════════════════════════════════════════════════
@@ -488,6 +1022,10 @@ void ATwinSceneManager::DestroyTwinInstance(const FString& InstanceId)
     ATwinInstance** Found = InstanceRegistry.Find(InstanceId);
     if (Found && *Found && IsValid(*Found))
     {
+        if (OverlaySelectedInstance == *Found)
+        {
+            ClearOverlaySelection();
+        }
         if (RuntimeSelectedInstance == *Found)
         {
             ClearRuntimeSelection(false);
@@ -508,6 +1046,14 @@ void ATwinSceneManager::ToggleRuntimeEditMode()
     if (!bEnableRuntimeEditor)
     {
         RuntimeStatusMessage = TEXT("Runtime Editor disabled on this manager");
+        UpdateRuntimeEditorPanel();
+        return;
+    }
+
+    if (!bRuntimeEditMode && InteractionManager && InteractionManager->IsRoamingActive())
+    {
+        RuntimeStatusMessage = TEXT("Exit character roaming before entering Runtime Editor");
+        InteractionManager->NotifyRuntimeEditorBlocked();
         UpdateRuntimeEditorPanel();
         return;
     }

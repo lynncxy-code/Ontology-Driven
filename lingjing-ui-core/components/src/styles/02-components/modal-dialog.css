@@ -1,0 +1,437 @@
+/**
+ * Lingjing Core - Modal Dialog Component
+ * 
+ * @version 2.6.2
+ * @description 模态框组件 - 用于确认操作、表单弹窗、详情展?
+ * @usage 所有场景通用的核心交互组?
+ * 
+ * Components:
+ * - .modal-overlay       遮罩层（半透明黑色背景?
+ * - .modal-container     模态框容器（玻璃拟态卡片）
+ * - .modal-header        头部区域（标?关闭按钮?
+ * - .modal-body          内容区域（主要内容）
+ * - .modal-footer        底部操作区（按钮组）
+ * 
+ * Sizes:
+ * - .modal-small         小号模态框?00px?
+ * - .modal-medium        中号模态框?00px，默认）
+ * - .modal-large         大号模态框?00px?
+ * - .modal-fullscreen    全屏模态框
+ */
+
+/* ============================================================================
+   Modal Overlay - 遮罩?
+   ========================================================================= */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--glass-overlay-dark);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  
+  /* 渐显动画 */
+  opacity: 0;
+  animation: modal-fade-in var(--anim-duration-normal) var(--anim-ease-out) forwards;
+  
+  /* 点击遮罩关闭 */
+  cursor: pointer;
+}
+
+/* 深色主题遮罩 */
+[data-theme="dark"] .modal-overlay {
+  background: var(--neutral-black-alpha-20);
+  backdrop-filter: blur(var(--blur-sm));
+  -webkit-backdrop-filter: blur(var(--blur-sm));
+}
+
+@keyframes modal-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 隐藏状?*/
+.modal-overlay.hidden {
+  display: none;
+}
+
+/* ============================================================================
+   Modal Container - 模态框容器
+   ========================================================================= */
+
+.modal-container {
+  /* Layout */
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  
+  /* 玻璃拟态效?*/
+  background: var(--bg-card);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-dialog);
+  
+  /* 防止点击容器关闭 */
+  cursor: auto;
+  
+  /* 缩放动画 */
+  transform: scale(0.9);
+  animation: modal-scale-in var(--anim-duration-normal) var(--anim-ease-out) forwards;
+}
+
+[data-theme="dark"] .modal-container {
+  background: var(--bg-card-heavy);
+}
+
+
+@keyframes modal-scale-in {
+  from {
+    transform: scale(0.9);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+/* Size Variants - 尺寸变体 */
+.modal-container.modal-small {
+  max-width: 400px;
+}
+
+.modal-container.modal-medium {
+  max-width: 600px;
+}
+
+.modal-container.modal-large {
+  max-width: 800px;
+}
+
+.modal-container.modal-fullscreen {
+  max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+/* ============================================================================
+   Modal Header - 头部
+   ========================================================================= */
+
+.modal-header {
+  /* Layout */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-bottom: var(--glass-border-light);
+  flex-shrink: 0;
+}
+
+.modal-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+[data-theme="dark"] .modal-title {
+  color: var(--theme-text-primary);
+}
+
+
+
+.modal-close {
+  /* Reset */
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  
+  /* Style */
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+}
+
+.modal-close:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.modal-close:active {
+  background: var(--bg-card-light);
+}
+
+
+.modal-close i,
+.modal-close svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ============================================================================
+   Modal Body - 内容?
+   ========================================================================= */
+
+.modal-body {
+  /* Layout */
+  padding: var(--spacing-xl);
+  flex: 1;
+  overflow-y: auto;
+  
+  /* Scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-status-info) transparent;
+}
+
+.modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  background: var(--bg-status-info);
+  border-radius: 3px;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: var(--glass-overlay-medium);
+}
+
+/* 内容样式 */
+.modal-body p {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0 0 var(--spacing-md) 0;
+}
+
+.modal-body p:last-child {
+  margin-bottom: 0;
+}
+
+[data-theme="dark"] .modal-body p {
+  color: var(--theme-text-secondary, var(--text-secondary));
+}
+
+
+
+/* ============================================================================
+   Modal Footer - 底部操作?
+   ========================================================================= */
+
+.modal-footer {
+  /* Layout */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-top: var(--glass-border);
+  flex-shrink: 0;
+}
+
+/* 左对齐按钮组 */
+.modal-footer.justify-start {
+  justify-content: flex-start;
+}
+
+/* 居中按钮?*/
+.modal-footer.justify-center {
+  justify-content: center;
+}
+
+/* 两端对齐 */
+.modal-footer.justify-between {
+  justify-content: space-between;
+}
+
+/* ============================================================================
+   Modal Variants - 变体样式
+   ========================================================================= */
+
+/* Confirm Modal - 确认?*/
+.modal-confirm .modal-header {
+  color: var(--color-aero-blue);
+}
+
+.modal-confirm .modal-body {
+  text-align: center;
+  padding: var(--spacing-2xl) var(--spacing-xl);
+}
+
+
+.modal-confirm .modal-footer {
+  justify-content: center;
+}
+
+/* Warning Modal - 警告?*/
+.modal-warning .modal-header {
+  color: var(--warning-base);
+}
+
+.modal-warning .modal-container {
+  border-top: 3px solid var(--warning-base);
+}
+
+/* Danger Modal - 危险操作确认 */
+.modal-danger .modal-header {
+  color: var(--error-base);
+}
+
+.modal-danger .modal-container {
+  border-top: 3px solid var(--error-base);
+}
+
+/* Success Modal - 成功提示 */
+.modal-success .modal-header {
+  color: var(--success-base);
+}
+
+.modal-success .modal-container {
+  border-top: 3px solid var(--success-base);
+}
+
+/* ============================================================================
+   Responsive Design - 响应式设?
+   ========================================================================= */
+
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: var(--spacing-md);
+  }
+  
+  .modal-container {
+    max-width: 100%;
+    max-height: 100vh;
+  }
+  
+  .modal-container.modal-large,
+  .modal-container.modal-medium {
+    max-width: 100%;
+  }
+  
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding-left: var(--spacing-lg);
+    padding-right: var(--spacing-lg);
+  }
+  
+  .modal-footer {
+    flex-direction: column-reverse;
+  }
+  
+  .modal-footer button {
+    width: 100%;
+  }
+}
+
+/* ============================================================================
+   Accessibility - 无障碍访?
+   ========================================================================= */
+
+/* Focus trap */
+.modal-overlay:focus {
+  outline: none;
+}
+
+.modal-container:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay,
+  .modal-container {
+    animation: none;
+  }
+  
+  .modal-container {
+    transform: scale(1);
+  }
+}
+
+/* ============================================================================
+   Usage Examples - 使用示例
+   ========================================================================= */
+
+/**
+ * 基础用法?
+ * 
+ * <div class="modal-overlay">
+ *   <div class="modal-container">
+ *     <div class="modal-header">
+ *       <h3 class="modal-title">标题</h3>
+ *       <button class="modal-close">
+ *         <i data-lucide="x"></i>
+ *       </button>
+ *     </div>
+ *     <div class="modal-body">
+ *       <p>内容...</p>
+ *     </div>
+ *     <div class="modal-footer">
+ *       <button class="btn-ghost">取消</button>
+ *       <button class="btn-primary">确认</button>
+ *     </div>
+ *   </div>
+ * </div>
+ * 
+ * 确认框：
+ * 
+ * <div class="modal-overlay modal-confirm">
+ *   <div class="modal-container modal-small">
+ *     <div class="modal-header">
+ *       <h3 class="modal-title">确认删除</h3>
+ *       <button class="modal-close">
+ *         <i data-lucide="x"></i>
+ *       </button>
+ *     </div>
+ *     <div class="modal-body">
+ *       <p>确定要删除这条记录吗？此操作无法撤销?/p>
+ *     </div>
+ *     <div class="modal-footer">
+ *       <button class="btn-ghost">取消</button>
+ *       <button class="btn-primary">确认删除</button>
+ *     </div>
+ *   </div>
+ * </div>
+ * 
+ * JavaScript控制?
+ * 
+ * // 显示
+ * document.querySelector('.modal-overlay').classList.remove('hidden');
+ * 
+ * // 隐藏
+ * document.querySelector('.modal-overlay').classList.add('hidden');
+ * 
+ * // 点击遮罩关闭
+ * overlay.addEventListener('click', (e) => {
+ *   if (e.target === overlay) {
+ *     overlay.classList.add('hidden');
+ *   }
+ * });
+ */

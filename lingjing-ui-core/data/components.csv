@@ -1,0 +1,132 @@
+Type,Name,Description,CSS Class,Scenario,Priority,Status
+Card,Standard,Standard container with glassmorphism (Web/B-End Only - NO UE),.card-glass,Layout,Core,Implemented
+Card,Effect Glass,Glassmorphism container with deep blue glass effect (based on demo),.effect-glass,Layout,Core,Implemented
+Card,Solid,Solid background card for high contrast data,.card-solid,Layout,Core,Implemented
+Card,UE-Mimetic,Default container for UE scenes (Parent Level),.card-ue-mimetic,UE,Core,Implemented
+Card,UE-Data-Highlight,Sub-container for content grouping (Child Level),.card-ue-data-highlight,UE,Core,Implemented
+Card,Glass-Card,High transparency frosted glass card for HUD/Floating panels,.card-glass-hud,Layout,Core,Implemented
+Card,Glass-Secondary,Light gradient fill card for sub-level content,.card-glass-secondary,Layout,Core,Implemented
+Button,Primary,Main call-to-action button,.btn-primary,Form,Core,Implemented
+Button,Secondary,Secondary action button,.btn-secondary,Form,Core,Implemented
+Button,Ghost,Transparent button for subtle actions,.btn-ghost,Form,Core,Implemented
+Button,UE-Special,UE场景专用按钮,.btn-ue,UE,Core,Implemented
+Input,Text Field,Standard text input with focus glow,.input-field,Form,Core,Implemented
+Badge,Status,Small status indicator,.badge,Data,Core,Implemented
+Chart,Container,Wrapper for ECharts/Canvas,.chart-container,Data,Core,Implemented
+Navigation,Sidebar,Vertical navigation menu,.nav-sidebar,Navigation,Core,Implemented
+Header,Top Bar,Horizontal top header,.header-top,Navigation,Core,Implemented
+Grid,Bento,Bento-style grid layout container,.grid-bento,Layout,Core,Implemented
+Preview,UE-Viewport,Container for 3D/UE viewport stream,.ue-viewport,UE,Core,Implemented
+Overlay,UE-Stats-HUD,Heads-up display for rendering statistics,.ue-stats-hud,UE,Core,Implemented
+Control,UE-Toggle,Switch between 3D and 2D views (Accessibility requirement),.ue-toggle,UE,Core,Implemented
+Overlay,UE-Vignette,Full screen vignette with deep midnight blue gradient (UE Only),.vignette-overlay,UE,Core,Implemented
+Layout,Panel-Row,Standard flex row with border/ring for list items,.panel-row,Layout,Core,Implemented
+Layout,UE-Panel-Row-Clean,Panel row without border/ring (for clean lists in UE scenes),.panel-row-clean,UE,Core,Implemented
+Table,UE-Table,High density data table with glass headers and hover effects,.table-ue,Data,Core,Implemented
+Timeline,UE-Histogram,Time distribution bar with improved visibility (UE Only),.timeline-histogram,Data,Core,Implemented
+Timeline,UE-Label,Time axis text label (UE Only),.timeline-label,Data,Core,Implemented
+Form,Checkbox,Standard checkbox input,.form-checkbox,Form,Core,Implemented
+Form,Radio,Radio button input,.form-radio,Form,Core,Implemented
+Form,Select,Dropdown select input,.form-select,Form,Core,Implemented
+Form,Textarea,Multi-line text input,.form-textarea,Form,Core,Implemented
+Form,Switch,Toggle switch input,.form-switch,Form,Core,Implemented
+Form,Slider,Range slider input,.form-slider,Form,Core,Implemented
+Navigation,Breadcrumb,Path navigation indicator,.nav-breadcrumb,Navigation,Core,Implemented
+Navigation,Top Nav,Horizontal top navigation,.nav-top,Navigation,Core,Implemented
+Navigation,Tab Navigation,Tab-based navigation,.nav-tabs,Navigation,Core,Implemented
+Navigation,Pagination,Page navigation controls,.nav-pagination,Navigation,Core,Implemented
+Data,Tag,Small information tag,.data-tag,Data,Core,Implemented
+Data,Tooltip,Inline information tooltip,.data-tooltip,Data,Core,Planned
+Data,Accordion,Collapsible content panel,.data-accordion,Data,Core,Implemented
+Data,Tabs,Tabbed content container,.data-tabs,Data,Core,Implemented
+Data,List Group,Vertical list of items,.data-list-group,Data,Core,Implemented
+Feedback,Alert,Notification message,.feedback-alert,Feedback,Core,Implemented
+Feedback,Toast,Floating notification,.feedback-toast,Feedback,Core,Implemented
+Feedback,Modal,Modal dialog box,.feedback-modal,Feedback,Core,Implemented
+Feedback,Drawer,Slide-in side panel,.feedback-drawer,Feedback,Core,Implemented
+Feedback,Loading,Loading indicator,.feedback-loading,Feedback,Core,Implemented
+Layout,Container,Fixed-width content container,.layout-container,Layout,Core,Planned
+Layout,Grid,Responsive grid system,.layout-grid,Layout,Core,Planned
+Layout,Row,Horizontal flex container,.layout-row,Layout,Core,Planned
+Layout,Column,Vertical flex container,.layout-column,Layout,Core,Planned
+Layout,Divider,Visual separator,.layout-divider,Layout,Core,Planned
+Media,Image,Responsive image container,.media-image,Data,Core,Planned
+Media,Video,Video player container,.media-video,Data,Core,Planned
+Media,Avatar,User profile avatar,.media-avatar,Data,Core,Planned
+Media,Icon Button,Icon-only button,.media-icon-button,Form,Core,Planned
+Utility,Back to Top,Scroll-to-top button,.util-back-to-top,Layout,Extended,Planned
+Utility,Progress Bar,Progress indicator,.util-progress-bar,Feedback,Core,Implemented
+Utility,Spinner,Loading spinner,.util-spinner,Feedback,Core,Planned
+Utility,Dropdown,Generic dropdown menu,.util-dropdown,Form,Core,Planned
+Utility,Overlay,Generic overlay layer,.util-overlay,Layout,Core,Planned
+Icon,Lucide,Lucide Icons component with data-lucide attribute,.icon-lucide,Data,Core,Planned
+Icon,Phosphor,Phosphor Icons component with data-phosphor attribute,.icon-phosphor,Data,Extended,Planned
+Icon,Heroicons,Heroicons component,.icon-heroicons,Data,Extended,Planned
+Icon,Feather,Feather Icons component,.icon-feather,Data,Extended,Planned
+Icon,Material,Material Symbols component,.icon-material,Data,Extended,Planned
+Icon,Button,Icon-only button with glassmorphism,.icon-button,Form,Core,Planned
+Icon,Circle,Icon with circle background,.icon-circle,Data,Extended,Planned
+Icon,Card,Icon with card background,.icon-card,Data,Extended,Planned
+Icon,Stack,Stacked icons for status indicators,.icon-stack,Data,Extended,Planned
+Icon,Badge,Icon with badge notification,.icon-badge,Data,Extended,Planned
+Metric,Basic,Single key metric with trend indicator,.metric-card-basic,Dashboard,Core,Planned
+Metric,Trend,Metric with trend visualization and mini chart,.metric-card-trend,Dashboard,Core,Planned
+Metric,Comparison,Comparative metric with progress bars,.metric-card-comparison,Dashboard,Core,Implemented
+Metric,Progress,Progress metric with circle or bar indicator,.metric-card-progress,Dashboard,Core,Implemented
+Metric,Distribution,Distribution metric with pie or donut chart,.metric-card-distribution,Dashboard,Core,Planned
+Metric,Time Series,Time series metric with line or area chart,.metric-card-timeseries,Dashboard,Core,Planned
+Metric,Ranking,Ranking metric with list display and badges,.metric-card-ranking,Dashboard,Core,Planned
+Metric,Multi,Multi-metric card with grid layout,.metric-card-multi,Dashboard,Core,Planned
+Feedback,Success,Success feedback with illustration and actions,.feedback-success,Feedback,Core,Implemented
+Feedback,Error,Error feedback with illustration and retry options,.feedback-error,Feedback,Core,Implemented
+Feedback,Warning,Warning feedback with illustration and confirmation,.feedback-warning,Feedback,Core,Implemented
+Feedback,Info,Info feedback with illustration and details,.feedback-info,Feedback,Core,Implemented
+Feedback,Empty,Empty state feedback with illustration and guidance,.feedback-empty,Feedback,Core,Implemented
+Feedback,Confirmation,Confirmation feedback with illustration and actions,.feedback-confirm,Feedback,Core,Planned
+Feedback,Loading,Loading feedback with animation and progress,.feedback-loading,Feedback,Core,Implemented
+Feedback,Result,Result feedback with status and details,.feedback-result,Feedback,Core,Planned
+Empty State,No Data,Empty state for no data scenarios,.empty-state-no-data,Feedback,Core,Planned
+Empty State,No Result,Empty state for search no results,.empty-state-no-result,Feedback,Core,Planned
+Empty State,First Time,Empty state for first-time users,.empty-state-first-time,Feedback,Core,Planned
+Stat,Card,Statistics card with trend and icon,.stat-card,Dashboard,Core,Implemented
+Stepper,Horizontal,Horizontal stepper for multi-step processes,.stepper-horizontal,Form,Core,Implemented
+Stepper,Vertical,Vertical stepper for multi-step processes,.stepper-vertical,Form,Core,Implemented
+Rating,Star,Star rating component with display and input modes,.rating-star,Form,Extended,Implemented
+Upload,File,File upload with drag and drop support,.upload-file,Form,Core,Planned
+Upload,Image,Image upload with preview and gallery,.upload-image,Form,Core,Planned
+Skeleton,Text,Text skeleton for loading placeholders,.skeleton-text,Feedback,Core,Planned
+Skeleton,Avatar,Avatar skeleton for loading placeholders,.skeleton-avatar,Feedback,Core,Planned
+Skeleton,Image,Image skeleton for loading placeholders,.skeleton-image,Feedback,Core,Planned
+Skeleton,Card,Card skeleton for loading placeholders,.skeleton-card,Feedback,Core,Planned
+Skeleton,List,List skeleton for loading placeholders,.skeleton-list,Feedback,Core,Planned
+Descriptions,Basic,Basic descriptions for key-value pairs,.descriptions-basic,Data,Core,Implemented
+Descriptions,Bordered,Bordered descriptions with visual separation,.descriptions-bordered,Data,Core,Implemented
+Result,Success,Success result page with illustration and actions,.result-success,Feedback,Core,Implemented
+Result,Error,Error result page with illustration and retry,.result-error,Feedback,Core,Implemented
+Result,Warning,Warning result page with illustration and details,.result-warning,Feedback,Core,Implemented
+Time Picker,12 Hour,12-hour time picker with AM/PM,.time-picker-12h,Form,Extended,Implemented
+Time Picker,24 Hour,24-hour time picker with minutes and seconds,.time-picker-24h,Form,Extended,Implemented
+Transfer,Basic,Basic transfer with left-right panels,.transfer-basic,Form,Extended,Implemented
+Transfer,Search,Transfer with search functionality,.transfer-search,Form,Extended,Implemented
+Tree,Basic,Basic tree with expand/collapse,.tree-basic,Data,Extended,Implemented
+Tree,Checkbox,Tree with checkbox selection,.tree-checkbox,Data,Extended,Implemented
+Notification Center,Basic,Basic notification center with list view,.notification-center-basic,Feedback,Extended,Planned
+Notification Center,Dropdown,Dropdown notification center with badge,.notification-center-dropdown,Feedback,Extended,Implemented
+User Menu,Dropdown,Dropdown user menu with avatar and actions,.user-menu-dropdown,Navigation,Core,Implemented
+User Menu,Full,Full user menu with profile and settings,.user-menu-full,Navigation,Core,Planned
+Card,UE-Advanced,Advanced UE card with enhanced visual effects,.card-ue-advanced,UE,Core,Implemented
+Card,UE-Data,UE data display card with optimized layout,.card-ue-data,UE,Core,Implemented
+Panel,UE-Control,UE control panel for settings and actions,.ue-control-panel,UE,Core,Implemented
+Panel,UE-Navigation,UE navigation panel for scene controls,.ue-nav-panel,UE,Core,Implemented
+Indicator,UE-Status,UE status indicator for system health,.ue-status-indicator,UE,Core,Implemented
+Loader,UE-Loading,UE loading animation with progress,.ue-loader,UE,Core,Implemented
+Tooltip,UE-Tooltip,UE-specific tooltip with optimized styling,.ue-tooltip,UE,Core,Implemented
+Date Picker,Date,Single date selection with calendar panel,.date-picker,Form,Core,Implemented
+Date Picker,Range,Date range selection with dual calendars,.date-picker-range,Form,Core,Implemented
+Date Picker,Month,Month selection with month grid,.date-picker-month,Form,Core,Implemented
+Date Picker,Year,Year selection with year grid,.date-picker-year,Form,Core,Implemented
+Progress,Linear,Linear progress bar with percentage,.progress-linear,Feedback,Core,Implemented
+Progress,Circle,Circular progress indicator,.progress-circle,Feedback,Core,Implemented
+Progress,Steps,Multi-step progress indicator,.progress-steps,Form,Core,Implemented
+Progress,Dashboard,Dashboard-style progress gauge,.progress-dashboard,Dashboard,Core,Implemented
+Metric,Trend,Metric card with trend chart,.metric-card-trend,Dashboard,Core,Implemented

@@ -1,0 +1,690 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>灵境Core - C端网站组件完整演示</title>
+
+    <!-- 引入标准CSS -->
+    <link rel="stylesheet" href="../../components/dist/lingjing-core-website.css">
+</head>
+<body>
+    <!-- ============================================
+         1. 玻璃态导航栏（固定顶部）
+         ============================================ -->
+    <nav class="website-nav website-nav-glass" id="navbar">
+        <div class="website-nav-container">
+            <!-- 品牌Logo -->
+            <div class="website-nav-brand">
+                <a href="#home" class="website-brand-logo">
+                    <img src="../../assets/logo-flat.png" id="siteLogo" alt="灵境" height="36">
+                    <span class="website-brand-text">灵境Core</span>
+                </a>
+            </div>
+
+            <!-- 导航链接 -->
+            <div class="website-nav-links">
+                <a href="#home" class="website-nav-link active">首页</a>
+                <a href="#components" class="website-nav-link">组件展示</a>
+                <a href="#features" class="website-nav-link">核心特性</a>
+                <a href="#products" class="website-nav-link">产品</a>
+                <a href="#tech" class="website-nav-link">技术栈</a>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="website-nav-actions">
+                <button class="website-theme-toggle" id="themeToggle">
+                    <svg class="icon-light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle cx="12" cy="12" r="5" stroke-width="2"/>
+                        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <svg class="icon-dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <a href="#contact" class="website-btn-primary">开始使用</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ============================================
+         2. 英雄区（Hero Section）
+         ============================================ -->
+    <section class="website-hero" id="home">
+        <div class="website-hero-bg">
+            <div class="website-hero-gradient"></div>
+            <div class="website-hero-particles"></div>
+        </div>
+
+        <div class="website-container">
+            <div class="website-hero-content">
+                <!-- 主标题 -->
+                <h1 class="website-hero-title">
+                    灵境航空智能云<br/>
+                    <span class="website-text-gradient">一站式运营中枢</span>
+                </h1>
+
+                <!-- 描述 -->
+                <p class="website-hero-description">
+                    面向航空制造与运营团队的 C 端官网模板，覆盖产品介绍、解决方案、技术能力与行动召唤。<br/>
+                    文案与模块结构可直接替换为你的业务内容，用于真实线上官网的起步版本。
+                </p>
+
+                <!-- 行动按钮 -->
+                <div class="website-hero-actions">
+                    <button class="website-btn-primary large">
+                        <span>预约产品演示</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M5 12h14M12 5l7 7-7 7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                    <button class="website-btn-outline large">
+                        <span>下载产品白皮书</span>
+                    </button>
+                </div>
+
+                <!-- 统计数据 -->
+                <div class="website-hero-stats">
+                    <div class="website-stat-item">
+                        <div class="website-stat-value">74</div>
+                        <div class="website-stat-label">覆盖工位</div>
+                    </div>
+                    <div class="website-stat-divider"></div>
+                    <div class="website-stat-item">
+                        <div class="website-stat-value">1445</div>
+                        <div class="website-stat-label">监控点位</div>
+                    </div>
+                    <div class="website-stat-divider"></div>
+                    <div class="website-stat-item">
+                        <div class="website-stat-value">100%</div>
+                        <div class="website-stat-label">关键场景可视化</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================
+         3. 解决方案卡片展示
+         ============================================ -->
+    <section class="website-section" id="features">
+        <div class="website-container">
+            <div class="website-section-header">
+                <div class="website-section-badge">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>解决方案</span>
+                </div>
+                <h2 class="website-section-title">面向航空的典型场景</h2>
+                <p class="website-section-description">
+                    以三类高频业务场景切入，帮助访问者在 10 秒内理解你能解决什么问题。
+                </p>
+            </div>
+
+            <div class="website-solutions-grid">
+                <!-- 卡片 1 -->
+                <div class="website-solution-card">
+                    <div class="website-solution-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-width="2"/>
+                            <path d="M9 11h6M9 15h6" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <h3 class="website-solution-title">总装协同总览</h3>
+                    <p class="website-solution-description">
+                        用一张三维总览大屏聚合关键工位、风险热区与告警列表，减少人工切屏和口头同步。
+                    </p>
+                    <ul class="website-solution-features">
+                        <li>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="20 6 9 17 4 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>按工位聚合视图</span>
+                        </li>
+                        <li>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="20 6 9 17 4 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>多条产线快速切换</span>
+                        </li>
+                        <li>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="20 6 9 17 4 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>异常一键聚焦</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- 卡片 2 -->
+                <div class="website-solution-card">
+                    <div class="website-solution-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <h3 class="website-solution-title">数字孪生驾驶舱</h3>
+                    <p class="website-solution-description">
+                        将三维场景、工艺参数和质量数据叠加在同一视图中，支持按批次和机型快速钻取。
+                    </p>
+                    <ul class="website-solution-features">
+                        <li>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="20 6 9 17 4 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>三维场景实时联动</span>
+                        </li>
+                        <li>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="20 6 9 17 4 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>按工位/批次筛选</span>
+                        </li>
+                        <li>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="20 6 9 17 4 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>支持多角色视角</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- 卡片 3 -->
+                <div class="website-solution-card">
+                    <div class="website-solution-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <circle cx="12" cy="12" r="3" stroke-width="2"/>
+                            <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <h3 class="website-solution-title">智能告警编排</h3>
+                    <p class="website-solution-description">
+                        将最关键的 P1/P2 告警置顶展示，其余事件按时间轴折叠，避免噪声干扰操作决策。
+                    </p>
+                    <ul class="website-solution-features">
+                        <li>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="20 6 9 17 4 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>按优先级自动分组</span>
+                        </li>
+                        <li>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="20 6 9 17 4 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>避免打断关键流程</span>
+                        </li>
+                        <li>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="20 6 9 17 4 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>支持接入现有告警系统</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================
+         5. 产品卡片展示
+         ============================================ -->
+    <section class="website-section" id="products">
+        <div class="website-container">
+            <div class="website-section-header">
+                <div class="website-section-badge">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <rect x="2" y="7" width="20" height="14" rx="2" ry="2" stroke-width="2"/>
+                        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" stroke-width="2"/>
+                    </svg>
+                    <span>产品组合</span>
+                </div>
+                <h2 class="website-section-title">灵境航空智能云 · 产品线</h2>
+                <p class="website-section-description">
+                    你可以将下列卡片替换为实际产品与解决方案，让访问者一眼看懂不同套餐的边界与定位。
+                </p>
+            </div>
+
+            <div class="website-products-grid">
+                <!-- 产品卡片 1 -->
+                <div class="website-product-card">
+                    <div class="website-product-header">
+                        <div class="website-product-icon-bg">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-width="2"/>
+                                <polyline points="14 2 14 8 20 8" stroke-width="2"/>
+                            </svg>
+                        </div>
+                        <div class="website-product-meta">
+                            <h3 class="website-product-title">总装协同中枢</h3>
+                            <span class="website-product-tag">旗舰</span>
+                        </div>
+                    </div>
+                    <p class="website-product-description">
+                        以工位为单位聚合三维场景、告警与工艺卡，帮助调度与班组在一块屏上完成协同决策。
+                    </p>
+                    <div class="website-product-metrics">
+                        <div class="website-metric">
+                            <div class="website-metric-value">98.4%</div>
+                            <div class="website-metric-label">节拍达成率</div>
+                        </div>
+                        <div class="website-metric">
+                            <div class="website-metric-value">24×7</div>
+                            <div class="website-metric-label">稳定运行</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 产品卡片 2 -->
+                <div class="website-product-card">
+                    <div class="website-product-header">
+                        <div class="website-product-icon-bg">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="16 18 22 12 16 6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <polyline points="8 6 2 12 8 18" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <div class="website-product-meta">
+                            <h3 class="website-product-title">运行控制平台</h3>
+                            <span class="website-product-tag">标准</span>
+                        </div>
+                    </div>
+                    <p class="website-product-description">
+                        统一航班计划、资源排班与突发事件处置流程，减少 Excel 与电话沟通带来的信息割裂。
+                    </p>
+                    <div class="website-product-metrics">
+                        <div class="website-metric">
+                            <div class="website-metric-value">30%</div>
+                            <div class="website-metric-label">人工沟通减少</div>
+                        </div>
+                        <div class="website-metric">
+                            <div class="website-metric-value">3</div>
+                            <div class="website-metric-label">核心角色协同</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 产品卡片 3 -->
+                <div class="website-product-card">
+                    <div class="website-product-header">
+                        <div class="website-product-icon-bg">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" stroke-width="2"/>
+                                <polyline points="3.27 6.96 12 12.01 20.73 6.96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <line x1="12" y1="22.08" x2="12" y2="12" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <div class="website-product-meta">
+                            <h3 class="website-product-title">数字孪生驾驶舱</h3>
+                            <span class="website-product-tag">增强</span>
+                        </div>
+                    </div>
+                    <p class="website-product-description">
+                        将关键产线、工位与资产抽象为可交互的数字孪生体，用于培训、复盘与远程协同决策。
+                    </p>
+                    <div class="website-product-metrics">
+                        <div class="website-metric">
+                            <div class="website-metric-value">3D</div>
+                            <div class="website-metric-label">沉浸视图</div>
+                        </div>
+                        <div class="website-metric">
+                            <div class="website-metric-value">全链路</div>
+                            <div class="website-metric-label">数据贯通</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 产品卡片 4 -->
+                <div class="website-product-card">
+                    <div class="website-product-header">
+                        <div class="website-product-icon-bg">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <div class="website-product-meta">
+                            <h3 class="website-product-title">开放生态与规范</h3>
+                            <span class="website-product-tag">开放</span>
+                        </div>
+                    </div>
+                    <p class="website-product-description">
+                        提供统一设计规范与 API 规范，支持与现有 MES、ERP、航班系统进行集成与二次开发。
+                    </p>
+                    <div class="website-product-metrics">
+                        <div class="website-metric">
+                            <div class="website-metric-value">MIT</div>
+                            <div class="website-metric-label">开源协议</div>
+                        </div>
+                        <div class="website-metric">
+                            <div class="website-metric-value">GitHub</div>
+                            <div class="website-metric-label">生态托管</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================
+         6. 技术栈展示
+         ============================================ -->
+    <section class="website-section" id="tech">
+        <div class="website-container">
+            <div class="website-technology-content">
+                <div class="website-technology-text">
+                    <div class="website-section-header">
+                        <div class="website-section-badge">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polygon points="12 2 2 7 12 12 22 7 12 2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <polyline points="2 17 12 22 22 17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <polyline points="2 12 12 17 22 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>技术栈</span>
+                        </div>
+                        <h2 class="website-section-title">核心技术</h2>
+                        <p class="website-section-description">
+                            基于现代Web标准，零依赖，纯CSS实现
+                        </p>
+                    </div>
+
+                    <div class="website-tech-highlights">
+                        <div class="website-highlight-item">
+                            <div class="website-highlight-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <polyline points="20 6 9 17 4 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4>CSS Variables</h4>
+                                <p>完整的设计令牌系统，支持主题切换</p>
+                            </div>
+                        </div>
+
+                        <div class="website-highlight-item">
+                            <div class="website-highlight-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <polyline points="20 6 9 17 4 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4>Modern CSS</h4>
+                                <p>Grid布局、Flexbox、backdrop-filter等</p>
+                            </div>
+                        </div>
+
+                        <div class="website-highlight-item">
+                            <div class="website-highlight-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <polyline points="20 6 9 17 4 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4>Zero Dependencies</h4>
+                                <p>无需任何框架或库，纯HTML/CSS</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="website-technology-visual">
+                    <div class="website-tech-card">
+                        <div class="website-tech-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" stroke-width="2"/>
+                                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" stroke-width="2"/>
+                            </svg>
+                        </div>
+                        <div class="website-tech-info">
+                            <h4>完整文档</h4>
+                            <p>规范文档、工作流程、快速参考</p>
+                        </div>
+                    </div>
+
+                    <div class="website-tech-card">
+                        <div class="website-tech-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <circle cx="12" cy="12" r="10" stroke-width="2"/>
+                                <polyline points="12 6 12 12 16 14" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <div class="website-tech-info">
+                            <h4>快速开发</h4>
+                            <p>82分钟完成C端网站开发</p>
+                        </div>
+                    </div>
+
+                    <div class="website-tech-card">
+                        <div class="website-tech-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z" stroke-width="2"/>
+                                <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke-width="2"/>
+                            </svg>
+                        </div>
+                        <div class="website-tech-info">
+                            <h4>模块化设计</h4>
+                            <p>按需导入，灵活组合</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         7. CTA 行动召唤
+         ============================================ -->
+    <section class="website-cta">
+        <div class="website-container">
+            <div class="website-cta-card">
+                <div>
+                    <h2 class="website-cta-title">立即开始使用</h2>
+                    <p class="website-cta-description">
+                        下载完整的设计系统规范，开始你的项目开发
+                    </p>
+                    <div class="website-cta-actions">
+                        <button class="website-btn-primary">
+                            <span>获取规范</span>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                        <button class="website-btn-outline">查看文档</button>
+                    </div>
+                </div>
+
+                <div class="website-cta-visual">
+                    <div class="website-cta-icon">
+                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         8. 页脚
+         ============================================ -->
+    <footer class="website-footer">
+        <div class="website-container">
+            <div class="website-footer-content">
+                <div class="website-footer-brand">
+                    <a href="#" class="website-brand-logo">
+                        <img src="../../assets/logo-flat.png" alt="灵境" height="32">
+                        <span class="website-brand-text">灵境Core</span>
+                    </a>
+                    <p class="website-footer-description">
+                        灵境航空智能AI Agent官方设计系统。强制执行"智能航空"视觉风格，优先采用洁净、智能、空灵的美学。
+                    </p>
+                    <div class="website-footer-social">
+                        <a href="#" class="website-social-link">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </a>
+                        <a href="#" class="website-social-link">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="website-footer-links">
+                    <div class="website-footer-column">
+                        <h4 class="website-footer-title">产品</h4>
+                        <ul class="website-footer-list">
+                            <li><a href="#">设计系统</a></li>
+                            <li><a href="#">组件库</a></li>
+                            <li><a href="#">规范文档</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="website-footer-column">
+                        <h4 class="website-footer-title">资源</h4>
+                        <ul class="website-footer-list">
+                            <li><a href="#">快速开始</a></li>
+                            <li><a href="#">工作流程</a></li>
+                            <li><a href="#">示例代码</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="website-footer-column">
+                        <h4 class="website-footer-title">社区</h4>
+                        <ul class="website-footer-list">
+                            <li><a href="#">GitHub</a></li>
+                            <li><a href="#">问题反馈</a></li>
+                            <li><a href="#">贡献指南</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="website-footer-column">
+                        <h4 class="website-footer-title">关于</h4>
+                        <ul class="website-footer-list">
+                            <li><a href="#">团队介绍</a></li>
+                            <li><a href="#">更新日志</a></li>
+                            <li><a href="#">许可证</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="website-footer-bottom">
+                <p class="website-footer-copyright">
+                    © 2026 灵境航空智能. 保留所有权利.
+                </p>
+                <div class="website-footer-legal">
+                    <a href="#">隐私政策</a>
+                    <span>|</span>
+                    <a href="#">使用条款</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ============================================
+         JavaScript 交互
+         ============================================ -->
+    <script>
+        // 1. 主题切换
+        const themeToggle = document.getElementById('themeToggle');
+        const html = document.documentElement;
+
+        // 读取保存的主题
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        html.setAttribute('data-theme', savedTheme);
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        });
+
+        // 2. 导航栏滚动效果
+        const navbar = document.getElementById('navbar');
+
+        window.addEventListener('scroll', () => {
+            if (window.pageYOffset > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
+
+        // 3. 导航链接激活状态
+        const sections = document.querySelectorAll('section[id]');
+        const navLinks = document.querySelectorAll('.website-nav-link');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                if (window.pageYOffset >= sectionTop - 100) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === `#${current}`) {
+                    link.classList.add('active');
+                }
+            });
+        });
+
+        // 4. 平滑滚动
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    const offsetTop = target.offsetTop - 80;
+                    window.scrollTo({ top: offsetTop, behavior: 'smooth' });
+                }
+            });
+        });
+
+        // 5. 鼠标悬停涟漪效果
+        function createRipple(event, element) {
+            const rect = element.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            const ripple = document.createElement('div');
+            ripple.className = 'card-ripple-effect';
+            ripple.style.cssText = `
+                position: absolute;
+                width: 100px;
+                height: 100px;
+                border-radius: 50%;
+                background: radial-gradient(circle, rgba(0, 132, 255, 0.3), transparent);
+                left: ${x}px;
+                top: ${y}px;
+                transform: translate(-50%, -50%) scale(0);
+                animation: card-ripple 0.6s ease-out;
+                pointer-events: none;
+                z-index: 0;
+            `;
+
+            element.appendChild(ripple);
+
+            setTimeout(() => ripple.remove(), 600);
+        }
+
+        const rippleCards = document.querySelectorAll('.website-solution-card, .website-product-card, .website-tech-card');
+        rippleCards.forEach(card => {
+            card.addEventListener('mouseenter', (e) => {
+                createRipple(e, card);
+            });
+        });
+
+    </script>
+</body>
+</html>

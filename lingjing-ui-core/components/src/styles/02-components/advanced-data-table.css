@@ -1,0 +1,404 @@
+/**
+ * Advanced Data Table & List Page Modules
+ * 高级数据表格与 B 端列表页复合组件
+ *
+ * 组件：
+ * - .advanced-data-table      高级数据表格整体容器
+ * - .table-toolbar            表格工具栏（搜索、筛选、操作）
+ * - .filter-panel             侧边筛选面板
+ * - .batch-action-bar         批量操作条
+ * - .detail-panel             右侧详情面板
+ * - .status-timeline          状态时间线
+ * - .checklist-panel          检查项面板
+ * - .comparison-card          对比卡片
+ */
+
+/* 高级数据表格外层容器：默认左主区 + 右侧边区 */
+.advanced-data-table,
+.advanced-table-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--spacing-xl);
+  align-items: flex-start;
+}
+
+/* 兼容同时叠加 content-card 的示例写法，避免 display 被覆盖为 flex */
+.advanced-data-table.content-card,
+.advanced-table-layout.content-card {
+  display: grid;
+}
+
+/* 左侧筛选 + 右侧表格的稳定布局变体 */
+.advanced-data-table--filter-left,
+.advanced-table-layout--filter-left {
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+}
+
+/* 主表格区（通常为宽列） */
+.advanced-data-table-main,
+.advanced-table-layout-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  min-width: 0;
+}
+
+/* 侧边区（筛选或详情） */
+.advanced-data-table-side,
+.advanced-table-layout-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  position: sticky;
+  top: var(--spacing-md);
+  min-width: 0;
+}
+
+.advanced-data-table--filter-left > .advanced-data-table-side,
+.advanced-table-layout--filter-left > .advanced-table-layout-side {
+  grid-column: 1;
+}
+
+.advanced-data-table--filter-left > .advanced-data-table-main,
+.advanced-table-layout--filter-left > .advanced-table-layout-main {
+  grid-column: 2;
+}
+
+@media (max-width: 1024px) {
+  .advanced-data-table--filter-left,
+  .advanced-table-layout--filter-left {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .advanced-data-table--filter-left > .advanced-data-table-side,
+  .advanced-data-table--filter-left > .advanced-data-table-main,
+  .advanced-table-layout--filter-left > .advanced-table-layout-side,
+  .advanced-table-layout--filter-left > .advanced-table-layout-main {
+    grid-column: auto;
+  }
+
+  .advanced-data-table-side,
+  .advanced-table-layout-side {
+    position: static;
+  }
+}
+
+
+
+/* 表格工具栏 */
+.table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--theme-border-light);
+  background: var(--theme-bg-secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 适配生产计划总览页的特定结构 */
+.table-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+
+.table-card-header-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.table-toolbar-meta {
+  font-size: var(--font-size-sm);
+  color: var(--theme-text-secondary);
+}
+
+.table-toolbar-main {
+
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.table-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+/* 侧边筛选面板 */
+.filter-panel {
+  background: var(--theme-bg-secondary);
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--theme-border-light);
+  padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.filter-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--theme-border-light);
+}
+
+.filter-panel-title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--theme-text-primary);
+}
+
+.filter-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.filter-panel-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--theme-border-light);
+}
+
+/* 详情面板 */
+.detail-panel {
+  background: var(--theme-bg-secondary);
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--theme-border-light);
+  padding: var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  box-shadow: var(--shadow-lg);
+}
+
+.detail-panel-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.detail-panel-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  margin-top: auto;
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--theme-border-light);
+}
+
+
+.detail-panel-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--theme-text-primary);
+}
+
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.detail-section-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--theme-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-lg);
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.detail-label {
+  font-size: var(--font-size-xs);
+  color: var(--theme-text-tertiary);
+}
+
+.detail-value {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--theme-text-primary);
+}
+
+/* 状态时间线 / 业务活动时间线 → 已迁移至 data-display.css，此处保留注释供溯源 */
+
+/* 批量操作条 - 恢复并优化 */
+.batch-action-bar {
+  position: sticky;
+  bottom: var(--spacing-xl);
+  z-index: 100;
+  pointer-events: none;
+  margin-top: var(--spacing-xl);
+  width: 100%;
+}
+
+.batch-action-bar-inner {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-xl);
+  background: var(--bg-glass);
+  border: 1px solid var(--theme-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(var(--glass-blur));
+  width: 100%;
+}
+
+.batch-action-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  color: var(--theme-text-primary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.batch-action-counter {
+  font-weight: var(--font-weight-bold);
+  color: var(--theme-primary);
+}
+
+.batch-action-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: var(--spacing-sm);
+}
+
+.batch-action-actions-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+
+/* 数据表格滚动容器 */
+.data-table-container {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: var(--border-radius-md);
+  background: var(--theme-bg-base);
+}
+
+/* 检查项面板 */
+
+.checklist-panel {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: var(--glass-border);
+  padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.checklist-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.checklist-panel-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.checklist-panel-meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.checklist-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.checklist-panel-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.checklist-panel-item input[type="checkbox"] {
+  margin-top: 2px;
+}
+
+/* 对比卡片 */
+.comparison-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: var(--glass-border);
+  padding: var(--spacing-lg);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.comparison-card-column-title {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.comparison-card-metric {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.comparison-card-label {
+  color: var(--text-secondary);
+}
+
+.comparison-card-value {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+@media (max-width: 768px) {
+  .comparison-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

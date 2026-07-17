@@ -1,0 +1,38 @@
+{
+  "_meta": {
+    "auditor": "skill-audit.js v1.1.0",
+    "skill_version": "3.0.0"
+  },
+  "file": "c:\\Users\\houyn\\Desktop\\UI规范skill迭代\\lingjing-ui-core\\tmp-regression\\retest-20260406\\ai_assistant\\index.html",
+  "page_path": "c:\\Users\\houyn\\Desktop\\UI规范skill迭代\\lingjing-ui-core\\tmp-regression\\retest-20260406\\ai_assistant\\index.html",
+  "scene": "ai_assistant",
+  "audit_command": "node scripts/skill-audit.js \"c:\\Users\\houyn\\Desktop\\UI规范skill迭代\\lingjing-ui-core\\tmp-regression\\retest-20260406\\ai_assistant\\index.html\" --scene ai_assistant",
+  "timestamp": "2026-04-06T13:01:04.045Z",
+  "pass": true,
+  "summary": {
+    "total_classes": 50,
+    "unknown_classes": 0,
+    "demo_only_classes": 0,
+    "alias_not_normalized": 0,
+    "candidate_classes": 0,
+    "project_scoped_classes": 0,
+    "style_tag_violations": 0,
+    "inline_style_violations": 0,
+    "demo_modifier_leaks": 0,
+    "table_overflow_issues": 0,
+    "frame_shell_missing": 0,
+    "frame_shell_valid": true,
+    "style_integrity_valid": true,
+    "broken_resource_refs": 0,
+    "resource_closure_ok": true,
+    "bare_echarts_init": 0,
+    "audit_exit_code": 0,
+    "blocking_error_checks": [],
+    "warning_checks": [],
+    "template_grade": "unknown",
+    "template_categories": [],
+    "template_scene_from_registry": null
+  },
+  "fail_items": [],
+  "delivery_gate": "PASS — 可继续交付"
+}

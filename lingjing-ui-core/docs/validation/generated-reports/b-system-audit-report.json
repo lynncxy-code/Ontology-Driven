@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "auditor": "skill-audit.js v1.1.0",
+    "skill_version": "3.0.0"
+  },
+  "file": "C:\\Users\\houyn\\Desktop\\UI规范skill迭代\\lingjing-ui-core\\examples\\b-system\\b-system-detail-with-dashboard-kpi.html",
+  "page_path": "C:\\Users\\houyn\\Desktop\\UI规范skill迭代\\lingjing-ui-core\\examples\\b-system\\b-system-detail-with-dashboard-kpi.html",
+  "scene": "b_system",
+  "timestamp": "2026-04-06T02:38:24.659Z",
+  "pass": false,
+  "summary": {
+    "total_classes": 45,
+    "unknown_classes": 0,
+    "demo_only_classes": 0,
+    "alias_not_normalized": 0,
+    "candidate_classes": 0,
+    "project_scoped_classes": 0,
+    "style_tag_violations": 0,
+    "inline_style_violations": 0,
+    "demo_modifier_leaks": 0,
+    "table_overflow_issues": 0,
+    "frame_shell_missing": 0,
+    "broken_resource_refs": 0,
+    "resource_closure_ok": true,
+    "bare_echarts_init": 0,
+    "template_grade": "unknown",
+    "template_categories": [],
+    "template_scene_from_registry": null
+  },
+  "fail_items": [
+    {
+      "check": "b_system_detail_dashboard_shell_forbidden",
+      "severity": "ERROR",
+      "count": 1,
+      "detail": [
+        "任务 id = b_system_detail，但页面中检测到 stats-grid / charts-grid 等仪表盘壳。详情页应以单实体信息为主，不应在顶部堆叠 Dashboard KPI 网格；建议拆分为 dashboard + detail 或调整任务类型。"
+      ]
+    }
+  ],
+  "delivery_gate": "FAIL — 禁止声称已完成交付，必须修复 ERROR 项后重新运行审计"
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 144" role="img" aria-labelledby="title">
+  <title id="title">默认观察者人物占位图</title>
+  <rect width="120" height="144" rx="10" fill="#f3f3f3"/>
+  <circle cx="60" cy="34" r="17" fill="#d4d4d4" stroke="#5c5c5c" stroke-width="2"/>
+  <path d="M41 59c6-6 32-6 38 0l7 43H34l7-43Z" fill="#d4d4d4" stroke="#5c5c5c" stroke-width="2"/>
+  <path d="M46 102v31M74 102v31M34 68l-13 32M86 68l13 32" fill="none" stroke="#5c5c5c" stroke-width="7" stroke-linecap="round"/>
+</svg>

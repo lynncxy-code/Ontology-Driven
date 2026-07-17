@@ -1,479 +1,460 @@
 {
+	"ue_project_id": "ueproj_test0316",
+	"ue_project_name": "test0316",
 	"actors": [
 		{
-			"ext_guid": "A586C6AF-42A4-1FD9-22EA-93BE971567C9",
-			"name": "SM_SCC_Equ_Add_A",
-			"mesh_asset": "/Game/SCC/Art/A04_FactoryLevel/SCC_Building/Geometries/SM_SCC_Equ_Add_A.SM_SCC_Equ_Add_A",
+			"ext_guid": "E4263D6B-4889-C553-6646-16B7D78269DA",
+			"name": "SM_Wrapping_Machine_01a",
+			"actor_label": "SM_Wrapping_Machine_01a",
+			"actor_name": "SM_Wrapping_Machine_01a_0",
+			"source_folder_path": "ToMigrate/Equipment",
+			"actor_class": "StaticMeshActor",
+			"actor_class_path": "/Script/Engine.StaticMeshActor",
+			"mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Wrapping_Machine_01a.SM_Wrapping_Machine_01a",
+			"static_mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Wrapping_Machine_01a.SM_Wrapping_Machine_01a",
+			"static_mesh_assets": [
+				"/Game/WarehouseProps_Bundle/Models/SM_Wrapping_Machine_01a.SM_Wrapping_Machine_01a"
+			],
+			"skeletal_mesh_asset": "",
+			"skeletal_mesh_assets": [],
+			"component_summary":
+			{
+				"static_mesh_components": 1,
+				"skeletal_mesh_components": 0
+			},
 			"transform":
 			{
-				"tx": 810,
-				"ty": -500,
+				"tx": -305,
+				"ty": -1350,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 0,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "3A57E488-4847-1D91-C041-B88A471E089C",
+			"name": "SM_Industrial_Scale_01a",
+			"actor_label": "SM_Industrial_Scale_01a",
+			"actor_name": "SM_Industrial_Scale_01a_0",
+			"source_folder_path": "ToMigrate/Equipment",
+			"actor_class": "StaticMeshActor",
+			"actor_class_path": "/Script/Engine.StaticMeshActor",
+			"mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Industrial_Scale_01a.SM_Industrial_Scale_01a",
+			"static_mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Industrial_Scale_01a.SM_Industrial_Scale_01a",
+			"static_mesh_assets": [
+				"/Game/WarehouseProps_Bundle/Models/SM_Industrial_Scale_01a.SM_Industrial_Scale_01a"
+			],
+			"skeletal_mesh_asset": "",
+			"skeletal_mesh_assets": [],
+			"component_summary":
+			{
+				"static_mesh_components": 1,
+				"skeletal_mesh_components": 0
+			},
+			"transform":
+			{
+				"tx": 345,
+				"ty": -1350,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 0,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "94C56F7D-47E2-32BC-1B90-D5983324CC51",
+			"name": "SM_Reach_Truck_01a",
+			"actor_label": "SM_Reach_Truck_01a",
+			"actor_name": "SM_Reach_Truck_01a_0",
+			"source_folder_path": "ToMigrate/Equipment",
+			"actor_class": "StaticMeshActor",
+			"actor_class_path": "/Script/Engine.StaticMeshActor",
+			"mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Reach_Truck_01a.SM_Reach_Truck_01a",
+			"static_mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Reach_Truck_01a.SM_Reach_Truck_01a",
+			"static_mesh_assets": [
+				"/Game/WarehouseProps_Bundle/Models/SM_Reach_Truck_01a.SM_Reach_Truck_01a"
+			],
+			"skeletal_mesh_asset": "",
+			"skeletal_mesh_assets": [],
+			"component_summary":
+			{
+				"static_mesh_components": 1,
+				"skeletal_mesh_components": 0
+			},
+			"transform":
+			{
+				"tx": -380,
+				"ty": -1750,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 0,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "EBE54B1D-4191-B7E2-352E-DC99072B037B",
+			"name": "SKM_Reach_Truck_01a",
+			"actor_label": "SKM_Reach_Truck_01a",
+			"actor_name": "SKM_Reach_Truck_01a_0",
+			"source_folder_path": "ToMigrate/Equipment/Skeletal",
+			"actor_class": "SkeletalMeshActor",
+			"actor_class_path": "/Script/Engine.SkeletalMeshActor",
+			"mesh_asset": "",
+			"static_mesh_asset": "",
+			"static_mesh_assets": [],
+			"skeletal_mesh_asset": "/Game/WarehouseProps_Bundle/Models/Skeletal/SKM_Reach_Truck_01a.SKM_Reach_Truck_01a",
+			"skeletal_mesh_assets": [
+				"/Game/WarehouseProps_Bundle/Models/Skeletal/SKM_Reach_Truck_01a.SKM_Reach_Truck_01a"
+			],
+			"component_summary":
+			{
+				"static_mesh_components": 0,
+				"skeletal_mesh_components": 1
+			},
+			"transform":
+			{
+				"tx": 200,
+				"ty": -1655,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 0,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "0CE2F761-4E11-A821-A0DC-C9ABD9FF84DC",
+			"name": "SM_Pallet_Truck_01a",
+			"actor_label": "SM_Pallet_Truck_01a",
+			"actor_name": "SM_Pallet_Truck_01a_0",
+			"source_folder_path": "ToMigrate/Equipment",
+			"actor_class": "StaticMeshActor",
+			"actor_class_path": "/Script/Engine.StaticMeshActor",
+			"mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Pallet_Truck_01a.SM_Pallet_Truck_01a",
+			"static_mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Pallet_Truck_01a.SM_Pallet_Truck_01a",
+			"static_mesh_assets": [
+				"/Game/WarehouseProps_Bundle/Models/SM_Pallet_Truck_01a.SM_Pallet_Truck_01a"
+			],
+			"skeletal_mesh_asset": "",
+			"skeletal_mesh_assets": [],
+			"component_summary":
+			{
+				"static_mesh_components": 1,
+				"skeletal_mesh_components": 0
+			},
+			"transform":
+			{
+				"tx": -30,
+				"ty": -1750,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 0,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "19C6C983-47A1-3D9D-2AD3-2C9284100789",
+			"name": "SM_Reach_Truck_01a_Front_02",
+			"actor_label": "SM_Reach_Truck_01a_Front_02",
+			"actor_name": "StaticMeshActor_333",
+			"source_folder_path": "ToMigrate",
+			"actor_class": "StaticMeshActor",
+			"actor_class_path": "/Script/Engine.StaticMeshActor",
+			"mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Reach_Truck_01a_Front_02.SM_Reach_Truck_01a_Front_02",
+			"static_mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Reach_Truck_01a_Front_02.SM_Reach_Truck_01a_Front_02",
+			"static_mesh_assets": [
+				"/Game/WarehouseProps_Bundle/Models/SM_Reach_Truck_01a_Front_02.SM_Reach_Truck_01a_Front_02"
+			],
+			"skeletal_mesh_asset": "",
+			"skeletal_mesh_assets": [],
+			"component_summary":
+			{
+				"static_mesh_components": 1,
+				"skeletal_mesh_components": 0
+			},
+			"transform":
+			{
+				"tx": -2520,
+				"ty": -930,
+				"tz": 30,
+				"rx": 0,
+				"ry": 0,
+				"rz": 180,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "56F22B69-435C-2D12-E6FC-DDBA6038DB90",
+			"name": "SM_Reach_Truck_01a_Front_3",
+			"actor_label": "SM_Reach_Truck_01a_Front_3",
+			"actor_name": "StaticMeshActor_334",
+			"source_folder_path": "ToMigrate",
+			"actor_class": "StaticMeshActor",
+			"actor_class_path": "/Script/Engine.StaticMeshActor",
+			"mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Reach_Truck_01a_Front_02.SM_Reach_Truck_01a_Front_02",
+			"static_mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Reach_Truck_01a_Front_02.SM_Reach_Truck_01a_Front_02",
+			"static_mesh_assets": [
+				"/Game/WarehouseProps_Bundle/Models/SM_Reach_Truck_01a_Front_02.SM_Reach_Truck_01a_Front_02"
+			],
+			"skeletal_mesh_asset": "",
+			"skeletal_mesh_assets": [],
+			"component_summary":
+			{
+				"static_mesh_components": 1,
+				"skeletal_mesh_components": 0
+			},
+			"transform":
+			{
+				"tx": -2360,
+				"ty": -930,
+				"tz": 30,
+				"rx": 0,
+				"ry": 0,
+				"rz": 180,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "14299AFA-43D6-82E0-D4DA-0AB43E912D4F",
+			"name": "SM_Reach_Truck_01a_Front_4",
+			"actor_label": "SM_Reach_Truck_01a_Front_4",
+			"actor_name": "StaticMeshActor_335",
+			"source_folder_path": "ToMigrate",
+			"actor_class": "StaticMeshActor",
+			"actor_class_path": "/Script/Engine.StaticMeshActor",
+			"mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Reach_Truck_01a_Front_02.SM_Reach_Truck_01a_Front_02",
+			"static_mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Reach_Truck_01a_Front_02.SM_Reach_Truck_01a_Front_02",
+			"static_mesh_assets": [
+				"/Game/WarehouseProps_Bundle/Models/SM_Reach_Truck_01a_Front_02.SM_Reach_Truck_01a_Front_02"
+			],
+			"skeletal_mesh_asset": "",
+			"skeletal_mesh_assets": [],
+			"component_summary":
+			{
+				"static_mesh_components": 1,
+				"skeletal_mesh_components": 0
+			},
+			"transform":
+			{
+				"tx": -2210,
+				"ty": -1100,
+				"tz": 30,
+				"rx": 0,
+				"ry": 0,
+				"rz": 180,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "751813E1-4903-7414-2A5E-8F92DBF50AC2",
+			"name": "SM_Pallet_Truck_01a2",
+			"actor_label": "SM_Pallet_Truck_01a2",
+			"actor_name": "StaticMeshActor_337",
+			"source_folder_path": "ToMigrate",
+			"actor_class": "StaticMeshActor",
+			"actor_class_path": "/Script/Engine.StaticMeshActor",
+			"mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Pallet_Truck_01a.SM_Pallet_Truck_01a",
+			"static_mesh_asset": "/Game/WarehouseProps_Bundle/Models/SM_Pallet_Truck_01a.SM_Pallet_Truck_01a",
+			"static_mesh_assets": [
+				"/Game/WarehouseProps_Bundle/Models/SM_Pallet_Truck_01a.SM_Pallet_Truck_01a"
+			],
+			"skeletal_mesh_asset": "",
+			"skeletal_mesh_assets": [],
+			"component_summary":
+			{
+				"static_mesh_components": 1,
+				"skeletal_mesh_components": 0
+			},
+			"transform":
+			{
+				"tx": -2210,
+				"ty": -990,
+				"tz": 0,
+				"rx": 0,
+				"ry": 0,
+				"rz": 0,
+				"sx": 1,
+				"sy": 1,
+				"sz": 1
+			}
+		},
+		{
+			"ext_guid": "B5EEAD53-4AFE-3288-7610-73BBECB8240F",
+			"name": "SM_ManipulatorRobot_Static",
+			"actor_label": "SM_ManipulatorRobot_Static",
+			"actor_name": "StaticMeshActor_113",
+			"source_folder_path": "ToMigrate",
+			"actor_class": "StaticMeshActor",
+			"actor_class_path": "/Script/Engine.StaticMeshActor",
+			"mesh_asset": "/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Static.SM_ManipulatorRobot_Static",
+			"static_mesh_asset": "/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Static.SM_ManipulatorRobot_Static",
+			"static_mesh_assets": [
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Static.SM_ManipulatorRobot_Static"
+			],
+			"skeletal_mesh_asset": "",
+			"skeletal_mesh_assets": [],
+			"component_summary":
+			{
+				"static_mesh_components": 1,
+				"skeletal_mesh_components": 0
+			},
+			"transform":
+			{
+				"tx": -2430,
+				"ty": 1730,
 				"tz": 0,
 				"rx": 0,
 				"ry": 0,
 				"rz": 90.000000000000014,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
+				"sx": 0.32499999273568392,
+				"sy": 0.32499999273568392,
+				"sz": 0.32499999273568392
 			}
 		},
 		{
-			"ext_guid": "DFA3B3E2-4B29-6821-4C95-9394D769F7FA",
-			"name": "SM_SCC_Equ_Add_B",
-			"mesh_asset": "/Game/SCC/Art/A04_FactoryLevel/SCC_Building/Geometries/SM_SCC_Equ_Add_B.SM_SCC_Equ_Add_B",
+			"ext_guid": "7E851022-45B5-D674-D4AD-B39EBF0E878F",
+			"name": "SM_ManipulatorRobot_Static2",
+			"actor_label": "SM_ManipulatorRobot_Static2",
+			"actor_name": "StaticMeshActor_114",
+			"source_folder_path": "ToMigrate",
+			"actor_class": "StaticMeshActor",
+			"actor_class_path": "/Script/Engine.StaticMeshActor",
+			"mesh_asset": "/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Static.SM_ManipulatorRobot_Static",
+			"static_mesh_asset": "/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Static.SM_ManipulatorRobot_Static",
+			"static_mesh_assets": [
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Static.SM_ManipulatorRobot_Static"
+			],
+			"skeletal_mesh_asset": "",
+			"skeletal_mesh_assets": [],
+			"component_summary":
+			{
+				"static_mesh_components": 1,
+				"skeletal_mesh_components": 0
+			},
 			"transform":
 			{
-				"tx": -2270,
-				"ty": -484,
+				"tx": -2820,
+				"ty": -1440,
 				"tz": 0,
 				"rx": 0,
 				"ry": 0,
 				"rz": 90.000000000000014,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
+				"sx": 0.32500000000000001,
+				"sy": 0.32500000000000001,
+				"sz": 0.32500000000000001
 			}
 		},
 		{
-			"ext_guid": "0EB9C917-40A5-252D-D882-E0AE971104AB",
-			"name": "SM_SCC_Equ_Add_B2",
-			"mesh_asset": "/Game/SCC/Art/A04_FactoryLevel/SCC_Building/Geometries/SM_SCC_Equ_Add_B.SM_SCC_Equ_Add_B",
+			"ext_guid": "FF4AAFA2-4C7E-F43B-E057-CFA275429D6F",
+			"name": "ManipulatorRobot_BP",
+			"actor_label": "ManipulatorRobot_BP",
+			"actor_name": "ManipulatorRobot_BP_C_1",
+			"source_folder_path": "ToMigrate",
+			"actor_class": "ManipulatorRobot_BP_C",
+			"actor_class_path": "/Game/ManipulatorRobot/Blueprints/ManipulatorRobot/ManipulatorRobot_BP.ManipulatorRobot_BP_C",
+			"blueprint_class_path": "/Game/ManipulatorRobot/Blueprints/ManipulatorRobot/ManipulatorRobot_BP.ManipulatorRobot_BP",
+			"mesh_asset": "/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Base.SM_ManipulatorRobot_Base",
+			"static_mesh_asset": "/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Base.SM_ManipulatorRobot_Base",
+			"static_mesh_assets": [
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Base.SM_ManipulatorRobot_Base",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Segment1.SM_ManipulatorRobot_Segment1",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Segment2.SM_ManipulatorRobot_Segment2",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Segment3.SM_ManipulatorRobot_Segment3",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Segment4.SM_ManipulatorRobot_Segment4",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_RightArm.SM_ManipulatorRobot_RightArm",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_LeftArm.SM_ManipulatorRobot_LeftArm",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_RightFinger.SM_ManipulatorRobot_RightFinger",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_LeftFinger.SM_ManipulatorRobot_LeftFinger",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Segment5.SM_ManipulatorRobot_Segment5",
+				"/Engine/BasicShapes/Sphere.Sphere",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_RobotsHelperCircle.SM_RobotsHelperCircle",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_BaseMain.SM_ManipulatorRobot_BaseMain"
+			],
+			"skeletal_mesh_asset": "",
+			"skeletal_mesh_assets": [],
+			"component_summary":
+			{
+				"static_mesh_components": 13,
+				"skeletal_mesh_components": 0
+			},
 			"transform":
 			{
-				"tx": -2280,
-				"ty": 356,
+				"tx": 870,
+				"ty": -590,
 				"tz": 0,
 				"rx": 0,
 				"ry": 0,
-				"rz": 90.000000000000014,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
+				"rz": -89.999999302826836,
+				"sx": 0.3899999912828207,
+				"sy": 0.3899999912828207,
+				"sz": 0.3899999912828207
 			}
 		},
 		{
-			"ext_guid": "F34B6F3C-438C-32CC-2F70-A88966DE0795",
-			"name": "SM_SCC_Equ_Add_A2",
-			"mesh_asset": "/Game/SCC/Art/A04_FactoryLevel/SCC_Building/Geometries/SM_SCC_Equ_Add_A.SM_SCC_Equ_Add_A",
+			"ext_guid": "79AEF012-4DBF-2AF8-14A8-34BA265567DF",
+			"name": "ManipulatorRobot_BP2",
+			"actor_label": "ManipulatorRobot_BP2",
+			"actor_name": "ManipulatorRobot_BP_C_2",
+			"source_folder_path": "ToMigrate",
+			"actor_class": "ManipulatorRobot_BP_C",
+			"actor_class_path": "/Game/ManipulatorRobot/Blueprints/ManipulatorRobot/ManipulatorRobot_BP.ManipulatorRobot_BP_C",
+			"blueprint_class_path": "/Game/ManipulatorRobot/Blueprints/ManipulatorRobot/ManipulatorRobot_BP.ManipulatorRobot_BP",
+			"mesh_asset": "/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Base.SM_ManipulatorRobot_Base",
+			"static_mesh_asset": "/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Base.SM_ManipulatorRobot_Base",
+			"static_mesh_assets": [
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Base.SM_ManipulatorRobot_Base",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Segment1.SM_ManipulatorRobot_Segment1",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Segment2.SM_ManipulatorRobot_Segment2",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Segment3.SM_ManipulatorRobot_Segment3",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Segment4.SM_ManipulatorRobot_Segment4",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_RightArm.SM_ManipulatorRobot_RightArm",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_LeftArm.SM_ManipulatorRobot_LeftArm",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_RightFinger.SM_ManipulatorRobot_RightFinger",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_LeftFinger.SM_ManipulatorRobot_LeftFinger",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_Segment5.SM_ManipulatorRobot_Segment5",
+				"/Engine/BasicShapes/Sphere.Sphere",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_RobotsHelperCircle.SM_RobotsHelperCircle",
+				"/Game/ManipulatorRobot/Meshes/Manipulator_Robot/SM_ManipulatorRobot_BaseMain.SM_ManipulatorRobot_BaseMain"
+			],
+			"skeletal_mesh_asset": "",
+			"skeletal_mesh_assets": [],
+			"component_summary":
+			{
+				"static_mesh_components": 13,
+				"skeletal_mesh_components": 0
+			},
 			"transform":
 			{
-				"tx": 810,
-				"ty": 350,
+				"tx": 840,
+				"ty": 550,
 				"tz": 0,
 				"rx": 0,
 				"ry": 0,
-				"rz": 90.000000000000014,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "6CB2D993-489D-1F95-F1FE-A3BC8FFF64A7",
-			"name": "SM_WXSNGC_XC9",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1240,
-				"ty": 1110,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": -89.999999000000003,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "37641B2F-4F87-E118-4A41-AEAB6DC538BE",
-			"name": "SM_WXSNGC_XC10",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1240.000004,
-				"ty": 1290,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": 90.000001000000012,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "4047FE6C-4883-89B5-A042-FA8C4A97CED5",
-			"name": "SM_WXSNGC_XC11",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -830.00000399999999,
-				"ty": 1290,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": 90.000001000000012,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "921CF36D-4BB5-9B8A-A7CB-4580D1F1C99F",
-			"name": "SM_WXSNGC_XC12",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -830,
-				"ty": 1110,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": -89.999999000000003,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "A9B65476-4761-31ED-9DCB-22B157BF222C",
-			"name": "SM_WXSNGC_XC13",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1240,
-				"ty": 1470,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": -89.999999000000003,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "4E00ACBA-486F-09DD-6D78-DC94589820E1",
-			"name": "SM_WXSNGC_XC14",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1240.000004,
-				"ty": 1650,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": 90.000001000000012,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "7C74DDFC-41E3-4717-4152-A9B2744E8120",
-			"name": "SM_WXSNGC_XC15",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -830.00000399999999,
-				"ty": 1650,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": 90.000001000000012,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "5BC840DD-48F9-2689-A921-1CB32EABA2E7",
-			"name": "SM_WXSNGC_XC16",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -830,
-				"ty": 1470,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": -89.999999000000003,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "658A100F-4CC9-A5F1-EB44-1B96A38D048D",
-			"name": "SM_WXSNGC_XC17",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1640.000004,
-				"ty": 1650,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": 90.000001000000012,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "E81ED5E7-4B22-8317-B4F0-3FAB954DBC43",
-			"name": "SM_WXSNGC_XC18",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1640,
-				"ty": 1470,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": -89.999999000000003,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "76155341-405B-B98D-12BD-94A5879438B9",
-			"name": "SM_WXSNGC_XC19",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1640.000004,
-				"ty": 1290,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": 90.000001000000012,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "669D560D-4A17-6123-A9E0-FD8AD66E70E9",
-			"name": "SM_WXSNGC_XC20",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1640,
-				"ty": 1110,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": -89.999999000000003,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "A03A4741-487E-B042-8DB1-74A7C5F5F24E",
-			"name": "SM_WXSNGC_XC21",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1640.000004,
-				"ty": -1110,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": 90.000001000000012,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "4C66E149-4645-B2CA-4481-E99F236BD79E",
-			"name": "SM_WXSNGC_XC22",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1640,
-				"ty": -1290,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": -89.999999000000003,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "3B3D8CFA-4B96-D43E-6C15-7BB0C659FACD",
-			"name": "SM_WXSNGC_XC23",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1640.000004,
-				"ty": -1470,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": 90.000001000000012,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "258F42A8-4CA9-C5A1-405E-FA933EEFA65A",
-			"name": "SM_WXSNGC_XC24",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1640,
-				"ty": -1650,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": -89.999999000000003,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "2DC178AF-4EAE-01E2-C8E2-8A8AF59A66ED",
-			"name": "SM_WXSNGC_XC25",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1240,
-				"ty": -1650,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": -89.999999000000003,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "F9379BEC-4DBB-FFB6-5A69-CBB1FBD933EE",
-			"name": "SM_WXSNGC_XC26",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1240.000004,
-				"ty": -1470,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": 90.000001000000012,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "1BB7A646-4DBD-8E26-4B4C-54BC98F75271",
-			"name": "SM_WXSNGC_XC27",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1240,
-				"ty": -1290,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": -89.999999000000003,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "DDEE53DA-488A-495B-020F-E1B46DE53149",
-			"name": "SM_WXSNGC_XC28",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -1240.000004,
-				"ty": -1110,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": 90.000001000000012,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "97ACB556-4961-39AC-1DF1-52A480B14B38",
-			"name": "SM_WXSNGC_XC29",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -830.00000399999999,
-				"ty": -1110,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": 90.000001000000012,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "35B4DCF5-4845-0556-7D71-AF835779C9D4",
-			"name": "SM_WXSNGC_XC30",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -830,
-				"ty": -1290,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": -89.999999000000003,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "AE0F12FA-461C-C336-5051-6B8A1BC34C72",
-			"name": "SM_WXSNGC_XC31",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -830.00000399999999,
-				"ty": -1470,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": 90.000001000000012,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
-			}
-		},
-		{
-			"ext_guid": "2FA1F5A4-4F7E-26E8-A77C-2894C779612E",
-			"name": "SM_WXSNGC_XC32",
-			"mesh_asset": "/Game/SCC/Art/A06_TechnologicalEquiqment/SM_WXSNGC_XC.SM_WXSNGC_XC",
-			"transform":
-			{
-				"tx": -830,
-				"ty": -1650,
-				"tz": 0,
-				"rx": 0,
-				"ry": 0,
-				"rz": -89.999999000000003,
-				"sx": 1,
-				"sy": 1,
-				"sz": 1
+				"rz": 89.999999999999986,
+				"sx": 0.39000000000000001,
+				"sy": 0.39000000000000001,
+				"sz": 0.39000000000000001
 			}
 		}
 	]

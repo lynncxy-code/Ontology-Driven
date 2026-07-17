@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "data_format": {
+    "ux_spec": {
+      "required_fields": ["interaction_flow", "states", "transitions", "accessibility"],
+      "optional_fields": ["performance_constraints", "compliance_rules"]
+    },
+    "ui_requirements": {
+      "mapping_rules": "component_roles[*].lingjing_core_class -> UI组件类名",
+      "style_tokens": "共享设计令牌命名空间"
+    }
+  },
+  "component_mappings": {
+    "data_panel": "data-panel",
+    "metric_card": "flight-metric-card",
+    "alert_panel": "alert-center-panel",
+    "task_board": "mission-status-board",
+    "risk_state_warning": ".state-warning",
+    "risk_state_critical": ".state-critical"
+  }
+}

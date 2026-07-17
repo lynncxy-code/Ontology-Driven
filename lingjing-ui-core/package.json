@@ -1,0 +1,40 @@
+{
+  "name": "lingjing-ui-core",
+  "version": "3.0.1",
+  "description": "Official design system for Lingjing Aviation AI Agent - 内容驱动的灵活响应式设计系统",
+  "author": "Lingjing Aviation Design Team",
+  "license": "MIT",
+  "scripts": {
+    "build:css": "node scripts/build-css.js",
+    "build:icons": "node scripts/build-lucide-500-final-v2.js",
+    "preview": "echo '打开tools/preview-tool.html使用组件预览工具'",
+    "audit": "node scripts/skill-audit.js",
+    "audit:phase1-regression": "node scripts/run-phase1-regression.js",
+    "show:task-router": "node scripts/show-task-router.js",
+    "show:template-router": "node scripts/show-template-router.js"
+  },
+  "dependencies": {
+    "lucide": "^0.575.0"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "design-system",
+    "ui-framework",
+    "aviation",
+    "b-end",
+    "website",
+    "presentation",
+    "component-library",
+    "responsive",
+    "flexible",
+    "dynamic-grid"
+  ],
+  "note": "lucide-umd-500.js is a custom build with 500 common icons including aviation icons. To rebuild, run: npm install && npm run build:icons",
+  "features": {
+    "dynamic-grid": "动态网格系统，自动适应内容",
+    "component-generator": "组件生成器，灵活配置",
+    "content-driven": "内容驱动布局，而非布局驱动内容",
+    "responsive-priority": "响应式内容优先级策略",
+    "flexible-workflow": "3种灵活使用方式，适配不同场景"
+  }
+}

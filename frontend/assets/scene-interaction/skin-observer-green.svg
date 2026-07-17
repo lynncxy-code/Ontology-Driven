@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 112" role="img" aria-labelledby="title">
+  <title id="title">绿色工装皮肤占位图</title>
+  <rect width="96" height="112" rx="8" fill="#fafafa"/>
+  <circle cx="48" cy="26" r="13" fill="#e8e8e8" stroke="#5c5c5c" stroke-width="2"/>
+  <path d="M32 47c5-5 27-5 32 0l6 37H26l6-37Z" fill="#617568" stroke="#3e4a42" stroke-width="2"/>
+  <path d="M36 84v21M60 84v21" fill="none" stroke="#5c5c5c" stroke-width="6" stroke-linecap="round"/>
+</svg>

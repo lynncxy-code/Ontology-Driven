@@ -1,0 +1,438 @@
+/**
+ * Lingjing Core - Metric Cards (指标卡片组件)
+ *
+ * @version 2.6.2
+ * @description Dashboard 数据指标卡片组件
+ * @usage 用于展示关键业务指标、KPI、统计数?
+ *
+ * 组件列表?
+ * - .stat-card              基础统计卡片（数?+ 标题 + 趋势?
+ * - .stat-card-trend        带趋势图的指标卡
+ * - .stat-card-comparison   对比指标卡（同比/环比?
+ * - .stat-card-progress     进度指标卡（目标完成度）
+ */
+
+/* ============================================================================
+   Base Stat Card - 基础统计卡片
+   ========================================================================= */
+
+.stat-card {
+  /* Layout */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md, 12px);
+  padding: var(--spacing-lg, 16px) var(--spacing-xl, 20px);
+
+  /* Appearance - 使用玻璃拟态效?*/
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md, 8px); /* 遵循 ?2px 规则 */
+
+  /* Animation */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* MD3 easing */
+
+  /* Elevation */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+/* Dark Mode */
+[data-theme="dark"] .stat-card {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .stat-card:hover {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+/* ============================================================================
+   Stat Card Header - 卡片头部
+   ========================================================================= */
+
+.stat-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm, 8px);
+}
+
+.stat-card-title {
+  font-size: var(--font-size-sm, 14px);
+  font-weight: 500;
+  color: var(--text-secondary, rgba(0, 0, 0, 0.65));
+  margin: 0;
+}
+
+[data-theme="dark"] .stat-card-title {
+  color: var(--text-secondary-dark, rgba(255, 255, 255, 0.65));
+}
+
+.stat-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--brand-primary, #0066FF);
+  color: white;
+  font-size: 16px;
+}
+
+/* Icon Color Variants */
+.stat-card-icon.success {
+  background: var(--color-success, #52C41A);
+}
+
+.stat-card-icon.warning {
+  background: var(--color-warning, #FAAD14);
+}
+
+.stat-card-icon.error {
+  background: var(--color-error, #F5222D);
+}
+
+.stat-card-icon.info {
+  background: var(--color-info, #1890FF);
+}
+
+/* ============================================================================
+   Stat Card Value - 数值区?
+   ========================================================================= */
+
+.stat-card-value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-sm, 8px);
+}
+
+.stat-card-number {
+  font-size: var(--font-size-xxl, 32px);
+  font-weight: 600;
+  color: var(--text-primary, rgba(0, 0, 0, 0.85));
+  line-height: 1.2;
+  margin: 0;
+}
+
+[data-theme="dark"] .stat-card-number {
+  color: var(--text-primary-dark, rgba(255, 255, 255, 0.85));
+}
+
+.stat-card-unit {
+  font-size: var(--font-size-md, 16px);
+  font-weight: 400;
+  color: var(--text-secondary, rgba(0, 0, 0, 0.65));
+}
+
+[data-theme="dark"] .stat-card-unit {
+  color: var(--text-secondary-dark, rgba(255, 255, 255, 0.65));
+}
+
+/* ============================================================================
+   Stat Card Footer - 趋势信息
+   ========================================================================= */
+
+.stat-card-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs, 4px);
+  font-size: var(--font-size-sm, 14px);
+}
+
+.stat-card-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm, 4px);
+  font-weight: 500;
+}
+
+/* Trend Up - 上升趋势 */
+.stat-card-trend.up {
+  color: var(--color-success, #52C41A);
+  background: rgba(82, 196, 26, 0.1);
+}
+
+.stat-card-trend.up::before {
+  content: "?;
+  font-size: 14px;
+}
+
+/* Trend Down - 下降趋势 */
+.stat-card-trend.down {
+  color: var(--color-error, #F5222D);
+  background: rgba(245, 34, 45, 0.1);
+}
+
+.stat-card-trend.down::before {
+  content: "?;
+  font-size: 14px;
+}
+
+/* Trend Neutral - 持平 */
+.stat-card-trend.neutral {
+  color: var(--text-secondary, rgba(0, 0, 0, 0.65));
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.stat-card-trend.neutral::before {
+  content: "?;
+  font-size: 14px;
+}
+
+[data-theme="dark"] .stat-card-trend.neutral {
+  color: var(--text-secondary-dark, rgba(255, 255, 255, 0.65));
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.stat-card-description {
+  color: var(--text-tertiary, rgba(0, 0, 0, 0.45));
+  font-size: var(--font-size-sm, 14px);
+}
+
+[data-theme="dark"] .stat-card-description {
+  color: var(--text-tertiary-dark, rgba(255, 255, 255, 0.45));
+}
+
+/* ============================================================================
+   Stat Card Trend Variant - 带趋势图的卡?
+   ========================================================================= */
+
+.stat-card-trend {
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card-chart {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 40%;
+  height: 60px;
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+/* Mini Line Chart - 迷你折线?*/
+.stat-card-chart svg {
+  width: 100%;
+  height: 100%;
+}
+
+.stat-card-chart path {
+  stroke: var(--brand-primary, #0066FF);
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ============================================================================
+   Stat Card Comparison Variant - 对比卡片
+   ========================================================================= */
+
+.stat-card-comparison {
+  /* 继承基础样式 */
+}
+
+.stat-card-compare-group {
+  display: flex;
+  gap: var(--spacing-md, 12px);
+  margin-top: var(--spacing-sm, 8px);
+}
+
+.stat-card-compare-item {
+  flex: 1;
+  padding: var(--spacing-sm, 8px);
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: var(--radius-sm, 4px);
+  border-left: 3px solid var(--brand-primary, #0066FF);
+}
+
+[data-theme="dark"] .stat-card-compare-item {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.stat-card-compare-label {
+  font-size: var(--font-size-xs, 12px);
+  color: var(--text-tertiary, rgba(0, 0, 0, 0.45));
+  margin-bottom: 4px;
+}
+
+[data-theme="dark"] .stat-card-compare-label {
+  color: var(--text-tertiary-dark, rgba(255, 255, 255, 0.45));
+}
+
+.stat-card-compare-value {
+  font-size: var(--font-size-lg, 18px);
+  font-weight: 600;
+  color: var(--text-primary, rgba(0, 0, 0, 0.85));
+}
+
+[data-theme="dark"] .stat-card-compare-value {
+  color: var(--text-primary-dark, rgba(255, 255, 255, 0.85));
+}
+
+/* ============================================================================
+   Stat Card Progress Variant - 进度卡片
+   ========================================================================= */
+
+.stat-card-progress {
+  /* 继承基础样式 */
+}
+
+.stat-card-progress-bar {
+  margin-top: var(--spacing-sm, 8px);
+}
+
+.stat-card-progress-track {
+  height: 6px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+[data-theme="dark"] .stat-card-progress-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.stat-card-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand-primary, #0066FF), var(--brand-secondary, #00A3FF));
+  border-radius: 3px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); /* MD3 easing */
+}
+
+.stat-card-progress-info {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--spacing-xs, 4px);
+  font-size: var(--font-size-xs, 12px);
+  color: var(--text-tertiary, rgba(0, 0, 0, 0.45));
+}
+
+[data-theme="dark"] .stat-card-progress-info {
+  color: var(--text-tertiary-dark, rgba(255, 255, 255, 0.45));
+}
+
+/* ============================================================================
+   Responsive Design - 响应式设?
+   ========================================================================= */
+
+@media (max-width: 768px) {
+  .stat-card {
+    padding: var(--spacing-md, 12px) var(--spacing-lg, 16px);
+  }
+
+  .stat-card-number {
+    font-size: var(--font-size-xl, 24px);
+  }
+
+  .stat-card-compare-group {
+    flex-direction: column;
+    gap: var(--spacing-sm, 8px);
+  }
+
+  .stat-card-chart {
+    width: 50%;
+    height: 50px;
+  }
+}
+
+/* ============================================================================
+   Accessibility - 无障碍访?
+   ========================================================================= */
+
+/* Focus Styles */
+.stat-card:focus-visible {
+  outline: 2px solid var(--brand-primary, #0066FF);
+  outline-offset: 2px;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .stat-card,
+  .stat-card-progress-fill {
+    transition: none;
+  }
+
+  .stat-card:hover {
+    transform: none;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .stat-card {
+    border-width: 2px;
+  }
+
+  .stat-card-trend {
+    font-weight: 700;
+  }
+}
+
+/* ============================================================================
+   Grid Layout Helper - 网格布局辅助
+   ========================================================================= */
+
+.stat-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-lg, 16px);
+}
+
+@media (max-width: 768px) {
+  .stat-card-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md, 12px);
+  }
+}
+
+/* ============================================================================
+   Color Variants - 颜色变体
+   ========================================================================= */
+
+/* Primary - 主色?*/
+.stat-card.primary .stat-card-progress-fill {
+  background: linear-gradient(90deg, #0066FF, #00A3FF);
+}
+
+/* Success - 成功/增长 */
+.stat-card.success .stat-card-progress-fill {
+  background: linear-gradient(90deg, #52C41A, #73D13D);
+}
+
+.stat-card.success .stat-card-compare-item {
+  border-left-color: #52C41A;
+}
+
+/* Warning - 警告 */
+.stat-card.warning .stat-card-progress-fill {
+  background: linear-gradient(90deg, #FAAD14, #FFC53D);
+}
+
+.stat-card.warning .stat-card-compare-item {
+  border-left-color: #FAAD14;
+}
+
+/* Error - 错误/下降 */
+.stat-card.error .stat-card-progress-fill {
+  background: linear-gradient(90deg, #F5222D, #FF4D4F);
+}
+
+.stat-card.error .stat-card-compare-item {
+  border-left-color: #F5222D;
+}

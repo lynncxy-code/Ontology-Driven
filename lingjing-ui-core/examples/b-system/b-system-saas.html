@@ -1,0 +1,576 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>灵境Core - SaaS 系统参考页</title>
+
+    <!-- 此处使用技能包仓库内的示例路径；若落到调用方项目，请先放入项目自己的样式目录再回写引用 -->
+
+    <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+
+    <!-- ECharts + 灵境主题（必须先于业务脚本加载） -->
+    <script src="../../scripts/echarts.min.js"></script>
+    <script src="../../scripts/echarts-theme-lingjing.js"></script>
+    <!-- 引入 Lucide Icons -->
+    <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+    <!-- ============================================
+         SaaS系统布局 - 左侧导航布局
+         完全使用技能包规范类名
+         ============================================ -->
+    <div class="b-layout-sidebar">
+        <!-- 左侧导航栏 -->
+        <aside class="b-sidebar" id="sidebar">
+            <!-- Logo区域 -->
+            <div class="b-sidebar-header">
+                <div class="b-sidebar-logo">
+                    <img src="../../assets/logo-flat.png" alt="灵境" height="32">
+                </div>
+                <span class="b-sidebar-brand">灵境SaaS</span>
+            </div>
+
+            <!-- 导航菜单 -->
+            <nav class="b-sidebar-nav b-scrollable">
+                <ul class="b-sidebar-nav-list">
+                    <!-- 工作台 -->
+                    <li class="b-sidebar-nav-item">
+                        <a href="#workspace" class="b-sidebar-nav-link active">
+                            <span class="b-sidebar-nav-icon">
+                                <i data-lucide="layout-dashboard"></i>
+                            </span>
+                            <span class="b-sidebar-nav-text">工作台</span>
+                        </a>
+                    </li>
+
+                    <!-- 订阅管理 -->
+                    <li class="b-sidebar-nav-item">
+                        <a href="#subscription" class="b-sidebar-nav-link">
+                            <span class="b-sidebar-nav-icon">
+                                <i data-lucide="credit-card"></i>
+                            </span>
+                            <span class="b-sidebar-nav-text">订阅管理</span>
+                        </a>
+                    </li>
+
+                    <!-- 用户权限 -->
+                    <li class="b-sidebar-nav-item">
+                        <a href="#users" class="b-sidebar-nav-link">
+                            <span class="b-sidebar-nav-icon">
+                                <i data-lucide="users"></i>
+                            </span>
+                            <span class="b-sidebar-nav-text">用户权限</span>
+                        </a>
+                    </li>
+
+                    <!-- API管理 -->
+                    <li class="b-sidebar-nav-item">
+                        <a href="#api" class="b-sidebar-nav-link">
+                            <span class="b-sidebar-nav-icon">
+                                <i data-lucide="code-2"></i>
+                            </span>
+                            <span class="b-sidebar-nav-text">API管理</span>
+                        </a>
+                    </li>
+
+                    <!-- 数据分析 -->
+                    <li class="b-sidebar-nav-item">
+                        <a href="#analytics" class="b-sidebar-nav-link">
+                            <span class="b-sidebar-nav-icon">
+                                <i data-lucide="trending-up"></i>
+                            </span>
+                            <span class="b-sidebar-nav-text">数据分析</span>
+                        </a>
+                    </li>
+
+                    <!-- 账单中心 -->
+                    <li class="b-sidebar-nav-item">
+                        <a href="#billing" class="b-sidebar-nav-link">
+                            <span class="b-sidebar-nav-icon">
+                                <i data-lucide="receipt"></i>
+                            </span>
+                            <span class="b-sidebar-nav-text">账单中心</span>
+                        </a>
+                    </li>
+
+                    <!-- 系统设置 -->
+                    <li class="b-sidebar-nav-item">
+                        <a href="#settings" class="b-sidebar-nav-link">
+                            <span class="b-sidebar-nav-icon">
+                                <i data-lucide="settings"></i>
+                            </span>
+                            <span class="b-sidebar-nav-text">系统设置</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <!-- 侧边栏底部 -->
+            <div class="b-sidebar-footer">
+                <button class="b-sidebar-toggle" id="sidebarToggle">
+                    <i data-lucide="chevrons-left"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- ============================================
+             主内容区域
+             ============================================ -->
+        <main class="b-main">
+            <!-- 顶部导航栏 -->
+            <header class="b-header">
+                <div class="b-header-left">
+                    <div class="b-breadcrumb">
+                        <div class="b-breadcrumb-item">
+                            <span class="b-breadcrumb-current">SaaS工作台</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="b-header-right">
+                    <!-- 主题切换按钮 - 验证深色主题修复 -->
+                    <button class="btn-icon-enhanced" id="themeToggle" aria-label="切换主题">
+                        <i data-lucide="sun" id="themeIcon"></i>
+                    </button>
+                    <!-- 通知 -->
+                    <button class="btn-icon-enhanced" aria-label="通知">
+                        <i data-lucide="bell"></i>
+                    </button>
+                    <!-- 用户菜单 -->
+                    <button class="btn-icon-enhanced" aria-label="用户菜单">
+                        <i data-lucide="user"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- 主内容区 -->
+            <div class="b-content">
+                <!-- KPI 指标卡片 -->
+                <div class="stats-grid">
+                    <div class="b-stat-card" data-color="blue">
+                        <div class="b-stat-header">
+                            <span class="b-stat-label">活跃用户</span>
+                            <i data-lucide="users" class="b-stat-icon"></i>
+                        </div>
+                        <div class="b-stat-value">12,458</div>
+                        <div class="b-stat-change positive">
+                            <i data-lucide="trending-up"></i>
+                            <span>+12.5%</span>
+                        </div>
+                    </div>
+
+                    <div class="b-stat-card" data-color="cyan">
+                        <div class="b-stat-header">
+                            <span class="b-stat-label">订阅收入</span>
+                            <i data-lucide="credit-card" class="b-stat-icon"></i>
+                        </div>
+                        <div class="b-stat-value">¥89,240</div>
+                        <div class="b-stat-change positive">
+                            <i data-lucide="trending-up"></i>
+                            <span>+8.3%</span>
+                        </div>
+                    </div>
+
+                    <div class="b-stat-card" data-color="green">
+                        <div class="b-stat-header">
+                            <span class="b-stat-label">API调用</span>
+                            <i data-lucide="zap" class="b-stat-icon"></i>
+                        </div>
+                        <div class="b-stat-value">1.2M</div>
+                        <div class="b-stat-change positive">
+                            <i data-lucide="trending-up"></i>
+                            <span>+24.7%</span>
+                        </div>
+                    </div>
+
+                    <div class="b-stat-card" data-color="orange">
+                        <div class="b-stat-header">
+                            <span class="b-stat-label">服务健康度</span>
+                            <i data-lucide="server" class="b-stat-icon"></i>
+                        </div>
+                        <div class="b-stat-value">99.9%</div>
+                        <div class="b-stat-change neutral">
+                            <i data-lucide="minus"></i>
+                            <span>稳定</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 图表卡片 -->
+                <div class="charts-grid">
+                    <div class="b-chart-card">
+                        <div class="b-chart-header">
+                            <div>
+                                <h3 class="b-chart-title">订阅增长趋势</h3>
+                                <p class="b-chart-subtitle">最近30天的订阅用户数据</p>
+                            </div>
+                            <select class="form-select">
+                                <option>最近7天</option>
+                                <option selected>最近30天</option>
+                                <option>最近90天</option>
+                            </select>
+                        </div>
+                        <div class="b-chart-body">
+                            <div id="chartSubscription" style="height: 260px;"></div>
+                        </div>
+                    </div>
+
+                    <div class="b-chart-card">
+                        <div class="b-chart-header">
+                            <div>
+                                <h3 class="b-chart-title">API调用统计</h3>
+                                <p class="b-chart-subtitle">按服务分类的调用量</p>
+                            </div>
+                            <button class="btn-ghost-enhanced">
+                                <i data-lucide="download"></i>
+                                导出
+                            </button>
+                        </div>
+                        <div class="b-chart-body">
+                            <div id="chartApi" style="height: 260px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 数据表格 -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2 class="card-title">最近订单</h2>
+                        <button class="btn-primary-enhanced">
+                            <i data-lucide="plus"></i>
+                            新增订单
+                        </button>
+                    </div>
+
+                    <!-- 搜索栏 -->
+                    <div class="search-bar">
+                        <input type="text" class="search-input" placeholder="搜索订单...">
+                        <select class="filter-select">
+                            <option>全部状态</option>
+                            <option>待支付</option>
+                            <option>已完成</option>
+                            <option>已取消</option>
+                        </select>
+                        <button class="btn-outline">
+                            <i data-lucide="filter"></i>
+                            筛选
+                        </button>
+                    </div>
+
+                    <!-- 数据表格 -->
+                    <div class="data-table-container">
+                    <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>订单号</th>
+                                    <th>用户</th>
+                                    <th>套餐</th>
+                                    <th>金额</th>
+                                    <th>状态</th>
+                                    <th>创建时间</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <span class="badge badge-secondary">ORD-2024-001</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge info">张</span> 张三
+                                    </td>
+                                    <td>专业版</td>
+                                    <td><strong>¥299/月</strong></td>
+                                    <td><span class="badge success">已完成</span></td>
+                                    <td>2024-02-14 10:30</td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button class="btn-icon" title="查看">
+                                                <i data-lucide="eye"></i>
+                                            </button>
+                                            <button class="btn-icon" title="下载发票">
+                                                <i data-lucide="download"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <span class="badge badge-secondary">ORD-2024-002</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge info">李</span> 李四
+                                    </td>
+                                    <td>企业版</td>
+                                    <td><strong>¥999/月</strong></td>
+                                    <td><span class="badge warning">待支付</span></td>
+                                    <td>2024-02-14 09:15</td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button class="btn-icon" title="催付">
+                                                <i data-lucide="send"></i>
+                                            </button>
+                                            <button class="btn-icon" title="取消">
+                                                <i data-lucide="x"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <span class="badge badge-secondary">ORD-2024-003</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge success">王</span> 王五
+                                    </td>
+                                    <td>基础版</td>
+                                    <td><strong>¥99/月</strong></td>
+                                    <td><span class="badge success">已完成</span></td>
+                                    <td>2024-02-13 16:45</td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button class="btn-icon" title="查看">
+                                                <i data-lucide="eye"></i>
+                                            </button>
+                                            <button class="btn-icon" title="下载发票">
+                                                <i data-lucide="download"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <span class="badge badge-secondary">ORD-2024-004</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge warning">赵</span> 赵六
+                                    </td>
+                                    <td>专业版</td>
+                                    <td><strong>¥299/月</strong></td>
+                                    <td><span class="badge error">已取消</span></td>
+                                    <td>2024-02-13 14:20</td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button class="btn-icon" title="查看">
+                                                <i data-lucide="eye"></i>
+                                            </button>
+                                            <button class="btn-icon" title="删除">
+                                                <i data-lucide="trash-2"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <span class="badge badge-secondary">ORD-2024-005</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge info">孙</span> 孙七
+                                    </td>
+                                    <td>企业版</td>
+                                    <td><strong>¥999/月</strong></td>
+                                    <td><span class="badge success">已完成</span></td>
+                                    <td>2024-02-13 11:30</td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button class="btn-icon" title="查看">
+                                                <i data-lucide="eye"></i>
+                                            </button>
+                                            <button class="btn-icon" title="下载发票">
+                                                <i data-lucide="download"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 分页 -->
+                    <div class="pagination">
+                        <button disabled>
+                            <i data-lucide="chevron-left"></i>
+                        </button>
+                        <button class="active">1</button>
+                        <button>2</button>
+                        <button>3</button>
+                        <button>...</button>
+                        <button>10</button>
+                        <button>
+                            <i data-lucide="chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 快捷操作卡片 -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2 class="card-title">快捷操作</h2>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: var(--spacing-lg);">
+                        常用功能快速入口
+                    </p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md);">
+                        <button class="btn-primary-enhanced" style="width: 100%;">
+                            <i data-lucide="user-plus"></i>
+                            添加新用户
+                        </button>
+                        <button class="btn-secondary-enhanced" style="width: 100%;">
+                            <i data-lucide="key"></i>
+                            生成API密钥
+                        </button>
+                        <button class="btn-ghost-enhanced" style="width: 100%;">
+                            <i data-lucide="file-text"></i>
+                            查看文档
+                        </button>
+                        <button class="btn-ghost-enhanced" style="width: 100%;">
+                            <i data-lucide="life-buoy"></i>
+                            联系支持
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ============================================
+         JavaScript - 交互逻辑
+         ============================================ -->
+    <script>
+        // ── 图表配置工厂 ──────────────────────────────────────────────────
+        function buildSubscriptionOption(tk) {
+            var days = ['2/1','2/5','2/9','2/13','2/17','2/21','2/25','3/1','3/5','3/9','3/13','3/17','3/21','3/25'];
+            return {
+                tooltip: { trigger: 'axis' },
+                legend: { data: ['基础版', '专业版', '企业版'], right: 0, top: 0 },
+                grid: { top: 36, right: 8, bottom: 0, left: 0, containLabel: true },
+                xAxis: { type: 'category', boundaryGap: false, data: days },
+                yAxis: { type: 'value', name: '用户数', min: 0 },
+                series: [
+                    {
+                        name: '基础版', type: 'line',
+                        data: [420,430,445,460,475,490,510,525,540,558,575,590,605,620],
+                        smooth: true, symbol: 'none',
+                        lineStyle: { color: tk.series[0], width: 2 },
+                        areaStyle: { color: tk.series[0], opacity: 0.07 },
+                        itemStyle: { color: tk.series[0] }
+                    },
+                    {
+                        name: '专业版', type: 'line',
+                        data: [180,188,195,200,210,218,225,232,240,248,255,262,270,278],
+                        smooth: true, symbol: 'none',
+                        lineStyle: { color: tk.series[1], width: 2 },
+                        areaStyle: { color: tk.series[1], opacity: 0.07 },
+                        itemStyle: { color: tk.series[1] }
+                    },
+                    {
+                        name: '企业版', type: 'line',
+                        data: [42,44,46,48,50,52,54,57,60,63,66,69,72,75],
+                        smooth: true, symbol: 'none',
+                        lineStyle: { color: tk.series[2], width: 2 },
+                        areaStyle: { color: tk.series[2], opacity: 0.07 },
+                        itemStyle: { color: tk.series[2] }
+                    }
+                ]
+            };
+        }
+
+        function buildApiOption(tk) {
+            return {
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                legend: { data: ['文档处理', '图像识别', '数据分析', '推理服务'], right: 0, top: 0 },
+                grid: { top: 36, right: 8, bottom: 0, left: 0, containLabel: true },
+                xAxis: { type: 'category', data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] },
+                yAxis: { type: 'value', name: '万次', min: 0 },
+                series: [
+                    { name: '文档处理', type: 'bar', stack: 'total', barMaxWidth: 40,
+                      itemStyle: { color: tk.series[0] }, data: [12, 15, 13, 17, 14, 8, 6] },
+                    { name: '图像识别', type: 'bar', stack: 'total',
+                      itemStyle: { color: tk.series[1] }, data: [8, 9, 11, 10, 9, 5, 4] },
+                    { name: '数据分析', type: 'bar', stack: 'total',
+                      itemStyle: { color: tk.series[2] }, data: [6, 7, 8, 9, 7, 3, 2] },
+                    { name: '推理服务', type: 'bar', stack: 'total',
+                      itemStyle: { color: tk.series[3] }, data: [4, 5, 6, 7, 5, 2, 1] }
+                ]
+            };
+        }
+
+        var charts = {};
+
+        function initCharts() {
+            var scene = document.documentElement.getAttribute('data-theme') === 'dark'
+                        ? 'b_system_dark' : 'b_system';
+            var tk = LingJingChart.getTokens(scene);
+            charts.subscription = LingJingChart.init(document.getElementById('chartSubscription'), scene);
+            charts.api          = LingJingChart.init(document.getElementById('chartApi'), scene);
+            charts.subscription.setOption(buildSubscriptionOption(tk));
+            charts.api.setOption(buildApiOption(tk));
+        }
+
+        // 主题切换功能
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const html = document.documentElement;
+
+        // 先恢复主题，再初始化图表（保证 getTokens 读到正确的 data-theme）
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        html.setAttribute('data-theme', savedTheme);
+
+        // 初始化 Lucide Icons
+        lucide.createIcons();
+        updateThemeIcon(savedTheme);
+
+        // 图表初始化（在主题设置之后）
+        if (typeof echarts !== 'undefined') {
+            initCharts();
+        } else {
+            console.warn('[b-system-saas] echarts 未加载，图表跳过渲染。');
+        }
+
+        // 侧边栏折叠功能
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+            const icon = sidebarToggle.querySelector('i');
+            if (sidebar.classList.contains('collapsed')) {
+                icon.setAttribute('data-lucide', 'chevrons-right');
+            } else {
+                icon.setAttribute('data-lucide', 'chevrons-left');
+            }
+            lucide.createIcons();
+        });
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+            // 主题切换后重建图表
+            Object.values(charts).forEach(function(c) { if (c && !c.isDisposed()) c.dispose(); });
+            charts = {};
+            if (typeof echarts !== 'undefined') { initCharts(); }
+        });
+
+        function updateThemeIcon(theme) {
+            themeIcon.setAttribute('data-lucide', theme === 'dark' ? 'moon' : 'sun');
+            lucide.createIcons();
+        }
+
+        // 导航菜单激活状态
+        const navLinks = document.querySelectorAll('.b-sidebar-nav-link');
+        navLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                navLinks.forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+            });
+        });
+
+        window.addEventListener('resize', function() { LingJingChart.resizeAll(); });
+
+    </script>
+</body>
+</html>

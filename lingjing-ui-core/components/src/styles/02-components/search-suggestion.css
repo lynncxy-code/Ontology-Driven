@@ -1,0 +1,84 @@
+/**
+ * Search Suggestion
+ * 输入框下方的搜索联想面板。
+ */
+
+.search-suggestion-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  width: min(420px, 100%);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle, var(--border-secondary));
+  box-shadow: var(--shadow-lg);
+  padding-block: var(--spacing-xs);
+  z-index: 40;
+}
+
+.search-suggestion-group + .search-suggestion-group {
+  border-top: 1px solid var(--border-subtle, var(--border-secondary));
+  margin-top: var(--spacing-xs);
+  padding-top: var(--spacing-xs);
+}
+
+.search-suggestion-header {
+  padding: 0 var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.search-suggestion-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.search-suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-md);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background 0.16s ease, transform 0.16s ease;
+}
+
+.search-suggestion-item-main {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  min-width: 0;
+}
+
+.search-suggestion-title {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.search-suggestion-description {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.search-suggestion-shortcut {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  opacity: 0.9;
+}
+
+.search-suggestion-item:hover {
+  background: var(--bg-subtle, var(--bg-secondary));
+  transform: translateY(-1px);
+}
+
+.search-suggestion-item.is-active {
+  background: var(--bg-subtle, var(--bg-secondary));
+}

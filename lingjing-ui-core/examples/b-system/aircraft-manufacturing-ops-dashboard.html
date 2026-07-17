@@ -1,0 +1,223 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>飞机制造运营状态总览 - Lingjing Core</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+  <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+  <div class="b-layout-sidebar">
+    <aside class="b-sidebar" id="sidebar">
+      <div class="b-sidebar-header">
+        <div class="b-sidebar-logo">
+          <img src="../../assets/logo-flat.png" alt="灵境" height="32">
+        </div>
+        <span class="b-sidebar-brand">制造运营中心</span>
+      </div>
+      <nav class="b-sidebar-nav b-scrollable">
+        <ul class="b-sidebar-nav-list">
+          <li class="b-sidebar-nav-item">
+            <a href="#" class="b-sidebar-nav-link active">
+              <span class="b-sidebar-nav-icon"><i data-lucide="layout-dashboard"></i></span>
+              <span class="b-sidebar-nav-text">运营状态</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="alert-triangle"></i></span>
+              <span class="b-sidebar-nav-text">质量告警</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="clipboard-list"></i></span>
+              <span class="b-sidebar-nav-text">工单调度</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+      <div class="b-sidebar-footer">
+        <button class="b-sidebar-toggle" onclick="toggleSidebar()">
+          <span class="b-sidebar-toggle-icon"><i data-lucide="chevron-left"></i></span>
+          <span class="b-sidebar-toggle-text">收起导航</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="b-main">
+      <header class="b-header">
+        <div class="b-header-left">
+          <div class="b-breadcrumb">
+            <div class="b-breadcrumb-item">
+              <a href="#" class="b-breadcrumb-link">运营中心</a>
+              <span class="b-breadcrumb-separator">/</span>
+            </div>
+            <div class="b-breadcrumb-item">
+              <span class="b-breadcrumb-current">制造运营总览</span>
+            </div>
+          </div>
+        </div>
+        <div class="b-header-right">
+          <button class="btn-icon" title="刷新">
+            <i data-lucide="refresh-cw"></i>
+          </button>
+          <button class="btn-icon" title="切换主题" onclick="toggleTheme()">
+            <i data-lucide="moon"></i>
+          </button>
+
+        </div>
+      </header>
+
+      <div class="b-content b-scrollable">
+        <section class="aviation-section">
+          <div class="aviation-grid aviation-grid-3">
+            <div class="flight-metric-card">
+              <div class="flight-metric-header">
+                <h4 class="flight-metric-title">今日产线达成率</h4>
+                <span class="flight-metric-chip"><i data-lucide="target"></i> 战斗机/民机</span>
+              </div>
+              <div class="flight-metric-value">96.8%</div>
+              <div class="flight-metric-meta">
+                <span class="flight-metric-trend">按节拍提升</span>
+                <span>较昨日 +1.4%</span>
+              </div>
+            </div>
+            <div class="flight-metric-card">
+              <div class="flight-metric-header">
+                <h4 class="flight-metric-title">质量风险监测</h4>
+                <span class="flight-metric-chip"><i data-lucide="shield-alert"></i> 4 项</span>
+              </div>
+              <div class="flight-metric-value">可控</div>
+              <div class="flight-metric-meta">
+                <span class="flight-metric-trend warning">两项高风险</span>
+              </div>
+            </div>
+            <div class="flight-metric-card">
+              <div class="flight-metric-header">
+                <h4 class="flight-metric-title">关键设备可用</h4>
+                <span class="flight-metric-chip"><i data-lucide="cpu"></i> 18 台</span>
+              </div>
+              <div class="flight-metric-value">正常</div>
+              <div class="flight-metric-meta">
+                <span class="flight-metric-trend">维护窗口充足</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="aviation-section aviation-grid aviation-grid-2">
+          <div class="alert-center-panel">
+            <div class="alert-center-header">
+              <h3 class="alert-center-title">质量与设备告警</h3>
+              <span class="text-secondary">已处理 12 / 待处理 5</span>
+            </div>
+            <div class="alert-center-list">
+              <div class="alert-center-item">
+                <div class="alert-severity critical"></div>
+                <div class="alert-content">
+                  <div class="alert-title">机体装配线温控偏差</div>
+                  <div class="alert-meta">05:20 · 已触发自动补偿策略</div>
+                </div>
+              </div>
+              <div class="alert-center-item">
+                <div class="alert-severity"></div>
+                <div class="alert-content">
+                  <div class="alert-title">关键航电部件延迟</div>
+                  <div class="alert-meta">05:48 · 到料时间待确认</div>
+                </div>
+              </div>
+              <div class="alert-center-item">
+                <div class="alert-severity info"></div>
+                <div class="alert-content">
+                  <div class="alert-title">涂装环境湿度超标</div>
+                  <div class="alert-meta">06:05 · 已暂停该工位</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mission-status-board">
+            <div class="mission-status-header">
+              <h3 class="mission-status-title">班组任务进度</h3>
+              <span class="mission-status-meta">当前班次 · 04:00 - 12:00</span>
+            </div>
+            <div class="mission-status-list">
+              <div class="mission-status-item">
+                <div class="mission-status-dot success"></div>
+                <div class="mission-status-content">
+                  <div class="mission-status-name">战斗机批次装配复盘</div>
+                  <div class="mission-status-desc">关键工段已完成节拍校准。</div>
+                </div>
+              </div>
+              <div class="mission-status-item">
+                <div class="mission-status-dot"></div>
+                <div class="mission-status-content">
+                  <div class="mission-status-name">民机航电集成协调</div>
+                  <div class="mission-status-desc">与供应链同步交付节奏。</div>
+                </div>
+              </div>
+              <div class="mission-status-item">
+                <div class="mission-status-dot warning"></div>
+                <div class="mission-status-content">
+                  <div class="mission-status-name">设备校准演练</div>
+                  <div class="mission-status-desc">待确认备用设备上线窗口。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="aviation-section">
+          <div class="telemetry-strip">
+            <div class="telemetry-item">
+              <span class="telemetry-label">一次合格率</span>
+              <span class="telemetry-value">98.1%</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">平均节拍偏差</span>
+              <span class="telemetry-value">12 min</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">装配线温湿度</span>
+              <span class="telemetry-value">23°C / 45%</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">关键件在途</span>
+              <span class="telemetry-value">28%</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">班组到岗</span>
+              <span class="telemetry-value">15 / 18</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function toggleSidebar() {
+      var sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('collapsed');
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+    }
+
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+
+    if (window.lucide) {
+      window.lucide.createIcons();
+    }
+  </script>
+
+</body>
+</html>

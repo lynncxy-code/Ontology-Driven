@@ -1,0 +1,578 @@
+/**
+ * Lingjing Core - Progress Components (进度条组?
+ *
+ * @version 2.6.2
+ * @description 进度指示器组件，用于展示任务完成度、加载状态等
+ * @usage 文件上传、任务进度、加载状态、步骤指?
+ *
+ * 组件列表?
+ * - .progress-linear         线性进度条（默认）
+ * - .progress-circle         圆形进度?
+ * - .progress-steps          步骤进度?
+ * - .progress-dashboard      仪表盘进度条
+ */
+
+/* ============================================================================
+   Linear Progress - 线性进度条
+   ========================================================================= */
+
+.progress-linear {
+  /* Layout */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs, 4px);
+  width: 100%;
+}
+
+.progress-linear-track {
+  position: relative;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 4px; /* 遵循 ?2px 规则 */
+  overflow: hidden;
+}
+
+[data-theme="dark"] .progress-linear-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.progress-linear-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand-primary, #0066FF), var(--brand-secondary, #00A3FF));
+  border-radius: 4px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); /* MD3 easing */
+}
+
+/* Progress States - 进度状?*/
+.progress-linear-fill[data-status="success"] {
+  background: linear-gradient(90deg, #52C41A, #73D13D);
+}
+
+.progress-linear-fill[data-status="warning"] {
+  background: linear-gradient(90deg, #FAAD14, #FFC53D);
+}
+
+.progress-linear-fill[data-status="error"] {
+  background: linear-gradient(90deg, #F5222D, #FF4D4F);
+}
+
+/* Progress Info - 进度信息 */
+.progress-linear-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-secondary, rgba(0, 0, 0, 0.65));
+}
+
+[data-theme="dark"] .progress-linear-info {
+  color: var(--text-secondary-dark, rgba(255, 255, 255, 0.65));
+}
+
+.progress-linear-label {
+  font-weight: 500;
+}
+
+.progress-linear-percentage {
+  font-weight: 600;
+  color: var(--text-primary, rgba(0, 0, 0, 0.85));
+}
+
+[data-theme="dark"] .progress-linear-percentage {
+  color: var(--text-primary-dark, rgba(255, 255, 255, 0.85));
+}
+
+/* Size Variants - 尺寸变体 */
+.progress-linear.small .progress-linear-track {
+  height: 4px;
+}
+
+.progress-linear.large .progress-linear-track {
+  height: 12px;
+}
+
+/* Indeterminate Animation - 不确定进度动?*/
+.progress-linear-fill.indeterminate {
+  width: 30% !important;
+  animation: progress-indeterminate 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes progress-indeterminate {
+  0% {
+    left: -30%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* Striped Pattern - 条纹样式 */
+.progress-linear-fill.striped {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.15) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.15) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 20px 20px;
+  animation: progress-stripes 1s linear infinite;
+}
+
+@keyframes progress-stripes {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 20px 0;
+  }
+}
+
+/* ============================================================================
+   Circle Progress - 圆形进度?
+   ========================================================================= */
+
+.progress-circle {
+  /* Layout */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 120px;
+  height: 120px;
+}
+
+.progress-circle svg {
+  transform: rotate(-90deg); /* 从顶部开?*/
+  width: 100%;
+  height: 100%;
+}
+
+.progress-circle-track {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.06);
+  stroke-width: 8;
+}
+
+[data-theme="dark"] .progress-circle-track {
+  stroke: rgba(255, 255, 255, 0.1);
+}
+
+.progress-circle-fill {
+  fill: none;
+  stroke: var(--brand-primary, #0066FF);
+  stroke-width: 8;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1); /* MD3 easing */
+}
+
+/* Circle States - 圆形进度状?*/
+.progress-circle-fill[data-status="success"] {
+  stroke: #52C41A;
+}
+
+.progress-circle-fill[data-status="warning"] {
+  stroke: #FAAD14;
+}
+
+.progress-circle-fill[data-status="error"] {
+  stroke: #F5222D;
+}
+
+/* Circle Content - 圆形进度内容 */
+.progress-circle-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.progress-circle-percentage {
+  font-size: var(--font-size-xl, 24px);
+  font-weight: 600;
+  color: var(--text-primary, rgba(0, 0, 0, 0.85));
+  line-height: 1;
+}
+
+[data-theme="dark"] .progress-circle-percentage {
+  color: var(--text-primary-dark, rgba(255, 255, 255, 0.85));
+}
+
+.progress-circle-label {
+  font-size: var(--font-size-xs, 12px);
+  color: var(--text-secondary, rgba(0, 0, 0, 0.65));
+  margin-top: 4px;
+}
+
+[data-theme="dark"] .progress-circle-label {
+  color: var(--text-secondary-dark, rgba(255, 255, 255, 0.65));
+}
+
+/* Size Variants - 圆形尺寸变体 */
+.progress-circle.small {
+  width: 80px;
+  height: 80px;
+}
+
+.progress-circle.small .progress-circle-track,
+.progress-circle.small .progress-circle-fill {
+  stroke-width: 6;
+}
+
+.progress-circle.small .progress-circle-percentage {
+  font-size: var(--font-size-lg, 18px);
+}
+
+.progress-circle.large {
+  width: 160px;
+  height: 160px;
+}
+
+.progress-circle.large .progress-circle-track,
+.progress-circle.large .progress-circle-fill {
+  stroke-width: 10;
+}
+
+.progress-circle.large .progress-circle-percentage {
+  font-size: var(--font-size-xxl, 32px);
+}
+
+/* ============================================================================
+   Steps Progress - 步骤进度?
+   ========================================================================= */
+
+.progress-steps {
+  /* Layout */
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+}
+
+.progress-step {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.progress-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: calc(50% + 16px);
+  right: calc(-50% + 16px);
+  top: 16px;
+  height: 2px;
+  background: rgba(0, 0, 0, 0.1);
+  z-index: 0;
+}
+
+[data-theme="dark"] .progress-step:not(:last-child)::after {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.progress-step.completed::after {
+  background: var(--brand-primary, #0066FF);
+}
+
+.progress-step-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs, 4px);
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+/* Step Circle - 步骤圆圈 */
+.progress-step-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.06);
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  color: var(--text-tertiary, rgba(0, 0, 0, 0.45));
+  font-weight: 600;
+  font-size: var(--font-size-sm, 14px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="dark"] .progress-step-circle {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text-tertiary-dark, rgba(255, 255, 255, 0.45));
+}
+
+/* Active Step */
+.progress-step.active .progress-step-circle {
+  background: var(--brand-primary, #0066FF);
+  border-color: var(--brand-primary, #0066FF);
+  color: white;
+  box-shadow: 0 0 0 4px rgba(0, 102, 255, 0.15);
+}
+
+/* Completed Step */
+.progress-step.completed .progress-step-circle {
+  background: var(--brand-primary, #0066FF);
+  border-color: var(--brand-primary, #0066FF);
+  color: white;
+}
+
+.progress-step.completed .progress-step-circle::before {
+  content: "?;
+}
+
+/* Error Step */
+.progress-step.error .progress-step-circle {
+  background: #F5222D;
+  border-color: #F5222D;
+  color: white;
+}
+
+.progress-step.error .progress-step-circle::before {
+  content: "?;
+}
+
+/* Step Label - 步骤标签 */
+.progress-step-label {
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-secondary, rgba(0, 0, 0, 0.65));
+  text-align: center;
+  max-width: 120px;
+  word-wrap: break-word;
+}
+
+[data-theme="dark"] .progress-step-label {
+  color: var(--text-secondary-dark, rgba(255, 255, 255, 0.65));
+}
+
+.progress-step.active .progress-step-label,
+.progress-step.completed .progress-step-label {
+  color: var(--text-primary, rgba(0, 0, 0, 0.85));
+  font-weight: 500;
+}
+
+[data-theme="dark"] .progress-step.active .progress-step-label,
+[data-theme="dark"] .progress-step.completed .progress-step-label {
+  color: var(--text-primary-dark, rgba(255, 255, 255, 0.85));
+}
+
+.progress-step-description {
+  font-size: var(--font-size-xs, 12px);
+  color: var(--text-tertiary, rgba(0, 0, 0, 0.45));
+  text-align: center;
+  max-width: 120px;
+}
+
+[data-theme="dark"] .progress-step-description {
+  color: var(--text-tertiary-dark, rgba(255, 255, 255, 0.45));
+}
+
+/* Vertical Steps - 垂直步骤 */
+.progress-steps.vertical {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.progress-steps.vertical .progress-step {
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.progress-steps.vertical .progress-step:not(:last-child)::after {
+  left: 16px;
+  right: auto;
+  top: calc(50% + 16px);
+  bottom: calc(-50% + 16px);
+  width: 2px;
+  height: auto;
+}
+
+.progress-steps.vertical .progress-step-content {
+  flex-direction: row;
+  gap: var(--spacing-md, 12px);
+}
+
+.progress-steps.vertical .progress-step-label,
+.progress-steps.vertical .progress-step-description {
+  text-align: left;
+  max-width: none;
+}
+
+/* ============================================================================
+   Dashboard Progress - 仪表盘进度条
+   ========================================================================= */
+
+.progress-dashboard {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 140px;
+  height: 140px;
+}
+
+.progress-dashboard svg {
+  transform: rotate(135deg); /* 仪表盘起始角?*/
+  width: 100%;
+  height: 100%;
+}
+
+.progress-dashboard-track {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.06);
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+[data-theme="dark"] .progress-dashboard-track {
+  stroke: rgba(255, 255, 255, 0.1);
+}
+
+.progress-dashboard-fill {
+  fill: none;
+  stroke: url(#progressGradient);
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-dashboard-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.progress-dashboard-percentage {
+  font-size: var(--font-size-xxl, 32px);
+  font-weight: 700;
+  color: var(--text-primary, rgba(0, 0, 0, 0.85));
+  line-height: 1;
+}
+
+[data-theme="dark"] .progress-dashboard-percentage {
+  color: var(--text-primary-dark, rgba(255, 255, 255, 0.85));
+}
+
+.progress-dashboard-label {
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-secondary, rgba(0, 0, 0, 0.65));
+  margin-top: 4px;
+}
+
+[data-theme="dark"] .progress-dashboard-label {
+  color: var(--text-secondary-dark, rgba(255, 255, 255, 0.65));
+}
+
+/* ============================================================================
+   Responsive Design - 响应式设?
+   ========================================================================= */
+
+@media (max-width: 768px) {
+  .progress-circle,
+  .progress-dashboard {
+    width: 100px;
+    height: 100px;
+  }
+
+  .progress-circle .progress-circle-percentage,
+  .progress-dashboard .progress-dashboard-percentage {
+    font-size: var(--font-size-lg, 18px);
+  }
+
+  .progress-steps {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .progress-step {
+    width: 100%;
+  }
+
+  .progress-step:not(:last-child)::after {
+    left: 16px;
+    right: auto;
+    top: calc(50% + 16px);
+    bottom: calc(-50% + 16px);
+    width: 2px;
+    height: auto;
+  }
+
+  .progress-step-content {
+    flex-direction: row;
+    gap: var(--spacing-md, 12px);
+  }
+
+  .progress-step-label,
+  .progress-step-description {
+    text-align: left;
+    max-width: none;
+  }
+}
+
+/* ============================================================================
+   Accessibility - 无障碍访?
+   ========================================================================= */
+
+/* Focus Styles */
+.progress-linear:focus-visible,
+.progress-circle:focus-visible,
+.progress-step:focus-visible {
+  outline: 2px solid var(--brand-primary, #0066FF);
+  outline-offset: 2px;
+}
+
+/* Screen Reader */
+.progress-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .progress-linear-fill,
+  .progress-circle-fill,
+  .progress-dashboard-fill,
+  .progress-step-circle {
+    transition: none;
+  }
+
+  .progress-linear-fill.indeterminate,
+  .progress-linear-fill.striped {
+    animation: none;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .progress-linear-track,
+  .progress-circle-track,
+  .progress-dashboard-track {
+    border: 1px solid currentColor;
+  }
+
+  .progress-step-circle {
+    border-width: 3px;
+  }
+}

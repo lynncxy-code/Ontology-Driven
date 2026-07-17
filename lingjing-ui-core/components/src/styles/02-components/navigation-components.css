@@ -1,0 +1,4 @@
+/* v3.1 compatibility wrapper: canonical source moved to 02-components/navigation.css */
+@import './navigation-legacy.css';
+@import './navigation.css';
+

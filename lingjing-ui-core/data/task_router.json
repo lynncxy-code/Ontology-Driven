@@ -1,0 +1,263 @@
+{
+  "_meta": {
+    "description": "任务 → 场景 → 模板推荐路由表（真值源，供上层代理/工具查阅）",
+    "version": "1.0.0",
+    "updated": "2026-04-05",
+    "note_zh": "此文件为人工维护的任务路由索引，辅助根据 PRD/需求语句选择合适场景与模板。更新模板分级或新增模板时需同步维护。"
+  },
+  "tasks": [
+    {
+      "id": "b_system_dashboard_overview",
+      "scene": "b_system",
+      "page_types": ["dashboard", "overview"],
+      "target_type": "dashboard",
+      "keywords_zh": ["后台首页", "运营总览", "管理驾驶舱", "运营驾驶舱"],
+      "preferred_level": "level_1",
+      "primary_templates": [
+        "examples/b-system/b-system-complete.html"
+      ],
+      "fallback_templates": [
+        "examples/b-system/b-system-production-plan.html",
+        "examples/b-system/b-system-saas.html"
+      ]
+    },
+    {
+      "id": "b_system_list",
+      "scene": "b_system",
+      "page_types": ["list"],
+      "target_type": "list",
+      "keywords_zh": ["列表页", "工单列表", "数据列表", "顶部筛选", "表格筛选", "条件筛选"],
+      "routing_notes_zh": [
+        "默认使用列表页 + 顶部 search-bar 承载筛选条件。",
+        "只有当 PRD 明确出现“左侧筛选面板”“高级筛选侧栏”“复杂常驻筛选结构”等语义时，才考虑升级到 b_system_advanced_list。",
+        "筛选条件数量本身不能作为升级 advanced_list 的充分理由。"
+      ],
+      "preferred_level": "level_1",
+      "primary_templates": [
+        "examples/b-system/b-system-task-list-top-filters.html"
+      ],
+      "fallback_templates": [
+        "examples/b-system/b-system-complete.html",
+        "examples/b-system/b-system-production-plan.html"
+      ]
+    },
+    {
+      "id": "b_system_advanced_list",
+      "scene": "b_system",
+      "page_types": ["advanced_list"],
+      "target_type": "advanced_list",
+      "keywords_zh": ["高级筛选列表", "侧边筛选", "高级筛选面板", "左侧筛选", "多维筛选"],
+      "must_keywords_zh": [
+        "左侧筛选面板",
+        "高级筛选侧栏",
+        "复杂常驻筛选结构"
+      ],
+      "routing_notes_zh": [
+        "仅当 PRD 明确要求左侧独立筛选面板 / 高级筛选侧栏 / 复杂且需要长期并列展示的筛选结构时，才可以命中 b_system_advanced_list。",
+        "若筛选条件仍可由表格上方的 search-bar / 顶部筛选条承载，则必须优先使用 b_system_list，而不是升级为 advanced_list。"
+      ],
+      "preferred_level": "level_2",
+      "primary_templates": [
+        "examples/b-system/b-system-advanced-list-with-left-filter-panel.html"
+      ],
+      "fallback_templates": [
+        "examples/b-system/b-system-complete.html",
+        "examples/b-system/b-system-production-plan.html"
+      ]
+    },
+    {
+      "id": "b_system_detail",
+      "scene": "b_system",
+      "page_types": ["detail"],
+      "target_type": "detail",
+      "keywords_zh": ["详情页", "详情页面", "工单详情", "审批页"],
+      "routing_notes_zh": [
+        "用于展示单个实体的完整信息（基本信息 + 状态时间线 + 关联记录），主任务流应围绕该实体展开。",
+        "当 PRD 强调“运营总览 / 多业务域工作台 / KPI 总览”时，应优先考虑 dashboard，而不是 detail。",
+        "在详情页中可以包含少量关联列表/表格，但若顶部出现成组 KPI 网格（stats-grid / charts-grid），或并列多个独立主任务流，应视为工作台化，需 stop&ask 并考虑拆分或升级 Level。"
+      ],
+      "preferred_level": "level_1",
+      "primary_templates": [
+        "examples/b-system/b-system-detail-order.html"
+      ],
+      "fallback_templates": [
+        "examples/b-system/b-system-complete.html",
+        "examples/b-system/b-system-production-plan.html"
+      ]
+    },
+    {
+      "id": "website_landing_marketing",
+      "scene": "website",
+      "page_types": ["landing", "marketing"],
+      "keywords_zh": ["官网首页", "营销页", "产品落地页", "解决方案页"],
+      "preferred_level": "level_1",
+      "primary_templates": [
+        "examples/website/website-complete.html"
+      ],
+      "fallback_templates": []
+    },
+    {
+      "id": "website_feature_highlight",
+      "scene": "website",
+      "page_types": ["feature"],
+      "target_type": "feature",
+      "keywords_zh": ["功能介绍", "产品特性", "能力一览", "解决方案详情"],
+      "routing_notes_zh": [
+        "适用于以产品能力/解决方案模块为主的介绍页，优先使用 website-feature-solution 作为结构壳。",
+        "当需求仍强调“官网首页 / 首屏品牌叙事 + CTA”时，应优先回到 website_landing_marketing。"
+      ],
+      "preferred_level": "level_1",
+      "primary_templates": [
+        "examples/website/website-feature-solution.html"
+      ],
+      "fallback_templates": [
+        "examples/website/website-complete.html"
+      ]
+    },
+    {
+      "id": "website_pricing_page",
+      "scene": "website",
+      "page_types": ["pricing"],
+      "target_type": "pricing",
+      "keywords_zh": ["定价", "价格方案", "套餐", "订阅", "报价"],
+      "routing_notes_zh": [
+        "适用于以套餐/价格对比为主的定价页，可复用 website-complete 或 website-showcase 中的 pricing 模块壳结构。",
+        "若需求只是在首页展示一小块价格示意，不需要完整定价页，应仍视为 landing 场景。"
+      ],
+      "preferred_level": "level_1",
+      "primary_templates": [
+        "examples/website/website-complete.html"
+      ],
+      "fallback_templates": []
+    },
+    {
+      "id": "ue5_overlay_mode_1_single_hud",
+
+      "scene": "ue5_overlay",
+      "page_types": ["overlay_dashboard", "data_viz"],
+      "layout_mode": 1,
+      "target_mode": 1,
+      "keywords_zh": ["运行监控", "态势感知", "单 HUD", "数据可视化 HUD"],
+      "preferred_level": "level_1",
+      "primary_templates": [
+        "examples/ue5-overlay/ue5_overlay_data_viz.html"
+      ],
+      "fallback_templates": [],
+      "module_preference_zh": [
+        "默认推荐出现 HUD（topbar-hud）与至少 1 个 world-marker；仅当 PRD 明确要求“全屏仅三维视口、无 HUD”时才省略 HUD。",
+        "alert-center 与 detail-panel 通常不需要；若 PRD 强调“右侧详情”或“告警中心”，应考虑改用 Mode 2 或 Mode 3。"
+      ]
+    },
+    {
+      "id": "ue5_overlay_minimal_no_hud",
+      "scene": "ue5_overlay",
+      "page_types": ["overlay_dashboard", "minimal_overlay"],
+      "layout_mode": "minimal",
+      "target_mode": "minimal",
+      "keywords_zh": ["极简 overlay", "minimal overlay", "无 HUD", "仅 world-marker", "基础安全区骨架"],
+      "routing_notes_zh": [
+        "仅当 PRD 明确要求无 HUD、无告警中心、无持续展开的详情面板，且只保留安全区骨架 + world-marker / 少量轻量说明时，才命中该任务。",
+        "若 PRD 仍要求顶部全局指标、班次 KPI 或 HUD 快速操作，应优先回到 ue5_overlay_mode_1_single_hud，而不是继续使用 minimal overlay。"
+      ],
+      "preferred_level": "level_1",
+      "primary_templates": [
+        "examples/ue5-overlay/ue5_overlay_minimal_no_hud.html"
+      ],
+      "fallback_templates": []
+    },
+    {
+      "id": "ue5_overlay_mode_2_hud_sidepanel",
+      "scene": "ue5_overlay",
+      "page_types": ["overlay_dashboard"],
+      "layout_mode": 2,
+      "target_mode": 2,
+      "keywords_zh": ["运行监控", "质量追踪", "侧边详情面板", "HUD 详情联动"],
+      "routing_notes_zh": [
+        "默认归类为 layout_mode 2：顶部 HUD + 单侧质量 / 设备详情面板 + world-marker。",
+        "当 PRD 仅提到“质量追踪 / 异常信息 / world-marker”而未明确提出“告警中心 / Dock / 驾驶舱 / 双侧固定面板”等语义时，必须保持在 Mode 2。"
+      ],
+      "preferred_level": "level_1",
+      "primary_templates": [
+        "examples/ue5-overlay/ue5_overlay_quality_tracking.html"
+      ],
+      "fallback_templates": [
+        "examples/ue5-overlay/ue5_overlay_data_viz.html"
+      ],
+      "module_preference_zh": [
+        "默认推荐保留 HUD（topbar-hud + topbar-hud--with-sidepanel）、单侧 detail-panel 与 world-marker 组合；缺少 detail-panel 时更接近 Mode 1。",
+        "若 PRD 未提到“告警中心 / 告警列表”，不应主动引入完整 alert-center 面板；只需在 HUD 或 detail-panel 内以卡片形式表达告警。"
+      ]
+    },
+    {
+      "id": "ue5_overlay_mode_3_hud_alert_center",
+      "scene": "ue5_overlay",
+      "page_types": ["overlay_dashboard"],
+      "layout_mode": 3,
+      "target_mode": 3,
+      "keywords_zh": ["运行监控", "告警中心", "告警列表", "告警监控大屏"],
+      "preferred_level": "level_1",
+      "primary_templates": [
+        "examples/ue5-overlay/ue5_overlay_dashboard.html"
+      ],
+      "fallback_templates": [
+        "examples/ue5-overlay/ue5_overlay_quality_tracking.html"
+      ],
+      "module_preference_zh": [
+        "alert-center 为 Mode 3 的核心模块，理论上必须出现；缺失时将触发壳过轻 Guard 并建议降级为 Mode 2。",
+        "默认推荐保留 HUD（topbar-hud）与 world-marker，用于承载全局态势和空间投射；detail-panel 可选，用于承载选中告警或设备详情。"
+      ]
+    },
+    {
+      "id": "ue5_overlay_digital_twin_cockpit",
+      "scene": "ue5_overlay",
+      "page_types": ["digital_twin_dashboard"],
+      "target_mode": "N/A",
+      "keywords_zh": ["数字孪生驾驶舱", "数字孪生监控", "三维数字孪生"],
+      "must_keywords_zh": [
+        "驾驶舱",
+        "cockpit",
+        "control center"
+      ],
+      "routing_notes_zh": [
+        "仅在 PRD 明确提出“数字孪生驾驶舱 / cockpit / control center”等语义时才可命中本任务。",
+        "如果只是普通运行监控 / 质量追踪需求，不得直接选择数字孪生驾驶舱或 Mode 5 级别布局。"
+      ],
+      "preferred_level": "level_2",
+      "primary_templates": [
+        "examples/ue5-overlay/digital_twin_overlay_dashboard.html"
+      ],
+      "fallback_templates": [
+        "examples/ue5-overlay/ue5_overlay_sidepanel_dock_layout.html"
+      ],
+      "module_preference_zh": [
+        "默认包含左右 detail-panel、world-marker 与可能的 Dock 组合，是最重型的 Overlay 配置；很多项目会选择弱化 HUD，仅保留系统栏与关键状态指示。",
+        "alert-center 可选：当驾驶舱以告警为主线时，推荐保留结构化 alert-center；当以工艺流或多视图联动为主时，可将告警收敛在右侧 detail-panel 内。"
+      ]
+    },
+    {
+      "id": "ai_assistant_workspace",
+      "scene": "ai_assistant",
+      "page_types": ["assistant_workspace"],
+      "keywords_zh": ["AI 工作台", "智能助手界面", "工具执行界面"],
+      "preferred_level": "level_2",
+      "primary_templates": [
+        "examples/b-system/b-system-ai-assistant.html"
+      ],
+      "fallback_templates": []
+    },
+    {
+      "id": "presentation_product_story",
+      "scene": "presentation",
+      "page_types": ["product_presentation", "business_report"],
+      "keywords_zh": ["产品介绍", "方案汇报", "商业汇报"],
+      "preferred_level": "level_1",
+      "primary_templates": [
+        "examples/presentation/presentation-product.html",
+        "examples/presentation/presentation-business.html"
+      ],
+      "fallback_templates": [
+        "examples/presentation/presentation-planning.html"
+      ]
+    }
+  ]
+}

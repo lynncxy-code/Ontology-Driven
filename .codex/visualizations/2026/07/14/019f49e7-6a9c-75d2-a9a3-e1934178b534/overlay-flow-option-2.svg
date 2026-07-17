@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="800" viewBox="0 0 1400 800">
+  <defs>
+    <marker id="arrow2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#444"/></marker>
+    <style>
+      text { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; fill: #1a1a1a; }
+      .title { font-size: 28px; font-weight: 600; }.sub { font-size: 16px; fill:#666; }.head { font-size:18px; font-weight:600; }.body { font-size:15px; }.small { font-size:13px; fill:#666; }
+      .screen { fill:#fff; stroke:#222; stroke-width:2; rx:6; }.panel { fill:#fafafa; stroke:#cfcfcf; }.selected { fill:#f0f0f0; stroke:#222; stroke-width:1.5; }.line { stroke:#d8d8d8; }.button { fill:#1a1a1a; rx:5; }.buttonText { fill:#fff; font-size:14px; font-weight:600; }.flow { stroke:#444; stroke-width:2; fill:none; marker-end:url(#arrow2); }
+    </style>
+  </defs>
+  <rect width="1400" height="800" fill="#fff"/>
+  <text x="50" y="52" class="title">方案 2：全部放到场景交互工作台</text>
+  <text x="50" y="82" class="sub">从项目导航进入统一页面，在同一棵树中切换类型默认和实例覆盖。</text>
+
+  <rect x="45" y="120" width="150" height="110" class="screen"/>
+  <text x="65" y="152" class="head">项目导航</text>
+  <rect x="62" y="173" width="116" height="38" class="button"/>
+  <text x="80" y="198" class="buttonText">场景交互</text>
+  <path d="M200 175 H260" class="flow"/>
+
+  <rect x="275" y="105" width="845" height="555" class="screen"/>
+  <rect x="275" y="105" width="845" height="58" fill="#f6f6f6" stroke="#222" stroke-width="2" rx="6"/>
+  <text x="300" y="141" class="head">场景交互 / 信息面板</text>
+  <rect x="938" y="116" width="158" height="38" class="button"/>
+  <text x="969" y="141" class="buttonText">保存当前配置</text>
+  <line x1="520" y1="163" x2="520" y2="660" class="line"/>
+  <line x1="825" y1="163" x2="825" y2="660" class="line"/>
+
+  <text x="300" y="196" class="small">类型与实例树</text>
+  <rect x="294" y="216" width="205" height="43" class="selected"/>
+  <text x="312" y="243" class="body">空压机 · 类型默认</text>
+  <rect x="312" y="268" width="187" height="38" class="panel"/><text x="330" y="292" class="body">空压机 A-01</text>
+  <rect x="312" y="314" width="187" height="38" class="panel"/><text x="330" y="338" class="body">空压机 A-02</text>
+  <rect x="312" y="360" width="187" height="38" class="panel"/><text x="330" y="384" class="body">空压机 A-03</text>
+  <text x="312" y="438" class="small">点击树节点切换编辑对象</text>
+
+  <text x="545" y="196" class="small">统一配置器</text>
+  <text x="545" y="238" class="small">当前层级</text>
+  <rect x="545" y="250" width="255" height="38" class="panel"/><text x="558" y="275" class="body">类型默认</text>
+  <text x="545" y="320" class="small">模板</text>
+  <rect x="545" y="332" width="255" height="38" class="panel"/><text x="558" y="357" class="body">标题 + 状态 + 指标</text>
+  <text x="545" y="402" class="small">插槽绑定</text>
+  <rect x="545" y="414" width="255" height="90" class="panel"/>
+  <text x="558" y="442" class="body">标题：设备名称</text>
+  <text x="558" y="469" class="body">状态：运行状态</text>
+  <text x="558" y="496" class="body">指标：温度、压力</text>
+  <rect x="545" y="540" width="124" height="40" class="button"/><text x="574" y="566" class="buttonText">保存默认</text>
+  <rect x="680" y="540" width="120" height="40" fill="#fff" stroke="#999" rx="5"/><text x="701" y="566" class="body">查看实例</text>
+
+  <text x="850" y="196" class="small">统一预览</text>
+  <rect x="850" y="220" width="245" height="205" class="screen"/>
+  <text x="872" y="256" class="head">空压机</text>
+  <text x="872" y="284" class="small">运行中</text>
+  <line x1="872" y1="300" x2="1073" y2="300" class="line"/>
+  <text x="872" y="335" class="body">温度</text><text x="1018" y="335" class="body">42 °C</text>
+  <text x="872" y="370" class="body">压力</text><text x="1018" y="370" class="body">0.82 MPa</text>
+  <text x="850" y="466" class="small">切到 A-03 后，同一区域显示：</text>
+  <rect x="850" y="485" width="245" height="95" fill="#fff" stroke="#999" stroke-dasharray="5 4"/>
+  <text x="872" y="520" class="body">模板：继承类型默认</text>
+  <text x="872" y="550" class="body">标题：空压机 A-03</text>
+
+  <path d="M1135 385 H1195" class="flow"/>
+  <rect x="1210" y="205" width="150" height="350" class="screen"/>
+  <text x="1235" y="240" class="head">UE</text>
+  <rect x="1234" y="410" width="68" height="80" fill="#fff" stroke="#666" stroke-width="2"/>
+  <line x1="1270" y1="410" x2="1305" y2="335" stroke="#444" stroke-width="2"/>
+  <rect x="1240" y="275" width="105" height="88" class="screen"/>
+  <text x="1250" y="300" class="small">空压机 A-03</text>
+  <text x="1250" y="324" class="small">42 °C</text>
+  <text x="1250" y="346" class="small">0.82 MPa</text>
+
+  <rect x="40" y="700" width="1320" height="60" fill="#fafafa" stroke="#d4d4d4"/>
+  <text x="62" y="735" class="head">使用链路</text>
+  <text x="180" y="735" class="body">项目导航进入工作台 → 树中选择类型默认 → 树中切换实例覆盖 → UE 显示</text>
+  <text x="895" y="735" class="small">特点：一个入口、一个编辑器，但需要先找到对象。</text>
+</svg>

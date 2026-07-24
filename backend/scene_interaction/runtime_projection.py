@@ -148,75 +148,132 @@ def _selected_resources(project, config, catalog, projected_route=None):
     return resources
 
 
+def _route_start_spawn(project, route, projected_route):
+    points = (projected_route or {}).get("waypoints_ue_cm") or []
+    if len(points) < 2:
+        raise RuntimeProjectionError(
+            "route_start_missing",
+            "默认项目路线缺少可用于人物出生的起点和方向",
+        )
+    first = points[0]
+    second = points[1]
+    dx = float(second[0]) - float(first[0])
+    dy = float(second[1]) - float(first[1])
+    yaw = 0.0 if abs(dx) < 1e-12 and abs(dy) < 1e-12 else math.degrees(math.atan2(dy, dx))
+    frame = _find_frame(project, route.get("frame_id"))
+    return {
+        "mode": "coordinates",
+        "source": "route_start",
+        "route_id": route.get("id"),
+        "x_cm": round(float(first[0]), 3),
+        "y_cm": round(float(first[1]), 3),
+        "trace_origin_z_cm": round(float(first[2]) + 1000.0, 2),
+        "yaw_deg": round(yaw, 3),
+        "z_hint_cm": round(float(first[2]), 3),
+        "floor": _floor_for_frame(frame),
+    }
+
+
 def build_runtime_projection(project, config, catalog, revision):
     result = copy.deepcopy(config)
     spawn = config.get("spawn") or {}
-    spawn_mode = spawn.get("mode") or ("image" if spawn.get("frame_id") else "")
-    state = calibration_state(project, config.get("spawn")) if config.get("enabled") else {
-        "state": "not_required", "current_fingerprint": None,
-    }
-    block_reason = None
-    if config.get("enabled") and spawn_mode == "image" and state["state"] != "valid":
-        result["enabled"] = False
-        block_reason = "calibration_needs_review" if state["state"] == "needs_review" else "calibration_invalid"
-
-    character_resource = catalog.get("characters", config.get("character_id")) if config.get("enabled") else None
-    if config.get("enabled") and not character_resource:
-        result["enabled"] = False
-        block_reason = "character_resource_missing"
-
-    if config.get("enabled") and spawn_mode == "ue_anchor":
-        anchor_resource = catalog.get("spawn_anchors", spawn.get("anchor_id"))
-        if not anchor_resource:
-            result["enabled"] = False
-            block_reason = "spawn_anchor_resource_missing"
-        else:
-            result["spawn_ue"] = {
-                "mode": "ue_anchor",
-                "anchor_id": anchor_resource.get("ue_spawn_id") or anchor_resource.get("id"),
-            }
-    elif config.get("enabled") and state["state"] == "valid":
-        frame = _find_frame(project, spawn.get("frame_id"))
-        floor = _floor_for_frame(frame)
-        canonical = spawn.get("canonical_position_mm") or {}
-        profile = project.get("spatial_profile") or {}
-        ue = canonical_to_ue(profile, [canonical.get("x"), canonical.get("y")], floor=floor)
-        matrix = build_ue_matrix(profile)
-        scale = float(((profile.get("ue_transform") or {}).get("scale_to_cm", 0.1)) or 0.1)
-        z_hint = spawn.get("z_hint_mm")
-        result["spawn_ue"] = {
-            "mode": "coordinates",
-            "x_cm": ue[0],
-            "y_cm": ue[1],
-            "trace_origin_z_cm": round(ue[2] + 1000.0, 2),
-            "yaw_deg": _yaw_to_ue(matrix, spawn.get("yaw_deg", 0.0)),
-            "z_hint_cm": round(float(z_hint) * scale, 2) if z_hint is not None else None,
-            "floor": floor,
-        }
-    result.pop("spawn", None)
-
     projected_route = None
     route_config = config.get("route") or {}
     route_state = None
-    if config.get("enabled") and route_config.get("enabled") and route_config.get("route_id"):
-        project_route = find_project_route(project, route_config.get("route_id"))
-        if project_route:
-            projected_route, route_state = runtime_route_projection(project, project_route)
-            if projected_route is None:
-                result.setdefault("route", {})["enabled"] = False
-                if block_reason is None:
+    project_route = None
+    block_reason = None
+    route_enabled = bool(config.get("enabled") and route_config.get("enabled"))
+    route_id = str(route_config.get("route_id") or "").strip()
+    if route_enabled:
+        if not route_id:
+            route_state = "missing"
+            block_reason = "default_route_missing"
+        else:
+            project_route = find_project_route(project, route_id)
+            if project_route:
+                projected_route, route_state = runtime_route_projection(project, project_route)
+                if projected_route is None:
                     block_reason = (
                         "default_route_needs_review"
                         if route_state == "needs_review"
                         else "default_route_invalid"
                     )
+            elif catalog.get("routes", route_id) is None:
+                route_state = "missing"
+                block_reason = "default_route_missing"
+        if block_reason:
+            result.setdefault("route", {})["enabled"] = False
+
+    if projected_route is not None:
+        # Route spawn is independent of auto_start and does not require a
+        # duplicate manual image point.
+        spawn_mode = "route_start"
+        state = {"state": "not_required", "current_fingerprint": None}
+        result["spawn_ue"] = _route_start_spawn(project, project_route, projected_route)
+    else:
+        spawn_mode = spawn.get("mode") or ("image" if spawn.get("frame_id") else "")
+        state = calibration_state(project, config.get("spawn")) if config.get("enabled") else {
+            "state": "not_required", "current_fingerprint": None,
+        }
+        # A selected but unusable project route is a hard error.  Do not emit
+        # a manual/anchor spawn that an older client could silently consume.
+        if config.get("enabled") and not block_reason:
+            if spawn_mode == "ue_anchor":
+                anchor_resource = catalog.get("spawn_anchors", spawn.get("anchor_id"))
+                if not anchor_resource:
+                    block_reason = "spawn_anchor_resource_missing"
+                else:
+                    result["spawn_ue"] = {
+                        "mode": "ue_anchor",
+                        "anchor_id": anchor_resource.get("ue_spawn_id") or anchor_resource.get("id"),
+                    }
+            elif spawn_mode == "image":
+                if state["state"] != "valid":
+                    block_reason = (
+                        "calibration_needs_review"
+                        if state["state"] == "needs_review"
+                        else "calibration_invalid"
+                    )
+                else:
+                    frame = _find_frame(project, spawn.get("frame_id"))
+                    floor = _floor_for_frame(frame)
+                    canonical = spawn.get("canonical_position_mm") or {}
+                    profile = project.get("spatial_profile") or {}
+                    ue = canonical_to_ue(profile, [canonical.get("x"), canonical.get("y")], floor=floor)
+                    matrix = build_ue_matrix(profile)
+                    scale = float(((profile.get("ue_transform") or {}).get("scale_to_cm", 0.1)) or 0.1)
+                    z_hint = spawn.get("z_hint_mm")
+                    result["spawn_ue"] = {
+                        "mode": "coordinates",
+                        "source": "manual_image",
+                        "x_cm": ue[0],
+                        "y_cm": ue[1],
+                        "trace_origin_z_cm": round(ue[2] + 1000.0, 2),
+                        "yaw_deg": _yaw_to_ue(matrix, spawn.get("yaw_deg", 0.0)),
+                        "z_hint_cm": round(float(z_hint) * scale, 2) if z_hint is not None else None,
+                        "floor": floor,
+                    }
+            else:
+                block_reason = "spawn_missing"
+
+    character_resource = catalog.get("characters", config.get("character_id")) if config.get("enabled") else None
+    if config.get("enabled") and not character_resource and block_reason is None:
+        block_reason = "character_resource_missing"
+
+    if block_reason:
+        result["enabled"] = False
+        result.pop("spawn_ue", None)
+    result.pop("spawn", None)
 
     token_material = {
         "project_id": project.get("id"),
         "revision": int(revision),
         "catalog_version": catalog.version,
         "spawn_mode": spawn_mode,
-        "spawn_reference": spawn.get("anchor_id") or state.get("current_fingerprint"),
+        "spawn_reference": (
+            route_id if spawn_mode == "route_start"
+            else spawn.get("anchor_id") or state.get("current_fingerprint")
+        ),
         "calibration_state": state.get("state"),
         "route_id": route_config.get("route_id"),
         "route_revision": (projected_route or {}).get("route_revision"),

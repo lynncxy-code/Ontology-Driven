@@ -11,20 +11,40 @@ public class OntoTwinSync : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
+			"AudioMixer",
 			"Core",
 			"CoreUObject",
+			"DeveloperSettings",
 			"Engine",
 			"EnhancedInput",
 			"HTTP",
 			"InputCore",
 			"Json",
 			"JsonUtilities",
+			"MediaAssets",
 			"Niagara",
+			"SlateRHIRenderer",
 			"UMG",
 			"glTFRuntime"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore", "WebSockets" });
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"Projects",
+			"RHI",
+			"RenderCore",
+			"Renderer",
+			"Slate",
+			"SlateCore",
+			"WebSockets"
+		});
+
+		RuntimeDependencies.Add("$(PluginDir)/Resources/Fonts/Inter-Regular.ttf");
+		RuntimeDependencies.Add("$(PluginDir)/Resources/Fonts/Inter-SemiBold.ttf");
+		RuntimeDependencies.Add("$(PluginDir)/Resources/Fonts/NotoSansCJKsc-Regular.otf");
+		RuntimeDependencies.Add("$(PluginDir)/Resources/Fonts/NotoSansCJKsc-Medium.otf");
+		RuntimeDependencies.Add("$(PluginDir)/Resources/Fonts/LICENSE-Inter.txt");
+		RuntimeDependencies.Add("$(PluginDir)/Resources/Fonts/LICENSE-NotoSansCJK.txt");
 
 		// FR-6 迁移工具：编辑器选择集 / EditorDestroyActor 需要 UnrealEd（仅编辑器构建）
 		if (Target.bBuildEditor)

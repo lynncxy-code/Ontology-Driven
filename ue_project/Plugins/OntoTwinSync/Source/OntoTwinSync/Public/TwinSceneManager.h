@@ -33,9 +33,13 @@ class ATwinInstance;
 class AOntoTwinRuntimeGizmo;
 class APlayerController;
 class IWebSocket;
+class UMediaPlayer;
+class UMediaSoundComponent;
+class UMediaTexture;
 class UOntoTwinRuntimeEditorPanel;
 class UOntoTwinOverlayWidget;
 class UTwinInteractionManagerComponent;
+enum class EOntoTwinOverlayMediaAction : uint8;
 
 UENUM(BlueprintType)
 enum class EOntoTwinRuntimeAccessState : uint8
@@ -267,6 +271,15 @@ public:
     void SelectOverlayFromSceneInteraction(ATwinInstance* Instance);
     void ClearOverlayFromSceneInteraction();
 
+    /** 将屏幕坐标解析为当前可见的 always Overlay，供漫游和语义输入共用。 */
+    UFUNCTION(BlueprintCallable, Category="场景交互")
+    bool SelectOverlayAtScreenPosition(const FVector2D& ScreenPosition);
+
+    /** 兼容旧场景 Actor：按命中位置找到同位的 OntoTwin Overlay 实例。 */
+    ATwinInstance* FindOverlayInstanceNearHit(
+        const FHitResult& Hit,
+        float MaxDistanceCm = 300.0f) const;
+
     /** 构造不含坐标的 WebSocket 健康快照，随现有 UE 心跳回报后端。 */
     TSharedRef<FJsonObject> BuildRealtimeChannelHealth() const;
 
@@ -281,12 +294,20 @@ public:
     // ═══════════════════════════════════════════════════════════════════════
 
     /** 从数据库拉取本场景实例，生成【临时(transient)】预览 Actor（保存关卡不会写入 .umap） */
-    UFUNCTION(CallInEditor, Category="预览",
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="预览",
               meta=(DisplayName="从数据库拉取预览"))
     void PullPreviewFromDB();
 
+    /**
+     * 自动验收入口：读取 Saved/OntoTwinMigration/ue_snapshots.json，生成 transient
+     * 预览并写 ue_preview_audit.json。用于命令行编辑器验证资产加载，不保存关卡。
+     */
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="迁移",
+              meta=(DisplayName="② 从迁移快照文件生成预览并审计"))
+    void PreviewMigratedActorsFromSnapshotFile();
+
     /** 清除所有预览 Actor */
-    UFUNCTION(CallInEditor, Category="预览",
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="预览",
               meta=(DisplayName="清除预览"))
     void ClearPreview();
 
@@ -307,18 +328,18 @@ public:
     //    共同按钮，Manager 专属按钮会被隐藏——改用文件夹分两步选，彻底避开）
     // ═══════════════════════════════════════════════════════════════════════
 
-    /** 待迁移 actor 的 Outliner 文件夹名：框选历史 actor 右键"移动到文件夹"→ 填此名 */
+    /** 待迁移母 Actor 的 Outliner 文件夹名；其附着后代会递归作为同一 assembly_v1 实例的部件导出。 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="迁移",
               meta=(DisplayName="待迁移文件夹名"))
     FString MigrationFolderName = TEXT("ToMigrate");
 
-    /** ① 导出「待迁移文件夹」下的全部 actor 到 JSON，供后端收编 */
-    UFUNCTION(CallInEditor, Category="迁移",
+    /** ① 导出文件夹内的顶层母 Actor；候选后代去重，并递归导出全部附着部件与特殊组件审计。 */
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="迁移",
               meta=(DisplayName="① 导出待迁移Actor"))
     void ExportSelectedActorsForMigration();
 
-    /** ③ 读后端迁移结果，删除已成功收编的原 actor（DB 之后重新驱动，勿忘保存关卡） */
-    UFUNCTION(CallInEditor, Category="迁移",
+    /** ③ 优先按 assembly_v1.delete_actor_guids 清除母 Actor 及全部已收编后代；兼容旧映射。 */
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="迁移",
               meta=(DisplayName="③ 清除已迁移Actor"))
     void RemoveMigratedActors();
 
@@ -385,6 +406,33 @@ private:
     bool bOverlayPointerInputActive = false;
     bool bOverlayPreviousMouseCursor = false;
 
+    UPROPERTY()
+    UMediaPlayer* OverlayMediaPlayer = nullptr;
+
+    UPROPERTY()
+    UMediaTexture* OverlayMediaTexture = nullptr;
+
+    UPROPERTY()
+    UMediaSoundComponent* OverlayMediaSound = nullptr;
+
+    FHttpRequestPtr OverlayMediaResolveRequest;
+    FTimerHandle OverlayMediaRetryTimer;
+    FString OverlayMediaInstanceId;
+    FString OverlayMediaSourceRevision;
+    FString OverlayMediaKind;
+    bool bOverlayMediaMuted = true;
+    bool bOverlayMediaAutoplay = true;
+    bool bOverlayMediaLoop = false;
+    bool bOverlayMediaOpening = false;
+    bool bOverlayMediaReachedEnd = false;
+    bool bOverlayMediaTextureSampleLogged = false;
+    double OverlayMediaDurationSeconds = 0.0;
+    double OverlayMediaPlayedSeconds = 0.0;
+    double OverlayMediaPlaybackStartedAtSeconds = 0.0;
+    bool bOverlayMediaPlayWhenOpened = false;
+    bool bOverlayMediaManualRetryRequired = false;
+    int32 OverlayMediaRetryIndex = 0;
+
     bool bRuntimeEditMode = false;
     bool bRuntimeEditDirty = false;
     bool bRuntimeEditSaving = false;
@@ -439,6 +487,15 @@ private:
     /** 编辑器预览 HTTP 回调：把快照 spawn 成 transient 预览 Actor */
     void OnPreviewResponse(FHttpRequestPtr HttpRequest, FHttpResponsePtr Response, bool bWasSuccessful);
 
+    /** 解析快照数组、生成 transient TwinInstance，并写可机读的资产加载审计。 */
+    int32 SpawnPreviewActorsFromJson(const FString& JsonPayload, const FString& SourceLabel);
+
+    /** Saved/OntoTwinMigration/ue_snapshots.json */
+    FString MigrationPreviewSnapshotPath() const;
+
+    /** Saved/OntoTwinMigration/ue_preview_audit.json */
+    FString MigrationPreviewAuditPath() const;
+
     /** 处理单个实例快照 */
     void ProcessSnapshot(const TSharedPtr<FJsonObject>& Snapshot);
 
@@ -450,10 +507,43 @@ private:
 
     void TickRuntimeEditor(float DeltaTime);
     void TickOverlays();
-    void SelectOverlayInstance(ATwinInstance* Instance, bool bAllowAnyMode = false);
+    ATwinInstance* FindAlwaysOverlayAtScreenPosition(
+        APlayerController* PlayerController,
+        const FVector2D& ScreenPosition) const;
+    void SelectOverlayInstance(ATwinInstance* Instance);
     void ClearOverlaySelection();
     void UpdateAlwaysOverlays(APlayerController* PlayerController);
     void UpdateOverlayPointerInput(APlayerController* PlayerController, bool bShouldOwnPointer);
+    void RefreshOverlayMediaForSelection(bool bForceResolve = false);
+    void RequestOverlayMediaResolve(bool bResetRetry = false);
+    void OnOverlayMediaResolveResponse(
+        FHttpRequestPtr HttpRequest,
+        FHttpResponsePtr Response,
+        bool bWasSuccessful);
+    void EnsureOverlayMediaPlayer();
+    void UpdateOverlayMediaPlaybackClock();
+    void HandleOverlayMediaAction(EOntoTwinOverlayMediaAction Action);
+    void ScheduleOverlayMediaRetry(const FString& StatusMessage);
+    void StopOverlayMedia(bool bResetWidget = true);
+
+    UFUNCTION()
+    void OnOverlayMediaOpened(FString OpenedUrl);
+
+    UFUNCTION()
+    void OnOverlayMediaTracksChanged();
+
+    UFUNCTION()
+    void OnOverlayMediaOpenFailed(FString FailedUrl);
+
+    UFUNCTION()
+    void OnOverlayMediaEndReached();
+
+    UFUNCTION()
+    void OnOverlayMediaPlaybackResumed();
+
+    UFUNCTION()
+    void OnOverlayMediaPlaybackSuspended();
+
     void RequestRuntimeEditToggle();
     void EnterRuntimeEditMode();
     void ExitRuntimeEditMode();

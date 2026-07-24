@@ -1,12 +1,126 @@
 {
-  "catalog_version": "2026.07.3",
+  "catalog_version": "2026.07.8",
   "characters": [
     {
       "id": "character.observer.base",
-      "display_name": "默认观察者",
-      "thumbnail_url": "/assets/scene-interaction/character-observer-base.svg",
+      "display_name": "工人",
+      "thumbnail_url": "/assets/scene-interaction/character-observer-base.png?v=20260708",
       "ue_primary_asset_id": "TwinCharacter:ObserverBase",
       "skeleton_id": "skeleton.observer.v1",
+      "capsule": {
+        "radius_cm": 34.0,
+        "half_height_cm": 88.0
+      },
+      "mesh_offset_cm": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": -88.0
+      },
+      "mesh_yaw_offset_deg": -90.0,
+      "locomotion_profile_id": "locomotion.observer.v1",
+      "project_asset_required": true
+    },
+    {
+      "id": "character.renderpeople.carla",
+      "display_name": "穿黑西装的女士",
+      "thumbnail_url": "/assets/scene-interaction/character-renderpeople-carla.png",
+      "ue_primary_asset_id": "TwinCharacter:RenderPeopleCarla",
+      "skeleton_id": "skeleton.renderpeople.ue4.v1",
+      "capsule": {
+        "radius_cm": 34.0,
+        "half_height_cm": 88.0
+      },
+      "mesh_offset_cm": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": -88.0
+      },
+      "mesh_yaw_offset_deg": -90.0,
+      "locomotion_profile_id": "locomotion.observer.v1",
+      "project_asset_required": true
+    },
+    {
+      "id": "character.renderpeople.claudia",
+      "display_name": "穿白衬衫的女士",
+      "thumbnail_url": "/assets/scene-interaction/character-renderpeople-claudia.png",
+      "ue_primary_asset_id": "TwinCharacter:RenderPeopleClaudia",
+      "skeleton_id": "skeleton.renderpeople.ue4.v1",
+      "capsule": {
+        "radius_cm": 34.0,
+        "half_height_cm": 88.0
+      },
+      "mesh_offset_cm": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": -88.0
+      },
+      "mesh_yaw_offset_deg": -90.0,
+      "locomotion_profile_id": "locomotion.observer.v1",
+      "project_asset_required": true
+    },
+    {
+      "id": "character.renderpeople.eric",
+      "display_name": "穿西装马甲的男士",
+      "thumbnail_url": "/assets/scene-interaction/character-renderpeople-eric.png",
+      "ue_primary_asset_id": "TwinCharacter:RenderPeopleEric",
+      "skeleton_id": "skeleton.renderpeople.ue4.v1",
+      "capsule": {
+        "radius_cm": 34.0,
+        "half_height_cm": 88.0
+      },
+      "mesh_offset_cm": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": -88.0
+      },
+      "mesh_yaw_offset_deg": -90.0,
+      "locomotion_profile_id": "locomotion.observer.v1",
+      "project_asset_required": true
+    },
+    {
+      "id": "character.renderpeople.manuel",
+      "display_name": "穿灰色T恤的青年",
+      "thumbnail_url": "/assets/scene-interaction/character-renderpeople-manuel.png",
+      "ue_primary_asset_id": "TwinCharacter:RenderPeopleManuel",
+      "skeleton_id": "skeleton.renderpeople.ue4.v1",
+      "capsule": {
+        "radius_cm": 34.0,
+        "half_height_cm": 88.0
+      },
+      "mesh_offset_cm": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": -88.0
+      },
+      "mesh_yaw_offset_deg": -90.0,
+      "locomotion_profile_id": "locomotion.observer.v1",
+      "project_asset_required": true
+    },
+    {
+      "id": "character.renderpeople.nathan",
+      "display_name": "穿浅蓝T恤的男士",
+      "thumbnail_url": "/assets/scene-interaction/character-renderpeople-nathan.png",
+      "ue_primary_asset_id": "TwinCharacter:RenderPeopleNathan",
+      "skeleton_id": "skeleton.renderpeople.ue4.v1",
+      "capsule": {
+        "radius_cm": 34.0,
+        "half_height_cm": 88.0
+      },
+      "mesh_offset_cm": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": -88.0
+      },
+      "mesh_yaw_offset_deg": -90.0,
+      "locomotion_profile_id": "locomotion.observer.v1",
+      "project_asset_required": true
+    },
+    {
+      "id": "character.renderpeople.sophia",
+      "display_name": "穿白色无袖上衣的女士",
+      "thumbnail_url": "/assets/scene-interaction/character-renderpeople-sophia.png",
+      "ue_primary_asset_id": "TwinCharacter:RenderPeopleSophia",
+      "skeleton_id": "skeleton.renderpeople.ue4.v1",
       "capsule": {
         "radius_cm": 34.0,
         "half_height_cm": 88.0
@@ -29,6 +143,66 @@
       "thumbnail_url": "/assets/scene-interaction/skin-observer-gray.svg",
       "ue_primary_asset_id": "TwinSkin:ObserverGray",
       "skeleton_id": "skeleton.observer.v1",
+      "material_variant_ids": [],
+      "project_asset_required": true
+    },
+    {
+      "id": "skin.renderpeople.carla.default",
+      "character_id": "character.renderpeople.carla",
+      "display_name": "默认外观",
+      "thumbnail_url": "/assets/scene-interaction/character-renderpeople-carla.png",
+      "ue_primary_asset_id": "TwinSkin:RenderPeopleCarlaDefault",
+      "skeleton_id": "skeleton.renderpeople.ue4.v1",
+      "material_variant_ids": [],
+      "project_asset_required": true
+    },
+    {
+      "id": "skin.renderpeople.claudia.default",
+      "character_id": "character.renderpeople.claudia",
+      "display_name": "默认外观",
+      "thumbnail_url": "/assets/scene-interaction/character-renderpeople-claudia.png",
+      "ue_primary_asset_id": "TwinSkin:RenderPeopleClaudiaDefault",
+      "skeleton_id": "skeleton.renderpeople.ue4.v1",
+      "material_variant_ids": [],
+      "project_asset_required": true
+    },
+    {
+      "id": "skin.renderpeople.eric.default",
+      "character_id": "character.renderpeople.eric",
+      "display_name": "默认外观",
+      "thumbnail_url": "/assets/scene-interaction/character-renderpeople-eric.png",
+      "ue_primary_asset_id": "TwinSkin:RenderPeopleEricDefault",
+      "skeleton_id": "skeleton.renderpeople.ue4.v1",
+      "material_variant_ids": [],
+      "project_asset_required": true
+    },
+    {
+      "id": "skin.renderpeople.manuel.default",
+      "character_id": "character.renderpeople.manuel",
+      "display_name": "默认外观",
+      "thumbnail_url": "/assets/scene-interaction/character-renderpeople-manuel.png",
+      "ue_primary_asset_id": "TwinSkin:RenderPeopleManuelDefault",
+      "skeleton_id": "skeleton.renderpeople.ue4.v1",
+      "material_variant_ids": [],
+      "project_asset_required": true
+    },
+    {
+      "id": "skin.renderpeople.nathan.default",
+      "character_id": "character.renderpeople.nathan",
+      "display_name": "默认外观",
+      "thumbnail_url": "/assets/scene-interaction/character-renderpeople-nathan.png",
+      "ue_primary_asset_id": "TwinSkin:RenderPeopleNathanDefault",
+      "skeleton_id": "skeleton.renderpeople.ue4.v1",
+      "material_variant_ids": [],
+      "project_asset_required": true
+    },
+    {
+      "id": "skin.renderpeople.sophia.default",
+      "character_id": "character.renderpeople.sophia",
+      "display_name": "默认外观",
+      "thumbnail_url": "/assets/scene-interaction/character-renderpeople-sophia.png",
+      "ue_primary_asset_id": "TwinSkin:RenderPeopleSophiaDefault",
+      "skeleton_id": "skeleton.renderpeople.ue4.v1",
       "material_variant_ids": [],
       "project_asset_required": true
     },
@@ -62,7 +236,7 @@
   "god_cameras": [
     {
       "id": "camera.god.default",
-      "display_name": "默认上帝视角",
+      "display_name": "默认全局视角",
       "ue_camera_id": "camera.god.default",
       "project_asset_required": true
     }

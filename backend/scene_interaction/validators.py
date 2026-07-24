@@ -55,6 +55,24 @@ def _resource(catalog, kind, resource_id, path, errors, required=True):
     return resource_id, resource
 
 
+def project_route_provides_spawn(config, project_routes=None):
+    if not isinstance(config, dict) or not config.get("enabled"):
+        return False
+    route = config.get("route")
+    if not isinstance(route, dict) or route.get("enabled", True) is False:
+        return False
+    route_id = str(route.get("route_id") or "").strip()
+    project_route = next(
+        (item for item in (project_routes or []) if item.get("id") == route_id),
+        None,
+    )
+    return bool(
+        project_route
+        and project_route.get("review_state") == "ready"
+        and project_route.get("enabled", True)
+    )
+
+
 def validate_roaming_config(config, catalog, project_routes=None):
     if not isinstance(config, dict):
         raise SceneInteractionValidationError("人物漫游配置必须是对象")
@@ -102,59 +120,76 @@ def validate_roaming_config(config, catalog, project_routes=None):
             if default_skin.get("skeleton_id") != character.get("skeleton_id"):
                 _error(errors, "default_skin_id", "默认皮肤 Skeleton 与基础人物不一致")
 
+    # A ready, enabled project route owns the runtime spawn position.  Catalog
+    # routes are retained for compatibility, but they cannot replace the
+    # project-space image spawn because they have no canonical route points.
+    route_provides_spawn = project_route_provides_spawn(config, project_routes)
+
     spawn = config.get("spawn")
-    if result["enabled"] and not isinstance(spawn, dict):
-        _error(errors, "spawn", "启用人物漫游前必须配置出生点")
+    if result["enabled"] and not isinstance(spawn, dict) and not route_provides_spawn:
+        _error(errors, "spawn", "未启用有效项目路线时，必须在空间底图上配置人物出生点")
+    elif route_provides_spawn and not isinstance(spawn, dict):
+        # Route mode accepts an absent or unfinished optional fallback, but an
+        # invalid draft must not become persisted configuration.
+        result.pop("spawn", None)
     elif isinstance(spawn, dict):
+        spawn_errors = [] if route_provides_spawn else errors
         inferred_mode = "image" if spawn.get("frame_id") else ""
         mode = str(spawn.get("mode") or inferred_mode).strip()
         if mode == "ue_anchor":
             anchor_id, _ = _resource(
                 catalog, "spawn_anchors", spawn.get("anchor_id"),
-                "spawn.anchor_id", errors, required=result["enabled"],
+                "spawn.anchor_id", spawn_errors, required=result["enabled"],
             )
             result["spawn"] = {
                 "mode": "ue_anchor",
                 "anchor_id": anchor_id or "",
             }
+            if result["enabled"] and not route_provides_spawn:
+                _error(
+                    spawn_errors,
+                    "spawn.mode",
+                    "UE 出生锚点仅用于旧项目兼容；未启用有效项目路线时必须配置空间底图出生点",
+                )
         elif mode == "image":
             normalized_spawn = copy.deepcopy(spawn)
             normalized_spawn["mode"] = "image"
             normalized_spawn["frame_id"] = str(spawn.get("frame_id") or "").strip()
             if not normalized_spawn["frame_id"]:
-                _error(errors, "spawn.frame_id", "必须引用一个已标定图片 Frame")
+                _error(spawn_errors, "spawn.frame_id", "必须引用一个已标定图片 Frame")
             position = spawn.get("canonical_position_mm")
             if not isinstance(position, dict):
-                _error(errors, "spawn.canonical_position_mm", "缺少规范坐标")
+                _error(spawn_errors, "spawn.canonical_position_mm", "缺少规范坐标")
             else:
                 normalized_spawn["canonical_position_mm"] = {
-                    "x": _number(position.get("x"), "spawn.canonical_position_mm.x", errors),
-                    "y": _number(position.get("y"), "spawn.canonical_position_mm.y", errors),
+                    "x": _number(position.get("x"), "spawn.canonical_position_mm.x", spawn_errors),
+                    "y": _number(position.get("y"), "spawn.canonical_position_mm.y", spawn_errors),
                 }
             source_px = spawn.get("source_px")
-            if source_px is not None:
-                if not isinstance(source_px, dict):
-                    _error(errors, "spawn.source_px", "必须是像素坐标对象")
-                else:
-                    normalized_spawn["source_px"] = {
-                        "x": _number(source_px.get("x"), "spawn.source_px.x", errors),
-                        "y": _number(source_px.get("y"), "spawn.source_px.y", errors),
-                    }
+            if not isinstance(source_px, dict):
+                _error(spawn_errors, "spawn.source_px", "缺少图片像素坐标")
+            else:
+                normalized_spawn["source_px"] = {
+                    "x": _number(source_px.get("x"), "spawn.source_px.x", spawn_errors),
+                    "y": _number(source_px.get("y"), "spawn.source_px.y", spawn_errors),
+                }
             normalized_spawn["yaw_deg"] = _number(
-                spawn.get("yaw_deg"), "spawn.yaw_deg", errors,
+                spawn.get("yaw_deg"), "spawn.yaw_deg", spawn_errors,
                 minimum=-360.0, maximum=360.0, required=False, default=0.0,
             )
             normalized_spawn["z_hint_mm"] = _number(
-                spawn.get("z_hint_mm"), "spawn.z_hint_mm", errors,
+                spawn.get("z_hint_mm"), "spawn.z_hint_mm", spawn_errors,
                 minimum=-1000000.0, maximum=1000000.0, required=False, default=None,
             )
             fingerprint = str(spawn.get("calibration_fingerprint") or "").strip()
             if not fingerprint:
-                _error(errors, "spawn.calibration_fingerprint", "缺少标定指纹")
+                _error(spawn_errors, "spawn.calibration_fingerprint", "缺少标定指纹")
             normalized_spawn["calibration_fingerprint"] = fingerprint
             result["spawn"] = normalized_spawn
         else:
-            _error(errors, "spawn.mode", "只支持 ue_anchor 或 image")
+            _error(spawn_errors, "spawn.mode", "只支持 ue_anchor 或 image")
+        if route_provides_spawn and spawn_errors:
+            result.pop("spawn", None)
 
     camera = config.get("camera")
     if result["enabled"] and not isinstance(camera, dict):
@@ -162,10 +197,20 @@ def validate_roaming_config(config, catalog, project_routes=None):
     elif isinstance(camera, dict):
         normalized_camera = copy.deepcopy(camera)
         default_mode = str(camera.get("default_mode") or "near_follow")
-        if default_mode not in ("near_follow", "god"):
-            _error(errors, "camera.default_mode", "只支持 near_follow 或 god")
+        if default_mode not in ("near_follow", "first_person", "god"):
+            _error(errors, "camera.default_mode", "只支持 near_follow、first_person 或 god")
             default_mode = "near_follow"
         normalized_camera["default_mode"] = default_mode
+
+        first_person = camera.get("first_person") or {}
+        if not isinstance(first_person, dict):
+            _error(errors, "camera.first_person", "必须是对象")
+            first_person = {}
+        normalized_camera["first_person"] = {
+            "eye_height_cm": _number(first_person.get("eye_height_cm", 165), "camera.first_person.eye_height_cm", errors, 120, 210, default=165),
+            "fov_deg": _number(first_person.get("fov_deg", 85), "camera.first_person.fov_deg", errors, 60, 110, default=85),
+            "look_sensitivity": _number(first_person.get("look_sensitivity", 1), "camera.first_person.look_sensitivity", errors, 0.1, 5, default=1),
+        }
 
         near = camera.get("near_follow") or {}
         if not isinstance(near, dict):

@@ -243,7 +243,7 @@ ontotwin.pixelStreaming.url
 本次实现提供仓库内的手动启动脚本，不由 Nexus 页面或 Flask 后端自动拉起进程：
 
 ```powershell
-.\scripts\pixel_streaming\Start-LocalPixelStreaming.ps1
+.\scripts\pixel_streaming\Start-LocalPixelStreaming.ps1 -RuntimeExe "D:\path\to\YourProject.exe"
 ```
 
 脚本使用以下本机约定：
@@ -252,7 +252,7 @@ ontotwin.pixelStreaming.url
 - UE streamer WebSocket：`ws://127.0.0.1:8889`
 - SFU 预留端口：`8890`
 - 本机 spike 最大 player 数：`1`，避免多个标签页并发协商触发 UE 5.6 经典插件异常
-- UE Runtime：`D:\tmp_ue\test0316\Saved\CodexPackageCheck\Windows\test0316.exe`
+- UE Runtime：启动时通过 `-RuntimeExe` 显式指定，不设置项目级默认值
 - UE 参数：`-RenderOffscreen -ForceRes -ResX=1280 -ResY=720 -AudioMixer -PixelStreamingURL=ws://127.0.0.1:8889 -ExecCmds=DisableAllScreenMessages -log -httpproxy=`
 
 完整预检、状态、停止与验收命令见 `scripts/pixel_streaming/README.md`。
@@ -437,5 +437,5 @@ fullscreenRuntimeStream()
 验收前可先运行只读预检：
 
 ```powershell
-.\scripts\pixel_streaming\Start-LocalPixelStreaming.ps1 -PreflightOnly
+.\scripts\pixel_streaming\Start-LocalPixelStreaming.ps1 -RuntimeExe "D:\path\to\YourProject.exe" -PreflightOnly
 ```

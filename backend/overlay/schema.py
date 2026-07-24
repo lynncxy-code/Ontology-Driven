@@ -1,4 +1,5 @@
 import copy
+import math
 import re
 
 
@@ -41,19 +42,52 @@ TEMPLATES = [
             {"id": "metrics", "type": "metrics", "required": False, "max_items": 4},
         ],
     },
+    {
+        "id": "title_video",
+        "label": "标题 + 视频",
+        "description": "用于播放单路 MP4 或 HLS 视频。",
+        "slots": [
+            {"id": "title", "type": "text", "required": True},
+            {"id": "media", "type": "media", "required": True},
+        ],
+    },
+    {
+        "id": "title_video_body",
+        "label": "标题 + 视频 + 正文",
+        "description": "用于播放视频并展示简短说明。",
+        "slots": [
+            {"id": "title", "type": "text", "required": True},
+            {"id": "media", "type": "media", "required": True},
+            {"id": "body", "type": "long_text", "required": False},
+        ],
+    },
 ]
 
 TEMPLATE_MAP = {item["id"]: item for item in TEMPLATES}
 DISPLAY_MODES = {"selected", "always"}
 BINDING_SOURCES = {"literal", "instance", "object_type", "raw_state"}
 STATUS_LEVELS = {"normal", "info", "warning", "critical", "offline", "unknown"}
+STATUS_COLOR_TOKENS = {"green", "cyan", "amber", "red", "gray"}
+DEFAULT_STATUS_APPEARANCE = {
+    "normal": {"label": "在线", "color": "green"},
+    "info": {"label": "信息", "color": "cyan"},
+    "warning": {"label": "注意", "color": "amber"},
+    "critical": {"label": "告警", "color": "red"},
+    "offline": {"label": "离线", "color": "gray"},
+    "unknown": {"label": "未知", "color": "gray"},
+}
+QUALITY_TIERS = {"high", "balanced", "performance"}
 INSTANCE_PATHS = {
     "id", "display_name", "status", "last_seen", "object_type_rid", "object_type_name"
 }
 OBJECT_TYPE_PATHS = {"rid", "name", "category", "description"}
 FORMAT_KEYS = {"precision", "unit", "datetime_format", "empty_text", "max_length"}
-OVERRIDE_KEYS = {"enabled", "template_id", "slots"}
+OVERRIDE_KEYS = {"enabled", "template_id", "slots", "presentation"}
+PRESENTATION_KEYS = {"quality_tier", "metrics"}
+METRIC_VISUAL_STYLES = {"value", "gauge"}
 _SAFE_PATH = re.compile(r"^[^\s.\[\]/\\]+(?:\.[^\s.\[\]/\\]+)*$")
+MEDIA_SLOT_KEYS = {"required", "url_binding", "poster_binding", "kind", "playback"}
+PLAYBACK_KEYS = {"autoplay", "muted", "loop"}
 
 
 class OverlayValidationError(ValueError):
@@ -71,6 +105,7 @@ def default_overlay_values():
             "strategy": "bounds_top",
             "offset_cm": {"x": 0.0, "y": 0.0, "z": 20.0},
         },
+        "presentation": {"quality_tier": "balanced"},
         "slots": {
             "title": {
                 "required": True,
@@ -83,6 +118,16 @@ def default_overlay_values():
                 "format": {"empty_text": "--", "max_length": 300},
             },
         },
+    }
+
+
+def default_media_slot():
+    return {
+        "required": True,
+        "url_binding": {"source": "literal", "value": ""},
+        "poster_binding": {"source": "literal", "value": ""},
+        "kind": "auto",
+        "playback": {"autoplay": True, "muted": True, "loop": False},
     }
 
 
@@ -177,6 +222,8 @@ def _validate_metrics(metrics, path, errors):
             _error(errors, f"{item_path}.label", "指标名称最长 48 字符")
         if not isinstance(item.get("required", False), bool):
             _error(errors, f"{item_path}.required", "required 必须为布尔值")
+        if not isinstance(item.get("emphasized", False), bool):
+            _error(errors, f"{item_path}.emphasized", "强调显示必须为布尔值")
         _validate_binding(item.get("binding"), f"{item_path}.binding", errors)
         _validate_format(item.get("format"), f"{item_path}.format", errors)
 
@@ -190,6 +237,160 @@ def _validate_status(status, path, errors):
     _validate_binding(status.get("label_binding"), f"{path}.label_binding", errors)
     _validate_binding(status.get("level_binding"), f"{path}.level_binding", errors)
     _validate_format(status.get("format"), f"{path}.format", errors)
+    appearance = status.get("appearance")
+    if appearance is None:
+        return
+    if not isinstance(appearance, dict):
+        _error(errors, f"{path}.appearance", "状态表现必须是对象")
+        return
+    for level, item in appearance.items():
+        item_path = f"{path}.appearance.{level}"
+        if level not in STATUS_LEVELS:
+            _error(errors, item_path, "不支持的标准状态")
+            continue
+        if not isinstance(item, dict):
+            _error(errors, item_path, "状态表现必须是对象")
+            continue
+        for key in item:
+            if key not in {"label", "color"}:
+                _error(errors, f"{item_path}.{key}", "状态表现包含不支持的配置")
+        label = item.get("label")
+        if label is not None and (not isinstance(label, str) or len(label) > 24):
+            _error(errors, f"{item_path}.label", "状态显示文字最长 24 字符")
+        color = item.get("color")
+        if color is not None and color not in STATUS_COLOR_TOKENS:
+            _error(errors, f"{item_path}.color", "灯色必须使用预设语义色")
+
+
+def _validate_media_slot(media, path, errors):
+    if not isinstance(media, dict):
+        _error(errors, path, "视频槽位必须是对象")
+        return
+    for key in media:
+        if key not in MEDIA_SLOT_KEYS:
+            _error(errors, f"{path}.{key}", "视频槽位包含不支持的配置")
+    if media.get("required") is not True:
+        _error(errors, f"{path}.required", "视频槽位必须保留")
+    _validate_binding(media.get("url_binding"), f"{path}.url_binding", errors)
+    url_binding = media.get("url_binding") or {}
+    if url_binding.get("source") == "literal":
+        value = url_binding.get("value")
+        if not isinstance(value, str) or not value.strip():
+            _error(errors, f"{path}.url_binding.value", "固定视频地址不能为空")
+        elif len(value) > 2048:
+            _error(errors, f"{path}.url_binding.value", "视频地址最长为 2048 字符")
+
+    poster_binding = media.get("poster_binding")
+    if poster_binding is not None:
+        _validate_binding(poster_binding, f"{path}.poster_binding", errors)
+        if poster_binding.get("source") == "literal":
+            value = poster_binding.get("value")
+            if value is not None and not isinstance(value, str):
+                _error(errors, f"{path}.poster_binding.value", "固定封面地址必须是文本")
+            elif isinstance(value, str) and len(value) > 2048:
+                _error(errors, f"{path}.poster_binding.value", "封面地址最长为 2048 字符")
+
+    if media.get("kind", "auto") not in {"auto", "mp4", "hls"}:
+        _error(errors, f"{path}.kind", "视频类型必须为自动、MP4 或 HLS")
+    playback = media.get("playback")
+    if not isinstance(playback, dict):
+        _error(errors, f"{path}.playback", "播放策略必须是对象")
+        return
+    for key in playback:
+        if key not in PLAYBACK_KEYS:
+            _error(errors, f"{path}.playback.{key}", "播放策略包含不支持的配置")
+    for key in PLAYBACK_KEYS:
+        if not isinstance(playback.get(key), bool):
+            _error(errors, f"{path}.playback.{key}", f"{key} 必须为布尔值")
+    if playback.get("autoplay") and playback.get("muted") is not True:
+        _error(errors, f"{path}.playback.muted", "自动播放必须从静音开始")
+
+
+def _validate_presentation(presentation, path, errors, metric_ids=None):
+    if not isinstance(presentation, dict):
+        _error(errors, path, "展示效果必须是对象")
+        return
+    for key in presentation:
+        if key not in PRESENTATION_KEYS:
+            _error(errors, f"{path}.{key}", "不支持的展示效果配置")
+    quality_tier = presentation.get("quality_tier", "balanced")
+    if not isinstance(quality_tier, str) or quality_tier not in QUALITY_TIERS:
+        _error(errors, f"{path}.quality_tier", "质量档位必须为 high、balanced 或 performance")
+    metrics = presentation.get("metrics")
+    if metrics is None:
+        return
+    metrics_path = f"{path}.metrics"
+    if not isinstance(metrics, dict):
+        _error(errors, metrics_path, "指标展示配置必须是对象")
+        return
+    for key in metrics:
+        if key not in {"style", "primary_metric_id", "gauge"}:
+            _error(errors, f"{metrics_path}.{key}", "不支持的指标展示配置")
+    style = metrics.get("style", "value")
+    if style not in METRIC_VISUAL_STYLES:
+        _error(errors, f"{metrics_path}.style", "指标展示方式仅支持 value 或 gauge")
+        return
+    if style == "value":
+        if "primary_metric_id" in metrics or "gauge" in metrics:
+            _error(errors, metrics_path, "数值展示不能保存仪表专用字段")
+        return
+
+    primary_metric_id = metrics.get("primary_metric_id")
+    if not isinstance(primary_metric_id, str) or not primary_metric_id.strip():
+        _error(errors, f"{metrics_path}.primary_metric_id", "仪表必须选择一个主指标")
+    elif metric_ids is not None and primary_metric_id not in metric_ids:
+        _error(errors, f"{metrics_path}.primary_metric_id", "仪表主指标必须引用当前模板中的指标 ID")
+    gauge = metrics.get("gauge")
+    if not isinstance(gauge, dict):
+        _error(errors, f"{metrics_path}.gauge", "仪表范围必须是对象")
+        return
+    for key in gauge:
+        if key not in {"min", "max", "clamp_visual"}:
+            _error(errors, f"{metrics_path}.gauge.{key}", "不支持的仪表范围配置")
+    minimum = gauge.get("min")
+    maximum = gauge.get("max")
+    for key, value in (("min", minimum), ("max", maximum)):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            _error(errors, f"{metrics_path}.gauge.{key}", "仪表范围必须是有限数字")
+    if (isinstance(minimum, (int, float)) and not isinstance(minimum, bool)
+            and isinstance(maximum, (int, float)) and not isinstance(maximum, bool)
+            and math.isfinite(minimum) and math.isfinite(maximum) and maximum <= minimum):
+        _error(errors, f"{metrics_path}.gauge.max", "仪表最大值必须大于最小值")
+    if not isinstance(gauge.get("clamp_visual"), bool):
+        _error(errors, f"{metrics_path}.gauge.clamp_visual", "clamp_visual 必须为布尔值")
+
+
+def normalize_full_config(config):
+    """Return a detached full config with backward-compatible presentation defaults."""
+    normalized = copy.deepcopy(config)
+    if not isinstance(normalized, dict):
+        return normalized
+    presentation = normalized.setdefault("presentation", {})
+    if isinstance(presentation, dict):
+        presentation.setdefault("quality_tier", "balanced")
+        metrics_visual = presentation.setdefault("metrics", {"style": "value"})
+        if isinstance(metrics_visual, dict):
+            metrics_visual.setdefault("style", "value")
+            if metrics_visual.get("style") == "value":
+                metrics_visual.pop("primary_metric_id", None)
+                metrics_visual.pop("gauge", None)
+    slots = normalized.get("slots")
+    if isinstance(slots, dict):
+        metrics = slots.get("metrics")
+        if isinstance(metrics, list):
+            for metric in metrics:
+                if isinstance(metric, dict):
+                    metric.setdefault("emphasized", False)
+        status = slots.get("status")
+        if isinstance(status, dict):
+            appearance = status.setdefault("appearance", {})
+            if isinstance(appearance, dict):
+                for level, defaults in DEFAULT_STATUS_APPEARANCE.items():
+                    current = appearance.setdefault(level, {})
+                    if isinstance(current, dict):
+                        current.setdefault("label", defaults["label"])
+                        current.setdefault("color", defaults["color"])
+    return normalized
 
 
 def validate_full_config(config):
@@ -205,6 +406,12 @@ def validate_full_config(config):
         _error(errors, "template_id", "不支持的模板")
     if config.get("display_mode") not in DISPLAY_MODES:
         _error(errors, "display_mode", "显示模式必须为 selected 或 always")
+    if "presentation" in config:
+        metric_ids = {
+            item.get("id") for item in ((config.get("slots") or {}).get("metrics") or [])
+            if isinstance(item, dict) and isinstance(item.get("id"), str)
+        }
+        _validate_presentation(config.get("presentation"), "presentation", errors, metric_ids)
 
     anchor = config.get("anchor")
     if not isinstance(anchor, dict) or anchor.get("strategy") != "bounds_top":
@@ -243,6 +450,8 @@ def validate_full_config(config):
                 _validate_metrics(slot, f"slots.{slot_id}", errors)
             elif slot_def["type"] == "status":
                 _validate_status(slot, f"slots.{slot_id}", errors)
+            elif slot_def["type"] == "media":
+                _validate_media_slot(slot, f"slots.{slot_id}", errors)
 
     if errors:
         raise OverlayValidationError(errors)
@@ -262,6 +471,8 @@ def validate_override(values):
         _error(errors, "template_id", "不支持的模板")
     if "slots" in values and not isinstance(values["slots"], dict):
         _error(errors, "slots", "槽位覆盖必须是对象")
+    if "presentation" in values:
+        _validate_presentation(values.get("presentation"), "presentation", errors)
     if errors:
         raise OverlayValidationError(errors)
     return values

@@ -3,12 +3,15 @@
 #include "SceneInteraction/TwinInteractionManagerComponent.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
-#include "Components/BackgroundBlur.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
 #include "Components/ButtonSlot.h"
+#include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
@@ -17,10 +20,16 @@
 
 namespace
 {
-const FLinearColor GlassFill(0.035f, 0.055f, 0.075f, 0.70f);
-const FLinearColor GlassStroke(0.68f, 0.82f, 0.92f, 0.22f);
-const FLinearColor PrimaryText(0.94f, 0.97f, 1.0f, 1.0f);
-const FLinearColor SecondaryText(0.66f, 0.76f, 0.84f, 1.0f);
+// Performance glass: neutral deep gray at 20% opacity, with no blur/postbuffer.
+const FLinearColor GlassFill(0.10f, 0.10f, 0.10f, 0.20f);
+const FLinearColor GlassStroke(0.86f, 0.86f, 0.86f, 0.16f);
+const FLinearColor KeyFill(0.12f, 0.12f, 0.12f, 0.20f);
+const FLinearColor KeyStroke(0.90f, 0.90f, 0.90f, 0.18f);
+const FLinearColor PrimaryText(0.96f, 0.96f, 0.96f, 1.0f);
+const FLinearColor SecondaryText(0.80f, 0.80f, 0.80f, 0.96f);
+const FLinearColor TextShadow(0.0f, 0.0f, 0.0f, 0.58f);
+const FLinearColor ActiveButton(0.34f, 0.34f, 0.34f, 0.58f);
+const FLinearColor InactiveButton(0.14f, 0.14f, 0.14f, 0.30f);
 }
 
 TSharedRef<SWidget> UOntoTwinRoamingHUDWidget::RebuildWidget()
@@ -38,54 +47,164 @@ TSharedRef<SWidget> UOntoTwinRoamingHUDWidget::RebuildWidget()
     return Result;
 }
 
+void UOntoTwinRoamingHUDWidget::NativeTick(
+    const FGeometry& MyGeometry,
+    float InDeltaTime)
+{
+    Super::NativeTick(MyGeometry, InDeltaTime);
+    if (!StatusPulse) return;
+    StatusPulsePhase = FMath::Fmod(
+        StatusPulsePhase + InDeltaTime * 2.2f, 2.0f * PI);
+    const float Normalized = 0.5f + 0.5f * FMath::Sin(StatusPulsePhase);
+    const float Scale = FMath::Lerp(0.92f, 1.08f, Normalized);
+    StatusPulse->SetRenderScale(FVector2D(Scale, Scale));
+}
+
+UBorder* UOntoTwinRoamingHUDWidget::BuildGlassSurface(
+    const FName Name,
+    const FMargin& SurfacePadding,
+    float Radius)
+{
+    UBorder* Glass = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), Name);
+    Glass->SetPadding(SurfacePadding);
+    Glass->SetBrush(FSlateRoundedBoxBrush(GlassFill, Radius, GlassStroke, 1.0f));
+    Glass->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    return Glass;
+}
+
 void UOntoTwinRoamingHUDWidget::BuildDefaultLayout()
 {
-    USizeBox* Bounds = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("HUDWidth"));
-    Bounds->SetWidthOverride(520.0f);
-    WidgetTree->RootWidget = Bounds;
+    UCanvasPanel* Root = WidgetTree->ConstructWidget<UCanvasPanel>(
+        UCanvasPanel::StaticClass(), TEXT("HUDCanvas"));
+    Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    WidgetTree->RootWidget = Root;
 
-    UBackgroundBlur* Blur = WidgetTree->ConstructWidget<UBackgroundBlur>(UBackgroundBlur::StaticClass(), TEXT("GlassBlur"));
-    Blur->SetBlurStrength(10.0f);
-    Blur->SetApplyAlphaToBlur(true);
-    Bounds->AddChild(Blur);
+    // Bottom-center status is direct content without a backing plate.
+    UHorizontalBox* StatusRow = WidgetTree->ConstructWidget<UHorizontalBox>(
+        UHorizontalBox::StaticClass(), TEXT("StatusRow"));
+    StatusRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 
-    UBorder* Glass = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("GlassPanel"));
-    Glass->SetPadding(FMargin(16.0f, 11.0f));
-    Glass->SetBrush(FSlateRoundedBoxBrush(GlassFill, 14.0f, GlassStroke, 1.0f));
-    Blur->SetContent(Glass);
+    StatusPulse = WidgetTree->ConstructWidget<USizeBox>(
+        USizeBox::StaticClass(), TEXT("StatusPulse"));
+    StatusPulse->SetWidthOverride(18.0f);
+    StatusPulse->SetHeightOverride(18.0f);
+    StatusPulse->SetRenderTransformPivot(FVector2D(0.5f, 0.5f));
+    StatusPulse->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    UOverlay* PulseLayers = WidgetTree->ConstructWidget<UOverlay>(
+        UOverlay::StaticClass(), TEXT("StatusPulseLayers"));
+    PulseLayers->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    StatusPulse->AddChild(PulseLayers);
 
-    UVerticalBox* Stack = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("HUDStack"));
-    Glass->SetContent(Stack);
+    UBorder* PulseRing = WidgetTree->ConstructWidget<UBorder>(
+        UBorder::StaticClass(), TEXT("StatusPulseRing"));
+    PulseRing->SetBrush(FSlateRoundedBoxBrush(
+        FLinearColor::Transparent, 9.0f, PrimaryText, 1.0f));
+    PulseRing->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    PulseLayers->AddChildToOverlay(PulseRing);
 
-    StatusText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("StatusText"));
+    USizeBox* PulseCoreBounds = WidgetTree->ConstructWidget<USizeBox>(
+        USizeBox::StaticClass(), TEXT("StatusPulseCoreBounds"));
+    PulseCoreBounds->SetWidthOverride(9.0f);
+    PulseCoreBounds->SetHeightOverride(9.0f);
+    PulseCoreBounds->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    UBorder* PulseCore = WidgetTree->ConstructWidget<UBorder>(
+        UBorder::StaticClass(), TEXT("StatusPulseCore"));
+    PulseCore->SetBrush(FSlateRoundedBoxBrush(
+        FLinearColor(0.92f, 0.92f, 0.92f, 0.76f), 4.5f));
+    PulseCore->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    PulseCoreBounds->AddChild(PulseCore);
+    UOverlaySlot* PulseCoreSlot = PulseLayers->AddChildToOverlay(PulseCoreBounds);
+    PulseCoreSlot->SetHorizontalAlignment(HAlign_Center);
+    PulseCoreSlot->SetVerticalAlignment(VAlign_Center);
+    UHorizontalBoxSlot* PulseSlot = StatusRow->AddChildToHorizontalBox(StatusPulse);
+    PulseSlot->SetVerticalAlignment(VAlign_Center);
+    PulseSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
+
+    StatusText = WidgetTree->ConstructWidget<UTextBlock>(
+        UTextBlock::StaticClass(), TEXT("StatusText"));
     StatusText->SetColorAndOpacity(PrimaryText);
-    StatusText->SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 14));
-    Stack->AddChildToVerticalBox(StatusText);
+    StatusText->SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 11));
+    StatusText->SetShadowOffset(FVector2D(1.0f, 1.0f));
+    StatusText->SetShadowColorAndOpacity(TextShadow);
+    StatusText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    UHorizontalBoxSlot* StatusTextSlot = StatusRow->AddChildToHorizontalBox(StatusText);
+    StatusTextSlot->SetVerticalAlignment(VAlign_Center);
+    UCanvasPanelSlot* StatusSlot = Root->AddChildToCanvas(StatusRow);
+    StatusSlot->SetAnchors(FAnchors(0.5f, 1.0f));
+    StatusSlot->SetAlignment(FVector2D(0.5f, 1.0f));
+    StatusSlot->SetPosition(FVector2D(0.0f, -24.0f));
+    StatusSlot->SetAutoSize(true);
 
-    HintText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("HintText"));
-    HintText->SetColorAndOpacity(SecondaryText);
-    HintText->SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10));
-    HintText->SetAutoWrapText(true);
-    HintText->SetWrapTextAt(488.0f);
-    UVerticalBoxSlot* HintSlot = Stack->AddChildToVerticalBox(HintText);
-    HintSlot->SetPadding(FMargin(0.0f, 3.0f, 0.0f, 0.0f));
+    // Contextual shortcuts have no shared plate. Only each key gets a small chip.
+    USizeBox* HintBounds = WidgetTree->ConstructWidget<USizeBox>(
+        USizeBox::StaticClass(), TEXT("HintBounds"));
+    HintBounds->SetWidthOverride(152.0f);
+    HintBounds->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    HintList = WidgetTree->ConstructWidget<UVerticalBox>(
+        UVerticalBox::StaticClass(), TEXT("HintList"));
+    HintList->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    HintBounds->AddChild(HintList);
+    UCanvasPanelSlot* HintSlot = Root->AddChildToCanvas(HintBounds);
+    HintSlot->SetAnchors(FAnchors(1.0f, 1.0f));
+    HintSlot->SetAlignment(FVector2D(1.0f, 1.0f));
+    HintSlot->SetPosition(FVector2D(-24.0f, -24.0f));
+    HintSlot->SetAutoSize(true);
 
-    DetailPanel = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("DetailPanel"));
-    UVerticalBoxSlot* DetailSlot = Stack->AddChildToVerticalBox(DetailPanel);
-    DetailSlot->SetPadding(FMargin(0.0f, 12.0f, 0.0f, 0.0f));
+    // Tab opens a compact action drawer above the status capsule.
+    USizeBox* DrawerBounds = WidgetTree->ConstructWidget<USizeBox>(
+        USizeBox::StaticClass(), TEXT("DrawerBounds"));
+    DrawerBounds->SetWidthOverride(650.0f);
+    DetailPanel = BuildGlassSurface(
+        TEXT("ActionDrawer"), FMargin(16.0f, 12.0f), 18.0f);
+    DrawerBounds->AddChild(DetailPanel);
+    UCanvasPanelSlot* DrawerSlot = Root->AddChildToCanvas(DrawerBounds);
+    DrawerSlot->SetAnchors(FAnchors(0.5f, 1.0f));
+    DrawerSlot->SetAlignment(FVector2D(0.5f, 1.0f));
+    DrawerSlot->SetPosition(FVector2D(0.0f, -78.0f));
+    DrawerSlot->SetAutoSize(true);
 
-    DetailText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("DetailText"));
+    UVerticalBox* DrawerStack = WidgetTree->ConstructWidget<UVerticalBox>(
+        UVerticalBox::StaticClass(), TEXT("DrawerStack"));
+    DetailPanel->SetContent(DrawerStack);
+
+    UTextBlock* DrawerTitle = WidgetTree->ConstructWidget<UTextBlock>(
+        UTextBlock::StaticClass(), TEXT("DrawerTitle"));
+    DrawerTitle->SetText(FText::FromString(TEXT("漫游控制")));
+    DrawerTitle->SetColorAndOpacity(PrimaryText);
+    DrawerTitle->SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 11));
+    DrawerTitle->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    DrawerStack->AddChildToVerticalBox(DrawerTitle);
+
+    DetailText = WidgetTree->ConstructWidget<UTextBlock>(
+        UTextBlock::StaticClass(), TEXT("DetailText"));
     DetailText->SetColorAndOpacity(SecondaryText);
     DetailText->SetAutoWrapText(true);
-    DetailText->SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 11));
-    DetailPanel->AddChildToVerticalBox(DetailText);
+    DetailText->SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9));
+    DetailText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    UVerticalBoxSlot* DetailTextSlot = DrawerStack->AddChildToVerticalBox(DetailText);
+    DetailTextSlot->SetPadding(FMargin(0.0f, 2.0f, 0.0f, 8.0f));
 
-    UHorizontalBox* Actions = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("Actions"));
-    UVerticalBoxSlot* ActionsSlot = DetailPanel->AddChildToVerticalBox(Actions);
-    ActionsSlot->SetPadding(FMargin(0.0f, 10.0f, 0.0f, 0.0f));
+    UHorizontalBox* ViewModes = WidgetTree->ConstructWidget<UHorizontalBox>(
+        UHorizontalBox::StaticClass(), TEXT("ViewModes"));
+    UVerticalBoxSlot* ViewModesSlot = DrawerStack->AddChildToVerticalBox(ViewModes);
+    ViewModesSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+    FirstPersonButton = AddActionButton(nullptr, TEXT("FirstPersonButton"), TEXT("第一人称"));
+    ShoulderButton = AddActionButton(nullptr, TEXT("ShoulderButton"), TEXT("过肩视角"));
+    GlobalButton = AddActionButton(nullptr, TEXT("GlobalButton"), TEXT("全局视角"));
+    for (UButton* Button : {FirstPersonButton, ShoulderButton, GlobalButton})
+    {
+        UHorizontalBoxSlot* ViewSlot = ViewModes->AddChildToHorizontalBox(Button);
+        ViewSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
+    }
+    FirstPersonButton->OnClicked.AddDynamic(this, &UOntoTwinRoamingHUDWidget::OnFirstPerson);
+    ShoulderButton->OnClicked.AddDynamic(this, &UOntoTwinRoamingHUDWidget::OnShoulder);
+    GlobalButton->OnClicked.AddDynamic(this, &UOntoTwinRoamingHUDWidget::OnGlobal);
 
+    UHorizontalBox* Actions = WidgetTree->ConstructWidget<UHorizontalBox>(
+        UHorizontalBox::StaticClass(), TEXT("Actions"));
+    DrawerStack->AddChildToVerticalBox(Actions);
     UButton* SkinButton = AddActionButton(nullptr, TEXT("SkinButton"), TEXT("切换皮肤"));
-    UButton* ResumeButton = AddActionButton(nullptr, TEXT("ResumeButton"), TEXT("继续路线"));
+    UButton* ResumeButton = AddActionButton(nullptr, TEXT("ResumeButton"), TEXT("返回线路"));
     UButton* RestartButton = AddActionButton(nullptr, TEXT("RestartButton"), TEXT("从头开始"));
     UButton* ReloadButton = AddActionButton(nullptr, TEXT("ReloadButton"), TEXT("重载人物"));
     for (UButton* Button : {SkinButton, ResumeButton, RestartButton, ReloadButton})
@@ -93,12 +212,77 @@ void UOntoTwinRoamingHUDWidget::BuildDefaultLayout()
         UHorizontalBoxSlot* ActionSlot = Actions->AddChildToHorizontalBox(Button);
         ActionSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
     }
-
     SkinButton->OnClicked.AddDynamic(this, &UOntoTwinRoamingHUDWidget::OnCycleSkin);
     ResumeButton->OnClicked.AddDynamic(this, &UOntoTwinRoamingHUDWidget::OnResumeRoute);
     RestartButton->OnClicked.AddDynamic(this, &UOntoTwinRoamingHUDWidget::OnRestartRoute);
     ReloadButton->OnClicked.AddDynamic(this, &UOntoTwinRoamingHUDWidget::OnReloadCharacter);
     DetailPanel->SetVisibility(ESlateVisibility::Collapsed);
+    RefreshShortcutList();
+}
+
+void UOntoTwinRoamingHUDWidget::RefreshShortcutList()
+{
+    if (!Manager || !HintList) return;
+    TArray<FString> Keys;
+    TArray<FString> Descriptions;
+    Manager->GetHudShortcutItems(Keys, Descriptions);
+    FString NextSignature;
+    for (int32 Index = 0; Index < Keys.Num() && Index < Descriptions.Num(); ++Index)
+    {
+        NextSignature += Keys[Index] + TEXT("\x1f") + Descriptions[Index] + TEXT("\x1e");
+    }
+    if (NextSignature == ShortcutSignature) return;
+
+    ShortcutSignature = NextSignature;
+    HintList->ClearChildren();
+    for (int32 Index = 0; Index < Keys.Num() && Index < Descriptions.Num(); ++Index)
+    {
+        AddShortcutRow(Index, Keys[Index], Descriptions[Index]);
+    }
+}
+
+void UOntoTwinRoamingHUDWidget::AddShortcutRow(
+    int32 Index,
+    const FString& Key,
+    const FString& Description)
+{
+    if (!HintList) return;
+    UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(
+        UHorizontalBox::StaticClass(), FName(*FString::Printf(TEXT("ShortcutRow%d"), Index)));
+    Row->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    UVerticalBoxSlot* RowSlot = HintList->AddChildToVerticalBox(Row);
+    RowSlot->SetPadding(FMargin(0.0f, 1.5f));
+
+    USizeBox* KeyBounds = WidgetTree->ConstructWidget<USizeBox>(
+        USizeBox::StaticClass(), FName(*FString::Printf(TEXT("ShortcutKeyBounds%d"), Index)));
+    KeyBounds->SetWidthOverride(58.0f);
+    KeyBounds->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    UBorder* KeyChip = WidgetTree->ConstructWidget<UBorder>(
+        UBorder::StaticClass(), FName(*FString::Printf(TEXT("ShortcutKeyChip%d"), Index)));
+    KeyChip->SetPadding(FMargin(4.0f, 1.0f));
+    KeyChip->SetBrush(FSlateRoundedBoxBrush(KeyFill, 4.0f, KeyStroke, 1.0f));
+    KeyChip->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    KeyBounds->AddChild(KeyChip);
+    UTextBlock* KeyText = WidgetTree->ConstructWidget<UTextBlock>(
+        UTextBlock::StaticClass(), FName(*FString::Printf(TEXT("ShortcutKeyText%d"), Index)));
+    KeyText->SetText(FText::FromString(Key));
+    KeyText->SetJustification(ETextJustify::Center);
+    KeyText->SetColorAndOpacity(PrimaryText);
+    KeyText->SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 8));
+    KeyText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    KeyChip->SetContent(KeyText);
+    UHorizontalBoxSlot* KeySlot = Row->AddChildToHorizontalBox(KeyBounds);
+    KeySlot->SetPadding(FMargin(0.0f, 0.0f, 7.0f, 0.0f));
+
+    UTextBlock* DescriptionText = WidgetTree->ConstructWidget<UTextBlock>(
+        UTextBlock::StaticClass(), FName(*FString::Printf(TEXT("ShortcutDescription%d"), Index)));
+    DescriptionText->SetText(FText::FromString(Description));
+    DescriptionText->SetColorAndOpacity(SecondaryText);
+    DescriptionText->SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 8));
+    DescriptionText->SetShadowOffset(FVector2D(1.0f, 1.0f));
+    DescriptionText->SetShadowColorAndOpacity(TextShadow);
+    DescriptionText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    Row->AddChildToHorizontalBox(DescriptionText);
 }
 
 UButton* UOntoTwinRoamingHUDWidget::AddActionButton(
@@ -107,21 +291,23 @@ UButton* UOntoTwinRoamingHUDWidget::AddActionButton(
     const FString& Label)
 {
     UButton* Button = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), Name);
+    Button->SetBackgroundColor(InactiveButton);
     UTextBlock* Text = WidgetTree->ConstructWidget<UTextBlock>(
         UTextBlock::StaticClass(), FName(*(Name.ToString() + TEXT("Text"))));
     Text->SetText(FText::FromString(Label));
     Text->SetColorAndOpacity(PrimaryText);
-    Text->SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10));
+    Text->SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9));
     Button->SetContent(Text);
     if (UButtonSlot* ButtonSlot = Cast<UButtonSlot>(Text->Slot))
     {
-        ButtonSlot->SetPadding(FMargin(10.0f, 6.0f));
+        ButtonSlot->SetPadding(FMargin(11.0f, 6.0f));
     }
     if (Parent) Parent->AddChildToVerticalBox(Button);
     return Button;
 }
 
-void UOntoTwinRoamingHUDWidget::SetInteractionManager(UTwinInteractionManagerComponent* InManager)
+void UOntoTwinRoamingHUDWidget::SetInteractionManager(
+    UTwinInteractionManagerComponent* InManager)
 {
     Manager = InManager;
     RefreshFromManager();
@@ -131,20 +317,54 @@ void UOntoTwinRoamingHUDWidget::RefreshFromManager()
 {
     if (!Manager || !StatusText) return;
     StatusText->SetText(FText::FromString(Manager->GetHudStatusText()));
-    HintText->SetText(FText::FromString(Manager->GetHudHintText()));
+    RefreshShortcutList();
     DetailText->SetText(FText::FromString(Manager->GetHudDetailText()));
+
+    const ETwinRoamingCameraMode Mode = Manager->GetCameraMode();
+    const bool bEnabled = !Manager->IsCameraTransitioning();
+    if (FirstPersonButton)
+    {
+        FirstPersonButton->SetIsEnabled(bEnabled);
+        FirstPersonButton->SetBackgroundColor(
+            Mode == ETwinRoamingCameraMode::FirstPerson ? ActiveButton : InactiveButton);
+    }
+    if (ShoulderButton)
+    {
+        ShoulderButton->SetIsEnabled(bEnabled);
+        ShoulderButton->SetBackgroundColor(
+            Mode == ETwinRoamingCameraMode::NearFollow ? ActiveButton : InactiveButton);
+    }
+    if (GlobalButton)
+    {
+        GlobalButton->SetIsEnabled(bEnabled);
+        GlobalButton->SetBackgroundColor(
+            Mode == ETwinRoamingCameraMode::God ? ActiveButton : InactiveButton);
+    }
 }
 
 void UOntoTwinRoamingHUDWidget::SetInteractionOpen(bool bOpen)
 {
     if (DetailPanel)
     {
-        DetailPanel->SetVisibility(bOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+        DetailPanel->SetVisibility(
+            bOpen ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
     }
-    SetVisibility(bOpen ? ESlateVisibility::Visible : ESlateVisibility::HitTestInvisible);
+    SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 }
 
 void UOntoTwinRoamingHUDWidget::OnCycleSkin() { if (Manager) Manager->CycleSkin(); }
 void UOntoTwinRoamingHUDWidget::OnResumeRoute() { if (Manager) Manager->ResumeRoute(); }
 void UOntoTwinRoamingHUDWidget::OnRestartRoute() { if (Manager) Manager->RestartRoute(); }
 void UOntoTwinRoamingHUDWidget::OnReloadCharacter() { if (Manager) Manager->ApplyPendingReload(); }
+void UOntoTwinRoamingHUDWidget::OnFirstPerson()
+{
+    if (Manager) Manager->SetCameraMode(ETwinRoamingCameraMode::FirstPerson);
+}
+void UOntoTwinRoamingHUDWidget::OnShoulder()
+{
+    if (Manager) Manager->SetCameraMode(ETwinRoamingCameraMode::NearFollow);
+}
+void UOntoTwinRoamingHUDWidget::OnGlobal()
+{
+    if (Manager) Manager->SetCameraMode(ETwinRoamingCameraMode::God);
+}

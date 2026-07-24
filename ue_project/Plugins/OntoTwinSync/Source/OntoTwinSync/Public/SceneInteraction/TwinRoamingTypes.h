@@ -13,6 +13,7 @@ class USkeletalMesh;
 UENUM(BlueprintType)
 enum class ETwinRoamingCameraMode : uint8
 {
+    FirstPerson,
     NearFollow,
     God
 };
@@ -63,6 +64,21 @@ struct ONTOTWINSYNC_API FTwinNearCameraSettings
 };
 
 USTRUCT(BlueprintType)
+struct ONTOTWINSYNC_API FTwinFirstPersonCameraSettings
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float EyeHeightCm = 165.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float FovDeg = 85.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float LookSensitivity = 1.0f;
+};
+
+USTRUCT(BlueprintType)
 struct ONTOTWINSYNC_API FTwinGodCameraSettings
 {
     GENERATED_BODY()
@@ -83,6 +99,7 @@ struct ONTOTWINSYNC_API FTwinRoamingRuntimeConfig
     bool bEnabled = false;
     bool bAutoEnter = false;
     FString CharacterId;
+    FString CharacterDisplayName;
     FString CharacterPrimaryAssetId;
     TMap<FString, FString> SkinPrimaryAssetIds;
     FString DefaultSkinId;
@@ -94,6 +111,7 @@ struct ONTOTWINSYNC_API FTwinRoamingRuntimeConfig
     bool bHasZHint = false;
     float ZHintCm = 0.0f;
     FTwinRoamingMovementSettings Movement;
+    FTwinFirstPersonCameraSettings FirstPersonCamera;
     FTwinNearCameraSettings NearCamera;
     FTwinGodCameraSettings GodCamera;
     ETwinRoamingCameraMode DefaultCameraMode = ETwinRoamingCameraMode::NearFollow;
@@ -102,6 +120,7 @@ struct ONTOTWINSYNC_API FTwinRoamingRuntimeConfig
     bool bRouteLoop = false;
     bool bTakeoverEnabled = true;
     FString RouteId;
+    FString RouteDisplayName;
     bool bHasRuntimeRoute = false;
     int32 RuntimeRouteRevision = 0;
     FString RuntimeRouteLevel;

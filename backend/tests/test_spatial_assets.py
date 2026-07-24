@@ -10,6 +10,7 @@ from flask import Flask
 BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
+os.environ["ONTOTWIN_STORE"] = "json"
 
 from project_store import ProjectStore
 from spatial_assets.api import register_spatial_asset_routes

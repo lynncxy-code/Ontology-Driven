@@ -12,7 +12,13 @@ from .routes import (
     route_review_state,
 )
 from .runtime_projection import RuntimeProjectionError, build_runtime_projection, calibration_state, prepare_spawn_for_save
-from .validators import SceneInteractionValidationError, default_roaming_config, validate_roaming_config, validate_runtime_status
+from .validators import (
+    SceneInteractionValidationError,
+    default_roaming_config,
+    project_route_provides_spawn,
+    validate_roaming_config,
+    validate_runtime_status,
+)
 
 
 class SceneInteractionNotFoundError(LookupError):
@@ -149,17 +155,22 @@ class SceneInteractionService:
                 "path": "expected_revision", "message": "必须是整数",
             }]) from exc
         prepared = copy.deepcopy(config)
+        project_routes = list_project_routes(project, include_waypoints=False)
+        route_owns_spawn = project_route_provides_spawn(prepared, project_routes)
         if isinstance(prepared, dict) and isinstance(prepared.get("spawn"), dict):
             try:
                 prepared["spawn"] = prepare_spawn_for_save(project, prepared["spawn"])
             except RuntimeProjectionError as exc:
-                raise SceneInteractionValidationError([{
-                    "path": "spawn", "message": str(exc), "code": exc.code,
-                }]) from exc
+                if route_owns_spawn:
+                    prepared.pop("spawn", None)
+                else:
+                    raise SceneInteractionValidationError([{
+                        "path": "spawn", "message": str(exc), "code": exc.code,
+                    }]) from exc
         normalized = validate_roaming_config(
             prepared,
             self.catalog,
-            list_project_routes(project, include_waypoints=False),
+            project_routes,
         )
         project_id = project.get("id")
 

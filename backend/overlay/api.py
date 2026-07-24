@@ -1,12 +1,13 @@
 from flask import Blueprint, jsonify, request
 
 from .schema import OverlayValidationError, clone_templates
+from .media import MediaPolicyError
 from .service import OverlayConflictError, OverlayNotFoundError, OverlayService
 
 
-def register_overlay_routes(app, project_store, on_object_types_changed=None):
+def register_overlay_routes(app, project_store, on_object_types_changed=None, platform_media_policy=None):
     blueprint = Blueprint("overlay_api", __name__)
-    service = OverlayService(project_store)
+    service = OverlayService(project_store, platform_media_policy)
 
     def execute(action, success_status=200):
         try:
@@ -17,6 +18,12 @@ def register_overlay_routes(app, project_store, on_object_types_changed=None):
             return jsonify({"error": "overlay_target_not_found", "message": str(exc)}), 404
         except OverlayConflictError as exc:
             return jsonify({"error": "overlay_revision_conflict", "message": str(exc)}), 409
+        except MediaPolicyError as exc:
+            return jsonify({
+                "error": exc.code,
+                "message": str(exc),
+                "fields": [{"path": exc.path, "message": str(exc)}],
+            }), 422
         except (TypeError, ValueError) as exc:
             return jsonify({"error": "invalid_request", "message": str(exc)}), 400
 
@@ -90,4 +97,21 @@ def register_overlay_routes(app, project_store, on_object_types_changed=None):
             ),
         })
 
+    @blueprint.get("/api/v2/overlays/media/policy")
+    def get_media_policy():
+        return execute(service.get_media_policy)
+
+    @blueprint.put("/api/v2/overlays/media/policy")
+    def save_media_policy():
+        data = request.get_json(silent=True) or {}
+        return execute(lambda: service.save_media_policy(
+            data.get("policy") or {}, data.get("expected_revision", 0)
+        ))
+
+    @blueprint.post("/api/v2/overlays/media/resolve")
+    def resolve_media():
+        data = request.get_json(silent=True) or {}
+        return execute(lambda: service.resolve_media(data.get("instance_id")))
+
     app.register_blueprint(blueprint)
+    return service

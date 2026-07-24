@@ -23,6 +23,8 @@ from project_store import (
     CURRENT_SCHEMA_VERSION,
     ProjectStore,
     _clean_hierarchy_path,
+    _as_graph_dataset,
+    _default_media_policy,
     _default_scene_interactions,
     _default_spatial_profile,
     apply_instance_metadata,
@@ -81,7 +83,7 @@ class ProjectStorePG(ProjectStore):
                 cur.execute(
                     """SELECT id, name, created_at, dataset, calibration, spatial_profile,
                               components, instance_roster, frames, schema_version,
-                              scene_interactions
+                              scene_interactions, media_policy
                        FROM project WHERE id = %s AND deleted_at IS NULL""",
                     (pid,),
                 )
@@ -100,6 +102,7 @@ class ProjectStorePG(ProjectStore):
                     "instance_roster": row[7] or [],
                     "frames": row[8] or [],
                     "scene_interactions": row[10] or _default_scene_interactions(),
+                    "media_policy": row[11] or _default_media_policy(),
                     "object_types": {},
                     "instances": {},
                 }
@@ -166,15 +169,16 @@ class ProjectStorePG(ProjectStore):
                     cur.execute(
                         """INSERT INTO project
                              (id, name, created_at, dataset, calibration, spatial_profile,
-                              schema_version, scene_interactions,
-                              components, instance_roster, frames, deleted_at)
-                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, NULL)
+                               schema_version, scene_interactions, media_policy,
+                               components, instance_roster, frames, deleted_at)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, NULL)
                            ON CONFLICT (id) DO UPDATE SET
                              name=EXCLUDED.name, created_at=EXCLUDED.created_at,
                              dataset=EXCLUDED.dataset, calibration=EXCLUDED.calibration,
                              spatial_profile=EXCLUDED.spatial_profile,
                              schema_version=EXCLUDED.schema_version,
                              scene_interactions=EXCLUDED.scene_interactions,
+                             media_policy=EXCLUDED.media_policy,
                              components=EXCLUDED.components,
                              instance_roster=EXCLUDED.instance_roster,
                              frames=EXCLUDED.frames, deleted_at=NULL""",
@@ -184,6 +188,7 @@ class ProjectStorePG(ProjectStore):
                             Jsonb(proj.get("spatial_profile")),
                             proj.get("schema_version", CURRENT_SCHEMA_VERSION),
                             Jsonb(proj.get("scene_interactions") or _default_scene_interactions()),
+                            Jsonb(proj.get("media_policy") or _default_media_policy()),
                             Jsonb(proj.get("components") or {}),
                             Jsonb(proj.get("instance_roster") or []),
                             Jsonb(proj.get("frames") or []),
@@ -325,12 +330,19 @@ class ProjectStorePG(ProjectStore):
         return out
 
     def all_datasets(self):
+        out = []
         with pg.get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT dataset FROM project WHERE deleted_at IS NULL AND dataset IS NOT NULL"
+                    """SELECT id, name, created_at, dataset
+                       FROM project
+                       WHERE deleted_at IS NULL AND dataset IS NOT NULL"""
                 )
-                return [r[0] for r in cur.fetchall() if r[0]]
+                for pid, name, created_at, raw_dataset in cur.fetchall():
+                    dataset = _as_graph_dataset(pid, name, created_at, raw_dataset)
+                    if dataset:
+                        out.append(dataset)
+        return out
 
     # ── 新建 / 删除 ──────────────────────────────────────────
     def create_project(self, name, object_types=None, calibration=None,
@@ -351,6 +363,7 @@ class ProjectStorePG(ProjectStore):
                 "spatial_profile": _default_spatial_profile(),
                 "frames": [],
                 "scene_interactions": _default_scene_interactions(),
+                "media_policy": _default_media_policy(),
             }
             self._current = proj
             self._active_id = pid

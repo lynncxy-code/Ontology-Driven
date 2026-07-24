@@ -1,16 +1,21 @@
 import copy
 import datetime
+import hashlib
+import math
 import time
 
 from .schema import (
+    DEFAULT_STATUS_APPEARANCE,
     INSTANCE_PATHS,
     OBJECT_TYPE_PATHS,
     STATUS_LEVELS,
     OverlayValidationError,
     default_overlay_values,
+    normalize_full_config,
     validate_full_config,
     validate_override,
 )
+from .media import MediaPolicyError, MediaPolicyService
 
 
 class OverlayNotFoundError(LookupError):
@@ -41,6 +46,11 @@ def merge_overlay_config(base, override):
     ):
         result["slots"] = copy.deepcopy(override.get("slots") or {})
     return result
+
+
+def _type_values_with_defaults(type_envelope):
+    values = (type_envelope or {}).get("values") or default_overlay_values()
+    return normalize_full_config(values)
 
 
 def apply_merge_patch(target, patch):
@@ -139,7 +149,71 @@ def _slot_state(missing, online):
     return "empty" if missing else "ok"
 
 
-def resolve_slots(config, object_type, instance, raw_state, online):
+def _finite_numeric(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return value if math.isfinite(value) else None
+
+
+def _resolve_media_slot(slot, object_type, instance, raw_state, online,
+                        media_policy_service=None, project_media_policy=None,
+                        include_media_url=False):
+    playback = copy.deepcopy((slot or {}).get("playback") or {})
+    playback.setdefault("autoplay", True)
+    playback.setdefault("muted", True)
+    playback.setdefault("loop", False)
+    result = {
+        "available": False,
+        "state": "offline" if not online else "empty",
+        "kind": (slot or {}).get("kind", "auto"),
+        "playback": playback,
+        "playback_ref": str((instance or {}).get("id") or ""),
+        "poster_state": "empty",
+    }
+    raw_url = _resolve_binding((slot or {}).get("url_binding"), object_type, instance, raw_state)
+    if not isinstance(raw_url, str) or not raw_url.strip():
+        result["error_code"] = "media_url_empty"
+        return result
+    result["source_revision"] = hashlib.sha256(raw_url.strip().encode("utf-8")).hexdigest()[:16]
+    if media_policy_service is None:
+        result["state"] = "blocked"
+        result["error_code"] = "media_policy_unavailable"
+        return result
+    try:
+        validated = media_policy_service.validate_url(
+            raw_url,
+            project_media_policy or {},
+            purpose="video",
+            requested_kind=(slot or {}).get("kind", "auto"),
+        )
+        result["available"] = True
+        result["state"] = "offline" if not online else "ready"
+        result["kind"] = validated["kind"]
+        if validated["kind"] == "hls":
+            result["playback"]["loop"] = False
+        if include_media_url:
+            result["preview_url"] = validated["url"]
+    except MediaPolicyError as exc:
+        result["state"] = "blocked"
+        result["error_code"] = exc.code
+
+    raw_poster = _resolve_binding((slot or {}).get("poster_binding"), object_type, instance, raw_state)
+    if isinstance(raw_poster, str) and raw_poster.strip():
+        try:
+            validated_poster = media_policy_service.validate_url(
+                raw_poster, project_media_policy or {}, purpose="poster"
+            )
+            result["poster_url"] = validated_poster["url"]
+            result["poster_state"] = "ready"
+        except MediaPolicyError as exc:
+            result["poster_state"] = "blocked"
+            result["poster_error_code"] = exc.code
+    return result
+
+
+def resolve_slots(config, object_type, instance, raw_state, online,
+                  media_policy_service=None, project_media_policy=None,
+                  include_media_url=False):
     slots = config.get("slots") or {}
     resolved = {}
 
@@ -161,35 +235,73 @@ def resolve_slots(config, object_type, instance, raw_state, online):
         display, missing = _format_value(value, metric.get("format"))
         if missing and not metric.get("required", False):
             continue
-        metrics.append({
+        resolved_metric = {
             "id": metric.get("id", ""),
             "label": metric.get("label", ""),
             "display_value": display,
             "state": _slot_state(missing, online),
-        })
+            "emphasized": bool(metric.get("emphasized", False)),
+        }
+        numeric_value = _finite_numeric(value)
+        if numeric_value is not None:
+            resolved_metric["numeric_value"] = numeric_value
+        metrics.append(resolved_metric)
     if metrics:
         resolved["metrics"] = metrics
+        metrics_presentation = ((config.get("presentation") or {}).get("metrics") or {})
+        if metrics_presentation.get("style") == "gauge":
+            gauge = metrics_presentation.get("gauge") or {}
+            resolved["metrics_visual"] = {
+                "style": "gauge",
+                "primary_metric_id": metrics_presentation.get("primary_metric_id", ""),
+                "range": {
+                    "min": gauge.get("min"),
+                    "max": gauge.get("max"),
+                    "clamp_visual": bool(gauge.get("clamp_visual")),
+                },
+            }
 
     status = slots.get("status")
     if isinstance(status, dict):
-        label = _resolve_binding(status.get("label_binding"), object_type, instance, raw_state)
-        display, missing = _format_value(label, status.get("format"))
+        detail = _resolve_binding(status.get("label_binding"), object_type, instance, raw_state)
+        detail_display, detail_missing = _format_value(detail, status.get("format"))
         level = _resolve_binding(status.get("level_binding"), object_type, instance, raw_state)
         level = str(level or "unknown").lower()
         if level not in STATUS_LEVELS:
             level = "unknown"
         if not online:
             level = "offline"
+        defaults = DEFAULT_STATUS_APPEARANCE[level]
+        configured = ((status.get("appearance") or {}).get(level) or {})
+        display = configured.get("label", defaults["label"])
+        accent_token = configured.get("color", defaults["color"])
+        if detail_missing or detail_display == display:
+            detail_display = ""
         resolved["status"] = {
             "display_value": display,
+            "detail_value": detail_display,
             "level": level,
-            "state": _slot_state(missing, online),
+            "accent_token": accent_token,
+            "state": _slot_state(_is_missing(display), online),
         }
+    media = slots.get("media")
+    if isinstance(media, dict):
+        resolved["media"] = _resolve_media_slot(
+            media,
+            object_type,
+            instance,
+            raw_state,
+            online,
+            media_policy_service,
+            project_media_policy,
+            include_media_url,
+        )
     return resolved
 
 
 def resolve_overlay_interface(object_type, instance, raw_state=None, online=None, config_override=None,
-                              revision_override=None):
+                              revision_override=None, media_policy_service=None,
+                              project_media_policy=None, include_media_url=False):
     injected = object_type.get("injected_interfaces") or []
     if "I3D_Overlay" not in injected and config_override is None:
         return None
@@ -197,9 +309,11 @@ def resolve_overlay_interface(object_type, instance, raw_state=None, online=None
     type_env = _envelope(object_type.get("interface_configs"), "I3D_Overlay")
     render_config = instance.get("render_config") or {}
     override_env = _envelope(render_config.get("interface_overrides"), "I3D_Overlay")
-    config = config_override or merge_overlay_config(
-        type_env.get("values") or default_overlay_values(),
-        override_env.get("values") or {},
+    type_values = _type_values_with_defaults(type_env)
+    config = (
+        normalize_full_config(config_override)
+        if config_override is not None
+        else merge_overlay_config(type_values, override_env.get("values") or {})
     )
     validate_full_config(config)
     if online is None:
@@ -211,8 +325,18 @@ def resolve_overlay_interface(object_type, instance, raw_state=None, online=None
         "template_id": config.get("template_id"),
         "display_mode": config.get("display_mode"),
         "anchor": copy.deepcopy(config.get("anchor")),
+        "presentation": copy.deepcopy(config.get("presentation")),
         "online": bool(online),
-        "resolved_slots": resolve_slots(config, object_type, instance, raw_state or instance.get("raw_state") or {}, bool(online)),
+        "resolved_slots": resolve_slots(
+            config,
+            object_type,
+            instance,
+            raw_state or instance.get("raw_state") or {},
+            bool(online),
+            media_policy_service,
+            project_media_policy,
+            include_media_url,
+        ),
     }
 
 
@@ -254,8 +378,9 @@ def build_field_catalog(object_type, instance):
 
 
 class OverlayService:
-    def __init__(self, store):
+    def __init__(self, store, platform_media_policy=None):
         self.store = store
+        self.media_policy = MediaPolicyService(store, platform_media_policy)
 
     def _project(self):
         project = self.store.get_active_copy()
@@ -304,7 +429,7 @@ class OverlayService:
             instance = instances[0]
 
         type_env = _envelope(object_type.get("interface_configs"), "I3D_Overlay")
-        type_values = type_env["values"] or default_overlay_values()
+        type_values = _type_values_with_defaults(type_env)
         override_env = _envelope(
             ((instance or {}).get("render_config") or {}).get("interface_overrides"),
             "I3D_Overlay",
@@ -315,6 +440,9 @@ class OverlayService:
             preview = resolve_overlay_interface(
                 object_type, instance, config_override=effective,
                 revision_override=f"preview-t{type_env['revision']}-i{override_env['revision']}",
+                media_policy_service=self.media_policy,
+                project_media_policy=project.get("media_policy") or {},
+                include_media_url=True,
             )
 
         instance_items = []
@@ -348,6 +476,7 @@ class OverlayService:
             "preview": preview,
             "field_catalog": build_field_catalog(object_type, instance or {}),
             "instances": instance_items,
+            "media_policy": self.media_policy.describe(project.get("media_policy") or {}),
         }
 
     def preview(self, object_type_rid, instance_id, config):
@@ -373,20 +502,123 @@ class OverlayService:
                 "render_config": {},
             }
         return resolve_overlay_interface(
-            object_type, instance, config_override=config, revision_override="preview"
+            object_type,
+            instance,
+            config_override=config,
+            revision_override="preview",
+            media_policy_service=self.media_policy,
+            project_media_policy=project.get("media_policy") or {},
+            include_media_url=True,
         )
+
+    def resolve_instance_interface(self, object_type, instance, raw_state=None, online=None):
+        project = self._project()
+        return resolve_overlay_interface(
+            object_type,
+            instance,
+            raw_state=raw_state,
+            online=online,
+            media_policy_service=self.media_policy,
+            project_media_policy=project.get("media_policy") or {},
+        )
+
+    def _validate_literal_media(self, config, project):
+        media = ((config or {}).get("slots") or {}).get("media")
+        if not isinstance(media, dict):
+            return
+        url_binding = media.get("url_binding") or {}
+        if url_binding.get("source") == "literal":
+            self.media_policy.validate_url(
+                url_binding.get("value"),
+                project.get("media_policy") or {},
+                purpose="video",
+                requested_kind=media.get("kind", "auto"),
+            )
+        poster_binding = media.get("poster_binding") or {}
+        poster_value = poster_binding.get("value")
+        if poster_binding.get("source") == "literal" and isinstance(poster_value, str) and poster_value.strip():
+            self.media_policy.validate_url(
+                poster_value,
+                project.get("media_policy") or {},
+                purpose="poster",
+            )
+
+    def get_media_policy(self):
+        project = self._project()
+        return self.media_policy.describe(project.get("media_policy") or {})
+
+    def save_media_policy(self, values, expected_revision):
+        normalized = self.media_policy.validate_project_policy(values or {})
+
+        def update(project):
+            current = self.media_policy.validate_project_policy(project.get("media_policy") or {})
+            if int(expected_revision) != current["revision"]:
+                raise OverlayConflictError("项目媒体策略已被其他页面更新")
+            normalized["revision"] = current["revision"] + 1
+            project["media_policy"] = copy.deepcopy(normalized)
+            return self.media_policy.describe(project["media_policy"])
+
+        return self.store.transact_active(update)
+
+    def resolve_media(self, instance_id):
+        project = self._project()
+        instance = self._find_instance(project, instance_id)
+        object_type = self._find_type(project, instance.get("object_type_rid"))
+        self._ensure_attached(object_type)
+        type_env = _envelope(object_type.get("interface_configs"), "I3D_Overlay")
+        override_env = _envelope(
+            (instance.get("render_config") or {}).get("interface_overrides"), "I3D_Overlay"
+        )
+        config = merge_overlay_config(
+            _type_values_with_defaults(type_env), override_env.get("values") or {}
+        )
+        validate_full_config(config)
+        if not config.get("enabled"):
+            raise MediaPolicyError("media_overlay_disabled", "该实例的视频面板未启用")
+        media = (config.get("slots") or {}).get("media")
+        if not isinstance(media, dict):
+            raise MediaPolicyError("media_not_configured", "当前模板没有配置视频")
+        raw_state = instance.get("raw_state") or {}
+        raw_url = _resolve_binding(media.get("url_binding"), object_type, instance, raw_state)
+        validated = self.media_policy.validate_url(
+            raw_url,
+            project.get("media_policy") or {},
+            purpose="video",
+            requested_kind=media.get("kind", "auto"),
+        )
+        playback = copy.deepcopy(media.get("playback") or {})
+        playback.setdefault("autoplay", True)
+        playback.setdefault("muted", True)
+        playback.setdefault("loop", False)
+        if validated["kind"] == "hls":
+            playback["loop"] = False
+        return {
+            "instance_id": instance_id,
+            "config_revision": f"t{type_env['revision']}-i{override_env['revision']}",
+            "kind": validated["kind"],
+            "url": validated["url"],
+            "source_revision": hashlib.sha256(validated["url"].encode("utf-8")).hexdigest()[:16],
+            "expires_at": None,
+            "playback": playback,
+            "retry": {"delays_seconds": [2, 5, 15], "max_attempts": 3},
+        }
 
     def save_type(self, rid, config, expected_revision):
         validate_full_config(config)
+        normalized_config = normalize_full_config(config)
 
         def update(project):
             object_type = self._find_type(project, rid)
             self._ensure_attached(object_type)
+            self._validate_literal_media(normalized_config, project)
             configs = object_type.setdefault("interface_configs", {})
             current = _envelope(configs, "I3D_Overlay")
             if int(expected_revision) != current["revision"]:
                 raise OverlayConflictError("类型配置已被其他页面更新")
-            envelope = {"revision": current["revision"] + 1, "values": copy.deepcopy(config)}
+            envelope = {
+                "revision": current["revision"] + 1,
+                "values": copy.deepcopy(normalized_config),
+            }
             configs["I3D_Overlay"] = envelope
             return copy.deepcopy(envelope)
 
@@ -400,8 +632,9 @@ class OverlayService:
             object_type = self._find_type(project, instance.get("object_type_rid"))
             self._ensure_attached(object_type)
             type_env = _envelope(object_type.get("interface_configs"), "I3D_Overlay")
-            resolved = merge_overlay_config(type_env["values"] or default_overlay_values(), values)
+            resolved = merge_overlay_config(_type_values_with_defaults(type_env), values)
             validate_full_config(resolved)
+            self._validate_literal_media(resolved, project)
             render_config = instance.setdefault("render_config", {})
             overrides = render_config.setdefault("interface_overrides", {})
             current = _envelope(overrides, "I3D_Overlay")
@@ -440,7 +673,9 @@ class OverlayService:
                     raise OverlayConflictError(f"实例 {instance_id} 的覆盖配置已更新")
                 values = apply_merge_patch(current["values"], merge_patch)
                 validate_override(values)
-                validate_full_config(merge_overlay_config(type_env["values"] or default_overlay_values(), values))
+                resolved = merge_overlay_config(_type_values_with_defaults(type_env), values)
+                validate_full_config(resolved)
+                self._validate_literal_media(resolved, project)
                 prepared.append((overrides, current, values, instance_id))
 
             result = []

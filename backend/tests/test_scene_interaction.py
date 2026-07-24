@@ -10,6 +10,7 @@ from flask import Flask
 BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
+os.environ["ONTOTWIN_STORE"] = "json"
 
 from scene_interaction.api import register_scene_interaction_routes
 from scene_interaction.catalog import ResourceCatalog
@@ -25,11 +26,15 @@ def roaming_config():
         "allowed_skin_ids": ["skin.observer.gray", "skin.observer.green"],
         "default_skin_id": "skin.observer.gray",
         "spawn": {
-            "mode": "ue_anchor",
-            "anchor_id": "spawn.character.default",
+            "mode": "image",
+            "frame_id": "frame_image",
+            "source_px": {"x": 100.0, "y": 200.0},
+            "yaw_deg": 0.0,
+            "z_hint_mm": None,
         },
         "camera": {
             "default_mode": "near_follow",
+            "first_person": {"eye_height_cm": 165, "fov_deg": 85, "look_sensitivity": 1},
             "near_follow": {"distance_cm": 120, "height_cm": 35, "look_sensitivity": 1},
             "god": {"camera_id": "camera.god.default", "move_speed_cm_s": 1800, "look_sensitivity": 1},
         },
@@ -129,20 +134,57 @@ class SceneInteractionTestCase(unittest.TestCase):
 
     def test_catalog_has_mvp_resources(self):
         catalog = self.service.catalog_snapshot()
-        self.assertEqual("2026.07.3", catalog["catalog_version"])
-        self.assertEqual(1, len(catalog["characters"]))
-        self.assertGreaterEqual(len(catalog["skins"]), 2)
+        self.assertEqual("2026.07.8", catalog["catalog_version"])
+        self.assertEqual(7, len(catalog["characters"]))
+        self.assertGreaterEqual(len(catalog["skins"]), 8)
         self.assertEqual(1, len(catalog["spawn_anchors"]))
         self.assertEqual(1, len(catalog["routes"]))
         self.assertEqual(1, len(catalog["god_cameras"]))
 
-    def test_save_anchor_does_not_require_calibration(self):
-        saved = self.service.save_roaming(roaming_config(), 0)
-        self.assertEqual({
-            "mode": "ue_anchor",
-            "anchor_id": "spawn.character.default",
-        }, saved["config"]["spawn"])
-        self.assertEqual("not_required", saved["calibration_state"]["state"])
+    def test_renderpeople_catalog_contract(self):
+        catalog = self.service.catalog_snapshot()
+        characters = {item["id"]: item for item in catalog["characters"]}
+        skins = {item["id"]: item for item in catalog["skins"]}
+        names = ("Carla", "Claudia", "Eric", "Manuel", "Nathan", "Sophia")
+        for name in names:
+            key = name.lower()
+            character_id = f"character.renderpeople.{key}"
+            skin_id = f"skin.renderpeople.{key}.default"
+            character = characters[character_id]
+            skin = skins[skin_id]
+            self.assertEqual(
+                f"TwinCharacter:RenderPeople{name}",
+                character["ue_primary_asset_id"],
+            )
+            self.assertEqual(character_id, skin["character_id"])
+            self.assertEqual(
+                f"TwinSkin:RenderPeople{name}Default",
+                skin["ue_primary_asset_id"],
+            )
+            self.assertEqual(character["skeleton_id"], skin["skeleton_id"])
+
+    def test_renderpeople_character_uses_only_its_own_skin(self):
+        config = roaming_config()
+        config["character_id"] = "character.renderpeople.carla"
+        config["allowed_skin_ids"] = ["skin.renderpeople.carla.default"]
+        config["default_skin_id"] = "skin.renderpeople.carla.default"
+        saved = self.service.save_roaming(config, 0)
+        self.assertEqual("character.renderpeople.carla", saved["config"]["character_id"])
+        runtime = self.service.runtime_projection({"mode": "matched"})
+        self.assertEqual(
+            "TwinCharacter:RenderPeopleCarla",
+            runtime["resources"]["character"]["ue_primary_asset_id"],
+        )
+
+        invalid = roaming_config()
+        invalid["character_id"] = "character.renderpeople.carla"
+        invalid["allowed_skin_ids"] = ["skin.renderpeople.nathan.default"]
+        invalid["default_skin_id"] = "skin.renderpeople.nathan.default"
+        with self.assertRaises(Exception) as mismatch:
+            self.service.save_roaming(invalid, saved["revision"])
+        paths = [item["path"] for item in mismatch.exception.errors]
+        self.assertIn("allowed_skin_ids[0]", paths)
+        self.assertIn("default_skin_id", paths)
 
     def test_save_converts_source_pixels_to_canonical_mm(self):
         saved = self.service.save_roaming(image_roaming_config(), 0)
@@ -158,8 +200,60 @@ class SceneInteractionTestCase(unittest.TestCase):
             self.service.save_roaming(roaming_config(), 0)
         self.assertEqual(1, self.store.get_scene_interactions()["revision"])
 
+    def test_first_person_camera_is_normalized_and_projected(self):
+        config = roaming_config()
+        config["camera"]["default_mode"] = "first_person"
+        config["camera"]["first_person"] = {
+            "eye_height_cm": 172,
+            "fov_deg": 92,
+            "look_sensitivity": 1.4,
+        }
+        saved = self.service.save_roaming(config, 0)
+        self.assertEqual("first_person", saved["config"]["camera"]["default_mode"])
+        self.assertEqual(172, saved["config"]["camera"]["first_person"]["eye_height_cm"])
+        runtime = self.service.runtime_projection({"mode": "matched"})
+        self.assertEqual(92, runtime["config"]["camera"]["first_person"]["fov_deg"])
+
+    def test_legacy_camera_receives_first_person_defaults(self):
+        config = roaming_config()
+        config["camera"].pop("first_person")
+        saved = self.service.save_roaming(config, 0)
+        self.assertEqual({
+            "eye_height_cm": 165,
+            "fov_deg": 85,
+            "look_sensitivity": 1,
+        }, saved["config"]["camera"]["first_person"])
+
+    def test_first_person_camera_range_is_validated(self):
+        config = roaming_config()
+        config["camera"]["first_person"]["fov_deg"] = 120
+        with self.assertRaises(Exception) as invalid:
+            self.service.save_roaming(config, 0)
+        self.assertIn(
+            "camera.first_person.fov_deg",
+            [item["path"] for item in invalid.exception.errors],
+        )
+
     def test_runtime_projection_contains_ue_anchor(self):
-        self.service.save_roaming(roaming_config(), 0)
+        legacy = roaming_config()
+        legacy["spawn"] = {
+            "mode": "ue_anchor",
+            "anchor_id": "spawn.character.default",
+        }
+        legacy["route"] = {
+            "enabled": False,
+            "route_id": "",
+            "auto_start": False,
+            "completion_mode": "stop",
+            "takeover_enabled": True,
+        }
+
+        def inject_legacy(working):
+            scene = working.setdefault("scene_interactions", {})
+            scene["revision"] = 1
+            scene["roaming"] = copy.deepcopy(legacy)
+
+        self.store.transact_active(inject_legacy)
         runtime = self.service.runtime_projection({"mode": "matched"})
         self.assertEqual(1, runtime["revision"])
         self.assertTrue(runtime["config"]["enabled"])
@@ -211,6 +305,152 @@ class SceneInteractionTestCase(unittest.TestCase):
         self.assertEqual([20.0, 40.0, 20.0], runtime["runtime_route"]["waypoints_ue_cm"][0])
         self.assertEqual("project_route", runtime["resources"]["route"]["kind"])
         self.assertEqual(saved["revision"], runtime["revision"])
+
+    def test_ready_project_route_supplies_spawn_without_manual_point(self):
+        created = self.service.create_route(project_route_payload(), 0)
+        route = created["route"]
+        config = roaming_config()
+        config.pop("spawn")
+        config["route"].update({
+            "route_id": route["id"],
+            "auto_start": False,
+        })
+
+        saved = self.service.save_roaming(config, created["revision"])
+        self.assertNotIn("spawn", saved["config"])
+        runtime = self.service.runtime_projection({"mode": "matched"})
+        self.assertTrue(runtime["config"]["enabled"])
+        self.assertEqual("not_required", runtime["calibration"]["state"])
+        self.assertEqual({
+            "mode": "coordinates",
+            "source": "route_start",
+            "route_id": route["id"],
+            "x_cm": 20.0,
+            "y_cm": 40.0,
+            "trace_origin_z_cm": 1020.0,
+            "yaw_deg": 0.0,
+            "z_hint_cm": 20.0,
+            "floor": 1,
+        }, runtime["config"]["spawn_ue"])
+        self.assertFalse(runtime["config"]["route"]["auto_start"])
+
+    def test_ready_project_route_drops_invalid_optional_spawn_drafts(self):
+        created = self.service.create_route(project_route_payload(), 0)
+        config = roaming_config()
+        config["route"]["route_id"] = created["route"]["id"]
+        config["spawn"] = {
+            "mode": "ue_anchor",
+            "anchor_id": "spawn.anchor.no-longer-installed",
+        }
+        saved = self.service.save_roaming(config, created["revision"])
+        self.assertNotIn("spawn", saved["config"])
+
+        config["spawn"] = {
+            "mode": "image",
+            "frame_id": "frame_draft_not_published",
+            "source_px": {"x": 10.0, "y": 20.0},
+        }
+        saved = self.service.save_roaming(config, saved["revision"])
+        self.assertNotIn("spawn", saved["config"])
+
+        config["spawn"] = {
+            "mode": "image",
+            "frame_id": "frame_image",
+            "yaw_deg": 45.0,
+        }
+        saved = self.service.save_roaming(config, saved["revision"])
+        self.assertNotIn("spawn", saved["config"])
+
+    def test_ready_project_route_preserves_valid_manual_spawn_for_reuse(self):
+        created = self.service.create_route(project_route_payload(), 0)
+        config = roaming_config()
+        config["route"]["route_id"] = created["route"]["id"]
+        saved = self.service.save_roaming(config, created["revision"])
+        self.assertEqual("image", saved["config"]["spawn"]["mode"])
+        self.assertEqual(
+            {"x": 100.0, "y": 200.0},
+            saved["config"]["spawn"]["source_px"],
+        )
+        self.assertEqual(
+            {"x": 200.0, "y": 400.0},
+            saved["config"]["spawn"]["canonical_position_mm"],
+        )
+        runtime = self.service.runtime_projection({"mode": "matched"})
+        self.assertEqual("route_start", runtime["config"]["spawn_ue"]["source"])
+
+    def test_no_project_route_requires_image_spawn_for_new_save(self):
+        config = roaming_config()
+        config.pop("spawn")
+        config["route"].update({"enabled": False, "route_id": ""})
+        with self.assertRaises(Exception) as missing:
+            self.service.save_roaming(config, 0)
+        self.assertIn("spawn", [item["path"] for item in missing.exception.errors])
+
+        config["spawn"] = {
+            "mode": "ue_anchor",
+            "anchor_id": "spawn.character.default",
+        }
+        with self.assertRaises(Exception) as legacy_anchor:
+            self.service.save_roaming(config, 0)
+        self.assertIn("spawn.mode", [item["path"] for item in legacy_anchor.exception.errors])
+
+        config["spawn"] = {
+            "mode": "image",
+            "frame_id": "frame_image",
+            "yaw_deg": 0.0,
+        }
+        with self.assertRaises(Exception) as partial_image:
+            self.service.save_roaming(config, 0)
+        self.assertIn(
+            "spawn.source_px",
+            [item["path"] for item in partial_image.exception.errors],
+        )
+
+    def test_enabled_route_with_empty_selection_is_invalid_not_manual(self):
+        config = roaming_config()
+        config["route"].update({"enabled": True, "route_id": ""})
+        with self.assertRaises(Exception) as incomplete_route:
+            self.service.save_roaming(config, 0)
+        self.assertIn(
+            "route.route_id",
+            [item["path"] for item in incomplete_route.exception.errors],
+        )
+
+    def test_disabled_selected_project_route_blocks_manual_spawn_fallback(self):
+        created = self.service.create_route(project_route_payload(), 0)
+        config = roaming_config()
+        config["route"]["route_id"] = created["route"]["id"]
+        self.service.save_roaming(config, created["revision"])
+
+        def disable_route(working):
+            working["scene_interactions"]["routes"][0]["enabled"] = False
+
+        self.store.transact_active(disable_route)
+        runtime = self.service.runtime_projection({"mode": "matched"})
+        self.assertFalse(runtime["config"]["enabled"])
+        self.assertEqual("default_route_invalid", runtime["blocked_reason"])
+        self.assertNotIn("spawn_ue", runtime["config"])
+
+    def test_route_needing_review_blocks_legacy_anchor_fallback(self):
+        created = self.service.create_route(project_route_payload(), 0)
+        config = roaming_config()
+        config["spawn"] = {
+            "mode": "ue_anchor",
+            "anchor_id": "spawn.character.default",
+        }
+        config["route"]["route_id"] = created["route"]["id"]
+        self.service.save_roaming(config, created["revision"])
+
+        def change_calibration(working):
+            working["frames"][0]["calibration_fingerprint"] = "sha256:changed"
+
+        self.store.transact_active(change_calibration)
+        runtime = self.service.runtime_projection({"mode": "matched"})
+        self.assertFalse(runtime["config"]["enabled"])
+        self.assertEqual("default_route_needs_review", runtime["blocked_reason"])
+        self.assertIsNone(runtime["runtime_route"])
+        self.assertFalse(runtime["resources"]["route"]["runtime_ready"])
+        self.assertNotIn("spawn_ue", runtime["config"])
 
     def test_route_requires_published_frame_and_two_points(self):
         payload = project_route_payload()

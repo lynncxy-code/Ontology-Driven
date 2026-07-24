@@ -1,5 +1,6 @@
 #include "SceneInteraction/TwinInteractionManagerComponent.h"
 
+#include "SceneInteraction/OntoTwinCrosshairWidget.h"
 #include "SceneInteraction/OntoTwinRoamingHUDWidget.h"
 #include "SceneInteraction/TwinCameraModeComponent.h"
 #include "SceneInteraction/TwinGodViewPawn.h"
@@ -12,6 +13,7 @@
 #include "TwinSceneManager.h"
 
 #include "Blueprint/UserWidget.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SplineComponent.h"
 #include "Dom/JsonValue.h"
@@ -19,6 +21,7 @@
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/Level.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "EnhancedInputComponent.h"
@@ -80,6 +83,31 @@ FString NormalizeLevelPackageName(FString Value)
         if (NameSeparator != INDEX_NONE) Leaf = Leaf.Mid(NameSeparator + 1);
     }
     return Prefix + Leaf;
+}
+
+FString CameraModeId(ETwinRoamingCameraMode Mode)
+{
+    if (Mode == ETwinRoamingCameraMode::FirstPerson) return TEXT("first_person");
+    if (Mode == ETwinRoamingCameraMode::God) return TEXT("god");
+    return TEXT("near_follow");
+}
+
+FString CameraModeLabel(ETwinRoamingCameraMode Mode)
+{
+    if (Mode == ETwinRoamingCameraMode::FirstPerson) return TEXT("第一人称");
+    if (Mode == ETwinRoamingCameraMode::God) return TEXT("全局视角");
+    return TEXT("过肩视角");
+}
+
+FString CompactHudLabel(const FString& Value, const TCHAR* Fallback, int32 MaxCharacters = 24)
+{
+    FString Result = Value.TrimStartAndEnd();
+    if (Result.IsEmpty()) Result = Fallback;
+    if (Result.Len() > MaxCharacters)
+    {
+        Result = Result.Left(MaxCharacters - 1) + TEXT("…");
+    }
+    return Result;
 }
 }
 
@@ -152,6 +180,7 @@ void UTwinInteractionManagerComponent::TickComponent(
     {
         TickFallbackInput(DeltaTime);
     }
+    UpdateCrosshairTarget();
     RefreshHud();
 }
 
@@ -278,8 +307,26 @@ bool UTwinInteractionManagerComponent::ParseRuntimeConfig(
     OutConfig.Movement.JumpHeightCm = NumberOr(Movement, TEXT("jump_height_cm"), 80.0);
 
     const TSharedPtr<FJsonObject> Camera = GetObject(Config, TEXT("camera"));
-    OutConfig.DefaultCameraMode = StringOr(Camera, TEXT("default_mode")) == TEXT("god")
-        ? ETwinRoamingCameraMode::God : ETwinRoamingCameraMode::NearFollow;
+    const FString DefaultCameraMode = StringOr(Camera, TEXT("default_mode"));
+    if (DefaultCameraMode == TEXT("first_person"))
+    {
+        OutConfig.DefaultCameraMode = ETwinRoamingCameraMode::FirstPerson;
+    }
+    else if (DefaultCameraMode == TEXT("god"))
+    {
+        OutConfig.DefaultCameraMode = ETwinRoamingCameraMode::God;
+    }
+    else
+    {
+        OutConfig.DefaultCameraMode = ETwinRoamingCameraMode::NearFollow;
+    }
+    const TSharedPtr<FJsonObject> FirstPerson = GetObject(Camera, TEXT("first_person"));
+    OutConfig.FirstPersonCamera.EyeHeightCm = NumberOr(
+        FirstPerson, TEXT("eye_height_cm"), 165.0);
+    OutConfig.FirstPersonCamera.FovDeg = NumberOr(
+        FirstPerson, TEXT("fov_deg"), 85.0);
+    OutConfig.FirstPersonCamera.LookSensitivity = NumberOr(
+        FirstPerson, TEXT("look_sensitivity"), 1.0);
     const TSharedPtr<FJsonObject> Near = GetObject(Camera, TEXT("near_follow"));
     OutConfig.NearCamera.DistanceCm = NumberOr(Near, TEXT("distance_cm"), 120.0);
     OutConfig.NearCamera.HeightCm = NumberOr(Near, TEXT("height_cm"), 35.0);
@@ -298,6 +345,8 @@ bool UTwinInteractionManagerComponent::ParseRuntimeConfig(
 
     const TSharedPtr<FJsonObject> Resources = GetObject(Payload, TEXT("resources"));
     const TSharedPtr<FJsonObject> Character = GetObject(Resources, TEXT("character"));
+    OutConfig.CharacterDisplayName = StringOr(
+        Character, TEXT("display_name"), OutConfig.CharacterId);
     OutConfig.CharacterPrimaryAssetId = StringOr(Character, TEXT("ue_primary_asset_id"));
     const TArray<TSharedPtr<FJsonValue>>* Skins = nullptr;
     if (Resources.IsValid() && Resources->TryGetArrayField(TEXT("skins"), Skins) && Skins)
@@ -311,6 +360,7 @@ bool UTwinInteractionManagerComponent::ParseRuntimeConfig(
         }
     }
     const TSharedPtr<FJsonObject> RouteResource = GetObject(Resources, TEXT("route"));
+    OutConfig.RouteDisplayName = StringOr(RouteResource, TEXT("display_name"));
     if (OutConfig.bRouteEnabled)
     {
         OutConfig.RouteId = StringOr(RouteResource, TEXT("ue_route_id"), OutConfig.RouteId);
@@ -439,6 +489,7 @@ bool UTwinInteractionManagerComponent::IsStructuralChange(
         || A.SpawnAnchorId != B.SpawnAnchorId
         || !A.SpawnLocation.Equals(B.SpawnLocation, 0.1f)
         || !FMath::IsNearlyEqual(A.SpawnYawDeg, B.SpawnYawDeg, 0.1f)
+        || A.bRouteEnabled != B.bRouteEnabled
         || A.RouteId != B.RouteId
         || A.bHasRuntimeRoute != B.bHasRuntimeRoute
         || A.RuntimeRouteRevision != B.RuntimeRouteRevision
@@ -451,7 +502,8 @@ void UTwinInteractionManagerComponent::ApplyHotConfig(const FTwinRoamingRuntimeC
     bTakeoverEnabled = Config.bTakeoverEnabled;
     if (!RoamingCharacter) return;
     RoamingCharacter->ApplyMovementSettings(Config.Movement);
-    RoamingCharacter->CameraMode->Configure(Config.NearCamera, Config.GodCamera);
+    RoamingCharacter->CameraMode->Configure(
+        Config.FirstPersonCamera, Config.NearCamera, Config.GodCamera);
     RoamingCharacter->RouteFollower->SetSpeed(Config.Movement.AutoRouteSpeedCmS);
     RoamingCharacter->RouteFollower->SetLoop(Config.bRouteLoop);
     RoamingCharacter->SkinComponent->Configure(Config.SkinPrimaryAssetIds, Config.DefaultSkinId);
@@ -502,8 +554,10 @@ bool UTwinInteractionManagerComponent::ResolveSpawnTransform(
     FVector SourceLocation = CurrentConfig.SpawnLocation;
     FRotator SourceRotation(0.0f, CurrentConfig.SpawnYawDeg, 0.0f);
     const ATwinRoamingSpawnAnchor* SpawnAnchor = nullptr;
+    // An enabled runtime route owns the spawn position independently of
+    // auto-start.  Auto-start only decides whether the follower begins moving
+    // after the character has been placed at the route's first point.
     const bool bSpawnFromRuntimeRoute = CurrentConfig.bRouteEnabled
-        && CurrentConfig.bRouteAutoStart
         && CurrentConfig.bHasRuntimeRoute
         && ActiveRoute
         && ActiveRoute->Spline
@@ -587,13 +641,29 @@ bool UTwinInteractionManagerComponent::ResolveSpawnTransform(
 
     const FCollisionShape Capsule = FCollisionShape::MakeCapsule(
         CharacterAsset->CapsuleRadiusCm, CharacterAsset->CapsuleHalfHeightCm);
-    if (GetWorld()->OverlapBlockingTestByChannel(
+    TArray<FOverlapResult> BlockingOverlaps;
+    if (GetWorld()->OverlapMultiByChannel(
+        BlockingOverlaps,
         CapsuleCenter,
         FQuat::Identity,
         ECC_Pawn,
         Capsule,
         QueryParams))
     {
+        for (const FOverlapResult& Overlap : BlockingOverlaps)
+        {
+            const AActor* BlockingActor = Overlap.GetActor();
+            const UPrimitiveComponent* BlockingComponent = Overlap.GetComponent();
+            UE_LOG(LogTemp, Warning,
+                TEXT("OntoTwin roaming spawn overlap actor=%s component=%s location=(%.1f,%.1f,%.1f) capsule=(r=%.1f,h=%.1f)"),
+                BlockingActor ? *BlockingActor->GetName() : TEXT("none"),
+                BlockingComponent ? *BlockingComponent->GetName() : TEXT("none"),
+                CapsuleCenter.X,
+                CapsuleCenter.Y,
+                CapsuleCenter.Z,
+                CharacterAsset->CapsuleRadiusCm,
+                CharacterAsset->CapsuleHalfHeightCm);
+        }
         OutError = TEXT("Character capsule overlaps scene collision at the configured spawn point");
         return false;
     }
@@ -844,7 +914,8 @@ bool UTwinInteractionManagerComponent::EnterRoaming(FString& OutError)
     DegradedFeatures.Reset();
     bTakeoverEnabled = CurrentConfig.bTakeoverEnabled;
     RoamingCharacter->ApplyMovementSettings(CurrentConfig.Movement);
-    RoamingCharacter->CameraMode->Configure(CurrentConfig.NearCamera, CurrentConfig.GodCamera);
+    RoamingCharacter->CameraMode->Configure(
+        CurrentConfig.FirstPersonCamera, CurrentConfig.NearCamera, CurrentConfig.GodCamera);
     RoamingCharacter->SkinComponent->Configure(
         CurrentConfig.SkinPrimaryAssetIds, CurrentConfig.DefaultSkinId);
     FString SkinError;
@@ -869,7 +940,7 @@ bool UTwinInteractionManagerComponent::EnterRoaming(FString& OutError)
 
     GodViewAnchor = FindGodViewAnchor(CurrentConfig.GodCamera.CameraId);
     if (!GodViewAnchor) DegradedFeatures.AddUnique(TEXT("god_camera_missing"));
-    RoamingCharacter->CameraMode->ActivateNear(PlayerController);
+    RoamingCharacter->CameraMode->ActivateNear(PlayerController, true);
     bRoamingActive = true;
     bDefaultModeApplied = true;
     CreateHud();
@@ -895,16 +966,24 @@ bool UTwinInteractionManagerComponent::EnterRoaming(FString& OutError)
         }
     }
 
-    if (CurrentConfig.DefaultCameraMode == ETwinRoamingCameraMode::God && GodViewAnchor)
+    if (CurrentConfig.DefaultCameraMode != ETwinRoamingCameraMode::NearFollow)
     {
         FString CameraError;
-        if (!RoamingCharacter->CameraMode->ActivateGod(PlayerController, GodViewAnchor, CameraError))
+        if (!RoamingCharacter->CameraMode->ActivateMode(
+            CurrentConfig.DefaultCameraMode,
+            PlayerController,
+            GodViewAnchor,
+            CameraError,
+            true))
         {
-            DegradedFeatures.AddUnique(TEXT("god_camera_unavailable"));
+            DegradedFeatures.AddUnique(
+                CurrentConfig.DefaultCameraMode == ETwinRoamingCameraMode::God
+                    ? TEXT("god_camera_unavailable")
+                    : TEXT("first_person_unavailable"));
         }
     }
     SetHudInteraction(false);
-    RuntimeState = CurrentConfig.DefaultCameraMode == ETwinRoamingCameraMode::God && GodViewAnchor
+    RuntimeState = RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God
         ? TEXT("god_view")
         : (RoamingCharacter->RouteFollower->IsFollowing() ? TEXT("auto_route") : TEXT("manual"));
     RefreshHud();
@@ -971,26 +1050,74 @@ void UTwinInteractionManagerComponent::ToggleRoaming()
         RuntimeState = TEXT("blocked");
         LastError = Error;
         UE_LOG(LogTemp, Warning, TEXT("OntoTwin roaming entry failed: %s"), *Error);
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(
+                -1,
+                6.0f,
+                FColor::Red,
+                FString::Printf(TEXT("OntoTwin roaming unavailable: %s"), *Error));
+        }
     }
 }
 
 void UTwinInteractionManagerComponent::ToggleCameraMode()
 {
-    if (!bRoamingActive || !RoamingCharacter || bHudInteraction) return;
+    if (!bRoamingActive || !RoamingCharacter || bHudInteraction
+        || RoamingCharacter->CameraMode->IsTransitioning()) return;
     FString Error;
-    if (!RoamingCharacter->CameraMode->Toggle(PlayerController, GodViewAnchor, Error))
+    if (!RoamingCharacter->CameraMode->Cycle(PlayerController, GodViewAnchor, Error))
     {
         LastError = Error;
-        DegradedFeatures.AddUnique(TEXT("god_camera_unavailable"));
+        if (RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God)
+        {
+            DegradedFeatures.AddUnique(TEXT("god_camera_unavailable"));
+        }
         return;
     }
     LastError.Reset();
     SetHudInteraction(false);
+    RefreshHud();
+}
+
+void UTwinInteractionManagerComponent::SetCameraMode(ETwinRoamingCameraMode Mode)
+{
+    if (!bRoamingActive || !RoamingCharacter
+        || RoamingCharacter->CameraMode->IsTransitioning()
+        || Mode == RoamingCharacter->CameraMode->GetMode()) return;
+    FString Error;
+    if (!RoamingCharacter->CameraMode->ActivateMode(
+        Mode, PlayerController, GodViewAnchor, Error, false))
+    {
+        LastError = Error;
+        if (Mode == ETwinRoamingCameraMode::God)
+        {
+            DegradedFeatures.AddUnique(TEXT("god_camera_unavailable"));
+        }
+        RefreshHud();
+        return;
+    }
+    LastError.Reset();
+    SetHudInteraction(false);
+    RefreshHud();
+}
+
+bool UTwinInteractionManagerComponent::IsCameraTransitioning() const
+{
+    return RoamingCharacter && RoamingCharacter->CameraMode
+        && RoamingCharacter->CameraMode->IsTransitioning();
+}
+
+ETwinRoamingCameraMode UTwinInteractionManagerComponent::GetCameraMode() const
+{
+    return RoamingCharacter && RoamingCharacter->CameraMode
+        ? RoamingCharacter->CameraMode->GetMode()
+        : ETwinRoamingCameraMode::NearFollow;
 }
 
 void UTwinInteractionManagerComponent::ToggleHudInteraction()
 {
-    if (bRoamingActive) SetHudInteraction(!bHudInteraction);
+    if (bRoamingActive && !IsCameraTransitioning()) SetHudInteraction(!bHudInteraction);
 }
 
 void UTwinInteractionManagerComponent::SetHudInteraction(bool bOpen)
@@ -1013,6 +1140,7 @@ void UTwinInteractionManagerComponent::SetHudInteraction(bool bOpen)
     {
         PlayerController->SetInputMode(FInputModeGameOnly());
     }
+    RefreshHud();
 }
 
 void UTwinInteractionManagerComponent::CycleSkin()
@@ -1078,27 +1206,119 @@ void UTwinInteractionManagerComponent::ApplyPendingReload()
 
 void UTwinInteractionManagerComponent::CreateHud()
 {
-    if (RoamingHUD || !PlayerController) return;
-    UClass* WidgetClass = RoamingHUDClass
-        ? RoamingHUDClass.Get() : UOntoTwinRoamingHUDWidget::StaticClass();
-    RoamingHUD = CreateWidget<UOntoTwinRoamingHUDWidget>(PlayerController, WidgetClass);
-    if (!RoamingHUD) return;
-    RoamingHUD->SetInteractionManager(this);
-    RoamingHUD->AddToViewport(850);
-    RoamingHUD->SetPositionInViewport(FVector2D(0.0f, 24.0f), false);
-    RoamingHUD->SetAnchorsInViewport(FAnchors(0.5f, 0.0f));
-    RoamingHUD->SetAlignmentInViewport(FVector2D(0.5f, 0.0f));
+    if (!PlayerController) return;
+    if (!RoamingHUD)
+    {
+        UClass* WidgetClass = RoamingHUDClass
+            ? RoamingHUDClass.Get() : UOntoTwinRoamingHUDWidget::StaticClass();
+        RoamingHUD = CreateWidget<UOntoTwinRoamingHUDWidget>(PlayerController, WidgetClass);
+        if (RoamingHUD)
+        {
+            RoamingHUD->SetInteractionManager(this);
+            RoamingHUD->AddToViewport(850);
+            RoamingHUD->SetPositionInViewport(FVector2D::ZeroVector, true);
+            RoamingHUD->SetAnchorsInViewport(FAnchors(0.0f, 0.0f));
+            RoamingHUD->SetAlignmentInViewport(FVector2D::ZeroVector);
+        }
+    }
+    if (!CrosshairHUD)
+    {
+        CrosshairHUD = CreateWidget<UOntoTwinCrosshairWidget>(
+            PlayerController, UOntoTwinCrosshairWidget::StaticClass());
+        if (CrosshairHUD)
+        {
+            CrosshairHUD->AddToViewport(851);
+            CrosshairHUD->SetPositionInViewport(FVector2D::ZeroVector, false);
+            CrosshairHUD->SetAnchorsInViewport(FAnchors(0.0f, 0.0f));
+            CrosshairHUD->SetAlignmentInViewport(FVector2D(0.5f, 0.5f));
+            CrosshairHUD->SetDesiredSizeInViewport(FVector2D(46.0f, 46.0f));
+        }
+    }
+    RefreshHud();
 }
 
 void UTwinInteractionManagerComponent::DestroyHud()
 {
     if (RoamingHUD && IsValid(RoamingHUD)) RoamingHUD->RemoveFromParent();
     RoamingHUD = nullptr;
+    if (CrosshairHUD && IsValid(CrosshairHUD)) CrosshairHUD->RemoveFromParent();
+    CrosshairHUD = nullptr;
+    bCrosshairInteractive = false;
 }
 
 void UTwinInteractionManagerComponent::RefreshHud()
 {
-    if (RoamingHUD) RoamingHUD->RefreshFromManager();
+    if (RoamingHUD)
+    {
+        if (PlayerController)
+        {
+            int32 ViewportX = 0;
+            int32 ViewportY = 0;
+            PlayerController->GetViewportSize(ViewportX, ViewportY);
+            const float ViewportScale = FMath::Max(
+                0.01f, UWidgetLayoutLibrary::GetViewportScale(this));
+            RoamingHUD->SetDesiredSizeInViewport(
+                FVector2D(ViewportX / ViewportScale, ViewportY / ViewportScale));
+        }
+        RoamingHUD->RefreshFromManager();
+    }
+    if (CrosshairHUD)
+    {
+        if (PlayerController)
+        {
+            int32 ViewportX = 0;
+            int32 ViewportY = 0;
+            PlayerController->GetViewportSize(ViewportX, ViewportY);
+            CrosshairHUD->SetPositionInViewport(
+                FVector2D(ViewportX * 0.5f, ViewportY * 0.5f), true);
+        }
+        const bool bFirstPerson = bRoamingActive
+            && RoamingCharacter
+            && RoamingCharacter->CameraMode
+            && RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::FirstPerson;
+        CrosshairHUD->SetReticleState(
+            bFirstPerson && !bHudInteraction && !IsCameraTransitioning(),
+            bCrosshairInteractive);
+    }
+}
+
+void UTwinInteractionManagerComponent::UpdateCrosshairTarget()
+{
+    bCrosshairInteractive = false;
+    if (!bRoamingActive || bHudInteraction || !PlayerController || !SceneManager
+        || !RoamingCharacter || !RoamingCharacter->CameraMode
+        || RoamingCharacter->CameraMode->IsTransitioning()
+        || RoamingCharacter->CameraMode->GetMode() != ETwinRoamingCameraMode::FirstPerson)
+    {
+        return;
+    }
+
+    int32 ViewportX = 0;
+    int32 ViewportY = 0;
+    PlayerController->GetViewportSize(ViewportX, ViewportY);
+    FVector Origin;
+    FVector Direction;
+    if (!PlayerController->DeprojectScreenPositionToWorld(
+        ViewportX * 0.5f, ViewportY * 0.5f, Origin, Direction))
+    {
+        return;
+    }
+
+    FHitResult Hit;
+    FCollisionQueryParams Params(
+        SCENE_QUERY_STAT(TwinRoamingCrosshairTarget), true, RoamingCharacter);
+    if (!GetWorld()->LineTraceSingleByChannel(
+        Hit, Origin, Origin + Direction * 100000.0f, ECC_Visibility, Params))
+    {
+        return;
+    }
+
+    ATwinInstance* Instance = ResolveInteractionInstance(Hit);
+    if (!Instance)
+    {
+        Instance = SceneManager->FindOverlayInstanceNearHit(Hit);
+    }
+    bCrosshairInteractive = Instance && Instance->HasSelectedOverlay();
 }
 
 void UTwinInteractionManagerComponent::BuildDefaultInputContext()
@@ -1220,14 +1440,15 @@ void UTwinInteractionManagerComponent::TickFallbackInput(float DeltaTime)
 {
     if (!PlayerController) return;
     if (!bRoamingActive || !RoamingCharacter) return;
+    if (RoamingCharacter->CameraMode->IsTransitioning()) return;
     if (PlayerController->WasInputKeyJustPressed(ToggleHudKey)) ToggleHudInteraction();
     if (bHudInteraction) return;
     if (PlayerController->WasInputKeyJustPressed(ToggleViewKey)) ToggleCameraMode();
     if (PlayerController->WasInputKeyJustPressed(ResumeRouteKey)) ResumeRoute();
 
     const bool bGod = RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God;
-    if ((!bGod && PlayerController->WasInputKeyJustPressed(InteractKey))
-        || (bGod && PlayerController->WasInputKeyJustPressed(EKeys::LeftMouseButton)))
+    if (PlayerController->WasInputKeyJustPressed(EKeys::LeftMouseButton)
+        || (!bGod && PlayerController->WasInputKeyJustPressed(InteractKey)))
     {
         SelectFromView(bGod);
     }
@@ -1269,7 +1490,11 @@ void UTwinInteractionManagerComponent::TickFallbackInput(float DeltaTime)
     }
     else
     {
-        RoamingCharacter->Look(FVector2D(MouseX, MouseY), CurrentConfig.NearCamera.LookSensitivity);
+        const float Sensitivity = RoamingCharacter->CameraMode->GetMode()
+                == ETwinRoamingCameraMode::FirstPerson
+            ? CurrentConfig.FirstPersonCamera.LookSensitivity
+            : CurrentConfig.NearCamera.LookSensitivity;
+        RoamingCharacter->Look(FVector2D(MouseX, MouseY), Sensitivity);
         if (PlayerController->WasInputKeyJustPressed(EKeys::SpaceBar)) RoamingCharacter->Jump();
         if (PlayerController->WasInputKeyJustPressed(EKeys::C)) RoamingCharacter->Crouch();
         if (PlayerController->WasInputKeyJustReleased(EKeys::C)) RoamingCharacter->UnCrouch();
@@ -1278,7 +1503,8 @@ void UTwinInteractionManagerComponent::TickFallbackInput(float DeltaTime)
 
 void UTwinInteractionManagerComponent::OnMove(const FInputActionValue& Value)
 {
-    if (!bRoamingActive || bHudInteraction || !RoamingCharacter) return;
+    if (!bRoamingActive || bHudInteraction || !RoamingCharacter
+        || RoamingCharacter->CameraMode->IsTransitioning()) return;
     const FVector2D Move = Value.Get<FVector2D>().GetClampedToMaxSize(1.0f);
     if (Move.IsNearlyZero()) return;
     if (RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God)
@@ -1294,7 +1520,8 @@ void UTwinInteractionManagerComponent::OnMove(const FInputActionValue& Value)
 
 void UTwinInteractionManagerComponent::OnLook(const FInputActionValue& Value)
 {
-    if (!bRoamingActive || bHudInteraction || !RoamingCharacter || !PlayerController) return;
+    if (!bRoamingActive || bHudInteraction || !RoamingCharacter || !PlayerController
+        || RoamingCharacter->CameraMode->IsTransitioning()) return;
     const FVector2D Look = Value.Get<FVector2D>();
     if (RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God)
     {
@@ -1305,13 +1532,18 @@ void UTwinInteractionManagerComponent::OnLook(const FInputActionValue& Value)
     }
     else
     {
-        RoamingCharacter->Look(Look, CurrentConfig.NearCamera.LookSensitivity);
+        const float Sensitivity = RoamingCharacter->CameraMode->GetMode()
+                == ETwinRoamingCameraMode::FirstPerson
+            ? CurrentConfig.FirstPersonCamera.LookSensitivity
+            : CurrentConfig.NearCamera.LookSensitivity;
+        RoamingCharacter->Look(Look, Sensitivity);
     }
 }
 
 void UTwinInteractionManagerComponent::OnVertical(const FInputActionValue& Value)
 {
-    if (!bRoamingActive || bHudInteraction || !RoamingCharacter) return;
+    if (!bRoamingActive || bHudInteraction || !RoamingCharacter
+        || RoamingCharacter->CameraMode->IsTransitioning()) return;
     if (RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God)
     {
         if (ATwinGodViewPawn* Pawn = RoamingCharacter->CameraMode->GetGodPawn())
@@ -1329,7 +1561,8 @@ void UTwinInteractionManagerComponent::OnRoute(const FInputActionValue&) { Resum
 void UTwinInteractionManagerComponent::OnInteract(const FInputActionValue&)
 {
     if (RoamingCharacter
-        && RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::NearFollow)
+        && !RoamingCharacter->CameraMode->IsTransitioning()
+        && RoamingCharacter->CameraMode->GetMode() != ETwinRoamingCameraMode::God)
     {
         SelectFromView(false);
     }
@@ -1337,7 +1570,7 @@ void UTwinInteractionManagerComponent::OnInteract(const FInputActionValue&)
 
 void UTwinInteractionManagerComponent::OnSelect(const FInputActionValue&)
 {
-    if (RoamingCharacter)
+    if (RoamingCharacter && !RoamingCharacter->CameraMode->IsTransitioning())
     {
         const bool bGodMode =
             RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God;
@@ -1348,7 +1581,8 @@ void UTwinInteractionManagerComponent::OnSelect(const FInputActionValue&)
 void UTwinInteractionManagerComponent::OnJump(const FInputActionValue&)
 {
     if (RoamingCharacter && !bHudInteraction
-        && RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::NearFollow)
+        && !RoamingCharacter->CameraMode->IsTransitioning()
+        && RoamingCharacter->CameraMode->GetMode() != ETwinRoamingCameraMode::God)
     {
         RoamingCharacter->Jump();
     }
@@ -1357,7 +1591,8 @@ void UTwinInteractionManagerComponent::OnJump(const FInputActionValue&)
 void UTwinInteractionManagerComponent::OnCrouchStarted(const FInputActionValue&)
 {
     if (RoamingCharacter && !bHudInteraction
-        && RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::NearFollow)
+        && !RoamingCharacter->CameraMode->IsTransitioning()
+        && RoamingCharacter->CameraMode->GetMode() != ETwinRoamingCameraMode::God)
     {
         RoamingCharacter->Crouch();
     }
@@ -1374,6 +1609,7 @@ void UTwinInteractionManagerComponent::OnSprintEnded(const FInputActionValue&) {
 void UTwinInteractionManagerComponent::OnAdjustSpeed(const FInputActionValue& Value)
 {
     if (RoamingCharacter && !bHudInteraction
+        && !RoamingCharacter->CameraMode->IsTransitioning()
         && RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God)
     {
         if (ATwinGodViewPawn* Pawn = RoamingCharacter->CameraMode->GetGodPawn())
@@ -1385,18 +1621,25 @@ void UTwinInteractionManagerComponent::OnAdjustSpeed(const FInputActionValue& Va
 
 void UTwinInteractionManagerComponent::SelectFromView(bool bCursorTrace)
 {
-    if (!PlayerController || !SceneManager || bHudInteraction) return;
+    if (!PlayerController || !SceneManager || bHudInteraction || IsCameraTransitioning()) return;
     FHitResult Hit;
     bool bHit = false;
+    int32 ViewportX = 0;
+    int32 ViewportY = 0;
+    PlayerController->GetViewportSize(ViewportX, ViewportY);
+    FVector2D ScreenPoint(ViewportX * 0.5f, ViewportY * 0.5f);
     if (bCursorTrace)
     {
+        float MouseX = 0.0f;
+        float MouseY = 0.0f;
+        if (PlayerController->GetMousePosition(MouseX, MouseY))
+        {
+            ScreenPoint = FVector2D(MouseX, MouseY);
+        }
         bHit = PlayerController->GetHitResultUnderCursor(ECC_Visibility, true, Hit);
     }
     else
     {
-        int32 ViewportX = 0;
-        int32 ViewportY = 0;
-        PlayerController->GetViewportSize(ViewportX, ViewportY);
         FVector Origin;
         FVector Direction;
         if (PlayerController->DeprojectScreenPositionToWorld(
@@ -1408,18 +1651,27 @@ void UTwinInteractionManagerComponent::SelectFromView(bool bCursorTrace)
         }
     }
     ATwinInstance* Instance = bHit ? ResolveInteractionInstance(Hit) : nullptr;
+    if (!Instance && bHit)
+    {
+        Instance = SceneManager->FindOverlayInstanceNearHit(Hit);
+    }
+    const bool bSelectedByOverlay = !Instance
+        && SceneManager->SelectOverlayAtScreenPosition(ScreenPoint);
     UE_LOG(LogTemp, Log,
-        TEXT("OntoTwin interaction select mode=%s hit=%s actor=%s instance=%s overlay=%s"),
+        TEXT("OntoTwin interaction select mode=%s hit=%s actor=%s instance=%s overlay=%s screen_overlay=%s point=(%.1f,%.1f)"),
         bCursorTrace ? TEXT("cursor") : TEXT("crosshair"),
         bHit ? TEXT("true") : TEXT("false"),
         bHit && Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("none"),
         Instance ? *Instance->GetInstanceId() : TEXT("none"),
-        Instance && Instance->HasOverlay() ? TEXT("true") : TEXT("false"));
+        Instance && Instance->HasOverlay() ? TEXT("true") : TEXT("false"),
+        bSelectedByOverlay ? TEXT("true") : TEXT("false"),
+        ScreenPoint.X,
+        ScreenPoint.Y);
     if (Instance && Instance->HasOverlay())
     {
         SceneManager->SelectOverlayFromSceneInteraction(Instance);
     }
-    else
+    else if (!bSelectedByOverlay)
     {
         SceneManager->ClearOverlayFromSceneInteraction();
     }
@@ -1458,8 +1710,10 @@ void UTwinInteractionManagerComponent::SendHeartbeat()
     else if (bHudInteraction) State = TEXT("ui_interaction");
     else if (RoamingCharacter)
     {
-        const bool bGod = RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God;
-        CameraMode = bGod ? TEXT("god") : TEXT("near_follow");
+        const ETwinRoamingCameraMode ActiveCameraMode =
+            RoamingCharacter->CameraMode->GetMode();
+        const bool bGod = ActiveCameraMode == ETwinRoamingCameraMode::God;
+        CameraMode = CameraModeId(ActiveCameraMode);
         RouteState = RoamingCharacter->RouteFollower->GetRouteStateText();
         ActiveSkin = RoamingCharacter->SkinComponent->GetActiveSkinId();
         if (bGod) State = TEXT("god_view");
@@ -1525,40 +1779,113 @@ void UTwinInteractionManagerComponent::SendHeartbeat()
 
 FString UTwinInteractionManagerComponent::GetHudStatusText() const
 {
-    const FString Online = bBackendOnline ? TEXT("在线") : TEXT("离线 · 使用最后配置");
-    if (!bRoamingActive) return FString::Printf(TEXT("人物漫游 · %s"), *Online);
-    const bool bGod = RoamingCharacter
-        && RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God;
-    const FString View = bGod ? TEXT("上帝视角") : TEXT("近身视角");
-    const FString Route = RoamingCharacter
-        ? RoamingCharacter->RouteFollower->GetRouteStateText() : TEXT("unavailable");
-    return FString::Printf(TEXT("%s · %s · %s"), *View, *Route, *Online);
+    if (!bRoamingActive) return TEXT("人物漫游");
+    const FString Character = CompactHudLabel(
+        CurrentConfig.CharacterDisplayName, TEXT("漫游人物"), 16);
+    const FString View = RoamingCharacter
+        ? CameraModeLabel(RoamingCharacter->CameraMode->GetMode())
+        : TEXT("视角不可用");
+
+    FString RouteStatus = TEXT("自由漫游");
+    if (RoamingCharacter && RoamingCharacter->RouteFollower)
+    {
+        const FString RouteName = CompactHudLabel(
+            CurrentConfig.RouteDisplayName, TEXT("当前线路"), 24);
+        switch (RoamingCharacter->RouteFollower->GetRouteState())
+        {
+        case ETwinRoamingRouteState::AutoRoute:
+            RouteStatus = FString::Printf(TEXT("线路漫游 - %s"), *RouteName);
+            break;
+        case ETwinRoamingRouteState::Joining:
+            RouteStatus = FString::Printf(TEXT("正在返回线路 - %s"), *RouteName);
+            break;
+        case ETwinRoamingRouteState::Blocked:
+            RouteStatus = FString::Printf(TEXT("线路受阻 - %s"), *RouteName);
+            break;
+        case ETwinRoamingRouteState::Completed:
+            RouteStatus = FString::Printf(TEXT("线路已完成 - %s"), *RouteName);
+            break;
+        default:
+            break;
+        }
+    }
+    const FString ViewStatus = IsCameraTransitioning()
+        ? View + TEXT(" · 切换中") : View;
+    return FString::Printf(
+        TEXT("%s   ·   %s   ·   %s"), *Character, *ViewStatus, *RouteStatus);
 }
 
 FString UTwinInteractionManagerComponent::GetHudHintText() const
 {
+    TArray<FString> Keys;
+    TArray<FString> Descriptions;
+    GetHudShortcutItems(Keys, Descriptions);
+    FString Text;
+    for (int32 Index = 0; Index < Keys.Num() && Index < Descriptions.Num(); ++Index)
+    {
+        if (!Text.IsEmpty()) Text += TEXT("\n");
+        Text += Keys[Index] + TEXT("  ") + Descriptions[Index];
+    }
+    return Text;
+}
+
+void UTwinInteractionManagerComponent::GetHudShortcutItems(
+    TArray<FString>& OutKeys,
+    TArray<FString>& OutDescriptions) const
+{
+    OutKeys.Reset();
+    OutDescriptions.Reset();
+    const auto AddShortcut = [&OutKeys, &OutDescriptions](
+        const FString& Key,
+        const FString& Description)
+    {
+        OutKeys.Add(Key);
+        OutDescriptions.Add(Description);
+    };
+
     if (bHudInteraction)
     {
-        return FString::Printf(TEXT("%s 返回漫游 · HUD 操作不会穿透到人物或相机"),
-            *ToggleHudKey.ToString());
+        AddShortcut(ToggleHudKey.ToString(), TEXT("收起操作"));
+        AddShortcut(TEXT("鼠标"), TEXT("选择按钮"));
+        AddShortcut(ToggleRoamingKey.ToString(), TEXT("退出漫游"));
+        return;
     }
-    return FString::Printf(
-        TEXT("%s 退出 · %s 切换视角 · 左键选择实例（近身准星 / 上帝指针）"),
-        *ToggleRoamingKey.ToString(), *ToggleViewKey.ToString());
+
+    const ETwinRoamingCameraMode Mode = GetCameraMode();
+    if (Mode == ETwinRoamingCameraMode::God)
+    {
+        AddShortcut(TEXT("WASD"), TEXT("平移"));
+        AddShortcut(TEXT("右键"), TEXT("观察"));
+        AddShortcut(TEXT("Q / E"), TEXT("升降"));
+        AddShortcut(TEXT("滚轮"), TEXT("调整速度"));
+        AddShortcut(TEXT("左键"), TEXT("选择"));
+        AddShortcut(ToggleViewKey.ToString(), TEXT("切换视角"));
+        AddShortcut(ToggleHudKey.ToString(), TEXT("更多操作"));
+        AddShortcut(ToggleRoamingKey.ToString(), TEXT("退出漫游"));
+        return;
+    }
+
+    AddShortcut(TEXT("WASD"), TEXT("移动"));
+    AddShortcut(TEXT("E / 左键"), TEXT("交互"));
+    const bool bPausedByUser = RoamingCharacter
+        && RoamingCharacter->RouteFollower
+        && RoamingCharacter->RouteFollower->GetRouteState()
+            == ETwinRoamingRouteState::PausedByUser;
+    if (bPausedByUser)
+    {
+        AddShortcut(ResumeRouteKey.ToString(), TEXT("返回线路"));
+    }
+    AddShortcut(ToggleViewKey.ToString(), TEXT("切换视角"));
+    AddShortcut(ToggleHudKey.ToString(), TEXT("更多操作"));
+    AddShortcut(ToggleRoamingKey.ToString(), TEXT("退出漫游"));
 }
 
 FString UTwinInteractionManagerComponent::GetHudDetailText() const
 {
-    const FString Skin = RoamingCharacter
-        ? RoamingCharacter->SkinComponent->GetActiveSkinId() : TEXT("--");
-    const FString Route = RoamingCharacter
-        ? RoamingCharacter->RouteFollower->GetRouteStateText() : TEXT("unavailable");
-    FString Text = FString::Printf(
-        TEXT("Revision %d%s\n皮肤 %s\n路线 %s"),
-        AppliedRevision,
-        bPendingReload ? TEXT(" · 有待重载配置") : TEXT(""),
-        *Skin,
-        *Route);
+    FString Text = bPendingReload
+        ? TEXT("存在待重载配置，可点击“重载人物”应用。")
+        : TEXT("选择视角，或执行人物与线路操作。");
+    if (!bBackendOnline) Text += TEXT("  后端离线，当前使用最后一次有效配置。");
     if (!BindingWarning.IsEmpty()) Text += TEXT("\n") + BindingWarning;
     if (!LastError.IsEmpty()) Text += TEXT("\n提示：") + LastError;
     return Text;

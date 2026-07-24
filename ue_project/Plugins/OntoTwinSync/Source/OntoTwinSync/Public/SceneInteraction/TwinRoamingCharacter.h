@@ -22,6 +22,7 @@ class ONTOTWINSYNC_API ATwinRoamingCharacter : public ACharacter
 
 public:
     ATwinRoamingCharacter();
+    virtual void Tick(float DeltaSeconds) override;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Roaming")
     USpringArmComponent* NearCameraArm;
@@ -45,8 +46,15 @@ public:
     bool ApplyCharacterAsset(UTwinCharacterAsset* Asset, FString& OutError);
     void ApplyMovementSettings(const FTwinRoamingMovementSettings& Settings);
     void ApplyNearCameraSettings(const FTwinNearCameraSettings& Settings);
+    void ConfigurePersonCameras(
+        const FTwinFirstPersonCameraSettings& FirstPersonSettings,
+        const FTwinNearCameraSettings& NearSettings);
+    void ActivatePersonCamera(ETwinRoamingCameraMode Mode, float BlendDurationSeconds);
+    void SetFirstPersonPresentation(bool bEnabled);
+    bool IsPersonCameraTransitioning() const { return bPersonCameraTransitioning; }
     void MoveRelativeToView(const FVector2D& Input, bool bSprint);
     void Look(const FVector2D& Input, float Sensitivity);
+    void SetAutoRouteCameraSmoothing(bool bEnabled);
     bool SetAutoRouteAnimation(bool bActive, float SpeedCmS = 0.0f);
 
 private:
@@ -60,4 +68,16 @@ private:
     bool bAutoRouteAnimationActive = false;
     float WalkSpeedCmS = 250.0f;
     float SprintSpeedCmS = 500.0f;
+    FTwinFirstPersonCameraSettings FirstPersonCameraSettings;
+    FTwinNearCameraSettings NearCameraSettings;
+    ETwinRoamingCameraMode TargetPersonCameraMode = ETwinRoamingCameraMode::NearFollow;
+    bool bPersonCameraTransitioning = false;
+    float PersonCameraTransitionElapsed = 0.0f;
+    float PersonCameraTransitionDuration = 0.0f;
+    float PersonCameraStartArmLength = 120.0f;
+    float PersonCameraTargetArmLength = 120.0f;
+    float PersonCameraStartHeight = 35.0f;
+    float PersonCameraTargetHeight = 35.0f;
+    float PersonCameraStartFov = 90.0f;
+    float PersonCameraTargetFov = 90.0f;
 };

@@ -29,7 +29,42 @@ _DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 _PROJECTS_DIR = os.path.join(_DATA_DIR, "projects")
 _ACTIVE_FILE = os.path.join(_DATA_DIR, "active.json")
 
-CURRENT_SCHEMA_VERSION = 4
+CURRENT_SCHEMA_VERSION = 5
+
+
+def _default_media_policy():
+    """Project media policy inherits the deployment allowlist until explicitly restricted."""
+    return {
+        "revision": 0,
+        "mode": "inherit_platform",
+        "allowed_hosts": [],
+        "http_exceptions": [],
+    }
+
+
+def _as_graph_dataset(project_id, project_name, project_created_at, dataset):
+    """Return a detached graph dataset catalog entry, or None for project-only metadata."""
+    if not isinstance(dataset, dict) or not isinstance(dataset.get("graph_data"), dict):
+        return None
+
+    normalized = copy.deepcopy(dataset)
+    normalized["id"] = normalized.get("id") or project_id
+    if not normalized["id"]:
+        return None
+    normalized["name"] = normalized.get("name") or project_name or normalized["id"]
+    normalized["created_at"] = (
+        normalized.get("created_at")
+        or (str(project_created_at) if project_created_at is not None else "")
+    )
+
+    graph = normalized["graph_data"]
+    nodes = graph.get("nodes")
+    links = graph.get("links")
+    if normalized.get("node_count") is None:
+        normalized["node_count"] = len(nodes) if isinstance(nodes, list) else 0
+    if normalized.get("link_count") is None:
+        normalized["link_count"] = len(links) if isinstance(links, list) else 0
+    return normalized
 
 
 class UnsupportedProjectSchemaError(RuntimeError):
@@ -98,6 +133,15 @@ def migrate_project_schema(proj):
         proj.setdefault("frames", [])
         proj["schema_version"] = 4
         version = 4
+        changed = True
+
+    if version == 4:
+        # v5 adds project-scoped media restrictions. Existing projects inherit the
+        # deployment policy and remain unable to play media until an Overlay video
+        # template is explicitly configured.
+        proj.setdefault("media_policy", _default_media_policy())
+        proj["schema_version"] = 5
+        version = 5
         changed = True
 
     if proj.get("schema_version") != CURRENT_SCHEMA_VERSION:
@@ -236,6 +280,7 @@ class ProjectStore:
             proj.setdefault("components", {})
             proj.setdefault("instance_roster", [])
             proj.setdefault("scene_interactions", _default_scene_interactions())
+            proj.setdefault("media_policy", _default_media_policy())
         return proj
 
     def _read_project(self, pid):
@@ -325,6 +370,7 @@ class ProjectStore:
                 "spatial_profile": _default_spatial_profile(),  # 3.1：空间剖面
                 "frames": [],              # 3.1：通用帧注册表（CAD 帧标定后写入）
                 "scene_interactions": _default_scene_interactions(),  # 4.0：场景交互能力
+                "media_policy": _default_media_policy(),  # 3.7.x：视频来源安全策略
             }
             self._write_json(self._path(pid), proj)
             self._current = proj
@@ -351,8 +397,11 @@ class ProjectStore:
             try:
                 with open(os.path.join(self._projects_dir, fn), "r", encoding="utf-8") as f:
                     p = json.load(f)
-                if p.get("dataset"):
-                    out.append(p["dataset"])
+                dataset = _as_graph_dataset(
+                    p.get("id"), p.get("name"), p.get("created_at"), p.get("dataset")
+                )
+                if dataset:
+                    out.append(dataset)
             except Exception:
                 pass
         return out
@@ -458,6 +507,26 @@ class ProjectStore:
             if self._current:
                 self._current["scene_interactions"] = copy.deepcopy(
                     scene_interactions or _default_scene_interactions()
+                )
+                self._save_current()
+
+    # ── 媒体策略（3.7.x：项目级低频安全配置） ───────────────────
+    def get_media_policy(self):
+        with self._lock:
+            if not self._current:
+                return _default_media_policy()
+            value = self._current.get("media_policy")
+            if not isinstance(value, dict):
+                value = _default_media_policy()
+                self._current["media_policy"] = value
+                self._save_current()
+            return copy.deepcopy(value)
+
+    def set_media_policy(self, media_policy):
+        with self._lock:
+            if self._current:
+                self._current["media_policy"] = copy.deepcopy(
+                    media_policy or _default_media_policy()
                 )
                 self._save_current()
 

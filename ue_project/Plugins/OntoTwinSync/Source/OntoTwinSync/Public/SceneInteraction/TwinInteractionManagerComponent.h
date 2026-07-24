@@ -18,6 +18,7 @@ class ATwinRoamingSpawnAnchor;
 class ATwinSceneManager;
 class UInputAction;
 class UInputMappingContext;
+class UOntoTwinCrosshairWidget;
 class UOntoTwinRoamingHUDWidget;
 struct FInputActionValue;
 
@@ -86,6 +87,9 @@ public:
     void ToggleCameraMode();
 
     UFUNCTION(BlueprintCallable, Category="Scene Interaction")
+    void SetCameraMode(ETwinRoamingCameraMode Mode);
+
+    UFUNCTION(BlueprintCallable, Category="Scene Interaction")
     void ToggleHudInteraction();
 
     UFUNCTION(BlueprintCallable, Category="Scene Interaction")
@@ -103,8 +107,13 @@ public:
     bool IsRoamingActive() const { return bRoamingActive; }
     bool IsHudInteractionOpen() const { return bHudInteraction; }
     bool HasPendingReload() const { return bPendingReload; }
+    bool IsCameraTransitioning() const;
+    ETwinRoamingCameraMode GetCameraMode() const;
     FString GetHudStatusText() const;
     FString GetHudHintText() const;
+    void GetHudShortcutItems(
+        TArray<FString>& OutKeys,
+        TArray<FString>& OutDescriptions) const;
     FString GetHudDetailText() const;
     void NotifyRuntimeEditorBlocked();
 
@@ -132,6 +141,9 @@ private:
 
     UPROPERTY()
     UOntoTwinRoamingHUDWidget* RoamingHUD = nullptr;
+
+    UPROPERTY()
+    UOntoTwinCrosshairWidget* CrosshairHUD = nullptr;
 
     UPROPERTY()
     UInputMappingContext* ActiveMappingContext = nullptr;
@@ -187,6 +199,7 @@ private:
     bool bSprintHeld = false;
     bool bTakeoverEnabled = true;
     bool bDefaultModeApplied = false;
+    bool bCrosshairInteractive = false;
     float PollAccumulator = 1000.0f;
     float HeartbeatAccumulator = 0.0f;
     int32 ConsecutiveFailures = 0;
@@ -218,6 +231,7 @@ private:
     void CreateHud();
     void DestroyHud();
     void RefreshHud();
+    void UpdateCrosshairTarget();
     void SetHudInteraction(bool bOpen);
     void RestoreOriginalPawn();
 

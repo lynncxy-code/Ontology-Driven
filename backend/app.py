@@ -2132,6 +2132,42 @@ def _build_render_config(object_type_rid):
     }
 
 
+def _is_assembly_render_config(config):
+    """Whether an instance freezes an assembly_v1 composite representation."""
+    return isinstance(config, dict) and (
+        "render_parts" in config or "assembly_signature" in config
+    )
+
+
+def _resolve_instance_render_assets(raw, config, object_type, asset_catalog):
+    """Resolve model fields, giving assembly_v1 instance geometry precedence."""
+    if _is_assembly_render_config(config):
+        asset_id = config.get("asset_id") or raw.get("asset_id", "")
+        return asset_id, config.get("ue_asset_path") or asset_id
+
+    asset_id = object_type.get("asset_id") or raw.get("asset_id", "")
+    asset_meta = asset_catalog.get(asset_id, {})
+    ue_asset_path = object_type.get("ue_asset_path") or asset_meta.get("ue_path") or asset_id
+    return asset_id, ue_asset_path
+
+
+def _build_representable_interface(ue_asset_path, asset_id, is_visible, config=None):
+    """Build I3D_Representable while preserving assembly data byte-for-byte logically."""
+    payload = {
+        "asset_id": ue_asset_path,
+        "file_number": asset_id,
+        "is_visible": is_visible,
+    }
+    if isinstance(config, dict):
+        # Do not reshape, filter, or infer part transforms here. UE exported these
+        # values in its own coordinate contract and must receive them unchanged.
+        if "render_parts" in config:
+            payload["render_parts"] = config["render_parts"]
+        if "assembly_signature" in config:
+            payload["assembly_signature"] = config["assembly_signature"]
+    return payload
+
+
 def _build_snapshot(instance_id):
     """
     将 raw_state 组装为标准接口格式快照。
@@ -2151,9 +2187,14 @@ def _build_snapshot(instance_id):
         # 类型在当前激活数据集 → 用实时配置：绑定资产/换模型立即生效（不被 spawn 时的快照锁死）
         ot = _object_types[ot_rid]
         injected = ot.get("injected_interfaces", [])
-        asset_id = ot.get("asset_id") or raw.get("asset_id", "")
-        asset_meta = MOCK_ASSETS.get(asset_id, {})
-        ue_asset_path = ot.get("ue_asset_path") or asset_meta.get("ue_path") or asset_id
+        # Migrated composites are an instance-level geometry override. A type
+        # default model must not collapse an assembly to a single asset.
+        asset_id, ue_asset_path = _resolve_instance_render_assets(
+            raw,
+            cfg,
+            ot,
+            MOCK_ASSETS,
+        )
         ot_name = ot.get("name", ot_rid)
     elif cfg:
         # 类型已不在当前数据集（场景被切走/移植到别的后端）→ 回退实例冻结的配置
@@ -2181,11 +2222,12 @@ def _build_snapshot(instance_id):
     interfaces = {}
 
     if "I3D_Representable" in injected:
-        interfaces["I3D_Representable"] = {
-            "asset_id": ue_asset_path,
-            "file_number": asset_id,
-            "is_visible": raw.get("is_loaded", True)
-        }
+        interfaces["I3D_Representable"] = _build_representable_interface(
+            ue_asset_path,
+            asset_id,
+            raw.get("is_loaded", True),
+            cfg,
+        )
 
     if "I3D_Spatial" in injected:
         interfaces["I3D_Spatial"] = {
@@ -2215,7 +2257,6 @@ def _build_snapshot(instance_id):
 
     if "I3D_Overlay" in injected:
         try:
-            from overlay.service import resolve_overlay_interface
             overlay_type = ot if ot_rid in _object_types else {
                 "rid": ot_rid,
                 "name": ot_name,
@@ -2225,7 +2266,7 @@ def _build_snapshot(instance_id):
             overlay_instance = dict(inst_meta)
             overlay_instance["render_config"] = cfg
             overlay_instance["raw_state"] = raw
-            overlay_payload = resolve_overlay_interface(
+            overlay_payload = overlay_service.resolve_instance_interface(
                 overlay_type,
                 overlay_instance,
                 raw_state=raw,
@@ -2724,22 +2765,33 @@ def list_datasets():
     project_meta = {p["id"]: p for p in project_store.list_projects()}
     result = []
     for ds in _datasets:
-        meta = project_meta.get(ds["id"], {})
+        dataset_id = ds.get("id")
+        if not dataset_id:
+            continue
+        meta = project_meta.get(dataset_id, {})
+        graph = ds.get("graph_data")
+        node_count = ds.get("node_count")
+        link_count = ds.get("link_count")
+        if isinstance(graph, dict):
+            if node_count is None:
+                node_count = len(graph.get("nodes") or [])
+            if link_count is None:
+                link_count = len(graph.get("links") or [])
         result.append({
-            "id": ds["id"],
-            "name": ds["name"],
-            "created_at": ds["created_at"],
-            "node_count": ds.get("node_count"),
-            "link_count": ds.get("link_count"),
-            "project_id": ds["id"] if ds["id"] != "demo" else "",
-            "project_name": meta.get("name") or (ds.get("name") if ds["id"] != "demo" else ""),
+            "id": dataset_id,
+            "name": ds.get("name") or meta.get("name") or dataset_id,
+            "created_at": ds.get("created_at") or meta.get("created_at") or "",
+            "node_count": node_count,
+            "link_count": link_count,
+            "project_id": dataset_id if dataset_id != "demo" else "",
+            "project_name": meta.get("name") or (ds.get("name") if dataset_id != "demo" else ""),
             "type_count": meta.get("type_count"),
             "instance_count": meta.get("instance_count"),
             "zone_count": meta.get("zone_count", 0),
             "unzoned_instance_count": meta.get("unzoned_instance_count", 0),
             "bound_ue_project_id": ds.get("bound_ue_project_id") or meta.get("bound_ue_project_id", ""),
             "bound_ue_project_name": ds.get("bound_ue_project_name") or meta.get("bound_ue_project_name", ""),
-            "is_active": ds["id"] == _active_dataset_id
+            "is_active": dataset_id == _active_dataset_id
         })
     return jsonify(result)
 
@@ -4350,7 +4402,7 @@ def _refresh_object_types_after_overlay_save():
 
 
 from overlay import register_overlay_routes
-register_overlay_routes(app, project_store, _refresh_object_types_after_overlay_save)
+overlay_service = register_overlay_routes(app, project_store, _refresh_object_types_after_overlay_save)
 
 from scene_interaction import register_scene_interaction_routes
 register_scene_interaction_routes(app, project_store)

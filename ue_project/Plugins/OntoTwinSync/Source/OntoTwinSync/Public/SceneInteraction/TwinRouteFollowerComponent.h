@@ -7,7 +7,7 @@
 
 class ATwinRoamingRoute;
 
-/** Spline 展示路线执行器。不会绕障；归线时只做距离、视线和胶囊扫掠。 */
+/** Spline 路线导向器。实际行走由 CharacterMovement 执行，因此保留走楼梯/斜坡能力。 */
 UCLASS(ClassGroup=(OntoTwin), meta=(BlueprintSpawnableComponent))
 class ONTOTWINSYNC_API UTwinRouteFollowerComponent : public UActorComponent
 {
@@ -42,8 +42,19 @@ private:
     bool bLoop = false;
     ETwinRoamingRouteState RouteState = ETwinRoamingRouteState::Unavailable;
 
+    FVector StallReferenceLocation = FVector::ZeroVector;
+    float NoProgressSeconds = 0.0f;
+    bool bHasStallReference = false;
+
     bool IsSafeJoin(const FVector& Target, FString& OutError) const;
-    bool MoveSwept(const FVector& Target, const FVector& FacingDirection);
+    bool RequestCharacterMovement(
+        const FVector& Target,
+        const FVector& FacingDirection,
+        float DeltaTime);
+    void UpdateFacing(const FVector& FacingDirection, float DeltaTime);
+    void ResetStallDetection();
+    bool HasTimedOutWithoutProgress(float DeltaTime);
+    void MarkBlocked();
     float FindClosestDistanceOnSpline(const FVector& WorldLocation) const;
     FVector GetCharacterLocationAtDistance(float Distance) const;
 };

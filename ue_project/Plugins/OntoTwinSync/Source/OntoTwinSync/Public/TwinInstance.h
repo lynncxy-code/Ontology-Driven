@@ -174,11 +174,37 @@ public:
     /** 获取后端实例显示名；为空时回退到实例 ID。 */
     FString GetTwinDisplayName() const { return TwinDisplayName.IsEmpty() ? InstanceId : TwinDisplayName; }
 
+    /** assembly_v1 预览审计：当前已实际创建的静态网格部件数。 */
+    int32 GetRenderPartComponentCount() const { return RenderPartComponents.Num(); }
+
+    /** assembly_v1 预览审计：仅在全部网格与材质加载成功时保留导出签名。 */
+    const FString& GetCurrentAssemblySignature() const { return CurrentAssemblySignature; }
+
+    /** assembly_v1 预览审计：当前快照是否正在驱动复合表现。 */
+    bool IsAssemblyRenderActive() const { return bAssemblyRenderActive; }
+
+    /**
+     * assembly_v1 预览审计：逐项核对已创建的部件与快照 render_parts。
+     *
+     * 返回 false 时 OutFailures 中每项都是可直接写入审计 JSON 的结构化对象，
+     * 包含 part_index / field / expected / actual，材质错误还包含 material_slot。
+     * bOverallVisible 应传 I3D_Representable.is_visible，因为实际部件可见性是
+     * overall visibility 与源部件 visible 的合并结果。此方法只读，不加载资产、不改变组件。
+     */
+    bool ValidateRenderPartsAgainstSnapshot(
+        const TArray<TSharedPtr<FJsonValue>>& RenderParts,
+        bool bOverallVisible,
+        TArray<TSharedPtr<FJsonValue>>& OutFailures) const;
+
     bool HasSelectedOverlay() const { return bOverlayEnabled && OverlayDisplayMode == TEXT("selected"); }
     bool HasAlwaysOverlay() const { return bOverlayEnabled && OverlayDisplayMode == TEXT("always"); }
     bool HasOverlay() const { return bOverlayEnabled && CurrentOverlayData.IsValid(); }
     FVector GetOverlayAnchorWorldLocation() const;
     float GetOverlayRenderWidthPixels() const;
+    bool IsScreenPointOverAlwaysOverlay(
+        APlayerController* PlayerController,
+        const FVector2D& ScreenPoint,
+        float PaddingPixels = 8.0f) const;
     TSharedPtr<FJsonObject> GetOverlayData() const { return CurrentOverlayData; }
     uint64 GetOverlayPayloadSerial() const { return OverlayPayloadSerial; }
     void RefreshAlwaysOverlay(const FVector& CameraLocation, bool bShouldShow, float WorldScale = -1.0f);
@@ -197,6 +223,13 @@ protected:
     /** 网格体组件 */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体", meta=(AllowPrivateAccess="true"))
     UStaticMeshComponent* MeshComponent = nullptr;
+
+    /** assembly_v1 复合实例的动态渲染部件；母实例仍只有一个 Actor。 */
+    UPROPERTY(Transient)
+    TArray<UStaticMeshComponent*> RenderPartComponents;
+
+    /** 每个复合部件在源关卡中的可见状态，供全局 is_visible 往返切换后恢复。 */
+    TArray<bool> RenderPartSourceVisibility;
 
     /** 3D 文字标签组件（显示 ui_label_content） */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体", meta=(AllowPrivateAccess="true"))
@@ -220,10 +253,24 @@ private:
     /** 是否已完成初始化 */
     bool bInitialized = false;
 
+    /** 当前是否由 I3D_Representable.render_parts 驱动。 */
+    bool bAssemblyRenderActive = false;
+
+    /** 防止 500ms 快照轮询重复销毁/重建相同的复合部件。 */
+    FString CurrentAssemblySignature;
+
     // ── 内部方法 ─────────────────────────────────────────────────────────
 
     /** 根据 asset_id 加载 StaticMesh（兼容 /Game 烘焙资产 与 运行时 glb 文件） */
     bool LoadMeshFromPath(const FString& MeshPath);
+
+    /** assembly_v1：按母 Actor 相对变换创建多个静态网格部件。 */
+    void ApplyRenderPartsFromSnapshot(
+        const TArray<TSharedPtr<FJsonValue>>& RenderParts,
+        const FString& AssemblySignature);
+
+    /** 销毁 assembly_v1 动态部件并回到旧版单 Mesh 模式。 */
+    void ClearRenderParts();
 
     /** 运行时从磁盘加载 glb/gltf（glTFRuntime）；成功返回 true 并已 SetStaticMesh */
     bool LoadRuntimeGltf(const FString& AssetId);

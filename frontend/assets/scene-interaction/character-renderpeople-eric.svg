@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 144" role="img" aria-labelledby="title">
+  <title id="title">Eric 扫描人物占位图</title>
+  <rect width="120" height="144" rx="10" fill="#f3f3f3"/>
+  <path d="M44 25c3-13 29-14 33 0l-4 7H47l-3-7Z" fill="#5c5c5c"/>
+  <circle cx="60" cy="32" r="16" fill="#d4d4d4" stroke="#5c5c5c" stroke-width="2"/>
+  <path d="M35 58c10-8 40-8 50 0l3 47H32l3-47Z" fill="#5c5c5c" stroke="#5c5c5c" stroke-width="2"/>
+  <path d="M45 105v28M75 105v28M33 67 20 100M87 67l13 33" fill="none" stroke="#5c5c5c" stroke-width="8" stroke-linecap="round"/>
+  <path d="M42 75h36" stroke="#c9c9c9" stroke-width="2"/>
+</svg>

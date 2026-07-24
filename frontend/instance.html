@@ -193,8 +193,53 @@
 
         <!-- Right: Monitor Panel -->
         <div class="flex-1 flex flex-col min-h-0 bg-gray-50">
+            <nav class="shrink-0 bg-white border-b border-gray-200 px-6" role="tablist" aria-label="实例运维工作区">
+                <div class="flex items-end gap-7">
+                    <button id="instance-tab-stream"
+                            type="button"
+                            role="tab"
+                            :aria-selected="activeMonitorTab === 'stream'"
+                            @click="activeMonitorTab = 'stream'"
+                            :class="[
+                                'relative py-3 px-1 text-sm font-medium transition focus:outline-none focus-visible:bg-gray-100 focus-visible:text-gray-950',
+                                activeMonitorTab === 'stream' ? 'text-gray-950' : 'text-gray-500 hover:text-gray-900'
+                            ]">
+                        实时推流
+                        <span v-if="activeMonitorTab === 'stream'" class="absolute inset-x-0 bottom-0 h-0.5 bg-gray-950"></span>
+                    </button>
+                    <button id="instance-tab-control"
+                            type="button"
+                            role="tab"
+                            :aria-selected="activeMonitorTab === 'control'"
+                            @click="activeMonitorTab = 'control'"
+                            :class="[
+                                'relative py-3 px-1 text-sm font-medium transition focus:outline-none focus-visible:bg-gray-100 focus-visible:text-gray-950',
+                                activeMonitorTab === 'control' ? 'text-gray-950' : 'text-gray-500 hover:text-gray-900'
+                            ]">
+                        实例控制
+                        <span v-if="activeMonitorTab === 'control'" class="absolute inset-x-0 bottom-0 h-0.5 bg-gray-950"></span>
+                    </button>
+                    <button id="instance-tab-json"
+                            type="button"
+                            role="tab"
+                            :aria-selected="activeMonitorTab === 'json'"
+                            @click="activeMonitorTab = 'json'"
+                            :class="[
+                                'relative py-3 px-1 text-sm font-medium transition focus:outline-none focus-visible:bg-gray-100 focus-visible:text-gray-950',
+                                activeMonitorTab === 'json' ? 'text-gray-950' : 'text-gray-500 hover:text-gray-900'
+                            ]">
+                        端点 JSON
+                        <span v-if="activeMonitorTab === 'json'" class="absolute inset-x-0 bottom-0 h-0.5 bg-gray-950"></span>
+                    </button>
+                </div>
+            </nav>
+
             <!-- Runtime Stream Panel (3.6 Pixel Streaming spike) -->
-            <section ref="runtimeStreamPanelRef" class="runtime-stream-panel bg-white border-b border-gray-200 shrink-0">
+            <section v-show="activeMonitorTab === 'stream'"
+                     ref="runtimeStreamPanelRef"
+                     role="tabpanel"
+                     aria-labelledby="instance-tab-stream"
+                     class="runtime-stream-panel flex-1 min-h-0 overflow-y-auto bg-white">
                 <div class="px-6 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
@@ -256,6 +301,10 @@
                 </div>
             </section>
 
+            <div v-show="activeMonitorTab !== 'stream'"
+                 role="tabpanel"
+                 :aria-labelledby="`instance-tab-${activeMonitorTab}`"
+                 class="flex-1 flex flex-col min-h-0">
             <div v-if="!selectedInst" class="flex-1 flex flex-col items-center justify-center text-gray-400 space-y-3">
                 <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path></svg>
                 <span class="text-sm font-medium">从左侧清单选中一个实例进行实时监视</span>
@@ -300,26 +349,30 @@
                     </div>
                 </div>
 
-                <div class="flex-1 overflow-y-auto p-6 space-y-6">
-                    
-                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                <div class="flex-1 overflow-y-auto p-6">
+
+                    <div class="mx-auto max-w-5xl">
                         <!-- Interface Snapshot (JSON) -->
-                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm" v-if="currentSnap">
+                        <div v-if="currentSnap" v-show="activeMonitorTab === 'json'" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                             <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
-                                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">3D 引擎通信帧序列</span>
-                                <span class="text-[9px] font-mono bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded tracking-widest">READ ONLY</span>
+                                <div>
+                                    <div class="text-xs font-semibold text-gray-700">端点响应</div>
+                                    <div class="mt-1 text-[11px] font-mono text-gray-500">GET /api/v2/state/snapshot?id={{ selectedInst.id }}</div>
+                                </div>
+                                <span class="text-[9px] font-mono bg-gray-100 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded tracking-widest">READ ONLY</span>
                             </div>
                             <div class="p-0 bg-gray-900 overflow-x-auto text-gray-300">
-                                <pre class="p-5 text-xs font-mono leading-relaxed">{{ JSON.stringify(currentSnap.interfaces, null, 2) }}</pre>
+                                <pre class="p-5 text-xs font-mono leading-relaxed">{{ JSON.stringify(currentSnap, null, 2) }}</pre>
                             </div>
                         </div>
 
                         <!-- Manual Override Panel -->
-                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm" v-if="currentSnap">
+                        <div v-if="currentSnap" v-show="activeMonitorTab === 'control'" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                             <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
                                 <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">热干预终端 (Override)</span>
-                                <span class="text-[9px] font-mono bg-purple-50 text-purple-600 border border-purple-200 px-1.5 py-0.5 rounded tracking-widest">DEBUG CONTROL</span>
+                                <span class="text-[9px] font-mono bg-gray-100 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded tracking-widest">DEBUG CONTROL</span>
                             </div>
+                            <div class="p-5 space-y-6">
                                 <!-- Representable Overlay -->
                                 <div v-if="currentSnap.injected_interfaces.includes('I3D_Representable') || currentSnap.interfaces.I3D_Representable" class="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
                                     <h4 class="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -437,10 +490,12 @@
                                     </button>
                                 </div>
                             </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </template>
+            </div>
         </div>
     </div>
 
@@ -756,6 +811,7 @@ createApp({
         const currentSnap = ref(null);
         const spawning = ref(false);
         const overriding = ref(false);
+        const activeMonitorTab = ref('stream');
         const toasts = ref([]);
         let pollTimer = null;
         let instanceListTimer = null;
@@ -1370,6 +1426,7 @@ createApp({
         return {
             instances, objectTypes, readyTypes, availableInstanceIds, selectedInst, currentSnap,
             spawnForm, spawning, overriding, overrideFields, overridePatch, toasts, pendingDelete,
+            activeMonitorTab,
             activeDataset, activeDatasetLabel,
             runtimeStreamPanelRef, runtimeStreamUrl, runtimeStreamSrc, runtimeStreamStatus,
             runtimeStreamStatusLabel, runtimeStreamStatusDotClass, runtimeStreamError,

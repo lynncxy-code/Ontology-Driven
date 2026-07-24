@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$InfrastructureRoot = "D:\tmp\pixel-streaming-infra-UE5.6\PixelStreamingInfrastructure-UE5.6",
-    [string]$RuntimeExe = "D:\tmp_ue\test0316\Saved\CodexPackageCheck\Windows\test0316.exe",
+    [string]$RuntimeExe = $env:ONTOTWIN_PIXEL_STREAMING_RUNTIME,
     [ValidateRange(1, 65535)]
     [int]$PlayerPort = 8888,
     [ValidateRange(1, 65535)]
@@ -209,13 +209,19 @@ if (-not (Test-Path -LiteralPath $serverEntry -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $playerPage -PathType Leaf)) {
     throw "Pixel Streaming player page was not found: $playerPage"
 }
+if ((-not $SkipRuntime) -and [string]::IsNullOrWhiteSpace($RuntimeExe)) {
+    throw "RuntimeExe is required. Pass -RuntimeExe '<path-to-packaged-ue.exe>' or set ONTOTWIN_PIXEL_STREAMING_RUNTIME."
+}
 if ((-not $SkipRuntime) -and (-not (Test-Path -LiteralPath $RuntimeExe -PathType Leaf))) {
     throw "UE runtime was not found: $RuntimeExe"
 }
 
 $reuseServer = $false
 $existingServer = $null
-$existingRuntimeProcesses = @(Get-ManagedRuntimeProcesses -ExePath $RuntimeExe -ConnectionUrl $streamerUrl)
+$existingRuntimeProcesses = @()
+if (-not $SkipRuntime) {
+    $existingRuntimeProcesses = @(Get-ManagedRuntimeProcesses -ExePath $RuntimeExe -ConnectionUrl $streamerUrl)
+}
 if (Test-Path -LiteralPath $stateFile -PathType Leaf) {
     try {
         $existingState = Get-Content -Raw -LiteralPath $stateFile | ConvertFrom-Json

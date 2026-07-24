@@ -11,15 +11,28 @@
 
 namespace
 {
+constexpr float RouteLookAheadSeconds = 0.8f;
+constexpr float RouteMinLookAheadCm = 100.0f;
+constexpr float RouteMaxLookAheadCm = 200.0f;
+constexpr float RouteMaxYawRateDegS = 100.0f;
+constexpr float RouteSteeringLookAheadSeconds = 0.25f;
+constexpr float RouteMinSteeringLookAheadCm = 30.0f;
+constexpr float RouteMaxSteeringLookAheadCm = 80.0f;
+constexpr float RouteArrivalToleranceCm = 20.0f;
+constexpr float RouteProgressThresholdCm = 5.0f;
+constexpr float RouteBlockedTimeoutSeconds = 2.0f;
+
 void ClearRouteAnimationMotion(ACharacter* Character)
 {
     if (!Character) return;
     if (ATwinRoamingCharacter* RoamingCharacter = Cast<ATwinRoamingCharacter>(Character))
     {
+        RoamingCharacter->SetAutoRouteCameraSmoothing(false);
         RoamingCharacter->SetAutoRouteAnimation(false);
     }
     Character->ConsumeMovementInputVector();
-    Character->GetCharacterMovement()->Velocity = FVector::ZeroVector;
+    Character->GetCharacterMovement()->StopActiveMovement();
+    Character->GetCharacterMovement()->StopMovementImmediately();
 }
 
 void SetRouteAnimationMotion(ACharacter* Character, FVector VisualVelocity)
@@ -28,19 +41,15 @@ void SetRouteAnimationMotion(ACharacter* Character, FVector VisualVelocity)
     VisualVelocity.Z = 0.0f;
     if (ATwinRoamingCharacter* RoamingCharacter = Cast<ATwinRoamingCharacter>(Character))
     {
+        RoamingCharacter->SetAutoRouteCameraSmoothing(true);
         if (RoamingCharacter->SetAutoRouteAnimation(true, VisualVelocity.Size2D()))
         {
             return;
         }
     }
-    Character->GetCharacterMovement()->Velocity = VisualVelocity;
-    if (!VisualVelocity.IsNearlyZero())
-    {
-        // The stock Quinn AnimBP enters locomotion only when it sees both
-        // horizontal velocity and acceleration. Route motion is otherwise
-        // applied directly to the spline and would leave the pose in Idle.
-        Character->AddMovementInput(VisualVelocity.GetSafeNormal2D(), 1.0f, true);
-    }
+    // CharacterMovement now owns automatic route motion. Its real velocity
+    // and acceleration drive ordinary locomotion AnimBPs; do not overwrite
+    // Velocity here or StepUp/floor following would be bypassed again.
 }
 }
 
@@ -62,6 +71,7 @@ void UTwinRouteFollowerComponent::Configure(
     RouteState = Route && Route->Spline
         ? (bAutoStart ? ETwinRoamingRouteState::AutoRoute : ETwinRoamingRouteState::Idle)
         : ETwinRoamingRouteState::Unavailable;
+    ResetStallDetection();
     if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
     {
         ClearRouteAnimationMotion(Character);
@@ -83,6 +93,7 @@ void UTwinRouteFollowerComponent::PauseByUser()
     if (RouteState == ETwinRoamingRouteState::AutoRoute || RouteState == ETwinRoamingRouteState::Joining)
     {
         RouteState = ETwinRoamingRouteState::PausedByUser;
+        ResetStallDetection();
         if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
         {
             ClearRouteAnimationMotion(Character);
@@ -112,25 +123,10 @@ bool UTwinRouteFollowerComponent::IsSafeJoin(const FVector& Target, FString& Out
         return false;
     }
 
-    FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(TwinRouteJoin), false, Character);
-    if (Route) QueryParams.AddIgnoredActor(Route);
-    FHitResult VisibilityHit;
-    if (World->LineTraceSingleByChannel(VisibilityHit, Start, Target, ECC_Visibility, QueryParams))
-    {
-        OutError = TEXT("An obstacle blocks the route join path");
-        return false;
-    }
-
-    const UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
-    const FCollisionShape Shape = FCollisionShape::MakeCapsule(
-        Capsule->GetScaledCapsuleRadius(), Capsule->GetScaledCapsuleHalfHeight());
-    FHitResult SweepHit;
-    if (World->SweepSingleByChannel(SweepHit, Start, Target, Character->GetActorQuat(),
-        ECC_Pawn, Shape, QueryParams))
-    {
-        OutError = TEXT("Character capsule cannot safely reach the route");
-        return false;
-    }
+    // Do not pre-sweep the whole straight segment. A stair riser is a valid
+    // blocking hit for a raw capsule sweep even though CharacterMovement can
+    // StepUp it safely. The real join is collision-aware and times out when a
+    // wall or other non-walkable obstacle prevents progress.
     return true;
 }
 
@@ -145,6 +141,7 @@ bool UTwinRouteFollowerComponent::TryResume(FString& OutError)
     const FVector Target = GetCharacterLocationAtDistance(JoinTargetDistance);
     if (!IsSafeJoin(Target, OutError)) return false;
     RouteState = ETwinRoamingRouteState::Joining;
+    ResetStallDetection();
     return true;
 }
 
@@ -159,6 +156,7 @@ bool UTwinRouteFollowerComponent::TryStartFromSpawn(FString& OutError)
     const FVector Target = GetCharacterLocationAtDistance(0.0f);
     if (!IsSafeJoin(Target, OutError)) return false;
     RouteState = ETwinRoamingRouteState::Joining;
+    ResetStallDetection();
     return true;
 }
 
@@ -249,58 +247,124 @@ bool UTwinRouteFollowerComponent::RestartFromBeginning(FString& OutError)
     Character->SetActorLocation(Start, false, &MoveHit, ETeleportType::TeleportPhysics);
     DistanceAlongSpline = 0.0f;
     RouteState = ETwinRoamingRouteState::AutoRoute;
+    ResetStallDetection();
     return true;
 }
 
 void UTwinRouteFollowerComponent::StopRoute()
 {
     RouteState = Route ? ETwinRoamingRouteState::Idle : ETwinRoamingRouteState::Unavailable;
+    ResetStallDetection();
     if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
     {
         ClearRouteAnimationMotion(Character);
     }
 }
 
-bool UTwinRouteFollowerComponent::MoveSwept(const FVector& Target, const FVector& FacingDirection)
+void UTwinRouteFollowerComponent::UpdateFacing(
+    const FVector& FacingDirection,
+    float DeltaTime)
 {
     AActor* Owner = GetOwner();
-    if (!Owner) return false;
-    FVector ResolvedTarget = Target;
-    if (Route && Route->bSplineAtGroundLevel)
+    if (!Owner || FacingDirection.IsNearlyZero()) return;
+
+    const float PreviousActorYaw = Owner->GetActorRotation().Yaw;
+    AController* Controller = nullptr;
+    float CameraYawOffset = 0.0f;
+    if (ACharacter* Character = Cast<ACharacter>(Owner))
     {
-        // 4.0 routes are same-floor plans. Let CharacterMovement own floor
-        // following instead of competing with it by writing capsule Z each tick.
-        ResolvedTarget.Z = Owner->GetActorLocation().Z;
-    }
-    FHitResult Hit;
-    Owner->SetActorLocation(ResolvedTarget, true, &Hit);
-    if (!FacingDirection.IsNearlyZero())
-    {
-        const float PreviousActorYaw = Owner->GetActorRotation().Yaw;
-        AController* Controller = nullptr;
-        float CameraYawOffset = 0.0f;
-        if (ACharacter* Character = Cast<ACharacter>(Owner))
-        {
-            Controller = Character->GetController();
-            if (Controller)
-            {
-                CameraYawOffset = FMath::FindDeltaAngleDegrees(
-                    PreviousActorYaw,
-                    Controller->GetControlRotation().Yaw);
-            }
-        }
-        const float NewActorYaw = FacingDirection.Rotation().Yaw;
-        Owner->SetActorRotation(FRotator(0.0f, NewActorYaw, 0.0f));
+        Controller = Character->GetController();
         if (Controller)
         {
-            const FRotator ControlRotation = Controller->GetControlRotation();
-            Controller->SetControlRotation(FRotator(
-                ControlRotation.Pitch,
-                NewActorYaw + CameraYawOffset,
-                0.0f));
+            CameraYawOffset = FMath::FindDeltaAngleDegrees(
+                PreviousActorYaw,
+                Controller->GetControlRotation().Yaw);
         }
     }
-    return !Hit.bBlockingHit;
+    const float DesiredActorYaw = FacingDirection.Rotation().Yaw;
+    const float NewActorYaw = FMath::FixedTurn(
+        PreviousActorYaw,
+        DesiredActorYaw,
+        RouteMaxYawRateDegS * FMath::Max(0.0f, DeltaTime));
+    Owner->SetActorRotation(FRotator(0.0f, NewActorYaw, 0.0f));
+    if (Controller)
+    {
+        const FRotator ControlRotation = Controller->GetControlRotation();
+        Controller->SetControlRotation(FRotator(
+            ControlRotation.Pitch,
+            NewActorYaw + CameraYawOffset,
+            0.0f));
+    }
+}
+
+bool UTwinRouteFollowerComponent::RequestCharacterMovement(
+    const FVector& Target,
+    const FVector& FacingDirection,
+    float DeltaTime)
+{
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    UCharacterMovementComponent* Movement = Character
+        ? Character->GetCharacterMovement() : nullptr;
+    if (!Character || !Movement) return false;
+
+    FVector Direction = Target - Character->GetActorLocation();
+    // The route provides plan direction. CharacterMovement owns capsule Z,
+    // floor snapping, slopes and StepUp while walking over real collision.
+    Direction.Z = 0.0f;
+    const FVector RequestedVelocity = Direction.GetSafeNormal2D() * SpeedCmS;
+    Movement->RequestDirectMove(RequestedVelocity, false);
+    UpdateFacing(FacingDirection, DeltaTime);
+
+    FVector AnimationVelocity = Movement->Velocity;
+    if (AnimationVelocity.SizeSquared2D() < FMath::Square(10.0f))
+    {
+        AnimationVelocity = RequestedVelocity;
+    }
+    SetRouteAnimationMotion(Character, AnimationVelocity);
+    return true;
+}
+
+void UTwinRouteFollowerComponent::ResetStallDetection()
+{
+    NoProgressSeconds = 0.0f;
+    if (const AActor* Owner = GetOwner())
+    {
+        StallReferenceLocation = Owner->GetActorLocation();
+        bHasStallReference = true;
+    }
+    else
+    {
+        StallReferenceLocation = FVector::ZeroVector;
+        bHasStallReference = false;
+    }
+}
+
+bool UTwinRouteFollowerComponent::HasTimedOutWithoutProgress(float DeltaTime)
+{
+    const AActor* Owner = GetOwner();
+    if (!Owner) return true;
+    const FVector Current = Owner->GetActorLocation();
+    if (!bHasStallReference
+        || FVector::DistSquared(Current, StallReferenceLocation)
+            >= FMath::Square(RouteProgressThresholdCm))
+    {
+        StallReferenceLocation = Current;
+        NoProgressSeconds = 0.0f;
+        bHasStallReference = true;
+        return false;
+    }
+    NoProgressSeconds += FMath::Max(0.0f, DeltaTime);
+    return NoProgressSeconds >= RouteBlockedTimeoutSeconds;
+}
+
+void UTwinRouteFollowerComponent::MarkBlocked()
+{
+    RouteState = ETwinRoamingRouteState::Blocked;
+    ResetStallDetection();
+    if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
+    {
+        ClearRouteAnimationMotion(Character);
+    }
 }
 
 void UTwinRouteFollowerComponent::TickComponent(
@@ -317,72 +381,85 @@ void UTwinRouteFollowerComponent::TickComponent(
         const FVector Current = GetOwner()->GetActorLocation();
         FVector MotionTarget = JoinTarget;
         if (Route->bSplineAtGroundLevel) MotionTarget.Z = Current.Z;
-        const FVector Next = FMath::VInterpConstantTo(Current, MotionTarget, DeltaTime, SpeedCmS);
-        const FVector VisualVelocity = DeltaTime > UE_SMALL_NUMBER
-            ? (Next - Current) / DeltaTime : FVector::ZeroVector;
-        if (!MoveSwept(Next, JoinTarget - Current))
-        {
-            RouteState = ETwinRoamingRouteState::Blocked;
-            if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
-            {
-                ClearRouteAnimationMotion(Character);
-            }
-            return;
-        }
-        if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
-        {
-            SetRouteAnimationMotion(Character, VisualVelocity);
-        }
-        if (Next.Equals(MotionTarget, 2.0f))
+        if (FVector::Dist2D(Current, MotionTarget) <= RouteArrivalToleranceCm)
         {
             DistanceAlongSpline = JoinTargetDistance;
             RouteState = ETwinRoamingRouteState::AutoRoute;
+            ResetStallDetection();
+            return;
+        }
+        if (!RequestCharacterMovement(MotionTarget, JoinTarget - Current, DeltaTime)
+            || HasTimedOutWithoutProgress(DeltaTime))
+        {
+            MarkBlocked();
         }
         return;
     }
 
     if (RouteState != ETwinRoamingRouteState::AutoRoute) return;
     const float Length = Route->Spline->GetSplineLength();
-    float NextDistance = DistanceAlongSpline + SpeedCmS * DeltaTime;
-    if (NextDistance >= Length)
+    if (Length <= UE_SMALL_NUMBER)
     {
-        if (bLoop && Route->Spline->IsClosedLoop())
+        RouteState = ETwinRoamingRouteState::Completed;
+        if (ACharacter* Character = Cast<ACharacter>(GetOwner())) ClearRouteAnimationMotion(Character);
+        return;
+    }
+
+    const FVector Current = GetOwner()->GetActorLocation();
+    const float ClosestKey = Route->Spline->FindInputKeyClosestToWorldLocation(Current);
+    const float ClosestDistance = Route->Spline->GetDistanceAlongSplineAtSplineInputKey(ClosestKey);
+    if (bLoop && Route->Spline->IsClosedLoop())
+    {
+        DistanceAlongSpline = ClosestDistance;
+    }
+    else
+    {
+        DistanceAlongSpline = FMath::Max(DistanceAlongSpline, ClosestDistance);
+        const FVector End = GetCharacterLocationAtDistance(Length);
+        if (FVector::Dist(Current, End) <= RouteArrivalToleranceCm)
         {
-            NextDistance = FMath::Fmod(NextDistance, FMath::Max(1.0f, Length));
-        }
-        else
-        {
-            NextDistance = Length;
+            DistanceAlongSpline = Length;
             RouteState = ETwinRoamingRouteState::Completed;
+            if (ACharacter* Character = Cast<ACharacter>(GetOwner())) ClearRouteAnimationMotion(Character);
+            return;
         }
     }
 
-    const FVector Target = GetCharacterLocationAtDistance(NextDistance);
+    const float SteeringLookAheadCm = FMath::Clamp(
+        SpeedCmS * RouteSteeringLookAheadSeconds,
+        RouteMinSteeringLookAheadCm,
+        RouteMaxSteeringLookAheadCm);
+    float TargetDistance = DistanceAlongSpline + SteeringLookAheadCm;
+    if (bLoop && Route->Spline->IsClosedLoop())
+    {
+        TargetDistance = FMath::Fmod(TargetDistance, Length);
+    }
+    else
+    {
+        TargetDistance = FMath::Min(TargetDistance, Length);
+    }
+    const FVector Target = GetCharacterLocationAtDistance(TargetDistance);
     const FVector Tangent = Route->Spline->GetDirectionAtDistanceAlongSpline(
-        NextDistance, ESplineCoordinateSpace::World);
-    const FVector Current = GetOwner()->GetActorLocation();
-    const FVector VisualVelocity = DeltaTime > UE_SMALL_NUMBER
-        ? (Target - Current) / DeltaTime : FVector::ZeroVector;
-    if (!MoveSwept(Target, Tangent))
+        TargetDistance, ESplineCoordinateSpace::World);
+    const float LookAheadCm = FMath::Clamp(
+        SpeedCmS * RouteLookAheadSeconds,
+        RouteMinLookAheadCm,
+        RouteMaxLookAheadCm);
+    float FacingDistance = TargetDistance + LookAheadCm;
+    if (bLoop && Route->Spline->IsClosedLoop())
     {
-        RouteState = ETwinRoamingRouteState::Blocked;
-        if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
-        {
-            ClearRouteAnimationMotion(Character);
-        }
-        return;
+        FacingDistance = FMath::Fmod(FacingDistance, FMath::Max(1.0f, Length));
     }
-    if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
+    else
     {
-        SetRouteAnimationMotion(Character, VisualVelocity);
+        FacingDistance = FMath::Min(FacingDistance, Length);
     }
-    DistanceAlongSpline = NextDistance;
-    if (RouteState == ETwinRoamingRouteState::Completed)
+    FVector FacingDirection = GetCharacterLocationAtDistance(FacingDistance) - Target;
+    if (FacingDirection.IsNearlyZero()) FacingDirection = Tangent;
+    if (!RequestCharacterMovement(Target, FacingDirection, DeltaTime)
+        || HasTimedOutWithoutProgress(DeltaTime))
     {
-        if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
-        {
-            ClearRouteAnimationMotion(Character);
-        }
+        MarkBlocked();
     }
 }
 

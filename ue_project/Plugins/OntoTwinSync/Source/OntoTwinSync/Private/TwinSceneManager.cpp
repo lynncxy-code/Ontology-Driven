@@ -21,22 +21,33 @@
 #include "Modules/ModuleManager.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "HAL/PlatformTime.h"
 #include "Engine/Engine.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/InputComponent.h"
 #include "Components/PrimitiveComponent.h"
+#include "Components/SceneComponent.h"
+#include "MediaPlayer.h"
+#include "MediaSoundComponent.h"
+#include "MediaTexture.h"
 // FR-6 迁移工具用
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 #include "Misc/App.h"
+#include "Containers/StringConv.h"
 #include "HAL/FileManager.h"
+#include "Misc/SecureHash.h"
+#include "Components/ActorComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"
+#include "Materials/MaterialInterface.h"
 #include "Serialization/JsonWriter.h"
 #if WITH_EDITOR
 #include "Editor.h"
@@ -114,6 +125,20 @@ FString TruncateRuntimeLabel(const FString& Value, int32 MaxLength)
     }
     return Value.Left(MaxLength - 3) + TEXT("...");
 }
+
+FString CollisionEnabledToMigrationString(const ECollisionEnabled::Type CollisionEnabled)
+{
+    switch (CollisionEnabled)
+    {
+    case ECollisionEnabled::NoCollision:      return TEXT("NoCollision");
+    case ECollisionEnabled::QueryOnly:        return TEXT("QueryOnly");
+    case ECollisionEnabled::PhysicsOnly:      return TEXT("PhysicsOnly");
+    case ECollisionEnabled::QueryAndPhysics:  return TEXT("QueryAndPhysics");
+    case ECollisionEnabled::ProbeOnly:        return TEXT("ProbeOnly");
+    case ECollisionEnabled::QueryAndProbe:    return TEXT("QueryAndProbe");
+    default:                                  return TEXT("NoCollision");
+    }
+}
 }
 
 // ── 构造函数 ─────────────────────────────────────────────────────────────────
@@ -121,6 +146,11 @@ FString TruncateRuntimeLabel(const FString& Value, int32 MaxLength)
 ATwinSceneManager::ATwinSceneManager()
 {
     PrimaryActorTick.bCanEverTick = true;
+    USceneComponent* SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
+    SetRootComponent(SceneRoot);
+    OverlayMediaSound = CreateDefaultSubobject<UMediaSoundComponent>(TEXT("OverlayMediaSound"));
+    OverlayMediaSound->SetupAttachment(SceneRoot);
+    OverlayMediaSound->SetAutoActivate(false);
     InteractionManager = CreateDefaultSubobject<UTwinInteractionManagerComponent>(TEXT("SceneInteractionManager"));
     UEProjectName = FApp::GetProjectName();
     UEProjectId = FString::Printf(TEXT("ueproj_%s"), *UEProjectName);
@@ -206,6 +236,7 @@ void ATwinSceneManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     GetWorldTimerManager().ClearTimer(PollTimerHandle);
     GetWorldTimerManager().ClearTimer(RealtimeReconnectTimerHandle);
+    GetWorldTimerManager().ClearTimer(OverlayMediaRetryTimer);
     bRealtimeClosing = true;
     RealtimeConnectionState = TEXT("disabled");
     ++RealtimeConnectionGeneration;
@@ -251,6 +282,7 @@ void ATwinSceneManager::Tick(float DeltaTime)
 
 void ATwinSceneManager::TickOverlays()
 {
+    UpdateOverlayMediaPlaybackClock();
     APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
     if (!PC)
     {
@@ -276,9 +308,12 @@ void ATwinSceneManager::TickOverlays()
         }
     }
 
+    const bool bInteractiveMediaSelected = OverlaySelectedInstance && SelectedOverlayWidget
+        && SelectedOverlayWidget->HasPlayableMedia();
     UpdateOverlayPointerInput(
         PC,
-        bEnableOverlays && bHasSelectedOverlay && !bInteractionOwnsSelection && !bRuntimeEditMode);
+        bEnableOverlays && (bHasSelectedOverlay || bInteractiveMediaSelected)
+            && !bInteractionOwnsSelection && !bRuntimeEditMode);
 
     if (!bEnableOverlays)
     {
@@ -286,7 +321,9 @@ void ATwinSceneManager::TickOverlays()
         return;
     }
 
-    if (!bInteractionOwnsSelection && !bPointerOverRuntimePanel
+    const bool bPointerOverOverlay = SelectedOverlayWidget
+        && IsValid(SelectedOverlayWidget) && SelectedOverlayWidget->IsPointerOverPanel();
+    if (!bInteractionOwnsSelection && !bPointerOverRuntimePanel && !bPointerOverOverlay
         && PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
     {
         FHitResult Hit;
@@ -318,9 +355,7 @@ void ATwinSceneManager::TickOverlays()
 
     if (OverlaySelectedInstance &&
         (!IsValid(OverlaySelectedInstance)
-            || (bInteractionOwnsSelection
-                ? !OverlaySelectedInstance->HasOverlay()
-                : !OverlaySelectedInstance->HasSelectedOverlay())))
+            || !OverlaySelectedInstance->HasSelectedOverlay()))
     {
         ClearOverlaySelection();
     }
@@ -332,21 +367,55 @@ void ATwinSceneManager::TickOverlays()
         {
             SelectedOverlayWidget->ApplyOverlayData(OverlaySelectedInstance->GetOverlayData());
             SelectedOverlayPayloadSerial = PayloadSerial;
+            RefreshOverlayMediaForSelection();
         }
 
-        FVector2D ScreenPosition;
-        int32 ViewportX = 0;
-        int32 ViewportY = 0;
-        PC->GetViewportSize(ViewportX, ViewportY);
-        const bool bProjected = PC->ProjectWorldLocationToScreen(
-            OverlaySelectedInstance->GetOverlayAnchorWorldLocation(), ScreenPosition, true);
-        const bool bOnScreen = bProjected && ScreenPosition.X >= 0.0f && ScreenPosition.Y >= 0.0f
-            && ScreenPosition.X <= ViewportX && ScreenPosition.Y <= ViewportY;
-        SelectedOverlayWidget->SetVisibility(
-            bOnScreen ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
-        if (bOnScreen)
+        const ESlateVisibility InteractiveVisibility = SelectedOverlayWidget->HasPlayableMedia()
+            ? ESlateVisibility::Visible : ESlateVisibility::HitTestInvisible;
+        if (SelectedOverlayWidget->IsMediaExpanded())
         {
-            SelectedOverlayWidget->SetPositionInViewport(ScreenPosition, false);
+            SelectedOverlayWidget->SetAlignmentInViewport(FVector2D(0.5f, 0.5f));
+            SelectedOverlayWidget->SetPositionInViewport(FVector2D::ZeroVector, false);
+            SelectedOverlayWidget->SetAnchorsInViewport(FAnchors(0.5f, 0.5f));
+            SelectedOverlayWidget->SetVisibility(InteractiveVisibility);
+        }
+        else
+        {
+            // UMG 使用经过 DPI 缩放的逻辑坐标，不能直接使用 PlayerController 返回的物理像素。
+            // 所有视角统一跟随模型锚点；锚点出屏时把面板约束在最近的屏幕边缘。
+            FVector2D WidgetPosition;
+            const bool bProjected = UWidgetLayoutLibrary::ProjectWorldLocationToWidgetPosition(
+                PC,
+                OverlaySelectedInstance->GetOverlayAnchorWorldLocation(),
+                WidgetPosition,
+                true);
+            SelectedOverlayWidget->SetAlignmentInViewport(FVector2D(0.5f, 1.0f));
+            SelectedOverlayWidget->SetVisibility(
+                bProjected ? InteractiveVisibility : ESlateVisibility::Collapsed);
+            if (bProjected)
+            {
+                constexpr double EdgeMargin = 24.0;
+                constexpr double AnchorGap = 16.0;
+                const float ViewportScale = FMath::Max(
+                    KINDA_SMALL_NUMBER,
+                    UWidgetLayoutLibrary::GetViewportScale(this));
+                const FVector2D ViewportSize =
+                    UWidgetLayoutLibrary::GetViewportSize(this) / ViewportScale;
+                const FVector2D PanelSize = SelectedOverlayWidget->GetDesiredRenderSize();
+
+                WidgetPosition.Y -= AnchorGap;
+                const double MinX = FMath::Min(
+                    EdgeMargin + PanelSize.X * 0.5,
+                    FMath::Max(EdgeMargin, ViewportSize.X - EdgeMargin));
+                const double MaxX = FMath::Max(
+                    MinX,
+                    ViewportSize.X - EdgeMargin - PanelSize.X * 0.5);
+                const double MaxY = FMath::Max(EdgeMargin, ViewportSize.Y - EdgeMargin);
+                const double MinY = FMath::Min(EdgeMargin + PanelSize.Y, MaxY);
+                WidgetPosition.X = FMath::Clamp(WidgetPosition.X, MinX, MaxX);
+                WidgetPosition.Y = FMath::Clamp(WidgetPosition.Y, MinY, MaxY);
+                SelectedOverlayWidget->SetPositionInViewport(WidgetPosition, false);
+            }
         }
     }
 
@@ -389,19 +458,18 @@ void ATwinSceneManager::UpdateOverlayPointerInput(
     }
 }
 
-void ATwinSceneManager::SelectOverlayInstance(ATwinInstance* Instance, bool bAllowAnyMode)
+void ATwinSceneManager::SelectOverlayInstance(ATwinInstance* Instance)
 {
-    if (!Instance || !IsValid(Instance)
-        || (bAllowAnyMode ? !Instance->HasOverlay() : !Instance->HasSelectedOverlay()))
+    if (!Instance || !IsValid(Instance) || !Instance->HasSelectedOverlay())
     {
         return;
     }
     if (OverlaySelectedInstance != Instance)
     {
+        StopOverlayMedia();
         OverlaySelectedInstance = Instance;
         SelectedOverlayPayloadSerial = 0;
     }
-
     if (!SelectedOverlayWidget)
     {
         APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
@@ -410,30 +478,765 @@ void ATwinSceneManager::SelectOverlayInstance(ATwinInstance* Instance, bool bAll
             ? OverlayWidgetClass.Get() : UOntoTwinOverlayWidget::StaticClass();
         SelectedOverlayWidget = CreateWidget<UOntoTwinOverlayWidget>(PC, WidgetClass);
         if (!SelectedOverlayWidget) return;
+        TWeakObjectPtr<ATwinSceneManager> WeakThis(this);
+        SelectedOverlayWidget->SetMediaActionHandler(
+            [WeakThis](EOntoTwinOverlayMediaAction Action)
+            {
+                if (WeakThis.IsValid())
+                {
+                    WeakThis->HandleOverlayMediaAction(Action);
+                }
+            });
         SelectedOverlayWidget->SetAlignmentInViewport(FVector2D(0.5f, 1.0f));
         SelectedOverlayWidget->AddToViewport(900);
     }
+
+    UE_LOG(LogTemp, Log,
+        TEXT("OntoTwin overlay selected instance=%s roaming=%s widget=%s"),
+        *Instance->GetInstanceId(),
+        InteractionManager && InteractionManager->IsRoamingActive() ? TEXT("true") : TEXT("false"),
+        SelectedOverlayWidget ? TEXT("ready") : TEXT("missing"));
 }
 
 void ATwinSceneManager::ClearOverlaySelection()
 {
+    StopOverlayMedia();
     OverlaySelectedInstance = nullptr;
     SelectedOverlayPayloadSerial = 0;
+    UOntoTwinOverlayWidget* WidgetToClose = SelectedOverlayWidget;
+    SelectedOverlayWidget = nullptr;
+    if (WidgetToClose && IsValid(WidgetToClose))
+    {
+        const TWeakObjectPtr<UOntoTwinOverlayWidget> WeakWidget(WidgetToClose);
+        WidgetToClose->PlayCloseAnimation(
+            [WeakWidget]()
+            {
+                if (WeakWidget.IsValid())
+                {
+                    WeakWidget->RemoveFromParent();
+                }
+            });
+    }
+}
+
+void ATwinSceneManager::RefreshOverlayMediaForSelection(bool bForceResolve)
+{
+    if (!OverlaySelectedInstance || !IsValid(OverlaySelectedInstance)
+        || !SelectedOverlayWidget || !IsValid(SelectedOverlayWidget)
+        || !SelectedOverlayWidget->HasPlayableMedia())
+    {
+        StopOverlayMedia();
+        return;
+    }
+
+    const FString InstanceId = OverlaySelectedInstance->GetInstanceId();
+    const FString SourceRevision = SelectedOverlayWidget->GetMediaSourceRevision();
+    const bool bSameSource = OverlayMediaInstanceId == InstanceId
+        && OverlayMediaSourceRevision == SourceRevision;
+    if (bSameSource && (OverlayMediaResolveRequest.IsValid()
+        || bOverlayMediaOpening
+        || GetWorldTimerManager().IsTimerActive(OverlayMediaRetryTimer)
+        || (OverlayMediaPlayer && OverlayMediaPlayer->IsReady())))
+    {
+        return;
+    }
+    if (bSameSource && bOverlayMediaManualRetryRequired && !bForceResolve)
+    {
+        return;
+    }
+
+    if (!bSameSource)
+    {
+        StopOverlayMedia();
+        OverlayMediaInstanceId = InstanceId;
+        OverlayMediaSourceRevision = SourceRevision;
+        bOverlayMediaAutoplay = SelectedOverlayWidget->ShouldAutoplayMedia();
+        bOverlayMediaPlayWhenOpened = false;
+        OverlayMediaRetryIndex = 0;
+    }
+
+    if (bForceResolve || bOverlayMediaAutoplay)
+    {
+        bOverlayMediaPlayWhenOpened = bForceResolve || bOverlayMediaAutoplay;
+        RequestOverlayMediaResolve(false);
+    }
+    else
+    {
+        SelectedOverlayWidget->SetMediaPlaybackState(
+            false, bOverlayMediaMuted, TEXT("Select Play to start"));
+    }
+}
+
+void ATwinSceneManager::RequestOverlayMediaResolve(bool bResetRetry)
+{
+    if (!OverlaySelectedInstance || !IsValid(OverlaySelectedInstance)
+        || !SelectedOverlayWidget || !IsValid(SelectedOverlayWidget)
+        || !SelectedOverlayWidget->HasPlayableMedia())
+    {
+        return;
+    }
+    if (OverlayMediaResolveRequest.IsValid() || bOverlayMediaOpening)
+    {
+        return;
+    }
+
+    if (bResetRetry)
+    {
+        GetWorldTimerManager().ClearTimer(OverlayMediaRetryTimer);
+        OverlayMediaRetryIndex = 0;
+        bOverlayMediaManualRetryRequired = false;
+    }
+
+    OverlayMediaInstanceId = OverlaySelectedInstance->GetInstanceId();
+    OverlayMediaSourceRevision = SelectedOverlayWidget->GetMediaSourceRevision();
+    SelectedOverlayWidget->SetMediaPlaybackState(
+        false, bOverlayMediaMuted, TEXT("Loading video..."));
+
+    TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
+    Body->SetStringField(TEXT("instance_id"), OverlayMediaInstanceId);
+    FString BodyString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&BodyString);
+    FJsonSerializer::Serialize(Body.ToSharedRef(), Writer);
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+    Request->SetURL(FString::Printf(
+        TEXT("%s/api/v2/overlays/media/resolve"), *BackendBaseUrl));
+    Request->SetVerb(TEXT("POST"));
+    Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    Request->SetHeader(TEXT("Accept"), TEXT("application/json"));
+    AddUEProjectHeaders(Request);
+    Request->SetContentAsString(BodyString);
+    Request->OnProcessRequestComplete().BindUObject(
+        this, &ATwinSceneManager::OnOverlayMediaResolveResponse);
+    OverlayMediaResolveRequest = Request;
+    if (!Request->ProcessRequest())
+    {
+        OverlayMediaResolveRequest.Reset();
+        ScheduleOverlayMediaRetry(TEXT("Video source request failed"));
+    }
+}
+
+void ATwinSceneManager::OnOverlayMediaResolveResponse(
+    FHttpRequestPtr HttpRequest,
+    FHttpResponsePtr Response,
+    bool bWasSuccessful)
+{
+    if (OverlayMediaResolveRequest != HttpRequest)
+    {
+        return;
+    }
+    OverlayMediaResolveRequest.Reset();
+    if (!OverlaySelectedInstance || !IsValid(OverlaySelectedInstance)
+        || OverlaySelectedInstance->GetInstanceId() != OverlayMediaInstanceId)
+    {
+        return;
+    }
+
+    const int32 ResponseCode = Response.IsValid() ? Response->GetResponseCode() : -1;
+    if (!bWasSuccessful || !Response.IsValid() || ResponseCode != 200)
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("OntoTwin media resolve failed successful=%s response_valid=%s code=%d retry_index=%d"),
+            bWasSuccessful ? TEXT("true") : TEXT("false"),
+            Response.IsValid() ? TEXT("true") : TEXT("false"),
+            ResponseCode,
+            OverlayMediaRetryIndex);
+        if (ResponseCode < 0 || ResponseCode >= 500)
+        {
+            ScheduleOverlayMediaRetry(TEXT("Video source unavailable"));
+        }
+        else if (SelectedOverlayWidget && IsValid(SelectedOverlayWidget))
+        {
+            bOverlayMediaManualRetryRequired = true;
+            SelectedOverlayWidget->SetMediaPlaybackState(
+                false,
+                bOverlayMediaMuted,
+                TEXT("Video source blocked or invalid"),
+                true);
+        }
+        return;
+    }
+
+    TSharedPtr<FJsonObject> Payload;
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(
+        Response->GetContentAsString());
+    if (!FJsonSerializer::Deserialize(Reader, Payload) || !Payload.IsValid())
+    {
+        ScheduleOverlayMediaRetry(TEXT("Invalid video source response"));
+        return;
+    }
+
+    FString InstanceId;
+    FString SourceRevision;
+    FString MediaUrl;
+    Payload->TryGetStringField(TEXT("instance_id"), InstanceId);
+    Payload->TryGetStringField(TEXT("source_revision"), SourceRevision);
+    Payload->TryGetStringField(TEXT("kind"), OverlayMediaKind);
+    Payload->TryGetStringField(TEXT("url"), MediaUrl);
+    if (InstanceId != OverlayMediaInstanceId || MediaUrl.IsEmpty())
+    {
+        return;
+    }
+    if (!OverlayMediaSourceRevision.IsEmpty() && !SourceRevision.IsEmpty()
+        && SourceRevision != OverlayMediaSourceRevision)
+    {
+        // The snapshot changed while the signed URL was being resolved.
+        RefreshOverlayMediaForSelection(true);
+        return;
+    }
+
+    const TSharedPtr<FJsonObject>* Playback = nullptr;
+    if (Payload->TryGetObjectField(TEXT("playback"), Playback)
+        && Playback && Playback->IsValid())
+    {
+        (*Playback)->TryGetBoolField(TEXT("autoplay"), bOverlayMediaAutoplay);
+        (*Playback)->TryGetBoolField(TEXT("muted"), bOverlayMediaMuted);
+        (*Playback)->TryGetBoolField(TEXT("loop"), bOverlayMediaLoop);
+    }
+    if (OverlayMediaKind == TEXT("hls"))
+    {
+        bOverlayMediaLoop = false;
+    }
+    bOverlayMediaPlayWhenOpened = bOverlayMediaPlayWhenOpened || bOverlayMediaAutoplay;
+
+    EnsureOverlayMediaPlayer();
+    if (!OverlayMediaPlayer)
+    {
+        ScheduleOverlayMediaRetry(TEXT("Video player unavailable"));
+        return;
+    }
+#if PLATFORM_WINDOWS
+    const FName DesiredPlayerName = OverlayMediaKind.Equals(
+        TEXT("mp4"), ESearchCase::IgnoreCase)
+        ? FName(TEXT("WmfMedia"))
+        : FName(TEXT("ElectraPlayer"));
+#else
+    const FName DesiredPlayerName(TEXT("ElectraPlayer"));
+#endif
+    OverlayMediaPlayer->SetDesiredPlayerName(DesiredPlayerName);
+    OverlayMediaPlayer->SetLooping(bOverlayMediaLoop);
+    if (OverlayMediaSound)
+    {
+        OverlayMediaSound->SetVolumeMultiplier(bOverlayMediaMuted ? 0.0f : 1.0f);
+    }
+    bOverlayMediaOpening = true;
+    UE_LOG(LogTemp, Log,
+        TEXT("OntoTwin media open started instance=%s kind=%s desired_player=%s"),
+        *OverlayMediaInstanceId,
+        *OverlayMediaKind,
+        *DesiredPlayerName.ToString());
+    if (!OverlayMediaPlayer->OpenUrl(MediaUrl))
+    {
+        bOverlayMediaOpening = false;
+        ScheduleOverlayMediaRetry(TEXT("Unable to open video"));
+    }
+}
+
+void ATwinSceneManager::EnsureOverlayMediaPlayer()
+{
+    if (!OverlayMediaPlayer)
+    {
+        OverlayMediaPlayer = NewObject<UMediaPlayer>(this, TEXT("OverlayMediaPlayer"));
+        if (OverlayMediaPlayer)
+        {
+            OverlayMediaPlayer->PlayOnOpen = false;
+            OverlayMediaPlayer->OnMediaOpened.AddDynamic(
+                this, &ATwinSceneManager::OnOverlayMediaOpened);
+            OverlayMediaPlayer->OnTracksChanged.AddDynamic(
+                this, &ATwinSceneManager::OnOverlayMediaTracksChanged);
+            OverlayMediaPlayer->OnMediaOpenFailed.AddDynamic(
+                this, &ATwinSceneManager::OnOverlayMediaOpenFailed);
+            OverlayMediaPlayer->OnEndReached.AddDynamic(
+                this, &ATwinSceneManager::OnOverlayMediaEndReached);
+            OverlayMediaPlayer->OnPlaybackResumed.AddDynamic(
+                this, &ATwinSceneManager::OnOverlayMediaPlaybackResumed);
+            OverlayMediaPlayer->OnPlaybackSuspended.AddDynamic(
+                this, &ATwinSceneManager::OnOverlayMediaPlaybackSuspended);
+        }
+    }
+    if (!OverlayMediaTexture)
+    {
+        OverlayMediaTexture = NewObject<UMediaTexture>(this, TEXT("OverlayMediaTexture"));
+        if (OverlayMediaTexture)
+        {
+            OverlayMediaTexture->AutoClear = false;
+            OverlayMediaTexture->NewStyleOutput = true;
+            OverlayMediaTexture->SetRenderMode(UMediaTexture::ERenderMode::Default);
+            OverlayMediaTexture->SetMediaPlayer(OverlayMediaPlayer);
+            OverlayMediaTexture->UpdateResource();
+        }
+    }
+    if (OverlayMediaSound)
+    {
+        if (OverlayMediaSound->GetMediaPlayer() != OverlayMediaPlayer)
+        {
+            // MediaSound must not create its generator before it has a player.
+            // Otherwise UE 5.6 can register an unconsumed audio sink and stall V2 video timing.
+            OverlayMediaSound->SetActive(false, true);
+            OverlayMediaSound->SetMediaPlayer(OverlayMediaPlayer);
+            OverlayMediaSound->SetActive(true, true);
+        }
+        OverlayMediaSound->SetVolumeMultiplier(bOverlayMediaMuted ? 0.0f : 1.0f);
+        UE_LOG(LogTemp, Log,
+            TEXT("OntoTwin media sound active=%s bound=%s muted=%s"),
+            OverlayMediaSound->IsActive() ? TEXT("true") : TEXT("false"),
+            OverlayMediaSound->GetMediaPlayer() == OverlayMediaPlayer
+                ? TEXT("true") : TEXT("false"),
+            bOverlayMediaMuted ? TEXT("true") : TEXT("false"));
+    }
+}
+
+void ATwinSceneManager::UpdateOverlayMediaPlaybackClock()
+{
+    if (!OverlayMediaPlayer || bOverlayMediaLoop || bOverlayMediaReachedEnd
+        || bOverlayMediaOpening || !OverlayMediaPlayer->IsReady())
+    {
+        return;
+    }
+
+    if (OverlayMediaDurationSeconds <= 0.0)
+    {
+        OverlayMediaDurationSeconds = OverlayMediaPlayer->GetDuration().GetTotalSeconds();
+    }
+    if (OverlayMediaDurationSeconds <= 0.0
+        || OverlayMediaPlaybackStartedAtSeconds <= 0.0
+        || !OverlayMediaPlayer->IsPlaying())
+    {
+        return;
+    }
+
+    const double NowSeconds = FPlatformTime::Seconds();
+    const double ElapsedSeconds = OverlayMediaPlayedSeconds
+        + FMath::Max(0.0, NowSeconds - OverlayMediaPlaybackStartedAtSeconds);
+    if (!bOverlayMediaTextureSampleLogged && ElapsedSeconds >= 1.0
+        && OverlayMediaTexture)
+    {
+        bOverlayMediaTextureSampleLogged = true;
+        const UWorld* World = GetWorld();
+        UE_LOG(LogTemp, Log,
+            TEXT("OntoTwin media texture size=%dx%d aspect=%.3f samples=%d new_style=%s bound=%s player=%s rate=%.3f media_time=%.3fs next_sample=%.3fs world_paused=%s world_delta=%.6f"),
+            OverlayMediaTexture->GetWidth(),
+            OverlayMediaTexture->GetHeight(),
+            OverlayMediaTexture->GetCurrentAspectRatio(),
+            OverlayMediaTexture->GetAvailableSampleCount(),
+            OverlayMediaTexture->NewStyleOutput ? TEXT("true") : TEXT("false"),
+            OverlayMediaTexture->GetMediaPlayer() == OverlayMediaPlayer
+                ? TEXT("true") : TEXT("false"),
+            *OverlayMediaPlayer->GetPlayerName().ToString(),
+            OverlayMediaPlayer->GetRate(),
+            OverlayMediaPlayer->GetTime().GetTotalSeconds(),
+            OverlayMediaTexture->GetNextSampleTime().GetTotalSeconds(),
+            World && World->IsPaused() ? TEXT("true") : TEXT("false"),
+            World ? World->GetDeltaSeconds() : 0.0f);
+    }
+    if (ElapsedSeconds < OverlayMediaDurationSeconds + 0.15)
+    {
+        return;
+    }
+
+    OverlayMediaPlayedSeconds = OverlayMediaDurationSeconds;
+    OverlayMediaPlaybackStartedAtSeconds = 0.0;
+    UE_LOG(LogTemp, Log,
+        TEXT("OntoTwin media end fallback elapsed=%.3fs duration=%.3fs"),
+        ElapsedSeconds,
+        OverlayMediaDurationSeconds);
+    OnOverlayMediaEndReached();
+}
+
+void ATwinSceneManager::HandleOverlayMediaAction(EOntoTwinOverlayMediaAction Action)
+{
+    if (!SelectedOverlayWidget || !IsValid(SelectedOverlayWidget)) return;
+
+    if (Action == EOntoTwinOverlayMediaAction::PlayPause)
+    {
+        UE_LOG(LogTemp, Log,
+            TEXT("OntoTwin media play/pause ready=%s playing=%s ended=%s time=%.3fs"),
+            OverlayMediaPlayer && OverlayMediaPlayer->IsReady() ? TEXT("true") : TEXT("false"),
+            OverlayMediaPlayer && OverlayMediaPlayer->IsPlaying() ? TEXT("true") : TEXT("false"),
+            bOverlayMediaReachedEnd ? TEXT("true") : TEXT("false"),
+            OverlayMediaPlayer ? OverlayMediaPlayer->GetTime().GetTotalSeconds() : 0.0);
+    }
+
+    switch (Action)
+    {
+    case EOntoTwinOverlayMediaAction::PlayPause:
+        if (OverlayMediaPlayer && bOverlayMediaReachedEnd)
+        {
+            bOverlayMediaReachedEnd = false;
+            bOverlayMediaPlayWhenOpened = true;
+            OverlayMediaPlayedSeconds = 0.0;
+            OverlayMediaPlaybackStartedAtSeconds = 0.0;
+            RequestOverlayMediaResolve(true);
+        }
+        else if (OverlayMediaPlayer && OverlayMediaPlayer->IsPlaying())
+        {
+            OverlayMediaPlayer->Pause();
+            SelectedOverlayWidget->SetMediaPlaybackState(
+                false, bOverlayMediaMuted, TEXT("Paused"));
+        }
+        else if (OverlayMediaPlayer && OverlayMediaPlayer->IsReady())
+        {
+            if (OverlayMediaPlayer->Play())
+            {
+                SelectedOverlayWidget->SetMediaPlaybackState(true, bOverlayMediaMuted);
+            }
+            else
+            {
+                bOverlayMediaPlayWhenOpened = true;
+                RequestOverlayMediaResolve(true);
+            }
+        }
+        else
+        {
+            bOverlayMediaPlayWhenOpened = true;
+            RequestOverlayMediaResolve(true);
+        }
+        break;
+    case EOntoTwinOverlayMediaAction::ToggleMute:
+        bOverlayMediaMuted = !bOverlayMediaMuted;
+        if (OverlayMediaSound)
+        {
+            OverlayMediaSound->SetVolumeMultiplier(bOverlayMediaMuted ? 0.0f : 1.0f);
+        }
+        SelectedOverlayWidget->SetMediaPlaybackState(
+            OverlayMediaPlayer && OverlayMediaPlayer->IsPlaying(), bOverlayMediaMuted);
+        break;
+    case EOntoTwinOverlayMediaAction::ToggleExpanded:
+        SelectedOverlayWidget->SetMediaExpanded(!SelectedOverlayWidget->IsMediaExpanded());
+        break;
+    case EOntoTwinOverlayMediaAction::Close:
+        ClearOverlaySelection();
+        break;
+    case EOntoTwinOverlayMediaAction::Retry:
+        bOverlayMediaPlayWhenOpened = true;
+        RequestOverlayMediaResolve(true);
+        break;
+    default:
+        break;
+    }
+}
+
+void ATwinSceneManager::ScheduleOverlayMediaRetry(const FString& StatusMessage)
+{
+    bOverlayMediaOpening = false;
+    static const float RetryDelays[] = {2.0f, 5.0f, 15.0f};
+    if (!SelectedOverlayWidget || !IsValid(SelectedOverlayWidget)) return;
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("OntoTwin media retry status=%s retry_index=%d"),
+        *StatusMessage,
+        OverlayMediaRetryIndex);
+
+    if (OverlayMediaRetryIndex >= UE_ARRAY_COUNT(RetryDelays))
+    {
+        bOverlayMediaManualRetryRequired = true;
+        SelectedOverlayWidget->SetMediaPlaybackState(
+            false,
+            bOverlayMediaMuted,
+            StatusMessage + TEXT(" - select Retry"),
+            true);
+        return;
+    }
+
+    const float Delay = RetryDelays[OverlayMediaRetryIndex++];
+    SelectedOverlayWidget->SetMediaPlaybackState(
+        false,
+        bOverlayMediaMuted,
+        FString::Printf(TEXT("%s - retrying in %.0fs"), *StatusMessage, Delay));
+    TWeakObjectPtr<ATwinSceneManager> WeakThis(this);
+    GetWorldTimerManager().SetTimer(
+        OverlayMediaRetryTimer,
+        FTimerDelegate::CreateLambda([WeakThis]()
+        {
+            if (WeakThis.IsValid())
+            {
+                WeakThis->RequestOverlayMediaResolve(false);
+            }
+        }),
+        Delay,
+        false);
+}
+
+void ATwinSceneManager::StopOverlayMedia(bool bResetWidget)
+{
+    GetWorldTimerManager().ClearTimer(OverlayMediaRetryTimer);
+    bOverlayMediaOpening = false;
+    bOverlayMediaReachedEnd = false;
+    bOverlayMediaTextureSampleLogged = false;
+    OverlayMediaDurationSeconds = 0.0;
+    OverlayMediaPlayedSeconds = 0.0;
+    OverlayMediaPlaybackStartedAtSeconds = 0.0;
+    if (OverlayMediaResolveRequest.IsValid())
+    {
+        OverlayMediaResolveRequest->CancelRequest();
+        OverlayMediaResolveRequest.Reset();
+    }
+    OverlayMediaInstanceId.Empty();
+    OverlayMediaSourceRevision.Empty();
+    OverlayMediaKind.Empty();
+    OverlayMediaRetryIndex = 0;
+    bOverlayMediaPlayWhenOpened = false;
+    bOverlayMediaManualRetryRequired = false;
+    if (OverlayMediaPlayer)
+    {
+        OverlayMediaPlayer->Close();
+    }
+    if (bResetWidget && SelectedOverlayWidget && IsValid(SelectedOverlayWidget))
+    {
+        SelectedOverlayWidget->SetMediaTexture(nullptr);
+        SelectedOverlayWidget->SetMediaPlaybackState(false, bOverlayMediaMuted);
+        SelectedOverlayWidget->SetMediaExpanded(false);
+    }
+}
+
+void ATwinSceneManager::OnOverlayMediaOpened(FString OpenedUrl)
+{
+    bOverlayMediaOpening = false;
+    bOverlayMediaReachedEnd = false;
+    bOverlayMediaTextureSampleLogged = false;
+    OverlayMediaDurationSeconds = 0.0;
+    OverlayMediaPlayedSeconds = 0.0;
+    OverlayMediaPlaybackStartedAtSeconds = 0.0;
+    GetWorldTimerManager().ClearTimer(OverlayMediaRetryTimer);
+    UE_LOG(LogTemp, Log, TEXT("OntoTwin media opened instance=%s"),
+        *OverlayMediaInstanceId);
+    if (OverlayMediaInstanceId.IsEmpty() || !SelectedOverlayWidget
+        || !IsValid(SelectedOverlayWidget) || !OverlayMediaPlayer)
+    {
+        return;
+    }
+    OverlayMediaDurationSeconds = OverlayMediaPlayer->GetDuration().GetTotalSeconds();
+    UE_LOG(LogTemp, Log, TEXT("OntoTwin media duration=%.3fs"),
+        OverlayMediaDurationSeconds);
+    OverlayMediaRetryIndex = 0;
+    SelectedOverlayWidget->SetMediaTexture(OverlayMediaTexture);
+    if (bOverlayMediaPlayWhenOpened)
+    {
+        OverlayMediaPlayer->Play();
+    }
+    SelectedOverlayWidget->SetMediaPlaybackState(
+        OverlayMediaPlayer->IsPlaying(),
+        bOverlayMediaMuted,
+        OverlayMediaPlayer->IsPlaying() ? FString() : TEXT("Ready"));
+}
+
+void ATwinSceneManager::OnOverlayMediaOpenFailed(FString FailedUrl)
+{
+    if (OverlayMediaInstanceId.IsEmpty()) return;
+    bOverlayMediaOpening = false;
+    UE_LOG(LogTemp, Warning, TEXT("OntoTwin media open failed instance=%s kind=%s"),
+        *OverlayMediaInstanceId,
+        *OverlayMediaKind);
+    ScheduleOverlayMediaRetry(TEXT("Unable to play video"));
+}
+
+void ATwinSceneManager::OnOverlayMediaTracksChanged()
+{
+    if (!OverlayMediaPlayer)
+    {
+        return;
+    }
+
+    const int32 VideoTrackCount = OverlayMediaPlayer->GetNumTracks(
+        EMediaPlayerTrack::Video);
+    int32 SelectedVideoTrack = OverlayMediaPlayer->GetSelectedTrack(
+        EMediaPlayerTrack::Video);
+    bool bSelectedFallbackTrack = false;
+    if (SelectedVideoTrack == INDEX_NONE && VideoTrackCount > 0)
+    {
+        bSelectedFallbackTrack = OverlayMediaPlayer->SelectTrack(
+            EMediaPlayerTrack::Video, 0);
+        SelectedVideoTrack = OverlayMediaPlayer->GetSelectedTrack(
+            EMediaPlayerTrack::Video);
+    }
+
+    const int32 FormatIndex = SelectedVideoTrack == INDEX_NONE
+        ? INDEX_NONE
+        : OverlayMediaPlayer->GetTrackFormat(
+            EMediaPlayerTrack::Video, SelectedVideoTrack);
+    const FIntPoint Dimensions = FormatIndex == INDEX_NONE
+        ? FIntPoint::ZeroValue
+        : OverlayMediaPlayer->GetVideoTrackDimensions(
+            SelectedVideoTrack, FormatIndex);
+    const float FrameRate = FormatIndex == INDEX_NONE
+        ? 0.0f
+        : OverlayMediaPlayer->GetVideoTrackFrameRate(
+            SelectedVideoTrack, FormatIndex);
+    const FString Codec = FormatIndex == INDEX_NONE
+        ? FString()
+        : OverlayMediaPlayer->GetVideoTrackType(
+            SelectedVideoTrack, FormatIndex);
+
+    UE_LOG(LogTemp, Log,
+        TEXT("OntoTwin media tracks player=%s video_tracks=%d selected=%d fallback_selected=%s format=%d size=%dx%d fps=%.3f codec=%s"),
+        *OverlayMediaPlayer->GetPlayerName().ToString(),
+        VideoTrackCount,
+        SelectedVideoTrack,
+        bSelectedFallbackTrack ? TEXT("true") : TEXT("false"),
+        FormatIndex,
+        Dimensions.X,
+        Dimensions.Y,
+        FrameRate,
+        Codec.IsEmpty() ? TEXT("unknown") : *Codec);
+}
+
+void ATwinSceneManager::OnOverlayMediaEndReached()
+{
+    UE_LOG(LogTemp, Log,
+        TEXT("OntoTwin media end reached player=%s time=%.3fs rate=%.3f"),
+        OverlayMediaPlayer ? *OverlayMediaPlayer->GetPlayerName().ToString() : TEXT("none"),
+        OverlayMediaPlayer ? OverlayMediaPlayer->GetTime().GetTotalSeconds() : 0.0,
+        OverlayMediaPlayer ? OverlayMediaPlayer->GetRate() : 0.0f);
+    if (bOverlayMediaLoop)
+    {
+        bOverlayMediaReachedEnd = false;
+        OverlayMediaPlayedSeconds = 0.0;
+        OverlayMediaPlaybackStartedAtSeconds = FPlatformTime::Seconds();
+        return;
+    }
+    bOverlayMediaReachedEnd = true;
+    OverlayMediaPlaybackStartedAtSeconds = 0.0;
+    if (OverlayMediaDurationSeconds > 0.0)
+    {
+        OverlayMediaPlayedSeconds = OverlayMediaDurationSeconds;
+    }
     if (SelectedOverlayWidget && IsValid(SelectedOverlayWidget))
     {
-        SelectedOverlayWidget->RemoveFromParent();
+        SelectedOverlayWidget->SetMediaPlaybackState(
+            false, bOverlayMediaMuted, TEXT("Finished - select Play to replay"));
     }
-    SelectedOverlayWidget = nullptr;
+}
+
+void ATwinSceneManager::OnOverlayMediaPlaybackResumed()
+{
+    UE_LOG(LogTemp, Log,
+        TEXT("OntoTwin media playback resumed player=%s time=%.3fs rate=%.3f"),
+        OverlayMediaPlayer ? *OverlayMediaPlayer->GetPlayerName().ToString() : TEXT("none"),
+        OverlayMediaPlayer ? OverlayMediaPlayer->GetTime().GetTotalSeconds() : 0.0,
+        OverlayMediaPlayer ? OverlayMediaPlayer->GetRate() : 0.0f);
+    bOverlayMediaReachedEnd = false;
+    if (OverlayMediaPlayer && OverlayMediaDurationSeconds <= 0.0)
+    {
+        OverlayMediaDurationSeconds = OverlayMediaPlayer->GetDuration().GetTotalSeconds();
+    }
+    OverlayMediaPlaybackStartedAtSeconds = FPlatformTime::Seconds();
+    if (SelectedOverlayWidget && IsValid(SelectedOverlayWidget))
+    {
+        SelectedOverlayWidget->SetMediaPlaybackState(true, bOverlayMediaMuted);
+    }
+}
+
+void ATwinSceneManager::OnOverlayMediaPlaybackSuspended()
+{
+    UE_LOG(LogTemp, Log,
+        TEXT("OntoTwin media playback suspended player=%s time=%.3fs rate=%.3f"),
+        OverlayMediaPlayer ? *OverlayMediaPlayer->GetPlayerName().ToString() : TEXT("none"),
+        OverlayMediaPlayer ? OverlayMediaPlayer->GetTime().GetTotalSeconds() : 0.0,
+        OverlayMediaPlayer ? OverlayMediaPlayer->GetRate() : 0.0f);
+    if (OverlayMediaPlaybackStartedAtSeconds > 0.0)
+    {
+        OverlayMediaPlayedSeconds += FMath::Max(
+            0.0,
+            FPlatformTime::Seconds() - OverlayMediaPlaybackStartedAtSeconds);
+        OverlayMediaPlaybackStartedAtSeconds = 0.0;
+        if (OverlayMediaDurationSeconds > 0.0)
+        {
+            OverlayMediaPlayedSeconds = FMath::Min(
+                OverlayMediaPlayedSeconds, OverlayMediaDurationSeconds);
+        }
+    }
+    if (!bOverlayMediaReachedEnd && SelectedOverlayWidget
+        && IsValid(SelectedOverlayWidget))
+    {
+        SelectedOverlayWidget->SetMediaPlaybackState(
+            false, bOverlayMediaMuted, TEXT("Paused"));
+    }
 }
 
 void ATwinSceneManager::SelectOverlayFromSceneInteraction(ATwinInstance* Instance)
 {
-    SelectOverlayInstance(Instance, true);
+    // always 的世界空间面板已经是最终呈现，点击时不能再创建一份 Screen Space 面板。
+    // selected 才进入点按选择链路；两个显示模式在单个实例上严格互斥。
+    if (!Instance || !IsValid(Instance) || !Instance->HasSelectedOverlay())
+    {
+        ClearOverlaySelection();
+        return;
+    }
+    SelectOverlayInstance(Instance);
 }
 
 void ATwinSceneManager::ClearOverlayFromSceneInteraction()
 {
     ClearOverlaySelection();
+}
+
+ATwinInstance* ATwinSceneManager::FindAlwaysOverlayAtScreenPosition(
+    APlayerController* PlayerController,
+    const FVector2D& ScreenPosition) const
+{
+    if (!PlayerController) return nullptr;
+
+    ATwinInstance* BestInstance = nullptr;
+    float BestDistanceSquared = FLT_MAX;
+    const FVector CameraLocation = PlayerController->PlayerCameraManager
+        ? PlayerController->PlayerCameraManager->GetCameraLocation()
+        : FVector::ZeroVector;
+
+    for (const TPair<FString, ATwinInstance*>& Pair : InstanceRegistry)
+    {
+        ATwinInstance* Instance = Pair.Value;
+        if (!Instance || !IsValid(Instance)
+            || !Instance->IsScreenPointOverAlwaysOverlay(PlayerController, ScreenPosition))
+        {
+            continue;
+        }
+
+        const float DistanceSquared = FVector::DistSquared(
+            CameraLocation, Instance->GetOverlayAnchorWorldLocation());
+        if (!BestInstance || DistanceSquared < BestDistanceSquared)
+        {
+            BestInstance = Instance;
+            BestDistanceSquared = DistanceSquared;
+        }
+    }
+    return BestInstance;
+}
+
+bool ATwinSceneManager::SelectOverlayAtScreenPosition(const FVector2D& ScreenPosition)
+{
+    APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+    ATwinInstance* Instance = FindAlwaysOverlayAtScreenPosition(PlayerController, ScreenPosition);
+    if (!Instance) return false;
+    SelectOverlayFromSceneInteraction(Instance);
+    return true;
+}
+
+ATwinInstance* ATwinSceneManager::FindOverlayInstanceNearHit(
+    const FHitResult& Hit,
+    float MaxDistanceCm) const
+{
+    const FVector HitLocation = Hit.bBlockingHit ? Hit.ImpactPoint : Hit.Location;
+    const float MaxDistanceSquared = FMath::Square(FMath::Max(1.0f, MaxDistanceCm));
+    ATwinInstance* BestInstance = nullptr;
+    float BestDistanceSquared = MaxDistanceSquared;
+
+    for (const TPair<FString, ATwinInstance*>& Pair : InstanceRegistry)
+    {
+        ATwinInstance* Instance = Pair.Value;
+        if (!Instance || !IsValid(Instance) || !Instance->HasOverlay()) continue;
+
+        const FBox Bounds = Instance->GetComponentsBoundingBox(true);
+        const FVector Closest = Bounds.IsValid
+            ? Bounds.GetClosestPointTo(HitLocation)
+            : Instance->GetActorLocation();
+        const float DistanceSquared = FVector::DistSquared(HitLocation, Closest);
+        if (DistanceSquared <= BestDistanceSquared)
+        {
+            BestInstance = Instance;
+            BestDistanceSquared = DistanceSquared;
+        }
+    }
+    return BestInstance;
 }
 
 void ATwinSceneManager::UpdateAlwaysOverlays(APlayerController* PlayerController)
@@ -2378,12 +3181,21 @@ FString ATwinSceneManager::MigrationResultPath() const
         FPaths::ProjectSavedDir(), TEXT("OntoTwinMigration"), TEXT("ue_migration_result.json")));
 }
 
+FString ATwinSceneManager::MigrationPreviewSnapshotPath() const
+{
+    return FPaths::ConvertRelativePathToFull(FPaths::Combine(
+        FPaths::ProjectSavedDir(), TEXT("OntoTwinMigration"), TEXT("ue_snapshots.json")));
+}
+
+FString ATwinSceneManager::MigrationPreviewAuditPath() const
+{
+    return FPaths::ConvertRelativePathToFull(FPaths::Combine(
+        FPaths::ProjectSavedDir(), TEXT("OntoTwinMigration"), TEXT("ue_preview_audit.json")));
+}
+
 void ATwinSceneManager::ExportSelectedActorsForMigration()
 {
 #if WITH_EDITOR
-    // 扫描「待迁移文件夹」而非当前选择集：UE 细节面板多选不同类型 Actor 时，
-    // 只显示共同按钮，Manager 专属按钮会被隐藏——无法"同时选中 actor + Manager"
-    // 再点击本按钮。改用文件夹两步走：先把 actor 移进文件夹，再单独选中 Manager 点击。
     UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : GetWorld();
     if (!World)
     {
@@ -2392,26 +3204,138 @@ void ATwinSceneManager::ExportSelectedActorsForMigration()
 
     FString TargetFolder = MigrationFolderName;
     TargetFolder.TrimStartAndEndInline();
-    TArray<TSharedPtr<FJsonValue>> ActorsJson;
-    int32 Count = 0;
-
+    TSet<AActor*> CandidateActors;
     for (TActorIterator<AActor> It(World); It; ++It)
     {
         AActor* A = *It;
         if (!A || A == this) continue;
-        // 已受管的孪生体不迁移（它本就来自 DB）
         if (A->IsA(ATwinInstance::StaticClass())) continue;
-        // 导出「待迁移文件夹」及其全部子文件夹下的 actor
-        if (!IsInFolderOrChild(A->GetFolderPath(), TargetFolder)) continue;
+        if (IsInFolderOrChild(A->GetFolderPath(), TargetFolder))
+        {
+            CandidateActors.Add(A);
+        }
+    }
+
+    // 文件夹里只需要放母 Actor。若一个候选又附着在另一个候选下面，只导出最上层母 Actor，
+    // 防止同一批后代既作为部件又被重复建实例。
+    TArray<AActor*> RootActors;
+    for (AActor* Candidate : CandidateActors)
+    {
+        bool bHasCandidateAncestor = false;
+        for (AActor* Parent = Candidate ? Candidate->GetAttachParentActor() : nullptr;
+             Parent;
+             Parent = Parent->GetAttachParentActor())
+        {
+            if (CandidateActors.Contains(Parent))
+            {
+                bHasCandidateAncestor = true;
+                break;
+            }
+        }
+        if (!bHasCandidateAncestor)
+        {
+            RootActors.Add(Candidate);
+        }
+    }
+    RootActors.Sort([](const AActor& Lhs, const AActor& Rhs)
+    {
+        return Lhs.GetActorGuid().ToString(EGuidFormats::DigitsWithHyphens)
+            < Rhs.GetActorGuid().ToString(EGuidFormats::DigitsWithHyphens);
+    });
+
+    auto ActorGuidString = [](const AActor* A)
+    {
+        return A
+            ? A->GetActorGuid().ToString(EGuidFormats::DigitsWithHyphens)
+            : FString();
+    };
+    auto TransformToJson = [](const FTransform& Transform)
+    {
+        const FVector Loc = Transform.GetLocation();
+        const FRotator Rot = Transform.Rotator();
+        const FVector Scale = Transform.GetScale3D();
+        TSharedPtr<FJsonObject> Json = MakeShared<FJsonObject>();
+        Json->SetNumberField(TEXT("tx"), Loc.X);
+        Json->SetNumberField(TEXT("ty"), Loc.Y);
+        Json->SetNumberField(TEXT("tz"), Loc.Z);
+        // 与 ApplySpatialFromSnapshot 约定一致：rx=Roll, ry=Pitch, rz=Yaw。
+        Json->SetNumberField(TEXT("rx"), Rot.Roll);
+        Json->SetNumberField(TEXT("ry"), Rot.Pitch);
+        Json->SetNumberField(TEXT("rz"), Rot.Yaw);
+        Json->SetNumberField(TEXT("sx"), Scale.X);
+        Json->SetNumberField(TEXT("sy"), Scale.Y);
+        Json->SetNumberField(TEXT("sz"), Scale.Z);
+        return Json;
+    };
+    auto UnsupportedComponentKind = [](const UActorComponent* Component)
+    {
+        if (!Component || !Component->GetClass()) return FString();
+        const FString ClassName = Component->GetClass()->GetName();
+        if (Component->IsA<USkeletalMeshComponent>()) return FString(TEXT("skeletal_mesh"));
+        if (Component->IsA<UInstancedStaticMeshComponent>())
+        {
+            return ClassName.Contains(TEXT("Hierarchical"), ESearchCase::IgnoreCase)
+                ? FString(TEXT("hierarchical_instanced_static_mesh"))
+                : FString(TEXT("instanced_static_mesh"));
+        }
+        if (ClassName.Contains(TEXT("Spline"), ESearchCase::IgnoreCase))
+            return FString(TEXT("spline"));
+        if (ClassName.Contains(TEXT("ProceduralMesh"), ESearchCase::IgnoreCase))
+            return FString(TEXT("procedural_mesh"));
+        if (ClassName.Contains(TEXT("GeometryCollection"), ESearchCase::IgnoreCase))
+            return FString(TEXT("geometry_collection"));
+        if (ClassName.Contains(TEXT("Niagara"), ESearchCase::IgnoreCase))
+            return FString(TEXT("niagara"));
+        if (ClassName.Contains(TEXT("Decal"), ESearchCase::IgnoreCase))
+            return FString(TEXT("decal"));
+        if (ClassName.Contains(TEXT("ChildActor"), ESearchCase::IgnoreCase))
+            return FString(TEXT("child_actor"));
+        if (ClassName.Contains(TEXT("GeometryCache"), ESearchCase::IgnoreCase))
+            return FString(TEXT("geometry_cache"));
+        if (ClassName.Contains(TEXT("Groom"), ESearchCase::IgnoreCase))
+            return FString(TEXT("groom"));
+        if (ClassName.Contains(TEXT("ParticleSystem"), ESearchCase::IgnoreCase))
+            return FString(TEXT("particle_system"));
+        return FString();
+    };
+
+    TArray<TSharedPtr<FJsonValue>> ActorsJson;
+    int32 TotalSourceActors = 0;
+    int32 TotalRenderParts = 0;
+    int32 TotalUnsupported = 0;
+    for (AActor* RootActor : RootActors)
+    {
+        if (!RootActor) continue;
+
+        TArray<AActor*> AssemblyActors;
+        TSet<AActor*> VisitedActors;
+        TFunction<void(AActor*)> CollectAttachedTree = [&](AActor* Current)
+        {
+            if (!Current || VisitedActors.Contains(Current)) return;
+            VisitedActors.Add(Current);
+            AssemblyActors.Add(Current);
+
+            TArray<AActor*> DirectChildren;
+            Current->GetAttachedActors(DirectChildren, /*bResetArray=*/true, /*bRecursivelyIncludeAttachedActors=*/false);
+            DirectChildren.Sort([&ActorGuidString](const AActor& Lhs, const AActor& Rhs)
+            {
+                return ActorGuidString(&Lhs) < ActorGuidString(&Rhs);
+            });
+            for (AActor* Child : DirectChildren)
+            {
+                CollectAttachedTree(Child);
+            }
+        };
+        CollectAttachedTree(RootActor);
 
         TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
-        Obj->SetStringField(TEXT("ext_guid"),
-            A->GetActorGuid().ToString(EGuidFormats::DigitsWithHyphens));
-        Obj->SetStringField(TEXT("name"), A->GetActorLabel());
-        Obj->SetStringField(TEXT("actor_label"), A->GetActorLabel());
-        Obj->SetStringField(TEXT("actor_name"), A->GetName());
-        Obj->SetStringField(TEXT("source_folder_path"), A->GetFolderPath().ToString());
-        if (UClass* ActorClass = A->GetClass())
+        const FString RootGuid = ActorGuidString(RootActor);
+        Obj->SetStringField(TEXT("ext_guid"), RootGuid);
+        Obj->SetStringField(TEXT("name"), RootActor->GetActorLabel());
+        Obj->SetStringField(TEXT("actor_label"), RootActor->GetActorLabel());
+        Obj->SetStringField(TEXT("actor_name"), RootActor->GetName());
+        Obj->SetStringField(TEXT("source_folder_path"), RootActor->GetFolderPath().ToString());
+        if (UClass* ActorClass = RootActor->GetClass())
         {
             Obj->SetStringField(TEXT("actor_class"), ActorClass->GetName());
             Obj->SetStringField(TEXT("actor_class_path"), ActorClass->GetPathName());
@@ -2420,76 +3344,204 @@ void ATwinSceneManager::ExportSelectedActorsForMigration()
                 Obj->SetStringField(TEXT("blueprint_class_path"), ActorClass->ClassGeneratedBy->GetPathName());
             }
         }
+        Obj->SetObjectField(TEXT("transform"), TransformToJson(RootActor->GetActorTransform()));
 
-        // 取第一个静态网格组件的资产路径（/Game/... 或引擎资产）
-        FString MeshAsset;
-        TArray<UStaticMeshComponent*> StaticMeshComponents;
-        A->GetComponents<UStaticMeshComponent>(StaticMeshComponents);
+        TArray<TSharedPtr<FJsonValue>> SourceActorGuids;
+        TArray<TSharedPtr<FJsonValue>> SourceActors;
+        TArray<TSharedPtr<FJsonValue>> RenderParts;
         TArray<TSharedPtr<FJsonValue>> StaticMeshAssets;
-        if (StaticMeshComponents.Num() > 0)
-        {
-            for (UStaticMeshComponent* SMC : StaticMeshComponents)
-            {
-                if (SMC && SMC->GetStaticMesh())
-                {
-                    const FString Path = SMC->GetStaticMesh()->GetPathName();
-                    if (MeshAsset.IsEmpty())
-                    {
-                        MeshAsset = Path;
-                    }
-                    StaticMeshAssets.Add(MakeShared<FJsonValueString>(Path));
-                }
-            }
-        }
-        Obj->SetStringField(TEXT("mesh_asset"), MeshAsset);
-        Obj->SetStringField(TEXT("static_mesh_asset"), MeshAsset);
-        Obj->SetArrayField(TEXT("static_mesh_assets"), StaticMeshAssets);
-
-        FString SkeletalMeshAsset;
-        TArray<USkeletalMeshComponent*> SkeletalMeshComponents;
-        A->GetComponents<USkeletalMeshComponent>(SkeletalMeshComponents);
         TArray<TSharedPtr<FJsonValue>> SkeletalMeshAssets;
-        for (USkeletalMeshComponent* SKC : SkeletalMeshComponents)
+        TArray<TSharedPtr<FJsonValue>> UnsupportedComponents;
+        TArray<TSharedPtr<FJsonValue>> MigrationWarnings;
+        TMap<FString, int32> ActorClassCounts;
+        TMap<FString, int32> ComponentClassCounts;
+        TArray<FString> SignatureParts;
+        FString FirstMeshAsset;
+        FString FirstSkeletalMeshAsset;
+
+        const FTransform RootWorldTransform = RootActor->GetActorTransform();
+        for (AActor* SourceActor : AssemblyActors)
         {
-            if (SKC && SKC->GetSkeletalMeshAsset())
+            if (!SourceActor) continue;
+            const FString SourceGuid = ActorGuidString(SourceActor);
+            SourceActorGuids.Add(MakeShared<FJsonValueString>(SourceGuid));
+
+            TSharedPtr<FJsonObject> SourceActorJson = MakeShared<FJsonObject>();
+            SourceActorJson->SetStringField(TEXT("guid"), SourceGuid);
+            SourceActorJson->SetStringField(TEXT("actor_label"), SourceActor->GetActorLabel());
+            SourceActorJson->SetStringField(TEXT("actor_name"), SourceActor->GetName());
+            SourceActorJson->SetStringField(TEXT("folder_path"), SourceActor->GetFolderPath().ToString());
+            SourceActorJson->SetStringField(TEXT("parent_guid"), ActorGuidString(SourceActor->GetAttachParentActor()));
+            if (UClass* SourceClass = SourceActor->GetClass())
             {
-                const FString Path = SKC->GetSkeletalMeshAsset()->GetPathName();
-                if (SkeletalMeshAsset.IsEmpty())
+                SourceActorJson->SetStringField(TEXT("actor_class"), SourceClass->GetName());
+                SourceActorJson->SetStringField(TEXT("actor_class_path"), SourceClass->GetPathName());
+                ActorClassCounts.FindOrAdd(SourceClass->GetPathName())++;
+                if (SourceClass->ClassGeneratedBy)
                 {
-                    SkeletalMeshAsset = Path;
+                    SourceActorJson->SetStringField(
+                        TEXT("blueprint_class_path"), SourceClass->ClassGeneratedBy->GetPathName());
                 }
-                SkeletalMeshAssets.Add(MakeShared<FJsonValueString>(Path));
+            }
+            SourceActors.Add(MakeShared<FJsonValueObject>(SourceActorJson));
+
+            // Datasmith 大量使用负缩放做镜像。assembly_v1 会在部件相对 FTransform 中
+            // 原样保留它；这里只把事实写入审计，不把正常镜像误判为禁止迁移。
+            const FVector SourceActorScale = SourceActor->GetActorScale3D();
+            SourceActorJson->SetBoolField(TEXT("has_mirrored_scale"),
+                SourceActorScale.X < 0.0 || SourceActorScale.Y < 0.0 || SourceActorScale.Z < 0.0);
+
+            TInlineComponentArray<UActorComponent*> Components(SourceActor);
+            Components.Sort([](const UActorComponent& Lhs, const UActorComponent& Rhs)
+            {
+                return Lhs.GetName() < Rhs.GetName();
+            });
+            for (UActorComponent* Component : Components)
+            {
+                if (!Component || !Component->GetClass()) continue;
+                const FString ComponentClassPath = Component->GetClass()->GetPathName();
+                ComponentClassCounts.FindOrAdd(ComponentClassPath)++;
+
+                const FString UnsupportedKind = UnsupportedComponentKind(Component);
+                if (!UnsupportedKind.IsEmpty())
+                {
+                    TSharedPtr<FJsonObject> Unsupported = MakeShared<FJsonObject>();
+                    Unsupported->SetStringField(TEXT("kind"), UnsupportedKind);
+                    Unsupported->SetStringField(TEXT("source_actor_guid"), SourceGuid);
+                    Unsupported->SetStringField(TEXT("source_actor_label"), SourceActor->GetActorLabel());
+                    Unsupported->SetStringField(TEXT("component_name"), Component->GetName());
+                    Unsupported->SetStringField(TEXT("component_class"), ComponentClassPath);
+                    UnsupportedComponents.Add(MakeShared<FJsonValueObject>(Unsupported));
+
+                    if (USkeletalMeshComponent* Skeletal = Cast<USkeletalMeshComponent>(Component))
+                    {
+                        if (USkeletalMesh* SkeletalAsset = Skeletal->GetSkeletalMeshAsset())
+                        {
+                            const FString AssetPath = SkeletalAsset->GetPathName();
+                            if (FirstSkeletalMeshAsset.IsEmpty()) FirstSkeletalMeshAsset = AssetPath;
+                            SkeletalMeshAssets.Add(MakeShared<FJsonValueString>(AssetPath));
+                        }
+                    }
+                    continue;
+                }
+
+                UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component);
+                if (!StaticMeshComponent || !StaticMeshComponent->GetStaticMesh()) continue;
+
+                const FString AssetPath = StaticMeshComponent->GetStaticMesh()->GetPathName();
+                const FTransform RelativeTransform =
+                    StaticMeshComponent->GetComponentTransform().GetRelativeTransform(RootWorldTransform);
+                if (FirstMeshAsset.IsEmpty()) FirstMeshAsset = AssetPath;
+                StaticMeshAssets.Add(MakeShared<FJsonValueString>(AssetPath));
+
+                TSharedPtr<FJsonObject> Part = MakeShared<FJsonObject>();
+                Part->SetStringField(TEXT("asset_path"), AssetPath);
+                Part->SetStringField(TEXT("source_actor_guid"), SourceGuid);
+                Part->SetStringField(TEXT("source_actor_label"), SourceActor->GetActorLabel());
+                Part->SetStringField(TEXT("source_component_name"), StaticMeshComponent->GetName());
+                Part->SetStringField(TEXT("source_component_class"), ComponentClassPath);
+                Part->SetObjectField(TEXT("relative_transform"), TransformToJson(RelativeTransform));
+
+                TArray<TSharedPtr<FJsonValue>> MaterialPaths;
+                TArray<FString> MaterialSignaturePaths;
+                const int32 MaterialSlotCount = StaticMeshComponent->GetNumMaterials();
+                MaterialPaths.Reserve(MaterialSlotCount);
+                MaterialSignaturePaths.Reserve(MaterialSlotCount);
+                for (int32 MaterialIndex = 0; MaterialIndex < MaterialSlotCount; ++MaterialIndex)
+                {
+                    UMaterialInterface* EffectiveMaterial = StaticMeshComponent->GetMaterial(MaterialIndex);
+                    const FString MaterialPath = EffectiveMaterial
+                        ? EffectiveMaterial->GetPathName()
+                        : FString();
+                    MaterialPaths.Add(MakeShared<FJsonValueString>(MaterialPath));
+                    MaterialSignaturePaths.Add(MaterialPath);
+                }
+                // visible 与 hidden_in_game 分别保存原始标志，避免 IsVisible() 的上下文合成结果丢信息。
+                const bool bPartVisible = StaticMeshComponent->GetVisibleFlag();
+                const bool bPartHiddenInGame = StaticMeshComponent->bHiddenInGame;
+                const bool bPartCastShadow = StaticMeshComponent->CastShadow;
+                const FString CollisionEnabled = CollisionEnabledToMigrationString(
+                    StaticMeshComponent->GetCollisionEnabled());
+                Part->SetArrayField(TEXT("material_paths"), MaterialPaths);
+                Part->SetBoolField(TEXT("visible"), bPartVisible);
+                Part->SetBoolField(TEXT("hidden_in_game"), bPartHiddenInGame);
+                Part->SetBoolField(TEXT("cast_shadow"), bPartCastShadow);
+                Part->SetStringField(TEXT("collision_enabled"), CollisionEnabled);
+                RenderParts.Add(MakeShared<FJsonValueObject>(Part));
+
+                const FVector RelativeLocation = RelativeTransform.GetLocation();
+                const FRotator RelativeRotation = RelativeTransform.Rotator();
+                const FVector RelativeScale = RelativeTransform.GetScale3D();
+                SignatureParts.Add(FString::Printf(
+                    TEXT("%s|%.3f,%.3f,%.3f|%.3f,%.3f,%.3f|%.5f,%.5f,%.5f|%s|%d|%d|%d|%s"),
+                    *AssetPath,
+                    RelativeLocation.X, RelativeLocation.Y, RelativeLocation.Z,
+                    RelativeRotation.Roll, RelativeRotation.Pitch, RelativeRotation.Yaw,
+                    RelativeScale.X, RelativeScale.Y, RelativeScale.Z,
+                    *FString::Join(MaterialSignaturePaths, TEXT(",")),
+                    bPartVisible ? 1 : 0,
+                    bPartHiddenInGame ? 1 : 0,
+                    bPartCastShadow ? 1 : 0,
+                    *CollisionEnabled));
             }
         }
-        Obj->SetStringField(TEXT("skeletal_mesh_asset"), SkeletalMeshAsset);
+
+        if (RenderParts.Num() == 0)
+        {
+            MigrationWarnings.Add(MakeShared<FJsonValueString>(TEXT("no_supported_static_mesh_parts")));
+        }
+        if (UnsupportedComponents.Num() > 0)
+        {
+            MigrationWarnings.Add(MakeShared<FJsonValueString>(TEXT("contains_unsupported_components")));
+        }
+
+        SignatureParts.Sort();
+        const FString SignatureSource = FString::Join(SignatureParts, TEXT("\n"));
+        Obj->SetStringField(TEXT("assembly_signature"), FMD5::HashAnsiString(*SignatureSource));
+        Obj->SetArrayField(TEXT("source_actor_guids"), SourceActorGuids);
+        Obj->SetArrayField(TEXT("source_actors"), SourceActors);
+        Obj->SetArrayField(TEXT("render_parts"), RenderParts);
+        Obj->SetArrayField(TEXT("unsupported_components"), UnsupportedComponents);
+        Obj->SetArrayField(TEXT("migration_warnings"), MigrationWarnings);
+
+        // 旧版字段保留，便于旧工具读取与分类脚本逐步升级。
+        Obj->SetStringField(TEXT("mesh_asset"), FirstMeshAsset);
+        Obj->SetStringField(TEXT("static_mesh_asset"), FirstMeshAsset);
+        Obj->SetArrayField(TEXT("static_mesh_assets"), StaticMeshAssets);
+        Obj->SetStringField(TEXT("skeletal_mesh_asset"), FirstSkeletalMeshAsset);
         Obj->SetArrayField(TEXT("skeletal_mesh_assets"), SkeletalMeshAssets);
 
-        TSharedPtr<FJsonObject> ComponentSummary = MakeShared<FJsonObject>();
-        ComponentSummary->SetNumberField(TEXT("static_mesh_components"), StaticMeshComponents.Num());
-        ComponentSummary->SetNumberField(TEXT("skeletal_mesh_components"), SkeletalMeshComponents.Num());
-        Obj->SetObjectField(TEXT("component_summary"), ComponentSummary);
-
-        const FVector Loc = A->GetActorLocation();
-        const FRotator Rot = A->GetActorRotation();
-        const FVector Scale = A->GetActorScale3D();
-        TSharedPtr<FJsonObject> TF = MakeShared<FJsonObject>();
-        TF->SetNumberField(TEXT("tx"), Loc.X);
-        TF->SetNumberField(TEXT("ty"), Loc.Y);
-        TF->SetNumberField(TEXT("tz"), Loc.Z);
-        // 与 ApplySpatialFromSnapshot 的约定对齐：rx=Roll, ry=Pitch, rz=Yaw
-        TF->SetNumberField(TEXT("rx"), Rot.Roll);
-        TF->SetNumberField(TEXT("ry"), Rot.Pitch);
-        TF->SetNumberField(TEXT("rz"), Rot.Yaw);
-        TF->SetNumberField(TEXT("sx"), Scale.X);
-        TF->SetNumberField(TEXT("sy"), Scale.Y);
-        TF->SetNumberField(TEXT("sz"), Scale.Z);
-        Obj->SetObjectField(TEXT("transform"), TF);
+        TSharedPtr<FJsonObject> ActorClassesJson = MakeShared<FJsonObject>();
+        for (const TPair<FString, int32>& Pair : ActorClassCounts)
+        {
+            ActorClassesJson->SetNumberField(Pair.Key, Pair.Value);
+        }
+        TSharedPtr<FJsonObject> ComponentClassesJson = MakeShared<FJsonObject>();
+        for (const TPair<FString, int32>& Pair : ComponentClassCounts)
+        {
+            ComponentClassesJson->SetNumberField(Pair.Key, Pair.Value);
+        }
+        TSharedPtr<FJsonObject> ComponentAudit = MakeShared<FJsonObject>();
+        ComponentAudit->SetNumberField(TEXT("source_actor_count"), AssemblyActors.Num());
+        ComponentAudit->SetNumberField(TEXT("descendant_actor_count"), FMath::Max(0, AssemblyActors.Num() - 1));
+        ComponentAudit->SetNumberField(TEXT("render_part_count"), RenderParts.Num());
+        ComponentAudit->SetNumberField(TEXT("unsupported_component_count"), UnsupportedComponents.Num());
+        // 兼容旧版审计字段；ISM/HISM 不会计入 static_mesh_components。
+        ComponentAudit->SetNumberField(TEXT("static_mesh_components"), RenderParts.Num());
+        ComponentAudit->SetNumberField(TEXT("skeletal_mesh_components"), SkeletalMeshAssets.Num());
+        ComponentAudit->SetObjectField(TEXT("actor_classes"), ActorClassesJson);
+        ComponentAudit->SetObjectField(TEXT("component_classes"), ComponentClassesJson);
+        Obj->SetObjectField(TEXT("component_audit"), ComponentAudit);
+        Obj->SetObjectField(TEXT("component_summary"), ComponentAudit);
 
         ActorsJson.Add(MakeShared<FJsonValueObject>(Obj));
-        Count++;
+        TotalSourceActors += AssemblyActors.Num();
+        TotalRenderParts += RenderParts.Num();
+        TotalUnsupported += UnsupportedComponents.Num();
     }
 
     TSharedPtr<FJsonObject> Root = MakeShared<FJsonObject>();
+    Root->SetStringField(TEXT("schema_version"), TEXT("assembly_v1"));
     Root->SetStringField(TEXT("ue_project_id"), UEProjectId);
     Root->SetStringField(TEXT("ue_project_name"), UEProjectName);
     // project_id 留空→后端用当前激活项目；zone_id 用本 Manager 的 SceneId（=分区）
@@ -2505,17 +3557,24 @@ void ATwinSceneManager::ExportSelectedActorsForMigration()
 
     const FString Path = MigrationExportPath();
     IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path), /*Tree=*/true);
-    const bool bOk = FFileHelper::SaveStringToFile(OutStr, *Path);
+    // 后端工具按 UTF-8 读取；Windows 默认编码会把含中文标签的 FString 写成 UTF-16LE。
+    const bool bOk = FFileHelper::SaveStringToFile(
+        OutStr,
+        *Path,
+        FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 
-    UE_LOG(LogTemp, Log, TEXT("[迁移] 文件夹「%s」及其子文件夹导出 %d 个 actor → %s (%s)"),
-           *MigrationFolderName, Count, *Path, bOk ? TEXT("成功") : TEXT("写入失败"));
+    UE_LOG(LogTemp, Log,
+        TEXT("[迁移] assembly_v1 导出 %d 个母 Actor / %d 个源 Actor / %d 个渲染部件 / %d 个不支持组件 → %s (%s)"),
+        RootActors.Num(), TotalSourceActors, TotalRenderParts, TotalUnsupported,
+        *Path, bOk ? TEXT("成功") : TEXT("写入失败"));
     if (GEngine)
     {
         GEngine->AddOnScreenDebugMessage(-1, 8.0f,
             bOk ? FColor::Green : FColor::Red,
-            Count > 0
-                ? FString::Printf(TEXT("导出 %d 个 actor → %s\n把它交给后端 migrate_ue_actors.py"),
-                                   Count, *Path)
+            RootActors.Num() > 0
+                ? FString::Printf(
+                    TEXT("导出 %d 个母 Actor（%d 个部件，%d 个不支持组件）→ %s\n把它交给后端 migrate_ue_actors.py"),
+                    RootActors.Num(), TotalRenderParts, TotalUnsupported, *Path)
                 : FString::Printf(
                     TEXT("文件夹「%s」及其子文件夹下没有 actor\n请先框选历史 actor，右键→移动到文件夹→填「%s」"),
                     *MigrationFolderName, *MigrationFolderName));
@@ -2549,11 +3608,54 @@ void ATwinSceneManager::RemoveMigratedActors()
         return;
     }
 
-    // 结果文件是 {ext_guid: instance_id}，收集已成功迁移的 guid
     TSet<FString> MigratedGuids;
-    for (const auto& Pair : Root->Values)
+    FString ResultFormat = TEXT("legacy_flat_mapping");
+
+    // assembly_v1 的 canonical 删除清单最精确：它包含母 Actor 与全部已收编后代。
+    const TArray<TSharedPtr<FJsonValue>>* DeleteActorGuids = nullptr;
+    if (Root->TryGetArrayField(TEXT("delete_actor_guids"), DeleteActorGuids) && DeleteActorGuids)
     {
-        MigratedGuids.Add(Pair.Key);
+        ResultFormat = TEXT("assembly_v1.delete_actor_guids");
+        for (const TSharedPtr<FJsonValue>& Value : *DeleteActorGuids)
+        {
+            FString Guid;
+            if (Value.IsValid() && Value->TryGetString(Guid) && !Guid.IsEmpty())
+            {
+                MigratedGuids.Add(Guid);
+            }
+        }
+    }
+    else
+    {
+        // 新结果缺删除清单时只删除 canonical instances 的 key（母 Actor），不误读保留字段。
+        const TSharedPtr<FJsonObject>* Instances = nullptr;
+        if (Root->TryGetObjectField(TEXT("instances"), Instances) && Instances && Instances->IsValid())
+        {
+            ResultFormat = TEXT("assembly_v1.instances_fallback");
+            for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : (*Instances)->Values)
+            {
+                FGuid ParsedGuid;
+                if (FGuid::Parse(Pair.Key, ParsedGuid))
+                {
+                    MigratedGuids.Add(Pair.Key);
+                }
+            }
+        }
+        else
+        {
+            // 兼容旧版根对象 {ext_guid: instance_id}。
+            for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : Root->Values)
+            {
+                FGuid ParsedGuid;
+                FString InstanceId;
+                if (FGuid::Parse(Pair.Key, ParsedGuid)
+                    && Pair.Value.IsValid()
+                    && Pair.Value->TryGetString(InstanceId))
+                {
+                    MigratedGuids.Add(Pair.Key);
+                }
+            }
+        }
     }
 
     UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : GetWorld();
@@ -2575,14 +3677,16 @@ void ATwinSceneManager::RemoveMigratedActors()
     int32 Deleted = 0;
     for (AActor* A : ToDelete)
     {
-        if (World->EditorDestroyActor(A, /*bShouldModifyLevel=*/true))
+        if (A && IsValid(A) && !A->IsActorBeingDestroyed()
+            && World->EditorDestroyActor(A, /*bShouldModifyLevel=*/true))
         {
             Deleted++;
         }
     }
 
-    UE_LOG(LogTemp, Log, TEXT("[迁移] 已删除 %d 个已收编的原 actor（共匹配 %d）"),
-           Deleted, ToDelete.Num());
+    UE_LOG(LogTemp, Log,
+        TEXT("[迁移] 按 %s 已删除 %d 个已收编的原 actor（结果含 %d GUID，共匹配 %d）"),
+        *ResultFormat, Deleted, MigratedGuids.Num(), ToDelete.Num());
     if (GEngine)
     {
         GEngine->AddOnScreenDebugMessage(-1, 8.0f, FColor::Green,
@@ -2619,6 +3723,28 @@ void ATwinSceneManager::PullPreviewFromDB()
     }
 #else
     UE_LOG(LogTemp, Warning, TEXT("[孪生管理器] 预览仅在编辑器模式下可用"));
+#endif
+}
+
+void ATwinSceneManager::PreviewMigratedActorsFromSnapshotFile()
+{
+#if WITH_EDITOR
+    ClearPreview();
+    IFileManager::Get().Delete(*MigrationPreviewAuditPath(), false, true, true);
+    const FString SnapshotPath = MigrationPreviewSnapshotPath();
+    FString JsonPayload;
+    if (!FFileHelper::LoadFileToString(JsonPayload, *SnapshotPath))
+    {
+        UE_LOG(LogTemp, Error, TEXT("[迁移预览] 无法读取快照文件: %s"), *SnapshotPath);
+        return;
+    }
+
+    const int32 Count = SpawnPreviewActorsFromJson(JsonPayload, TEXT("migration_snapshot_file"));
+    UE_LOG(LogTemp, Log,
+        TEXT("[迁移预览] 从 %s 生成 %d 个 transient Actor；关卡未保存"),
+        *SnapshotPath, Count);
+#else
+    UE_LOG(LogTemp, Warning, TEXT("[迁移预览] 仅在编辑器模式下可用"));
 #endif
 }
 
@@ -2778,37 +3904,97 @@ void ATwinSceneManager::OnPreviewResponse(
         return;
     }
 
+    const int32 Count = SpawnPreviewActorsFromJson(
+        Response->GetContentAsString(), TEXT("backend_http"));
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green,
+            FString::Printf(TEXT("预览已生成 %d 个（transient，不会存进关卡）"), Count));
+    }
+#endif
+}
+
+int32 ATwinSceneManager::SpawnPreviewActorsFromJson(
+    const FString& JsonPayload,
+    const FString& SourceLabel)
+{
+#if WITH_EDITOR
+    const FString AuditPath = MigrationPreviewAuditPath();
+    IFileManager::Get().Delete(*AuditPath, false, true, true);
     TArray<TSharedPtr<FJsonValue>> Arr;
     TSharedRef<TJsonReader<>> Reader =
-        TJsonReaderFactory<>::Create(Response->GetContentAsString());
+        TJsonReaderFactory<>::Create(JsonPayload);
     if (!FJsonSerializer::Deserialize(Reader, Arr))
     {
         UE_LOG(LogTemp, Error, TEXT("[孪生管理器] 预览 JSON 解析失败"));
-        return;
+        return 0;
     }
 
     UWorld* World = GetWorld();
-    if (!World) return;
+    if (!World && GEditor)
+    {
+        World = GEditor->GetEditorWorldContext().World();
+    }
+    if (!World)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[孪生管理器] 预览失败：编辑器世界不可用"));
+        return 0;
+    }
 
     UClass* SpawnClass = InstanceClass ? InstanceClass.Get() : ATwinInstance::StaticClass();
     int32 Count = 0;
+    int32 ExpectedRenderParts = 0;
+    int32 LoadedRenderParts = 0;
+    int32 AssemblyInstances = 0;
+    int32 CompleteAssemblies = 0;
+    int32 PartStateValidAssemblies = 0;
+    int32 SpatialSnapshots = 0;
+    int32 SpatialSchemaErrors = 0;
+    int32 MalformedSnapshots = 0;
+    int32 TransientActors = 0;
+    TArray<TSharedPtr<FJsonValue>> IncompleteAssemblies;
+    TArray<TSharedPtr<FJsonValue>> PartStateFailures;
+    TArray<TSharedPtr<FJsonValue>> SpatialMismatches;
+    TArray<TSharedPtr<FJsonValue>> SpatialSchemaErrorInstances;
+    TArray<TSharedPtr<FJsonValue>> NonTransientInstances;
 
     for (const auto& Val : Arr)
     {
-        const TSharedPtr<FJsonObject>* SnapObj;
-        if (!Val->TryGetObject(SnapObj)) continue;
+        const TSharedPtr<FJsonObject>* SnapObj = nullptr;
+        if (!Val.IsValid() || !Val->TryGetObject(SnapObj) || !SnapObj || !SnapObj->IsValid())
+        {
+            ++MalformedSnapshots;
+            continue;
+        }
 
         FString InstId;
-        if (!(*SnapObj)->TryGetStringField(TEXT("instanceId"), InstId)) continue;
+        if (!(*SnapObj)->TryGetStringField(TEXT("instanceId"), InstId) || InstId.IsEmpty())
+        {
+            ++MalformedSnapshots;
+            continue;
+        }
 
         FString AssetPathStr;
-        const TSharedPtr<FJsonObject>* InterfacesObj;
+        FString ExpectedAssemblySignature;
+        int32 ExpectedPartCount = 0;
+        bool bExpectedOverallVisible = true;
+        const TArray<TSharedPtr<FJsonValue>>* ExpectedParts = nullptr;
+        const TSharedPtr<FJsonObject>* InterfacesObj = nullptr;
         if ((*SnapObj)->TryGetObjectField(TEXT("interfaces"), InterfacesObj))
         {
             const TSharedPtr<FJsonObject>* RepObj;
             if ((*InterfacesObj)->TryGetObjectField(TEXT("I3D_Representable"), RepObj))
             {
                 (*RepObj)->TryGetStringField(TEXT("asset_id"), AssetPathStr);
+                (*RepObj)->TryGetStringField(
+                    TEXT("assembly_signature"), ExpectedAssemblySignature);
+                (*RepObj)->TryGetBoolField(
+                    TEXT("is_visible"), bExpectedOverallVisible);
+                if ((*RepObj)->TryGetArrayField(TEXT("render_parts"), ExpectedParts)
+                    && ExpectedParts)
+                {
+                    ExpectedPartCount = ExpectedParts->Num();
+                }
             }
         }
 
@@ -2819,6 +4005,14 @@ void ATwinSceneManager::OnPreviewResponse(
         ATwinInstance* Inst = World->SpawnActor<ATwinInstance>(
             SpawnClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
         if (!Inst) continue;
+        if (Inst->HasAnyFlags(RF_Transient))
+        {
+            ++TransientActors;
+        }
+        else
+        {
+            NonTransientInstances.Add(MakeShared<FJsonValueString>(InstId));
+        }
 
         FString DisplayName;
         if (!(*SnapObj)->TryGetStringField(TEXT("displayName"), DisplayName) || DisplayName.IsEmpty())
@@ -2830,6 +4024,142 @@ void ATwinSceneManager::OnPreviewResponse(
         Inst->InitializeTwin(InstId, AssetPathStr, BackendBaseUrl);
         Inst->ApplySnapshot(*SnapObj);   // 应用位置/材质等，摆到正确位置
 
+        const int32 ActualPartCount = Inst->GetRenderPartComponentCount();
+        ExpectedRenderParts += ExpectedPartCount;
+        LoadedRenderParts += ActualPartCount;
+        if (ExpectedPartCount > 0)
+        {
+            ++AssemblyInstances;
+            const bool bAssemblyComplete = Inst->IsAssemblyRenderActive()
+                && ActualPartCount == ExpectedPartCount
+                && !ExpectedAssemblySignature.IsEmpty()
+                && Inst->GetCurrentAssemblySignature() == ExpectedAssemblySignature;
+            if (bAssemblyComplete)
+            {
+                ++CompleteAssemblies;
+            }
+            else
+            {
+                TSharedPtr<FJsonObject> Failure = MakeShared<FJsonObject>();
+                Failure->SetStringField(TEXT("instance_id"), InstId);
+                Failure->SetNumberField(TEXT("expected_render_parts"), ExpectedPartCount);
+                Failure->SetNumberField(TEXT("loaded_render_parts"), ActualPartCount);
+                Failure->SetStringField(
+                    TEXT("expected_assembly_signature"), ExpectedAssemblySignature);
+                Failure->SetStringField(
+                    TEXT("loaded_assembly_signature"), Inst->GetCurrentAssemblySignature());
+                IncompleteAssemblies.Add(MakeShared<FJsonValueObject>(Failure));
+            }
+
+            TArray<TSharedPtr<FJsonValue>> InstancePartFailures;
+            if (ExpectedParts
+                && Inst->ValidateRenderPartsAgainstSnapshot(
+                    *ExpectedParts,
+                    bExpectedOverallVisible,
+                    InstancePartFailures))
+            {
+                ++PartStateValidAssemblies;
+            }
+            else
+            {
+                TSharedPtr<FJsonObject> Failure = MakeShared<FJsonObject>();
+                Failure->SetStringField(TEXT("instance_id"), InstId);
+                Failure->SetArrayField(
+                    TEXT("part_failures"), InstancePartFailures);
+                PartStateFailures.Add(MakeShared<FJsonValueObject>(Failure));
+            }
+        }
+
+        const TSharedPtr<FJsonObject>* SpatialObj = nullptr;
+        if (InterfacesObj
+            && (*InterfacesObj)->TryGetObjectField(TEXT("I3D_Spatial"), SpatialObj)
+            && SpatialObj && SpatialObj->IsValid())
+        {
+            bool bSpatialSchemaValid = true;
+            auto ReadNumber = [SpatialObj, &bSpatialSchemaValid](
+                const TCHAR* Field, double DefaultValue)
+            {
+                double Value = DefaultValue;
+                if (!(*SpatialObj)->TryGetNumberField(Field, Value) || !FMath::IsFinite(Value))
+                {
+                    bSpatialSchemaValid = false;
+                    return DefaultValue;
+                }
+                return Value;
+            };
+            const FVector ExpectedLocation(
+                ReadNumber(TEXT("translation_x"), 0.0),
+                ReadNumber(TEXT("translation_y"), 0.0),
+                ReadNumber(TEXT("translation_z"), 0.0));
+            const FRotator ExpectedRotation(
+                ReadNumber(TEXT("rotation_y"), 0.0),
+                ReadNumber(TEXT("rotation_z"), 0.0),
+                ReadNumber(TEXT("rotation_x"), 0.0));
+            const FVector ExpectedScale(
+                ReadNumber(TEXT("scale_x"), 1.0),
+                ReadNumber(TEXT("scale_y"), 1.0),
+                ReadNumber(TEXT("scale_z"), 1.0));
+            if (bSpatialSchemaValid)
+            {
+                ++SpatialSnapshots;
+                constexpr double LocationToleranceCm = 0.01;
+                constexpr double ScaleTolerance = 1.0e-5;
+                constexpr double RotationToleranceDegrees = 0.01;
+                const FVector ActualLocation = Inst->GetActorLocation();
+                const FVector ActualScale = Inst->GetActorScale3D();
+                const FQuat ExpectedQuat = ExpectedRotation.Quaternion();
+                const FQuat ActualQuat = Inst->GetActorQuat();
+                const double RotationErrorDegrees = FMath::RadiansToDegrees(
+                    ActualQuat.AngularDistance(ExpectedQuat));
+                const bool bLocationMatches = ActualLocation.Equals(
+                    ExpectedLocation, LocationToleranceCm);
+                const bool bScaleMatches = ActualScale.Equals(
+                    ExpectedScale, ScaleTolerance);
+                const bool bRotationMatches =
+                    RotationErrorDegrees <= RotationToleranceDegrees;
+
+                if (!bLocationMatches || !bScaleMatches || !bRotationMatches)
+                {
+                    auto VectorToJson = [](const FVector& Value)
+                    {
+                        TSharedPtr<FJsonObject> Object = MakeShared<FJsonObject>();
+                        Object->SetNumberField(TEXT("x"), Value.X);
+                        Object->SetNumberField(TEXT("y"), Value.Y);
+                        Object->SetNumberField(TEXT("z"), Value.Z);
+                        return Object;
+                    };
+                    TSharedPtr<FJsonObject> Mismatch = MakeShared<FJsonObject>();
+                    Mismatch->SetStringField(TEXT("instance_id"), InstId);
+                    Mismatch->SetObjectField(
+                        TEXT("expected_location_cm"), VectorToJson(ExpectedLocation));
+                    Mismatch->SetObjectField(
+                        TEXT("actual_location_cm"), VectorToJson(ActualLocation));
+                    Mismatch->SetObjectField(
+                        TEXT("expected_scale"), VectorToJson(ExpectedScale));
+                    Mismatch->SetObjectField(
+                        TEXT("actual_scale"), VectorToJson(ActualScale));
+                    Mismatch->SetNumberField(
+                        TEXT("rotation_error_degrees"), RotationErrorDegrees);
+                    Mismatch->SetBoolField(
+                        TEXT("location_matches"), bLocationMatches);
+                    Mismatch->SetBoolField(TEXT("scale_matches"), bScaleMatches);
+                    Mismatch->SetBoolField(
+                        TEXT("rotation_matches"), bRotationMatches);
+                    SpatialMismatches.Add(MakeShared<FJsonValueObject>(Mismatch));
+                }
+            }
+            else
+            {
+                ++SpatialSchemaErrors;
+                SpatialSchemaErrorInstances.Add(MakeShared<FJsonValueString>(InstId));
+            }
+        }
+        else
+        {
+            ++SpatialSchemaErrors;
+            SpatialSchemaErrorInstances.Add(MakeShared<FJsonValueString>(InstId));
+        }
+
         // FR-5：记录回写基线 = 数据库此刻给的 transform（提交时 diff 用）
         PreviewBaseline.Add(InstId, Inst->GetActorTransform());
 
@@ -2837,11 +4167,91 @@ void ATwinSceneManager::OnPreviewResponse(
         Count++;
     }
 
-    UE_LOG(LogTemp, Log, TEXT("[孪生管理器] 预览已生成 %d 个 transient Actor"), Count);
-    if (GEngine)
+    TSharedPtr<FJsonObject> Audit = MakeShared<FJsonObject>();
+    FTCHARToUTF8 SnapshotUtf8(*JsonPayload);
+    Audit->SetStringField(TEXT("schema_version"), TEXT("zhhz_ue_preview_audit_v1"));
+    Audit->SetStringField(TEXT("source"), SourceLabel);
+    Audit->SetStringField(
+        TEXT("snapshot_md5"),
+        FMD5::HashBytes(
+            reinterpret_cast<const uint8*>(SnapshotUtf8.Get()),
+            static_cast<uint64>(SnapshotUtf8.Length())));
+    Audit->SetBoolField(TEXT("transient"), Count > 0 && TransientActors == Count);
+    Audit->SetBoolField(TEXT("level_save_requested"), false);
+    Audit->SetNumberField(TEXT("requested_instances"), Arr.Num());
+    Audit->SetNumberField(TEXT("spawned_instances"), Count);
+    Audit->SetNumberField(TEXT("expected_render_parts"), ExpectedRenderParts);
+    Audit->SetNumberField(TEXT("loaded_render_parts"), LoadedRenderParts);
+    Audit->SetNumberField(TEXT("assembly_instances"), AssemblyInstances);
+    Audit->SetNumberField(TEXT("complete_assemblies"), CompleteAssemblies);
+    Audit->SetNumberField(
+        TEXT("part_state_valid_assemblies"), PartStateValidAssemblies);
+    Audit->SetNumberField(TEXT("spatial_snapshots"), SpatialSnapshots);
+    Audit->SetNumberField(TEXT("spatial_schema_errors"), SpatialSchemaErrors);
+    Audit->SetNumberField(TEXT("malformed_snapshots"), MalformedSnapshots);
+    Audit->SetNumberField(TEXT("transient_actors"), TransientActors);
+    Audit->SetArrayField(TEXT("incomplete_assemblies"), IncompleteAssemblies);
+    Audit->SetArrayField(TEXT("part_state_failures"), PartStateFailures);
+    Audit->SetArrayField(TEXT("spatial_mismatch_instances"), SpatialMismatches);
+    Audit->SetArrayField(
+        TEXT("spatial_schema_error_instances"), SpatialSchemaErrorInstances);
+    Audit->SetArrayField(TEXT("non_transient_instances"), NonTransientInstances);
+    const bool bRequireAssemblies = SourceLabel == TEXT("migration_snapshot_file");
+    const bool bAuditPassed =
+        Arr.Num() > 0
+            && Count > 0
+            && Count == Arr.Num()
+            && MalformedSnapshots == 0
+            && SpatialSnapshots == Count
+            && SpatialSchemaErrors == 0
+            && TransientActors == Count
+            && ExpectedRenderParts == LoadedRenderParts
+            && IncompleteAssemblies.Num() == 0
+            && PartStateFailures.Num() == 0
+            && SpatialMismatches.Num() == 0
+            && (!bRequireAssemblies
+                || (AssemblyInstances == Count
+                    && CompleteAssemblies == Count
+                    && PartStateValidAssemblies == Count
+                    && ExpectedRenderParts > 0));
+    Audit->SetBoolField(TEXT("passed"), bAuditPassed);
+
+    FString AuditJson;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&AuditJson);
+    FJsonSerializer::Serialize(Audit.ToSharedRef(), Writer);
+    IFileManager::Get().MakeDirectory(*FPaths::GetPath(AuditPath), true);
+    const bool bAuditSaved = FFileHelper::SaveStringToFile(
+        AuditJson,
+        *AuditPath,
+        FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    if (bAuditSaved)
     {
-        GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green,
-            FString::Printf(TEXT("预览已生成 %d 个（transient，不会存进关卡）"), Count));
+        UE_LOG(LogTemp, Log,
+            TEXT("[孪生管理器] 预览审计 %s：%d 个 transient Actor；部件 %d/%d；完整装配 %d/%d；逐部件状态 %d/%d；审计=%s"),
+            bAuditPassed ? TEXT("PASS") : TEXT("FAIL"),
+            Count, LoadedRenderParts, ExpectedRenderParts,
+            CompleteAssemblies, AssemblyInstances,
+            PartStateValidAssemblies, AssemblyInstances, *AuditPath);
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(
+                -1,
+                12.0f,
+                bAuditPassed ? FColor::Green : FColor::Red,
+                FString::Printf(
+                    TEXT("迁移预览审计 %s：实例 %d，渲染部件 %d/%d"),
+                    bAuditPassed ? TEXT("PASS") : TEXT("FAIL"),
+                    Count,
+                    LoadedRenderParts,
+                    ExpectedRenderParts));
+        }
     }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[孪生管理器] 无法写入预览审计"));
+    }
+    return Count;
+#else
+    return 0;
 #endif
 }

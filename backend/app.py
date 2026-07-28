@@ -101,11 +101,6 @@ def serve_floor_pulse():
 def serve_binding():
     return app.send_static_file('binding.html')
 
-@app.route('/scenes')
-def serve_scenes():
-    return app.send_static_file('scenes/scenes.html')
-
-
 # ═══════════════════════════════════════════════════════════════
 # PRD 2.9 — 坐标标定工作台 API（无状态）
 # ═══════════════════════════════════════════════════════════════
@@ -4271,16 +4266,6 @@ def get_graph_data():
     return jsonify({"nodes": nodes, "links": links, "categories": categories})
 
 
-
-# ============ OntoTwin Lite 模块（新增，不影响现有路由）============
-try:
-    from lite.models.db import init_db
-    from lite.api import register_lite_routes
-    init_db()
-    register_lite_routes(app)
-except Exception as _lite_err:
-    print(f"[Lite] 模块加载失败: {_lite_err}")
-# ================================================================
 
 # 启动时从 ProjectStore 恢复数据集 + 激活态 + 类型表（须在所有函数定义之后调用）
 _init_from_project_store()

@@ -1,0 +1,363 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作总结演示文稿模板</title>
+    <link rel="stylesheet" href="../../components/dist/lingjing-core-presentation.css">
+    <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+    <div class="presentation-container">
+        <div class="presentation-particles" id="particles"></div>
+        <div class="presentation-floating-shapes">
+            <div class="presentation-shape presentation-shape-1"></div>
+            <div class="presentation-shape presentation-shape-2"></div>
+            <div class="presentation-shape presentation-shape-3"></div>
+        </div>
+
+        <!-- 开场封面 -->
+        <div class="presentation-slide slide-cover active" data-slide="1">
+            <div class="slide-content">
+                <div class="presentation-glass-card presentation-glass-card-large">
+                    <h1 class="slide-cover-title">工作总结汇报</h1>
+                    <p class="slide-cover-subtitle">Work Summary Report</p>
+                    <div class="slide-cover-meta">
+                        <div class="slide-cover-meta-item">
+                            <i data-lucide="calendar"></i>
+                            <span>2026年X月</span>
+                        </div>
+                        <div class="slide-cover-meta-item">
+                            <i data-lucide="user"></i>
+                            <span>汇报人姓名</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 工作内容概述 -->
+        <div class="presentation-slide" data-slide="2">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="slide-title" style="margin-bottom: 4px;">工作内容概述</h2>
+                    <p class="slide-subtitle">Work Overview</p>
+                </div>
+                <div class="presentation-glass-card width-full">
+                    <div class="flex gap-xl" style="align-items: stretch;">
+                        <div class="flex flex-col gap-md" style="flex: 0 0 35%;">
+                            <div class="presentation-highlight-box" style="margin-bottom: 0; flex: 1;">
+                                <h3 style="font-size: var(--font-size-lg); font-weight: var(--font-weight-bold); color: var(--theme-text-primary); margin-bottom: var(--spacing-md);">核心工作内容</h3>
+                                <div class="slide-body">
+                                    <div class="flex flex-col gap-md" style="text-align: left;">
+                                        <div class="flex items-start gap-md" style="text-align: left;">
+                                            <div class="presentation-badge primary" style="flex-shrink: 0; min-width: 80px;">重点1</div>
+                                            <span style="text-align: left;">在此处填写重点工作内容</span>
+                                        </div>
+                                        <div class="flex items-start gap-md" style="text-align: left;">
+                                            <div class="presentation-badge success" style="flex-shrink: 0; min-width: 80px;">重点2</div>
+                                            <span style="text-align: left;">在此处填写重点工作内容</span>
+                                        </div>
+                                        <div class="flex items-start gap-md" style="text-align: left;">
+                                            <div class="presentation-badge warning" style="flex-shrink: 0; min-width: 80px;">重点3</div>
+                                            <span style="text-align: left;">在此处填写重点工作内容</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid-2-cols gap-md" style="flex: 1; align-content: center;">
+                            <div class="chart-placeholder" style="aspect-ratio: 16/9; background: rgba(99, 102, 241, 0.1); border: 2px dashed rgba(99, 102, 241, 0.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--spacing-sm);">
+                                <i data-lucide="image" style="width: 40px; height: 40px; color: rgba(99, 102, 241, 0.4);"></i>
+                                <span style="color: rgba(99, 102, 241, 0.5); font-size: var(--font-size-xs);">配图1</span>
+                            </div>
+                            <div class="chart-placeholder" style="aspect-ratio: 16/9; background: rgba(16, 185, 129, 0.1); border: 2px dashed rgba(16, 185, 129, 0.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--spacing-sm);">
+                                <i data-lucide="image" style="width: 40px; height: 40px; color: rgba(16, 185, 129, 0.4);"></i>
+                                <span style="color: rgba(16, 185, 129, 0.5); font-size: var(--font-size-xs);">配图2</span>
+                            </div>
+                            <div class="chart-placeholder" style="aspect-ratio: 16/9; background: rgba(245, 158, 11, 0.1); border: 2px dashed rgba(245, 158, 11, 0.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--spacing-sm);">
+                                <i data-lucide="image" style="width: 40px; height: 40px; color: rgba(245, 158, 11, 0.4);"></i>
+                                <span style="color: rgba(245, 158, 11, 0.5); font-size: var(--font-size-xs);">配图3</span>
+                            </div>
+                            <div class="chart-placeholder" style="aspect-ratio: 16/9; background: rgba(236, 72, 153, 0.1); border: 2px dashed rgba(236, 72, 153, 0.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--spacing-sm);">
+                                <i data-lucide="image" style="width: 40px; height: 40px; color: rgba(236, 72, 153, 0.4);"></i>
+                                <span style="color: rgba(236, 72, 153, 0.5); font-size: var(--font-size-xs);">配图4</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 核心产出总览 -->
+        <div class="presentation-slide" data-slide="3">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="slide-title" style="margin-bottom: 4px;">核心产出</h2>
+                    <p class="slide-subtitle">Key Deliverables</p>
+                </div>
+                <div class="slide-body" style="width: 100%; max-width: var(--slide-content-width);">
+                    <div class="presentation-card-grid" style="gap: var(--spacing-lg);">
+                        <a href="#slide-4" class="presentation-card-grid-item presentation-glass-card" style="text-decoration: none; color: inherit; padding: var(--spacing-xl); min-height: 320px; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
+                            <div>
+                                <div class="presentation-stat-number">01</div>
+                                <div class="presentation-stat-label">核心产出1</div>
+                            </div>
+                            <div style="width: 100%; aspect-ratio: 16/9; background: rgba(99, 102, 241, 0.1); border: 2px dashed rgba(99, 102, 241, 0.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--spacing-sm); margin-top: var(--spacing-lg);">
+                                <i data-lucide="play-circle" style="width: 48px; height: 48px; color: rgba(99, 102, 241, 0.4);"></i>
+                                <span style="color: rgba(99, 102, 241, 0.5); font-size: var(--font-size-xs);">预览</span>
+                            </div>
+                        </a>
+                        <a href="#slide-5" class="presentation-card-grid-item presentation-glass-card" style="text-decoration: none; color: inherit; padding: var(--spacing-xl); min-height: 320px; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
+                            <div>
+                                <div class="presentation-stat-number">02</div>
+                                <div class="presentation-stat-label">核心产出2</div>
+                            </div>
+                            <div style="width: 100%; aspect-ratio: 16/9; background: rgba(16, 185, 129, 0.1); border: 2px dashed rgba(16, 185, 129, 0.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--spacing-sm); margin-top: var(--spacing-lg);">
+                                <i data-lucide="images" style="width: 48px; height: 48px; color: rgba(16, 185, 129, 0.4);"></i>
+                                <span style="color: rgba(16, 185, 129, 0.5); font-size: var(--font-size-xs);">预览</span>
+                            </div>
+                        </a>
+                        <a href="#slide-6" class="presentation-card-grid-item presentation-glass-card" style="text-decoration: none; color: inherit; padding: var(--spacing-xl); min-height: 320px; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
+                            <div>
+                                <div class="presentation-stat-number">03</div>
+                                <div class="presentation-stat-label">核心产出3</div>
+                            </div>
+                            <div style="width: 100%; aspect-ratio: 16/9; background: rgba(245, 158, 11, 0.1); border: 2px dashed rgba(245, 158, 11, 0.3); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--spacing-sm); margin-top: var(--spacing-lg);">
+                                <i data-lucide="folder-open" style="width: 48px; height: 48px; color: rgba(245, 158, 11, 0.4);"></i>
+                                <span style="color: rgba(245, 158, 11, 0.5); font-size: var(--font-size-xs);">预览</span>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 核心产出1详情 -->
+        <div class="presentation-slide" data-slide="4">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="slide-title" style="margin-bottom: 4px;">核心产出 01：标题</h2>
+                    <p class="slide-subtitle">Subtitle</p>
+                </div>
+                <div class="presentation-glass-card width-full">
+                    <div class="grid-2-cols gap-xl">
+                        <div class="slide-body">
+                            <div class="flex flex-col gap-lg">
+                                <div class="presentation-feature-item">
+                                    <div class="presentation-feature-icon">
+                                        <i data-lucide="target"></i>
+                                    </div>
+                                    <div class="presentation-feature-content">
+                                        <div class="presentation-feature-title">关键点1</div>
+                                        <div class="presentation-feature-desc">详细描述关键点内容</div>
+                                    </div>
+                                </div>
+                                <div class="presentation-feature-item">
+                                    <div class="presentation-feature-icon">
+                                        <i data-lucide="sparkles"></i>
+                                    </div>
+                                    <div class="presentation-feature-content">
+                                        <div class="presentation-feature-title">关键点2</div>
+                                        <div class="presentation-feature-desc">详细描述关键点内容</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chart-placeholder" style="aspect-ratio: 16/9; background: rgba(99, 102, 241, 0.1); border: 2px dashed rgba(99, 102, 241, 0.3); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--spacing-md);">
+                            <i data-lucide="play-circle" style="width: 64px; height: 64px; color: rgba(99, 102, 241, 0.4);"></i>
+                            <span style="color: rgba(99, 102, 241, 0.5); font-size: var(--font-size-sm);">预览区域</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 核心产出2详情 -->
+        <div class="presentation-slide" data-slide="5">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="slide-title" style="margin-bottom: 4px;">核心产出 02：标题</h2>
+                    <p class="slide-subtitle">Subtitle</p>
+                </div>
+                <div class="presentation-glass-card width-full">
+                    <div class="grid-2-cols gap-xl">
+                        <div class="slide-body">
+                            <div class="flex flex-col gap-lg">
+                                <div class="presentation-feature-item">
+                                    <div class="presentation-feature-icon">
+                                        <i data-lucide="layout"></i>
+                                    </div>
+                                    <div class="presentation-feature-content">
+                                        <div class="presentation-feature-title">关键点1</div>
+                                        <div class="presentation-feature-desc">详细描述关键点内容</div>
+                                    </div>
+                                </div>
+                                <div class="presentation-feature-item">
+                                    <div class="presentation-feature-icon">
+                                        <i data-lucide="bot"></i>
+                                    </div>
+                                    <div class="presentation-feature-content">
+                                        <div class="presentation-feature-title">关键点2</div>
+                                        <div class="presentation-feature-desc">详细描述关键点内容</div>
+                                    </div>
+                                </div>
+                                <div class="presentation-feature-item">
+                                    <div class="presentation-feature-icon">
+                                        <i data-lucide="check-circle"></i>
+                                    </div>
+                                    <div class="presentation-feature-content">
+                                        <div class="presentation-feature-title">关键点3</div>
+                                        <div class="presentation-feature-desc">详细描述关键点内容</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chart-placeholder" style="aspect-ratio: 16/9; background: rgba(16, 185, 129, 0.1); border: 2px dashed rgba(16, 185, 129, 0.3); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--spacing-md);">
+                            <i data-lucide="images" style="width: 64px; height: 64px; color: rgba(16, 185, 129, 0.4);"></i>
+                            <span style="color: rgba(16, 185, 129, 0.5); font-size: var(--font-size-sm);">预览区域</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 核心产出3详情 -->
+        <div class="presentation-slide" data-slide="6">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="slide-title" style="margin-bottom: 4px;">核心产出 03：标题</h2>
+                    <p class="slide-subtitle">Subtitle</p>
+                </div>
+                <div class="presentation-glass-card width-full">
+                    <div class="grid-2-cols gap-xl">
+                        <div class="slide-body">
+                            <div class="flex flex-col gap-lg">
+                                <div class="presentation-feature-item">
+                                    <div class="presentation-feature-icon">
+                                        <i data-lucide="settings-2"></i>
+                                    </div>
+                                    <div class="presentation-feature-content">
+                                        <div class="presentation-feature-title">关键点1</div>
+                                        <div class="presentation-feature-desc">详细描述关键点内容</div>
+                                    </div>
+                                </div>
+                                <div class="presentation-feature-item">
+                                    <div class="presentation-feature-icon">
+                                        <i data-lucide="plus-circle"></i>
+                                    </div>
+                                    <div class="presentation-feature-content">
+                                        <div class="presentation-feature-title">关键点2</div>
+                                        <div class="presentation-feature-desc">详细描述关键点内容</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chart-placeholder" style="aspect-ratio: 16/9; background: rgba(245, 158, 11, 0.1); border: 2px dashed rgba(245, 158, 11, 0.3); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--spacing-md);">
+                            <i data-lucide="folder-open" style="width: 64px; height: 64px; color: rgba(245, 158, 11, 0.4);"></i>
+                            <span style="color: rgba(245, 158, 11, 0.5); font-size: var(--font-size-sm);">预览区域</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 总结与计划 -->
+        <div class="presentation-slide" data-slide="7">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="slide-title" style="margin-bottom: 4px;">总结与计划</h2>
+                    <p class="slide-subtitle">Summary & Plan</p>
+                </div>
+                <div class="presentation-glass-card width-full">
+                    <div class="grid-2-cols gap-xl">
+                        <div class="presentation-highlight-box" style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid var(--color-success-500); display: flex; flex-direction: column;">
+                            <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-bold); color: var(--theme-text-primary); margin-bottom: var(--spacing-lg);">
+                                <i data-lucide="check-circle" style="vertical-align: middle; margin-right: var(--spacing-sm);"></i>
+                                本月总结
+                            </h3>
+                            <div class="slide-body" style="flex: 1;">
+                                <ul style="list-style: none; padding: 0; margin: 0;">
+                                    <li style="padding: var(--spacing-md) 0; border-bottom: 1px solid rgba(16, 185, 129, 0.2);">
+                                        <i data-lucide="check" style="width: 16px; height: 16px; margin-right: var(--spacing-sm); color: var(--color-success-500);"></i>
+                                        总结要点1
+                                    </li>
+                                    <li style="padding: var(--spacing-md) 0; border-bottom: 1px solid rgba(16, 185, 129, 0.2);">
+                                        <i data-lucide="check" style="width: 16px; height: 16px; margin-right: var(--spacing-sm); color: var(--color-success-500);"></i>
+                                        总结要点2
+                                    </li>
+                                    <li style="padding: var(--spacing-md) 0; border-bottom: 1px solid rgba(16, 185, 129, 0.2);">
+                                        <i data-lucide="check" style="width: 16px; height: 16px; margin-right: var(--spacing-sm); color: var(--color-success-500);"></i>
+                                        总结要点3
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="presentation-highlight-box" style="display: flex; flex-direction: column;">
+                            <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-bold); color: var(--theme-text-primary); margin-bottom: var(--spacing-lg);">
+                                <i data-lucide="calendar-next" style="vertical-align: middle; margin-right: var(--spacing-sm);"></i>
+                                下月计划
+                            </h3>
+                            <div class="slide-body" style="flex: 1;">
+                                <ul style="list-style: none; padding: 0; margin: 0;">
+                                    <li style="padding: var(--spacing-md) 0; border-bottom: 1px solid rgba(99, 102, 241, 0.2);">
+                                        <span class="presentation-badge primary">重点</span>
+                                        <span style="margin-left: var(--spacing-sm);">计划要点1</span>
+                                    </li>
+                                    <li style="padding: var(--spacing-md) 0; border-bottom: 1px solid rgba(99, 102, 241, 0.2);">
+                                        <span class="presentation-badge success">推进</span>
+                                        <span style="margin-left: var(--spacing-sm);">计划要点2</span>
+                                    </li>
+                                    <li style="padding: var(--spacing-md) 0; border-bottom: 1px solid rgba(99, 102, 241, 0.2);">
+                                        <span class="presentation-badge warning">提升</span>
+                                        <span style="margin-left: var(--spacing-sm);">计划要点3</span>
+                                    </li>
+                                    <li style="padding: var(--spacing-md) 0;">
+                                        <span class="presentation-badge info">协作</span>
+                                        <span style="margin-left: var(--spacing-sm);">计划要点4</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 汇报结尾 -->
+        <div class="presentation-slide slide-closing" data-slide="8">
+            <div class="slide-content">
+                <div class="presentation-glass-card presentation-glass-card-medium">
+                    <h1 class="slide-closing-title">汇报完毕，感谢聆听</h1>
+                    <p class="slide-closing-subtitle">Thank You</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="presentation-theme-toggle">
+        <button class="presentation-theme-btn" id="themeToggle">
+            <i data-lucide="sun" class="icon-light"></i>
+            <i data-lucide="moon" class="icon-dark" style="display: none;"></i>
+            <span>切换主题</span>
+        </button>
+    </div>
+
+    <div class="presentation-nav-buttons">
+        <button class="presentation-nav-btn" id="prevBtn" disabled>
+            <i data-lucide="chevron-left"></i>
+        </button>
+        <button class="presentation-nav-btn" id="nextBtn">
+            <i data-lucide="chevron-right"></i>
+        </button>
+    </div>
+
+    <div class="presentation-slide-indicators" id="slideIndicators"></div>
+    <div class="presentation-progress-bar" id="progressBar"></div>
+
+    <script src="../../scripts/presentation-template.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

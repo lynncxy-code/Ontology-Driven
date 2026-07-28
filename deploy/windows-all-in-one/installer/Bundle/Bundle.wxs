@@ -1,0 +1,177 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Bundle
+      Name="OntoTwin ZHHZ 一体化安装程序"
+      Manufacturer="OntoTwin"
+      Version="$(var.BundleVersion)"
+      UpgradeCode="72592ADE-675B-48E6-B071-EEC6C17A6B22"
+      Compressed="no">
+
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication
+          Theme="hyperlinkLicense"
+          LicenseUrl=""
+          SuppressOptionsUI="yes" />
+    </BootstrapperApplication>
+
+    <util:RegistrySearch
+        Id="PayloadVersionSearch"
+        Root="HKLM"
+        Key="SOFTWARE\OntoTwin\ZHHZ"
+        Value="PayloadVersion"
+        Variable="InstalledPayloadVersion"
+        Result="value"
+        Bitness="always64" />
+
+    <util:RegistrySearch
+        Id="PayloadAppRootSearch"
+        After="PayloadVersionSearch"
+        Root="HKLM"
+        Key="SOFTWARE\OntoTwin\ZHHZ"
+        Value="AppRoot"
+        Variable="InstalledAppRoot"
+        Result="value"
+        Bitness="always64" />
+
+    <util:FileSearch
+        Id="PayloadReleaseManifestSearch"
+        After="PayloadAppRootSearch"
+        Condition="InstalledAppRoot"
+        Path="[InstalledAppRoot]\release-manifest.json"
+        Variable="PayloadReleaseManifestExists"
+        Result="exists" />
+
+    <util:FileSearch
+        Id="PayloadRuntimeSearch"
+        After="PayloadReleaseManifestSearch"
+        Condition="InstalledAppRoot"
+        Path="[InstalledAppRoot]\ZHHZ\ZHHZ.exe"
+        Variable="PayloadRuntimeExists"
+        Result="exists" />
+
+    <util:FileSearch
+        Id="PayloadApplianceManifestSearch"
+        After="PayloadRuntimeSearch"
+        Condition="InstalledAppRoot"
+        Path="[InstalledAppRoot]\Appliance\appliance-manifest.json"
+        Variable="PayloadApplianceManifestExists"
+        Result="exists" />
+
+    <util:FileSearch
+        Id="PayloadApplianceDiskSearch"
+        After="PayloadApplianceManifestSearch"
+        Condition="InstalledAppRoot"
+        Path="[InstalledAppRoot]\Appliance\ontotwin-ubuntu.vhdx"
+        Variable="PayloadApplianceDiskExists"
+        Result="exists" />
+
+    <util:FileSearch
+        Id="PayloadApplianceSeedSearch"
+        After="PayloadApplianceDiskSearch"
+        Condition="InstalledAppRoot"
+        Path="[InstalledAppRoot]\Appliance\seed.iso"
+        Variable="PayloadApplianceSeedExists"
+        Result="exists" />
+
+    <util:FileSearch
+        Id="PayloadBackendChecksumsSearch"
+        After="PayloadApplianceSeedSearch"
+        Condition="InstalledAppRoot"
+        Path="[InstalledAppRoot]\BackendPayload\SHA256SUMS"
+        Variable="PayloadBackendChecksumsExist"
+        Result="exists" />
+
+    <util:FileSearch
+        Id="PayloadBackendBootstrapSearch"
+        After="PayloadBackendChecksumsSearch"
+        Condition="InstalledAppRoot"
+        Path="[InstalledAppRoot]\BackendPayload\bootstrap.sh"
+        Variable="PayloadBackendBootstrapExists"
+        Result="exists" />
+
+    <util:FileSearch
+        Id="PayloadBackendControlSearch"
+        After="PayloadBackendBootstrapSearch"
+        Condition="InstalledAppRoot"
+        Path="[InstalledAppRoot]\BackendPayload\control.py"
+        Variable="PayloadBackendControlExists"
+        Result="exists" />
+
+    <util:FileSearch
+        Id="PayloadBackendDockerSearch"
+        After="PayloadBackendControlSearch"
+        Condition="InstalledAppRoot"
+        Path="[InstalledAppRoot]\BackendPayload\docker-static.tgz"
+        Variable="PayloadBackendDockerExists"
+        Result="exists" />
+
+    <util:FileSearch
+        Id="PayloadBackendComposeSearch"
+        After="PayloadBackendDockerSearch"
+        Condition="InstalledAppRoot"
+        Path="[InstalledAppRoot]\BackendPayload\docker-compose"
+        Variable="PayloadBackendComposeExists"
+        Result="exists" />
+
+    <util:FileSearch
+        Id="PayloadBackendImageSearch"
+        After="PayloadBackendComposeSearch"
+        Condition="InstalledAppRoot"
+        Path="[InstalledAppRoot]\BackendPayload\backend-image.tar"
+        Variable="PayloadBackendImageExists"
+        Result="exists" />
+
+    <util:FileSearch
+        Id="PayloadPostgresImageSearch"
+        After="PayloadBackendImageSearch"
+        Condition="InstalledAppRoot"
+        Path="[InstalledAppRoot]\BackendPayload\postgres-image.tar"
+        Variable="PayloadPostgresImageExists"
+        Result="exists" />
+
+    <util:FileSearch
+        Id="PayloadNeo4jImageSearch"
+        After="PayloadPostgresImageSearch"
+        Condition="InstalledAppRoot"
+        Path="[InstalledAppRoot]\BackendPayload\neo4j-image.tar"
+        Variable="PayloadNeo4jImageExists"
+        Result="exists" />
+
+    <util:FileSearch
+        Id="PayloadBackendReleaseSearch"
+        After="PayloadNeo4jImageSearch"
+        Condition="InstalledAppRoot"
+        Path="[InstalledAppRoot]\BackendPayload\release.tar.gz"
+        Variable="PayloadBackendReleaseExists"
+        Result="exists" />
+
+    <Chain>
+      <ExePackage
+          Id="WindowsEnvironment"
+          SourceFile="$(var.EnvironmentBootstrapperPath)"
+          DetectCondition="0"
+          PerMachine="yes"
+          Permanent="yes"
+          Vital="yes">
+        <Payload SourceFile="$(var.EnableHyperVScriptPath)" Name="Enable-HyperV.ps1" />
+        <ExitCode Value="3010" Behavior="scheduleReboot" />
+      </ExePackage>
+
+      <MsiPackage SourceFile="$(var.MsiPath)" Vital="yes" />
+
+      <ExePackage
+          Id="ApplicationPayload"
+          SourceFile="$(var.PayloadInstallerPath)"
+          InstallArguments="install &quot;[WixBundleOriginalSourceFolder]OntoTwin-ZHHZ.payload.zip&quot;"
+          RepairArguments="install &quot;[WixBundleOriginalSourceFolder]OntoTwin-ZHHZ.payload.zip&quot;"
+          RepairCondition="1"
+          DetectCondition="InstalledPayloadVersion = &quot;$(var.PayloadVersion)&quot; AND PayloadReleaseManifestExists AND PayloadRuntimeExists AND PayloadApplianceManifestExists AND PayloadApplianceDiskExists AND PayloadApplianceSeedExists AND PayloadBackendChecksumsExist AND PayloadBackendBootstrapExists AND PayloadBackendControlExists AND PayloadBackendDockerExists AND PayloadBackendComposeExists AND PayloadBackendImageExists AND PayloadPostgresImageExists AND PayloadNeo4jImageExists AND PayloadBackendReleaseExists"
+          PerMachine="yes"
+          Permanent="yes"
+          Vital="yes">
+      </ExePackage>
+
+    </Chain>
+  </Bundle>
+</Wix>

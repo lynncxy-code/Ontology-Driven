@@ -1,0 +1,49 @@
+#cloud-config
+disable_root: true
+ssh_pwauth: false
+users: []
+package_update: false
+package_upgrade: false
+write_files:
+  - path: /usr/local/sbin/ontotwin-bootstrap-runner.sh
+    permissions: '0755'
+    owner: root:root
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      host="http://172.28.251.1:48075"
+      destination="/opt/ontotwin/bootstrap.sh"
+      mkdir -p /opt/ontotwin
+      while true; do
+        if python3 -c 'import sys, urllib.request; urllib.request.urlretrieve(sys.argv[1], sys.argv[2])' "$host/payload/bootstrap.sh" "$destination"
+        then
+          break
+        fi
+        sleep 3
+      done
+      chmod 0755 "$destination"
+      exec "$destination"
+  - path: /etc/systemd/system/ontotwin-bootstrap.service
+    permissions: '0644'
+    owner: root:root
+    content: |
+      [Unit]
+      Description=OntoTwin ZHHZ retryable appliance bootstrap
+      Wants=network-online.target
+      After=network-online.target
+      Before=ontotwin-stack.service
+      StartLimitIntervalSec=0
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/ontotwin-bootstrap-runner.sh
+      Restart=on-failure
+      RestartSec=5
+      TimeoutStartSec=0
+
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, ontotwin-bootstrap.service]
+final_message: "OntoTwin ZHHZ appliance cloud-init completed"

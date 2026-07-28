@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UE5 Overlay · 数据可视化标准示例</title>
+  <!--
+    ★ 规范说明（供 AI 参考）
+    ───────────────────────────────────────────────────────────────────────
+    场景: ue5_overlay
+    图表规范:
+      1. 必须用 LingJingChart.init(el, 'ue5_overlay') 初始化（禁止裸 echarts.init）
+      2. 图表容器放在 .charts-grid 或 .chart-card-body / .detail-panel__body 内
+      3. 颜色通过 LingJingChart.getTokens('ue5_overlay').series 取值，禁止硬编码
+      4. 渐变填充用 echarts.graphic.LinearGradient，不要用内联 style
+      5. UE5 场景的折线图默认开启 areaStyle（透明度 0.12），无端点
+      6. 饼/环形图默认隐藏标签（label.show: false），用 legend 或 tooltip 说明
+    表格规范:
+      - 用 .table-ue 类（overlay 场景专用精简表格）
+      - 必须放在 .data-table-container 内（横向滚动保护）
+      - 状态列用 .status-dot（canonical）或 .badge（canonical）
+    ───────────────────────────────────────────────────────────────────────
+  -->
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-ue5-overlay.css">
+</head>
+<body>
+<main class="ue5-overlay-root">
+  <div class="ue5-overlay-background"></div>
+  <div class="ue5-overlay-viewport">
+    <img class="ue5-overlay-scene-image" src="../../assets/ue5-bg-scene.png" alt="航空制造三维背景场景">
+  </div>
+  <div class="ue5-overlay-grid"></div>
+  <div class="ue5-overlay-center-guard"></div>
+
+  <!-- System Bar -->
+  <header class="ue5-overlay-system-bar">
+    <div class="ue5-overlay-system-bar__brand">
+      <span class="ue5-overlay-system-bar__brand-mark" aria-hidden="true"></span>
+      <div class="ue5-overlay-system-bar__brand-copy">
+        <span class="ue5-overlay-system-bar__brand-name">生产数据总览</span>
+        <span class="ue5-overlay-system-bar__brand-subtitle">产量趋势 · 质量分布 · 工位状态 · 设备效率</span>
+      </div>
+    </div>
+    <nav class="ue5-overlay-system-bar__nav" aria-label="场景导航">
+      <span class="ue5-overlay-system-bar__nav-item is-active">数据总览</span>
+      <span class="ue5-overlay-system-bar__nav-item">质量追踪</span>
+      <span class="ue5-overlay-system-bar__nav-item">工艺联动</span>
+    </nav>
+    <div class="ue5-overlay-system-bar__meta">
+      <span class="ue5-overlay-system-bar__meta-item">
+        <span class="ue5-overlay-system-bar__meta-dot" aria-hidden="true"></span>数据实时同步
+      </span>
+      <span class="ue5-overlay-system-bar__meta-item">总装车间 · 白班</span>
+      <span class="ue5-overlay-system-bar__meta-item" id="sysTime">2026/03/25 · 14:30</span>
+    </div>
+  </header>
+
+  <section class="ue5-overlay-safe-area" aria-label="数据可视化视图">
+
+    <!-- ① topbar-hud：KPI 指标行 -->
+    <div class="topbar-hud ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--hud"
+         aria-label="关键生产指标">
+      <div class="topbar-hud__headline">
+        <h1 class="topbar-hud__title">本班生产态势</h1>
+        <p class="topbar-hud__subtitle">实时数据每 30 秒更新，红/橙标识偏离目标项。</p>
+      </div>
+      <div class="topbar-hud__signal-strip" aria-label="指标卡片组">
+        <div class="topbar-hud__stat topbar-hud__stat--success">
+          <span class="topbar-hud__stat-label">计划完成率</span>
+          <span class="topbar-hud__stat-value">87%</span>
+          <span class="topbar-hud__stat-meta">+3%</span>
+        </div>
+        <div class="topbar-hud__stat topbar-hud__stat--warning">
+          <span class="topbar-hud__stat-label">异常工位</span>
+          <span class="topbar-hud__stat-value">3</span>
+          <span class="topbar-hud__stat-meta">+1</span>
+        </div>
+        <div class="topbar-hud__stat topbar-hud__stat--info">
+          <span class="topbar-hud__stat-label">质量合格率</span>
+          <span class="topbar-hud__stat-value">96.2%</span>
+          <span class="topbar-hud__stat-meta">+0.4%</span>
+        </div>
+        <div class="topbar-hud__stat topbar-hud__stat--critical">
+          <span class="topbar-hud__stat-label">设备 OEE</span>
+          <span class="topbar-hud__stat-value">72%</span>
+          <span class="topbar-hud__stat-meta">−5%</span>
+        </div>
+        <div class="topbar-hud__stat topbar-hud__stat--brand">
+          <span class="topbar-hud__stat-label">在线人数</span>
+          <span class="topbar-hud__stat-value">124</span>
+          <span class="topbar-hud__stat-meta">人</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② 左侧面板：折线图 + 表格 -->
+    <aside class="alert-center ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--detail"
+           aria-label="产量与工位状态">
+
+      <!-- 折线图：产量趋势 -->
+      <div class="alert-center__header">
+        <div class="alert-center__heading">
+          <h2 class="alert-center__title">产量趋势</h2>
+          <p class="alert-center__summary">本班次逐小时产量（架次）</p>
+        </div>
+      </div>
+      <div class="charts-grid charts-grid--single">
+        <div class="chart-placeholder" id="chartLine" style="height:160px;" aria-label="产量趋势折线图"></div>
+      </div>
+
+      <!-- 表格：工位状态一览 -->
+      <div class="alert-center__header">
+        <div class="alert-center__heading">
+          <h2 class="alert-center__title">工位状态</h2>
+        </div>
+        <span class="alert-center__badge">
+          <span class="alert-center__badge-label">在线</span>
+          <span class="alert-center__badge-value">18</span>
+        </span>
+      </div>
+      <div class="data-table-container">
+        <table class="table-ue" aria-label="工位状态列表">
+          <thead>
+            <tr>
+              <th>工位</th>
+              <th>状态</th>
+              <th>本班产出</th>
+              <th>偏差</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>机翼对接 W01</td>
+              <td><span class="status-dot status-dot--error" aria-label="异常"></span> 异常</td>
+              <td>4 件</td>
+              <td class="data-trend data-trend--down">−2</td>
+            </tr>
+            <tr>
+              <td>机身总装 F03</td>
+              <td><span class="status-dot status-dot--success" aria-label="正常"></span> 正常</td>
+              <td>8 件</td>
+              <td class="data-trend data-trend--up">+1</td>
+            </tr>
+            <tr>
+              <td>线束安装 E05</td>
+              <td><span class="status-dot status-dot--warning" aria-label="待确认"></span> 待确认</td>
+              <td>6 件</td>
+              <td class="data-trend">0</td>
+            </tr>
+            <tr>
+              <td>舱门拟合 D02</td>
+              <td><span class="status-dot status-dot--success" aria-label="正常"></span> 正常</td>
+              <td>9 件</td>
+              <td class="data-trend data-trend--up">+2</td>
+            </tr>
+            <tr>
+              <td>密封检测 S07</td>
+              <td><span class="status-dot status-dot--error" aria-label="异常"></span> 异常</td>
+              <td>3 件</td>
+              <td class="data-trend data-trend--down">−3</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </aside>
+
+    <!-- ③ 右侧面板：环形图 + 柱状图 -->
+    <aside class="detail-panel ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--detail"
+           aria-label="质量分布与设备效率">
+      <div class="detail-panel__header">
+        <div class="detail-panel__title-group">
+          <h2 class="detail-panel__title">质量 &amp; 效率</h2>
+          <div class="detail-panel__meta">
+            <span>实时数据</span>
+            <span>30s 刷新</span>
+          </div>
+        </div>
+      </div>
+      <div class="detail-panel__body">
+
+        <!-- 环形图：质量分布 -->
+        <section class="detail-panel__section">
+          <h3 class="detail-panel__section-title">质量问题分布</h3>
+          <div class="charts-grid charts-grid--single">
+            <div class="chart-placeholder" id="chartPie" style="height:180px;" aria-label="质量问题分布环形图"></div>
+          </div>
+        </section>
+
+        <!-- 柱状图：设备效率 OEE -->
+        <section class="detail-panel__section">
+          <h3 class="detail-panel__section-title">设备 OEE（前 5 台）</h3>
+          <div class="charts-grid charts-grid--single">
+            <div class="chart-placeholder" id="chartBar" style="height:150px;" aria-label="设备 OEE 柱状图"></div>
+          </div>
+        </section>
+
+        <!-- 数据高亮卡 -->
+        <section class="detail-panel__section">
+          <h3 class="detail-panel__section-title">关键数值</h3>
+          <div class="detail-panel__metrics">
+            <div class="detail-panel__metric">
+              <div class="detail-panel__metric-copy">
+                <span class="detail-panel__metric-label">最低 OEE 设备</span>
+                <span class="detail-panel__metric-meta">铆接机 R-03</span>
+              </div>
+              <span class="detail-panel__metric-value detail-panel__metric--critical">62%</span>
+            </div>
+            <div class="detail-panel__metric">
+              <div class="detail-panel__metric-copy">
+                <span class="detail-panel__metric-label">累计质量缺陷</span>
+                <span class="detail-panel__metric-meta">本班截至当前</span>
+              </div>
+              <span class="detail-panel__metric-value detail-panel__metric--warning">14 项</span>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </aside>
+
+  </section>
+</main>
+
+<!-- ── Scripts（加载顺序：ECharts → 主题包 → Lucide → 业务初始化） ── -->
+<!--
+  ECharts 本地文件：请将 echarts.min.js 复制到 scripts/ 目录
+  下载地址：https://echarts.apache.org/zh/download.html（选择 "完整版" UMD）
+  或通过 npm：node -e "require('fs').copyFileSync('node_modules/echarts/dist/echarts.min.js','scripts/echarts.min.js')"
+-->
+<script src="../../scripts/echarts.min.js"></script>
+<script src="../../scripts/echarts-theme-lingjing.js"></script>
+<script src="../../scripts/lucide-umd-500.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  lucide.createIcons();
+  updateTime();
+  initCharts();
+  window.addEventListener('resize', function () { LingJingChart.resizeAll(); });
+});
+
+function updateTime() {
+  var el = document.getElementById('sysTime');
+  if (!el) return;
+  var now = new Date();
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+  el.textContent = now.getFullYear() + '/' + pad(now.getMonth()+1) + '/' + pad(now.getDate()) +
+    ' · ' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+}
+
+function initCharts() {
+  // 检查 ECharts 是否已加载
+  if (typeof echarts === 'undefined') {
+    console.warn('[data_viz] echarts 未加载，图表跳过渲染。请将 echarts.min.js 放入 scripts/ 目录。');
+    document.querySelectorAll('.chart-placeholder').forEach(function(el) {
+      el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;opacity:0.4;font-size:12px;">ECharts 未加载</div>';
+    });
+    return;
+  }
+
+  var tk = LingJingChart.getTokens('ue5_overlay');
+
+  // ── ① 产量趋势折线图 ────────────────────────────────────────────────────
+  var lineChart = LingJingChart.init(document.getElementById('chartLine'), 'ue5_overlay');
+  lineChart.setOption({
+    tooltip: { trigger: 'axis' },
+    xAxis: {
+      type: 'category',
+      data: ['08:00','09:00','10:00','11:00','12:00','13:00','14:00'],
+      boundaryGap: false
+    },
+    yAxis: {
+      type: 'value',
+      name: '架次',
+      min: 0
+    },
+    series: [{
+      name: '实际产量',
+      type: 'line',
+      data: [4, 6, 7, 5, 8, 7, 6],
+      areaStyle: { opacity: 0.12 },
+      smooth: true,
+      symbol: 'none',
+      lineStyle: {
+        color: tk.series[0],
+        width: 2,
+        shadowBlur: 8,
+        shadowColor: tk.series[0]
+      },
+      itemStyle: { color: tk.series[0] }
+    }, {
+      name: '计划产量',
+      type: 'line',
+      data: [5, 5, 8, 8, 8, 8, 8],
+      lineStyle: { type: 'dashed', color: tk.series[5], width: 1.5 },
+      symbol: 'none',
+      itemStyle: { color: tk.series[5] }
+    }]
+  });
+
+  // ── ② 质量问题分布环形图 ────────────────────────────────────────────────
+  var pieChart = LingJingChart.init(document.getElementById('chartPie'), 'ue5_overlay');
+  pieChart.setOption({
+    tooltip: { trigger: 'item', formatter: '{b}: {c} 项 ({d}%)' },
+    legend: {
+      orient: 'vertical',
+      right: '5%',
+      top: 'center',
+      textStyle: { color: tk.textSecond, fontSize: 11 }
+    },
+    series: [{
+      name: '质量问题',
+      type: 'pie',
+      radius: ['50%', '72%'],
+      center: ['38%', '50%'],
+      label: { show: false },
+      emphasis: { label: { show: true, fontSize: 13, fontWeight: 'bold' } },
+      data: [
+        { value: 6, name: '间隙超差', itemStyle: { color: tk.series[2] } },
+        { value: 4, name: '力矩偏差', itemStyle: { color: tk.series[3] } },
+        { value: 3, name: '密封不良', itemStyle: { color: tk.series[1] } },
+        { value: 1, name: '其他',     itemStyle: { color: tk.axisLine  } }
+      ]
+    }]
+  });
+
+  // ── ③ 设备 OEE 柱状图 ──────────────────────────────────────────────────
+  var barChart = LingJingChart.init(document.getElementById('chartBar'), 'ue5_overlay');
+  var oeeData = [88, 84, 79, 75, 62];
+  var barColors = oeeData.map(function(v) {
+    if (v >= 85) return tk.series[1];   // green
+    if (v >= 75) return tk.series[0];   // cyan
+    if (v >= 70) return tk.series[2];   // amber
+    return tk.series[3];                // red
+  });
+  barChart.setOption({
+    tooltip: { trigger: 'axis', formatter: '{b}: {c}%' },
+    xAxis: {
+      type: 'category',
+      data: ['铣床 M-01','钻床 D-02','铆接 R-03','检测 T-01','装配 A-04'],
+      axisLabel: { fontSize: 10, rotate: 0, overflow: 'truncate', width: 52 }
+    },
+    yAxis: { type: 'value', name: 'OEE %', min: 0, max: 100 },
+    series: [{
+      type: 'bar',
+      data: oeeData.map(function(v, i) {
+        return { value: v, itemStyle: { color: barColors[i], borderRadius: [2,2,0,0] } };
+      }),
+      barMaxWidth: 24,
+      label: {
+        show: true,
+        position: 'top',
+        color: tk.textSecond,
+        fontSize: 10,
+        formatter: '{c}%'
+      }
+    }]
+  });
+}
+</script>
+</body>
+</html>

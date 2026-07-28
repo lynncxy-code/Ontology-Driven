@@ -1,0 +1,124 @@
+name: ontotwin-zhhz
+
+services:
+  backend:
+    image: ${BACKEND_IMAGE}
+    restart: unless-stopped
+    mem_limit: 2g
+    ports:
+      - "${ONTOTWIN_BIND_ADDRESS:-127.0.0.1}:${ONTOTWIN_HTTP_PORT:-5000}:5000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      ONTOTWIN_STORE: pg
+      MODELS_DIR: /models
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: ${NEO4J_USER}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      ARTSTUDIO_ENABLED: ${ARTSTUDIO_ENABLED:-true}
+      ARTSTUDIO_BASE_URL: ${ARTSTUDIO_BASE_URL:-https://artstudio.digioasis.tech/api}
+      ARTSTUDIO_TOKEN: ${ARTSTUDIO_TOKEN:-}
+      ONTOTWIN_MIDDLEWARE_ENABLED: ${ONTOTWIN_MIDDLEWARE_ENABLED:-false}
+      ONTOTWIN_MIDDLEWARE_URL: ${ONTOTWIN_MIDDLEWARE_URL:-}
+      ONTOTWIN_MEDIA_ALLOWED_HOSTS: ${ONTOTWIN_MEDIA_ALLOWED_HOSTS:-}
+      ONTOTWIN_MEDIA_HTTP_EXCEPTIONS: ${ONTOTWIN_MEDIA_HTTP_EXCEPTIONS:-}
+    volumes:
+      - ../Models:/models
+      - ../Data/project_assets:/app/data/project_assets
+      - ../Data/exports:/exports
+    depends_on:
+      db:
+        condition: service_healthy
+      neo4j-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/', timeout=5).read(1)"
+      interval: 10s
+      timeout: 6s
+      retries: 12
+      start_period: 20s
+
+  db:
+    image: ${POSTGRES_IMAGE}
+    restart: unless-stopped
+    mem_limit: 1g
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../Database/postgres:/release-seed:ro
+      - ../Database/postgres/01-restore.sh:/docker-entrypoint-initdb.d/01-restore.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  neo4j:
+    image: ${NEO4J_IMAGE}
+    restart: unless-stopped
+    mem_limit: 2g
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER}/${NEO4J_PASSWORD}
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
+      NEO4J_server_memory_pagecache_size: 512m
+    volumes:
+      - neo4jdata:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "cypher-shell -u '${NEO4J_USER}' -p '${NEO4J_PASSWORD}' 'RETURN 1' || exit 1"
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 20s
+
+  neo4j-init:
+    image: ${NEO4J_IMAGE}
+    restart: "no"
+    mem_limit: 512m
+    environment:
+      NEO4J_USER: ${NEO4J_USER}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      ONTOTWIN_DATA_VERSION: ${ONTOTWIN_DATA_VERSION}
+    volumes:
+      - ../Database/neo4j:/seed:ro
+      - release_state:/state
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |
+        set -eu
+        marker="/state/neo4j-$${ONTOTWIN_DATA_VERSION}.initialized"
+        if [ -f "$${marker}" ]; then
+          echo "Neo4j seed already initialized: $${marker}"
+          exit 0
+        fi
+        /var/lib/neo4j/bin/cypher-shell -a bolt://neo4j:7687 -u "$${NEO4J_USER}" -p "$${NEO4J_PASSWORD}" -f /seed/ontotwin.zhhz.cypher
+        /var/lib/neo4j/bin/cypher-shell -a bolt://neo4j:7687 -u "$${NEO4J_USER}" -p "$${NEO4J_PASSWORD}" -f /seed/ontotwin.zhhz.extensions.cypher
+        touch "$${marker}"
+        echo "Neo4j ZHHZ seed initialized."
+
+volumes:
+  pgdata:
+  neo4jdata:
+  release_state:
+
+# Keep Docker's application network deterministic and outside the Hyper-V
+# host/guest transport subnet (172.28.251.0/24). Without this reservation,
+# Docker can eventually allocate an overlapping 172.28.0.0/16 network and cut
+# the guest off from the host payload/control endpoints during an upgrade.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.251.0.0/24

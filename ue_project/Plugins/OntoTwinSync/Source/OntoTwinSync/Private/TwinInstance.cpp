@@ -9,7 +9,9 @@
 
 #include "TwinInstance.h"
 #include "DigitalTwinSyncComponent.h"
+#include "OntoTwinOverlayWidget.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/Engine.h"
@@ -19,6 +21,8 @@
 #include "HAL/FileManager.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/FileHelper.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 // HTTP —— ArtStudio glb 经后端代理流式下载（3.3）
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
@@ -26,6 +30,110 @@
 // glTFRuntime —— 运行时加载磁盘上的 glb/gltf（B2 方案，模型不参与打包）
 #include "glTFRuntimeFunctionLibrary.h"
 #include "glTFRuntimeAsset.h"
+#include "Blueprint/UserWidget.h"
+#include "GameFramework/PlayerController.h"
+
+namespace
+{
+bool TryParseCollisionEnabled(
+    const TSharedPtr<FJsonObject>& PartObj,
+    ECollisionEnabled::Type& OutCollisionEnabled)
+{
+    if (!PartObj.IsValid()) return false;
+
+    FString Value;
+    if (PartObj->TryGetStringField(TEXT("collision_enabled"), Value))
+    {
+        Value.TrimStartAndEndInline();
+        if (Value.Equals(TEXT("NoCollision"), ESearchCase::IgnoreCase))
+            OutCollisionEnabled = ECollisionEnabled::NoCollision;
+        else if (Value.Equals(TEXT("QueryOnly"), ESearchCase::IgnoreCase))
+            OutCollisionEnabled = ECollisionEnabled::QueryOnly;
+        else if (Value.Equals(TEXT("PhysicsOnly"), ESearchCase::IgnoreCase))
+            OutCollisionEnabled = ECollisionEnabled::PhysicsOnly;
+        else if (Value.Equals(TEXT("QueryAndPhysics"), ESearchCase::IgnoreCase))
+            OutCollisionEnabled = ECollisionEnabled::QueryAndPhysics;
+        else if (Value.Equals(TEXT("ProbeOnly"), ESearchCase::IgnoreCase))
+            OutCollisionEnabled = ECollisionEnabled::ProbeOnly;
+        else if (Value.Equals(TEXT("QueryAndProbe"), ESearchCase::IgnoreCase))
+            OutCollisionEnabled = ECollisionEnabled::QueryAndProbe;
+        else
+            return false;
+        return true;
+    }
+
+    // 兼容早期或人工构造的数值 payload。
+    double NumericValue = 0.0;
+    if (PartObj->TryGetNumberField(TEXT("collision_enabled"), NumericValue)
+        && NumericValue >= static_cast<int32>(ECollisionEnabled::NoCollision)
+        && NumericValue <= static_cast<int32>(ECollisionEnabled::QueryAndProbe))
+    {
+        OutCollisionEnabled = static_cast<ECollisionEnabled::Type>(FMath::RoundToInt(NumericValue));
+        return true;
+    }
+    return false;
+}
+
+FString CollisionEnabledToString(ECollisionEnabled::Type Value)
+{
+    switch (Value)
+    {
+    case ECollisionEnabled::NoCollision: return TEXT("NoCollision");
+    case ECollisionEnabled::QueryOnly: return TEXT("QueryOnly");
+    case ECollisionEnabled::PhysicsOnly: return TEXT("PhysicsOnly");
+    case ECollisionEnabled::QueryAndPhysics: return TEXT("QueryAndPhysics");
+    case ECollisionEnabled::ProbeOnly: return TEXT("ProbeOnly");
+    case ECollisionEnabled::QueryAndProbe: return TEXT("QueryAndProbe");
+    default: return FString::Printf(TEXT("Unknown(%d)"), static_cast<int32>(Value));
+    }
+}
+
+TSharedPtr<FJsonValue> JsonVectorValue(const FVector& Value)
+{
+    TSharedPtr<FJsonObject> Object = MakeShared<FJsonObject>();
+    Object->SetNumberField(TEXT("x"), Value.X);
+    Object->SetNumberField(TEXT("y"), Value.Y);
+    Object->SetNumberField(TEXT("z"), Value.Z);
+    return MakeShared<FJsonValueObject>(Object);
+}
+
+TSharedPtr<FJsonValue> JsonRotatorValue(const FRotator& Value)
+{
+    TSharedPtr<FJsonObject> Object = MakeShared<FJsonObject>();
+    Object->SetNumberField(TEXT("roll"), Value.Roll);
+    Object->SetNumberField(TEXT("pitch"), Value.Pitch);
+    Object->SetNumberField(TEXT("yaw"), Value.Yaw);
+    return MakeShared<FJsonValueObject>(Object);
+}
+
+void AddAssemblyAuditFailure(
+    TArray<TSharedPtr<FJsonValue>>& OutFailures,
+    int32 PartIndex,
+    const TCHAR* Field,
+    const TSharedPtr<FJsonValue>& Expected,
+    const TSharedPtr<FJsonValue>& Actual,
+    double Tolerance = -1.0,
+    int32 MaterialSlot = INDEX_NONE)
+{
+    TSharedPtr<FJsonObject> Failure = MakeShared<FJsonObject>();
+    if (PartIndex != INDEX_NONE)
+    {
+        Failure->SetNumberField(TEXT("part_index"), PartIndex);
+    }
+    if (MaterialSlot != INDEX_NONE)
+    {
+        Failure->SetNumberField(TEXT("material_slot"), MaterialSlot);
+    }
+    Failure->SetStringField(TEXT("field"), Field);
+    Failure->SetField(TEXT("expected"), Expected);
+    Failure->SetField(TEXT("actual"), Actual);
+    if (Tolerance >= 0.0)
+    {
+        Failure->SetNumberField(TEXT("tolerance"), Tolerance);
+    }
+    OutFailures.Add(MakeShared<FJsonValueObject>(Failure));
+}
+}
 
 // ── 构造函数 ─────────────────────────────────────────────────────────────────
 
@@ -38,6 +146,9 @@ ATwinInstance::ATwinInstance()
     // 创建默认的 StaticMeshComponent 作为根组件
     MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TwinMesh"));
     RootComponent = MeshComponent;
+    // TwinInstance 是 OntoTwin 动态生成的语义/显示代理，不负责定义宿主关卡的可行走碰撞。
+    // 保留 Visibility 响应供射线选择，Pawn 碰撞由 UE 关卡中的真实地面、墙体和设备承担。
+    MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
 
     // 创建 3D 文字标签组件，默认隐藏
     LabelComponent = CreateDefaultSubobject<UTextRenderComponent>(TEXT("TwinLabel"));
@@ -52,6 +163,26 @@ ATwinInstance::ATwinInstance()
     LabelComponent->SetTextRenderColor(LabelColor);                        // 文字颜色
     LabelComponent->SetVisibility(false);                                  // 初始隐藏
     LabelComponent->SetText(FText::GetEmpty());
+
+    OverlayWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("TwinOverlay"));
+    OverlayWidgetComponent->SetupAttachment(MeshComponent);
+    OverlayWidgetComponent->SetAbsolute(false, false, true);
+    OverlayWidgetComponent->SetWidgetSpace(EWidgetSpace::World);
+    OverlayWidgetComponent->SetDrawSize(FVector2D(720.0f, 160.0f));
+    OverlayWidgetComponent->SetDrawAtDesiredSize(false);
+    OverlayWidgetComponent->SetPivot(FVector2D(0.5f, 1.0f));
+    OverlayWidgetComponent->SetBlendMode(EWidgetBlendMode::Transparent);
+    OverlayWidgetComponent->SetTwoSided(true);
+    OverlayWidgetComponent->SetTickWhenOffscreen(false);
+    OverlayWidgetComponent->SetManuallyRedraw(true);
+    OverlayWidgetComponent->SetRedrawTime(0.0f);
+    OverlayWidgetComponent->SetWindowFocusable(false);
+    OverlayWidgetComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    OverlayWidgetComponent->SetCollisionResponseToAllChannels(ECR_Ignore);
+    OverlayWidgetComponent->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+    OverlayWidgetComponent->SetGenerateOverlapEvents(false);
+    OverlayWidgetComponent->SetVisibility(false);
+    OverlayWidgetComponent->SetWorldScale3D(FVector(0.05f));
 }
 
 // ── BeginPlay ────────────────────────────────────────────────────────────────
@@ -60,6 +191,17 @@ void ATwinInstance::BeginPlay()
 {
     Super::BeginPlay();
     InitAnimLibrary();
+    if (OverlayWidgetComponent)
+    {
+        OverlayWidgetComponent->SetWidgetClass(UOntoTwinOverlayWidget::StaticClass());
+        OverlayWidgetComponent->InitWidget();
+        WorldOverlayWidget = Cast<UOntoTwinOverlayWidget>(OverlayWidgetComponent->GetUserWidgetObject());
+        if (WorldOverlayWidget)
+        {
+            WorldOverlayWidget->SetWorldSpacePresentation(true);
+            UpdateWorldOverlayRenderTarget();
+        }
+    }
 }
 
 void ATwinInstance::Tick(float DeltaTime)
@@ -69,7 +211,11 @@ void ATwinInstance::Tick(float DeltaTime)
     // ── 3D文字始终朝向相机 (Billboarding) ──
     if (LabelComponent && LabelComponent->IsVisible())
     {
-        if (APlayerCameraManager* CamManager = GetWorld()->GetFirstPlayerController()->PlayerCameraManager)
+        UWorld* World = GetWorld();
+        APlayerController* PlayerController = World ? World->GetFirstPlayerController() : nullptr;
+        if (APlayerCameraManager* CamManager = PlayerController
+            ? PlayerController->PlayerCameraManager
+            : nullptr)
         {
             FVector CamLoc = CamManager->GetCameraLocation();
             FVector TextLoc = LabelComponent->GetComponentLocation();
@@ -82,6 +228,17 @@ void ATwinInstance::Tick(float DeltaTime)
 
             // 如果你发现文字刚好是左右镜像反的，可以改成 BillboardRot.Yaw += 180.f; 但纯 LookAt 一般是正的！
             LabelComponent->SetWorldRotation(BillboardRot);
+        }
+    }
+
+    if (HasAlwaysOverlay() && OverlayWidgetComponent && OverlayWidgetComponent->IsVisible())
+    {
+        if (APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
+        {
+            if (APlayerCameraManager* CamManager = PC->PlayerCameraManager)
+            {
+                RefreshAlwaysOverlay(CamManager->GetCameraLocation(), true);
+            }
         }
     }
 
@@ -126,7 +283,7 @@ void ATwinInstance::Tick(float DeltaTime)
         bAnimRunning = false;
         SetActorEnableCollision(true);
         // 如果文字没显示，才真正关闭 Tick
-        if (!LabelComponent || !LabelComponent->IsVisible())
+        if ((!LabelComponent || !LabelComponent->IsVisible()) && !HasAlwaysOverlay())
         {
             SetActorTickEnabled(false);
         }
@@ -188,7 +345,7 @@ void ATwinInstance::PlayAnimationState(const FString& StateName)
     if (StateName == TEXT("idle"))
     {
         bAnimRunning = false;
-        if (!LabelComponent || !LabelComponent->IsVisible())
+        if ((!LabelComponent || !LabelComponent->IsVisible()) && !HasAlwaysOverlay())
         {
             SetActorTickEnabled(false);
         }
@@ -222,6 +379,7 @@ void ATwinInstance::InitializeTwin(
     const FString& InBackendBaseUrl)
 {
     InstanceId     = InInstanceId;
+    TwinDisplayName = InInstanceId;
     AssetPath      = InAssetPath;
     BackendBaseUrl = InBackendBaseUrl;
 
@@ -256,7 +414,7 @@ void ATwinInstance::InitializeTwin(
     UE_LOG(LogTemp, Log, TEXT("[孪生体] ████ 初始化完成 | ID=%s"), *InstanceId);
 }
 
-void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot)
+void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool bIsDelta)
 {
     if (!Snapshot.IsValid())
     {
@@ -264,11 +422,20 @@ void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot)
         return;
     }
 
+    FString SnapshotDisplayName;
+    if (Snapshot->TryGetStringField(TEXT("displayName"), SnapshotDisplayName) && !SnapshotDisplayName.IsEmpty())
+    {
+        TwinDisplayName = SnapshotDisplayName;
+    }
+
     const TSharedPtr<FJsonObject>* InterfacesObj;
     if (!Snapshot->TryGetObjectField(TEXT("interfaces"), InterfacesObj))
     {
-        UE_LOG(LogTemp, Warning,
-               TEXT("[孪生体] ApplySnapshot: 快照中无 'interfaces' 字段 (ID=%s)"), *InstanceId);
+        if (!bIsDelta)
+        {
+            UE_LOG(LogTemp, Warning,
+                   TEXT("[孪生体] ApplySnapshot: 快照中无 'interfaces' 字段 (ID=%s)"), *InstanceId);
+        }
         return;
     }
 
@@ -300,6 +467,16 @@ void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot)
     if ((*InterfacesObj)->TryGetObjectField(TEXT("I3D_Behavioral"), BehaviorObj))
     {
         ApplyBehavioralFromSnapshot(*BehaviorObj);
+    }
+
+    const TSharedPtr<FJsonObject>* OverlayObj;
+    if ((*InterfacesObj)->TryGetObjectField(TEXT("I3D_Overlay"), OverlayObj))
+    {
+        ApplyOverlayFromSnapshot(*OverlayObj);
+    }
+    else if (!bIsDelta)
+    {
+        ClearOverlay();
     }
 }
 
@@ -355,10 +532,568 @@ bool ATwinInstance::LoadMeshFromPath(const FString& MeshPath)
     return false;
 }
 
+void ATwinInstance::ClearRenderParts()
+{
+    for (UStaticMeshComponent* PartComponent : RenderPartComponents)
+    {
+        if (PartComponent && IsValid(PartComponent))
+        {
+            RemoveInstanceComponent(PartComponent);
+            PartComponent->DestroyComponent();
+        }
+    }
+    RenderPartComponents.Empty();
+    RenderPartSourceVisibility.Empty();
+    CurrentAssemblySignature.Empty();
+    bAssemblyRenderActive = false;
+}
+
+void ATwinInstance::ApplyRenderPartsFromSnapshot(
+    const TArray<TSharedPtr<FJsonValue>>& RenderParts,
+    const FString& AssemblySignature)
+{
+    if (RenderParts.Num() == 0 || !MeshComponent)
+    {
+        return;
+    }
+
+    // assembly_signature 由导出器按“资产路径 + 相对母 Actor 变换”生成。
+    // 对接旧的手写 payload 时没有 signature，仍构造一个稳定的轻量缓存键。
+    FString EffectiveSignature = AssemblySignature;
+    if (EffectiveSignature.IsEmpty())
+    {
+        for (const TSharedPtr<FJsonValue>& PartValue : RenderParts)
+        {
+            const TSharedPtr<FJsonObject>* PartObj = nullptr;
+            if (!PartValue.IsValid() || !PartValue->TryGetObject(PartObj) || !PartObj || !PartObj->IsValid())
+            {
+                continue;
+            }
+            FString Asset;
+            for (const TCHAR* Field : { TEXT("asset_path"), TEXT("ue_asset_path"),
+                                        TEXT("static_mesh_asset"), TEXT("mesh_asset") })
+            {
+                if ((*PartObj)->TryGetStringField(Field, Asset) && !Asset.IsEmpty())
+                {
+                    break;
+                }
+            }
+            EffectiveSignature += Asset;
+            const TSharedPtr<FJsonObject>* TransformObj = nullptr;
+            if ((*PartObj)->TryGetObjectField(TEXT("relative_transform"), TransformObj)
+                || (*PartObj)->TryGetObjectField(TEXT("transform"), TransformObj))
+            {
+                FString TransformJson;
+                TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&TransformJson);
+                FJsonSerializer::Serialize((*TransformObj).ToSharedRef(), Writer);
+                EffectiveSignature += TransformJson;
+            }
+            const TArray<TSharedPtr<FJsonValue>>* MaterialPaths = nullptr;
+            if ((*PartObj)->TryGetArrayField(TEXT("material_paths"), MaterialPaths) && MaterialPaths)
+            {
+                for (const TSharedPtr<FJsonValue>& MaterialValue : *MaterialPaths)
+                {
+                    FString MaterialPath;
+                    if (MaterialValue.IsValid() && MaterialValue->TryGetString(MaterialPath))
+                    {
+                        EffectiveSignature += MaterialPath;
+                    }
+                    EffectiveSignature += TEXT(",");
+                }
+            }
+            for (const TCHAR* StateField : {
+                TEXT("visible"), TEXT("hidden_in_game"), TEXT("cast_shadow") })
+            {
+                bool bState = false;
+                if ((*PartObj)->TryGetBoolField(StateField, bState))
+                {
+                    EffectiveSignature += FString::Printf(TEXT("%s=%d;"), StateField, bState ? 1 : 0);
+                }
+            }
+            FString CollisionEnabled;
+            if ((*PartObj)->TryGetStringField(TEXT("collision_enabled"), CollisionEnabled))
+            {
+                EffectiveSignature += CollisionEnabled;
+            }
+            EffectiveSignature += TEXT("|");
+        }
+    }
+
+    if (bAssemblyRenderActive && CurrentAssemblySignature == EffectiveSignature)
+    {
+        return;
+    }
+
+    ClearRenderParts();
+    // 单资产占位逻辑可能改过根组件缩放；assembly 的所有相对变换都以单位基座为前提。
+    MeshComponent->SetRelativeScale3D(FVector::OneVector);
+    MeshComponent->SetVisibility(true, false);
+    MeshComponent->SetHiddenInGame(false, false);
+    MeshComponent->SetStaticMesh(nullptr);
+
+    int32 LoadedPartCount = 0;
+    bool bHadLoadFailure = false;
+    for (int32 PartIndex = 0; PartIndex < RenderParts.Num(); ++PartIndex)
+    {
+        const TSharedPtr<FJsonValue>& PartValue = RenderParts[PartIndex];
+        const TSharedPtr<FJsonObject>* PartObj = nullptr;
+        if (!PartValue.IsValid() || !PartValue->TryGetObject(PartObj) || !PartObj || !PartObj->IsValid())
+        {
+            UE_LOG(LogTemp, Warning,
+                TEXT("[孪生体] render_parts[%d] 不是对象 (ID=%s)"), PartIndex, *InstanceId);
+            bHadLoadFailure = true;
+            continue;
+        }
+
+        FString PartAssetPath;
+        for (const TCHAR* Field : { TEXT("asset_path"), TEXT("ue_asset_path"),
+                                    TEXT("static_mesh_asset"), TEXT("mesh_asset") })
+        {
+            if ((*PartObj)->TryGetStringField(Field, PartAssetPath) && !PartAssetPath.IsEmpty())
+            {
+                break;
+            }
+        }
+        if (PartAssetPath.IsEmpty())
+        {
+            UE_LOG(LogTemp, Warning,
+                TEXT("[孪生体] render_parts[%d] 缺少 asset_path (ID=%s)"), PartIndex, *InstanceId);
+            bHadLoadFailure = true;
+            continue;
+        }
+
+        FString FullPath = PartAssetPath;
+        if (!FullPath.Contains(TEXT(".")))
+        {
+            FString AssetName;
+            PartAssetPath.Split(TEXT("/"), nullptr, &AssetName,
+                ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+            FullPath = FString::Printf(TEXT("%s.%s"), *PartAssetPath, *AssetName);
+        }
+        UStaticMesh* PartMesh = LoadObject<UStaticMesh>(nullptr, *FullPath);
+        if (!PartMesh)
+        {
+            PartMesh = LoadObject<UStaticMesh>(nullptr, *PartAssetPath);
+        }
+        if (!PartMesh)
+        {
+            UE_LOG(LogTemp, Error,
+                TEXT("[孪生体] 复合部件资产加载失败: %s (ID=%s)"), *PartAssetPath, *InstanceId);
+            bHadLoadFailure = true;
+            continue;
+        }
+
+        FVector RelativeLocation = FVector::ZeroVector;
+        FRotator RelativeRotation = FRotator::ZeroRotator;
+        FVector RelativeScale = FVector::OneVector;
+        const TSharedPtr<FJsonObject>* TransformObj = nullptr;
+        if ((*PartObj)->TryGetObjectField(TEXT("relative_transform"), TransformObj)
+            || (*PartObj)->TryGetObjectField(TEXT("transform"), TransformObj))
+        {
+            auto ReadNumber = [TransformObj](const TCHAR* ShortName, const TCHAR* LongName, double DefaultValue)
+            {
+                double Value = DefaultValue;
+                if (!(*TransformObj)->TryGetNumberField(ShortName, Value))
+                {
+                    (*TransformObj)->TryGetNumberField(LongName, Value);
+                }
+                return Value;
+            };
+            RelativeLocation = FVector(
+                ReadNumber(TEXT("tx"), TEXT("translation_x"), 0.0),
+                ReadNumber(TEXT("ty"), TEXT("translation_y"), 0.0),
+                ReadNumber(TEXT("tz"), TEXT("translation_z"), 0.0));
+            const double Roll = ReadNumber(TEXT("rx"), TEXT("rotation_x"), 0.0);
+            const double Pitch = ReadNumber(TEXT("ry"), TEXT("rotation_y"), 0.0);
+            const double Yaw = ReadNumber(TEXT("rz"), TEXT("rotation_z"), 0.0);
+            RelativeRotation = FRotator(Pitch, Yaw, Roll);
+            RelativeScale = FVector(
+                ReadNumber(TEXT("sx"), TEXT("scale_x"), 1.0),
+                ReadNumber(TEXT("sy"), TEXT("scale_y"), 1.0),
+                ReadNumber(TEXT("sz"), TEXT("scale_z"), 1.0));
+        }
+
+        const FName PartComponentName = MakeUniqueObjectName(
+            this,
+            UStaticMeshComponent::StaticClass(),
+            FName(*FString::Printf(TEXT("TwinRenderPart_%d"), PartIndex)));
+        UStaticMeshComponent* PartComponent = NewObject<UStaticMeshComponent>(
+            this,
+            PartComponentName,
+            RF_Transient);
+        if (!PartComponent)
+        {
+            bHadLoadFailure = true;
+            continue;
+        }
+        AddInstanceComponent(PartComponent);
+        PartComponent->SetupAttachment(MeshComponent);
+        PartComponent->SetMobility(EComponentMobility::Movable);
+        PartComponent->SetStaticMesh(PartMesh);
+        PartComponent->SetRelativeTransform(FTransform(RelativeRotation, RelativeLocation, RelativeScale));
+
+        const TArray<TSharedPtr<FJsonValue>>* MaterialPaths = nullptr;
+        if ((*PartObj)->TryGetArrayField(TEXT("material_paths"), MaterialPaths) && MaterialPaths)
+        {
+            for (int32 MaterialIndex = 0; MaterialIndex < MaterialPaths->Num(); ++MaterialIndex)
+            {
+                FString MaterialPath;
+                if (!(*MaterialPaths)[MaterialIndex].IsValid()
+                    || !(*MaterialPaths)[MaterialIndex]->TryGetString(MaterialPath)
+                    || MaterialPath.IsEmpty())
+                {
+                    continue;
+                }
+                UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
+                if (Material)
+                {
+                    PartComponent->SetMaterial(MaterialIndex, Material);
+                }
+                else
+                {
+                    bHadLoadFailure = true;
+                    UE_LOG(LogTemp, Error,
+                        TEXT("[孪生体] 复合部件材质加载失败: %s (ID=%s, part=%d, slot=%d)"),
+                        *MaterialPath, *InstanceId, PartIndex, MaterialIndex);
+                }
+            }
+        }
+
+        bool bPartVisible = true;
+        bool bPartHiddenInGame = false;
+        bool bPartCastShadow = true;
+        (*PartObj)->TryGetBoolField(TEXT("visible"), bPartVisible);
+        (*PartObj)->TryGetBoolField(TEXT("hidden_in_game"), bPartHiddenInGame);
+        (*PartObj)->TryGetBoolField(TEXT("cast_shadow"), bPartCastShadow);
+        PartComponent->SetVisibility(bPartVisible, false);
+        PartComponent->SetHiddenInGame(bPartHiddenInGame, false);
+        PartComponent->SetCastShadow(bPartCastShadow);
+        ECollisionEnabled::Type CollisionEnabled = PartComponent->GetCollisionEnabled();
+        if (TryParseCollisionEnabled(*PartObj, CollisionEnabled))
+        {
+            PartComponent->SetCollisionEnabled(CollisionEnabled);
+        }
+        PartComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+        PartComponent->RegisterComponent();
+        RenderPartComponents.Add(PartComponent);
+        RenderPartSourceVisibility.Add(bPartVisible);
+        ++LoadedPartCount;
+    }
+
+    bAssemblyRenderActive = true;
+    if (!bHadLoadFailure && LoadedPartCount == RenderParts.Num())
+    {
+        CurrentAssemblySignature = EffectiveSignature;
+        UE_LOG(LogTemp, Log,
+            TEXT("[孪生体] assembly_v1 已创建 %d/%d 个渲染部件 (ID=%s, signature=%s)"),
+            LoadedPartCount, RenderParts.Num(), *InstanceId, *CurrentAssemblySignature);
+    }
+    else
+    {
+        // 不缓存失败签名：下一次快照轮询会重新加载。基座 Cube 明确提示该 assembly 不完整。
+        CurrentAssemblySignature.Empty();
+        SetPlaceholderCube();
+        MeshComponent->SetRelativeScale3D(FVector::OneVector);
+        UE_LOG(LogTemp, Error,
+            TEXT("[孪生体] assembly_v1 仅加载 %d/%d 个部件，保留 Cube fallback 并等待重试 (ID=%s)"),
+            LoadedPartCount, RenderParts.Num(), *InstanceId);
+    }
+}
+
 // ─── 运行时 glb/gltf 加载（glTFRuntime，模型不参与打包） ──────────────────────
 
 // 固定模型目录的默认值：编辑器与打包 exe 都读这一份，永不拷贝。
 // 可在 项目 Config/DefaultGame.ini 用 [OntoTwinSync] ModelsDir=... 覆盖，无需重编译。
+// assembly_v1 部件状态只读审计。
+bool ATwinInstance::ValidateRenderPartsAgainstSnapshot(
+    const TArray<TSharedPtr<FJsonValue>>& RenderParts,
+    bool bOverallVisible,
+    TArray<TSharedPtr<FJsonValue>>& OutFailures) const
+{
+    OutFailures.Reset();
+
+    if (RenderPartComponents.Num() != RenderParts.Num())
+    {
+        AddAssemblyAuditFailure(
+            OutFailures,
+            INDEX_NONE,
+            TEXT("render_part_count"),
+            MakeShared<FJsonValueNumber>(RenderParts.Num()),
+            MakeShared<FJsonValueNumber>(RenderPartComponents.Num()));
+        // 组件数组只保留加载成功项；一旦数量不同，下标就不再可靠对齐。
+        return false;
+    }
+
+    // 全部载入成功时 RenderPartComponents 与 render_parts 严格同序。
+    constexpr double LocationToleranceCm = 0.01;
+    constexpr double RotationToleranceDegrees = 0.01;
+    constexpr double ScaleTolerance = 0.00001;
+
+    for (int32 PartIndex = 0; PartIndex < RenderParts.Num(); ++PartIndex)
+    {
+        const TSharedPtr<FJsonValue>& PartValue = RenderParts[PartIndex];
+        const TSharedPtr<FJsonObject>* PartObjPtr = nullptr;
+        if (!PartValue.IsValid()
+            || !PartValue->TryGetObject(PartObjPtr)
+            || !PartObjPtr
+            || !PartObjPtr->IsValid())
+        {
+            AddAssemblyAuditFailure(
+                OutFailures,
+                PartIndex,
+                TEXT("render_part"),
+                MakeShared<FJsonValueString>(TEXT("json_object")),
+                MakeShared<FJsonValueString>(TEXT("invalid_or_non_object")));
+            continue;
+        }
+        const TSharedPtr<FJsonObject>& PartObj = *PartObjPtr;
+
+        const UStaticMeshComponent* PartComponent = RenderPartComponents[PartIndex];
+        if (!PartComponent || !IsValid(PartComponent))
+        {
+            AddAssemblyAuditFailure(
+                OutFailures,
+                PartIndex,
+                TEXT("component"),
+                MakeShared<FJsonValueString>(TEXT("valid_static_mesh_component")),
+                MakeShared<FJsonValueString>(TEXT("null_or_invalid")));
+            continue;
+        }
+
+        FString ExpectedMeshPath;
+        for (const TCHAR* Field : { TEXT("asset_path"), TEXT("ue_asset_path"),
+                                    TEXT("static_mesh_asset"), TEXT("mesh_asset") })
+        {
+            if (PartObj->TryGetStringField(Field, ExpectedMeshPath) && !ExpectedMeshPath.IsEmpty())
+            {
+                break;
+            }
+        }
+        const FString ActualMeshPath = PartComponent->GetStaticMesh()
+            ? PartComponent->GetStaticMesh()->GetPathName()
+            : FString();
+        if (ExpectedMeshPath != ActualMeshPath)
+        {
+            AddAssemblyAuditFailure(
+                OutFailures,
+                PartIndex,
+                TEXT("mesh_asset_path"),
+                MakeShared<FJsonValueString>(ExpectedMeshPath),
+                MakeShared<FJsonValueString>(ActualMeshPath));
+        }
+
+        FVector ExpectedLocation = FVector::ZeroVector;
+        FRotator ExpectedRotation = FRotator::ZeroRotator;
+        FVector ExpectedScale = FVector::OneVector;
+        const TSharedPtr<FJsonObject>* TransformObjPtr = nullptr;
+        bool bTransformSchemaValid = true;
+        if (PartObj->TryGetObjectField(TEXT("relative_transform"), TransformObjPtr)
+            || PartObj->TryGetObjectField(TEXT("transform"), TransformObjPtr))
+        {
+            const TSharedPtr<FJsonObject>& TransformObj = *TransformObjPtr;
+            auto ReadNumber = [&TransformObj, &bTransformSchemaValid](
+                const TCHAR* ShortName,
+                const TCHAR* LongName,
+                double DefaultValue)
+            {
+                double Value = DefaultValue;
+                const bool bFound = TransformObj->TryGetNumberField(ShortName, Value)
+                    || TransformObj->TryGetNumberField(LongName, Value);
+                if (!bFound || !FMath::IsFinite(Value))
+                {
+                    bTransformSchemaValid = false;
+                    return DefaultValue;
+                }
+                return Value;
+            };
+            ExpectedLocation = FVector(
+                ReadNumber(TEXT("tx"), TEXT("translation_x"), 0.0),
+                ReadNumber(TEXT("ty"), TEXT("translation_y"), 0.0),
+                ReadNumber(TEXT("tz"), TEXT("translation_z"), 0.0));
+            const double Roll = ReadNumber(TEXT("rx"), TEXT("rotation_x"), 0.0);
+            const double Pitch = ReadNumber(TEXT("ry"), TEXT("rotation_y"), 0.0);
+            const double Yaw = ReadNumber(TEXT("rz"), TEXT("rotation_z"), 0.0);
+            ExpectedRotation = FRotator(Pitch, Yaw, Roll);
+            ExpectedScale = FVector(
+                ReadNumber(TEXT("sx"), TEXT("scale_x"), 1.0),
+                ReadNumber(TEXT("sy"), TEXT("scale_y"), 1.0),
+                ReadNumber(TEXT("sz"), TEXT("scale_z"), 1.0));
+        }
+        else
+        {
+            bTransformSchemaValid = false;
+        }
+        if (!bTransformSchemaValid)
+        {
+            AddAssemblyAuditFailure(
+                OutFailures,
+                PartIndex,
+                TEXT("relative_transform_schema"),
+                MakeShared<FJsonValueString>(TEXT("nine_finite_numeric_fields")),
+                MakeShared<FJsonValueString>(TEXT("missing_or_non_finite")));
+        }
+
+        const FVector ActualLocation = PartComponent->GetRelativeLocation();
+        if (!ActualLocation.Equals(ExpectedLocation, LocationToleranceCm))
+        {
+            AddAssemblyAuditFailure(
+                OutFailures,
+                PartIndex,
+                TEXT("relative_location_cm"),
+                JsonVectorValue(ExpectedLocation),
+                JsonVectorValue(ActualLocation),
+                LocationToleranceCm);
+        }
+
+        const FQuat ExpectedQuat = ExpectedRotation.Quaternion().GetNormalized();
+        const FQuat ActualQuat = PartComponent->GetRelativeRotation().Quaternion().GetNormalized();
+        const bool bActualQuatFinite = !ActualQuat.ContainsNaN();
+        double AngularErrorDegrees = -1.0;
+        if (bActualQuatFinite)
+        {
+            const double QuaternionDot = FMath::Clamp(
+                FMath::Abs(static_cast<double>(ExpectedQuat | ActualQuat)),
+                0.0,
+                1.0);
+            AngularErrorDegrees = FMath::RadiansToDegrees(2.0 * FMath::Acos(QuaternionDot));
+        }
+        if (!bActualQuatFinite || AngularErrorDegrees > RotationToleranceDegrees)
+        {
+            AddAssemblyAuditFailure(
+                OutFailures,
+                PartIndex,
+                TEXT("relative_rotation_degrees"),
+                JsonRotatorValue(ExpectedRotation),
+                bActualQuatFinite
+                    ? JsonRotatorValue(PartComponent->GetRelativeRotation())
+                    : MakeShared<FJsonValueString>(TEXT("non_finite")),
+                RotationToleranceDegrees);
+            TSharedPtr<FJsonObject> FailureObject = OutFailures.Last()->AsObject();
+            if (FailureObject.IsValid() && bActualQuatFinite)
+            {
+                FailureObject->SetNumberField(TEXT("angular_error_degrees"), AngularErrorDegrees);
+            }
+        }
+
+        const FVector ActualScale = PartComponent->GetRelativeScale3D();
+        if (!ActualScale.Equals(ExpectedScale, ScaleTolerance))
+        {
+            AddAssemblyAuditFailure(
+                OutFailures,
+                PartIndex,
+                TEXT("relative_scale"),
+                JsonVectorValue(ExpectedScale),
+                JsonVectorValue(ActualScale),
+                ScaleTolerance);
+        }
+
+        const TArray<TSharedPtr<FJsonValue>>* MaterialPaths = nullptr;
+        if (PartObj->TryGetArrayField(TEXT("material_paths"), MaterialPaths) && MaterialPaths)
+        {
+            if (PartComponent->GetNumMaterials() != MaterialPaths->Num())
+            {
+                AddAssemblyAuditFailure(
+                    OutFailures,
+                    PartIndex,
+                    TEXT("material_slot_count"),
+                    MakeShared<FJsonValueNumber>(MaterialPaths->Num()),
+                    MakeShared<FJsonValueNumber>(PartComponent->GetNumMaterials()));
+            }
+            for (int32 MaterialIndex = 0; MaterialIndex < MaterialPaths->Num(); ++MaterialIndex)
+            {
+                FString ExpectedMaterialPath;
+                if ((*MaterialPaths)[MaterialIndex].IsValid())
+                {
+                    (*MaterialPaths)[MaterialIndex]->TryGetString(ExpectedMaterialPath);
+                }
+                const UMaterialInterface* ActualMaterial = PartComponent->GetMaterial(MaterialIndex);
+                const FString ActualMaterialPath = ActualMaterial ? ActualMaterial->GetPathName() : FString();
+                if (ExpectedMaterialPath != ActualMaterialPath)
+                {
+                    AddAssemblyAuditFailure(
+                        OutFailures,
+                        PartIndex,
+                        TEXT("material_asset_path"),
+                        MakeShared<FJsonValueString>(ExpectedMaterialPath),
+                        MakeShared<FJsonValueString>(ActualMaterialPath),
+                        -1.0,
+                        MaterialIndex);
+                }
+            }
+        }
+        else
+        {
+            AddAssemblyAuditFailure(
+                OutFailures,
+                PartIndex,
+                TEXT("material_paths"),
+                MakeShared<FJsonValueString>(TEXT("json_array")),
+                MakeShared<FJsonValueString>(TEXT("missing_or_invalid")));
+        }
+
+        bool bPartVisible = true;
+        bool bPartHiddenInGame = false;
+        bool bPartCastShadow = true;
+        PartObj->TryGetBoolField(TEXT("visible"), bPartVisible);
+        PartObj->TryGetBoolField(TEXT("hidden_in_game"), bPartHiddenInGame);
+        PartObj->TryGetBoolField(TEXT("cast_shadow"), bPartCastShadow);
+
+        const bool bExpectedVisible = bOverallVisible && bPartVisible;
+        if (PartComponent->GetVisibleFlag() != bExpectedVisible)
+        {
+            AddAssemblyAuditFailure(
+                OutFailures,
+                PartIndex,
+                TEXT("visible"),
+                MakeShared<FJsonValueBoolean>(bExpectedVisible),
+                MakeShared<FJsonValueBoolean>(PartComponent->GetVisibleFlag()));
+        }
+        if (static_cast<bool>(PartComponent->bHiddenInGame) != bPartHiddenInGame)
+        {
+            AddAssemblyAuditFailure(
+                OutFailures,
+                PartIndex,
+                TEXT("hidden_in_game"),
+                MakeShared<FJsonValueBoolean>(bPartHiddenInGame),
+                MakeShared<FJsonValueBoolean>(
+                    static_cast<bool>(PartComponent->bHiddenInGame)));
+        }
+        if (static_cast<bool>(PartComponent->CastShadow) != bPartCastShadow)
+        {
+            AddAssemblyAuditFailure(
+                OutFailures,
+                PartIndex,
+                TEXT("cast_shadow"),
+                MakeShared<FJsonValueBoolean>(bPartCastShadow),
+                MakeShared<FJsonValueBoolean>(
+                    static_cast<bool>(PartComponent->CastShadow)));
+        }
+
+        ECollisionEnabled::Type ExpectedCollision = ECollisionEnabled::NoCollision;
+        if (!TryParseCollisionEnabled(PartObj, ExpectedCollision))
+        {
+            AddAssemblyAuditFailure(
+                OutFailures,
+                PartIndex,
+                TEXT("collision_enabled"),
+                MakeShared<FJsonValueString>(TEXT("valid_collision_mode")),
+                MakeShared<FJsonValueString>(TEXT("missing_or_invalid_snapshot_value")));
+        }
+        else if (PartComponent->GetCollisionEnabled() != ExpectedCollision)
+        {
+            AddAssemblyAuditFailure(
+                OutFailures,
+                PartIndex,
+                TEXT("collision_enabled"),
+                MakeShared<FJsonValueString>(CollisionEnabledToString(ExpectedCollision)),
+                MakeShared<FJsonValueString>(CollisionEnabledToString(PartComponent->GetCollisionEnabled())));
+        }
+    }
+
+    return OutFailures.Num() == 0;
+}
+
+// 从此处起为运行时 glb/gltf 加载实现。
 static const TCHAR* kDefaultModelsDir = TEXT("D:/SCC/DigitalFactoryBase_SCC/Models");
 
 static FString FindVersionedModelFile(const FString& Directory, const FString& FileName)
@@ -638,11 +1373,57 @@ void ATwinInstance::LoadRemoteGltf(const FString& StableId)
 
 void ATwinInstance::ApplyRepresentableFromSnapshot(const TSharedPtr<FJsonObject>& RepObj)
 {
+    FString NewAssetId;
+    const bool bHasNewAssetId = RepObj->TryGetStringField(TEXT("asset_id"), NewAssetId);
+    const bool bAssetChanged = bHasNewAssetId && !NewAssetId.IsEmpty() && NewAssetId != AssetPath;
+    if (bAssetChanged)
+    {
+        UE_LOG(LogTemp, Log,
+               TEXT("[孪生体] 资产热更换: %s → %s"), *AssetPath, *NewAssetId);
+        AssetPath = NewAssetId;
+    }
+
+    const TArray<TSharedPtr<FJsonValue>>* RenderParts = nullptr;
+    const bool bHasRenderParts = RepObj->TryGetArrayField(TEXT("render_parts"), RenderParts)
+        && RenderParts && RenderParts->Num() > 0;
+    if (bHasRenderParts)
+    {
+        FString AssemblySignature;
+        RepObj->TryGetStringField(TEXT("assembly_signature"), AssemblySignature);
+        ApplyRenderPartsFromSnapshot(*RenderParts, AssemblySignature);
+    }
+    else if (bAssemblyRenderActive)
+    {
+        // 后端撤掉 render_parts 时显式退回旧版单资产模式。
+        ClearRenderParts();
+        if (bInitialized && !AssetPath.IsEmpty())
+        {
+            LoadMeshFromPath(AssetPath);
+        }
+    }
+
     // ── 依 PRD 规范：控制场景存在性（加载/卸载资源） ────────────
     bool bVisible = true;
     RepObj->TryGetBoolField(TEXT("is_visible"), bVisible);
 
-    if (!bVisible && MeshComponent->GetStaticMesh() != nullptr)
+    if (bHasRenderParts)
+    {
+        // 复合实例保留已加载的部件资产，只切换组件显隐；再次可见时无需整组重建。
+        for (int32 PartIndex = 0; PartIndex < RenderPartComponents.Num(); ++PartIndex)
+        {
+            UStaticMeshComponent* PartComponent = RenderPartComponents[PartIndex];
+            if (PartComponent && IsValid(PartComponent))
+            {
+                const bool bSourceVisible = RenderPartSourceVisibility.IsValidIndex(PartIndex)
+                    ? RenderPartSourceVisibility[PartIndex]
+                    : true;
+                PartComponent->SetVisibility(bVisible && bSourceVisible, true);
+            }
+        }
+        // 正常 assembly 的基座没有网格；加载失败时这里控制明显的 Cube fallback。
+        MeshComponent->SetVisibility(bVisible, false);
+    }
+    else if (!bVisible && MeshComponent->GetStaticMesh() != nullptr)
     {
         // 从场景卸载不占内存资源
         MeshComponent->SetStaticMesh(nullptr);
@@ -656,17 +1437,10 @@ void ATwinInstance::ApplyRepresentableFromSnapshot(const TSharedPtr<FJsonObject>
     }
     // 强制把原先在这的 SetActorHiddenInGame 移除，交由 I3D_Visual 去处理纯粹的显隐
 
-    // ── 资产热更换检测 ────────────────────────────────────────────────────
-    FString NewAssetId;
-    if (RepObj->TryGetStringField(TEXT("asset_id"), NewAssetId))
+    // ── 旧版单 Mesh 资产热更换 ───────────────────────────────────────────
+    if (!bHasRenderParts && bAssetChanged && bInitialized)
     {
-        if (!NewAssetId.IsEmpty() && NewAssetId != AssetPath && bInitialized)
-        {
-            UE_LOG(LogTemp, Log,
-                   TEXT("[孪生体] 资产热更换: %s → %s"), *AssetPath, *NewAssetId);
-            AssetPath = NewAssetId;
-            LoadMeshFromPath(AssetPath);
-        }
+        LoadMeshFromPath(AssetPath);
     }
 }
 
@@ -674,10 +1448,42 @@ void ATwinInstance::ApplyRepresentableFromSnapshot(const TSharedPtr<FJsonObject>
 // I3D_Spatial — 空间变换
 // ═══════════════════════════════════════════════════════════════════════════
 
+void ATwinInstance::ApplyRealtimeSpatial(double X, double Y, double HeadingDeg, float HoldSeconds)
+{
+    if (bLocalOverrideLock || !FMath::IsFinite(X) || !FMath::IsFinite(Y) || !FMath::IsFinite(HeadingDeg))
+    {
+        return;
+    }
+
+    const UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    FVector NewLocation = GetActorLocation();
+    NewLocation.X = X;
+    NewLocation.Y = Y;
+
+    FRotator NewRotation = GetActorRotation();
+    NewRotation.Yaw = FMath::Fmod(HeadingDeg, 360.0);
+
+    SetActorLocationAndRotation(NewLocation, NewRotation);
+    RealtimeSpatialValidUntilSeconds =
+        static_cast<double>(World->GetTimeSeconds()) + FMath::Max(0.1f, HoldSeconds);
+}
+
+bool ATwinInstance::IsRealtimeSpatialActive() const
+{
+    const UWorld* World = GetWorld();
+    return World
+        && static_cast<double>(World->GetTimeSeconds()) <= RealtimeSpatialValidUntilSeconds;
+}
+
 void ATwinInstance::ApplySpatialFromSnapshot(const TSharedPtr<FJsonObject>& SpatialObj)
 {
-    // 🔒 本地锁定模式：保持编辑器中设置的空间变换，忽略后端数据
-    if (bLocalOverrideLock)
+    // 本地手动锁定最高优先；其次是仍有心跳的 WebSocket；最后才是 HTTP 快照。
+    if (bLocalOverrideLock || IsRealtimeSpatialActive())
     {
         return;
     }
@@ -705,11 +1511,18 @@ void ATwinInstance::ApplySpatialFromSnapshot(const TSharedPtr<FJsonObject>& Spat
     FVector NewLoc = FVector(tx, ty, tz);
     FRotator NewRot = FRotator(ry, rz, rx);   // Pitch=Y, Yaw=Z, Roll=X
 
-    // [PRD B.3] 严格校验与钳位：Scale 下限死锁为 0.001，防止纯 0 导致负体积断言崩溃
+    // Datasmith 会用负缩放表达镜像。只把接近 0 的绝对值抬到 0.001，保留符号，
+    // 否则母 Actor 的镜像会在数据库重建时被错误压成正向薄片。
+    auto SanitizeScale = [](double Value)
+    {
+        if (!FMath::IsFinite(Value)) return 1.0;
+        if (FMath::Abs(Value) >= 0.001) return Value;
+        return Value < 0.0 ? -0.001 : 0.001;
+    };
     FVector NewScale = FVector(
-        FMath::Max(0.001, sx),
-        FMath::Max(0.001, sy),
-        FMath::Max(0.001, sz)
+        SanitizeScale(sx),
+        SanitizeScale(sy),
+        SanitizeScale(sz)
     );
 
     SetActorLocation(NewLoc);
@@ -803,7 +1616,7 @@ void ATwinInstance::ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& B
                 // 空内容就隐藏标签
                 LabelComponent->SetVisibility(false);
                 LabelComponent->SetText(FText::GetEmpty());
-                if (!bAnimRunning)
+                if (!bAnimRunning && !HasAlwaysOverlay())
                 {
                     SetActorTickEnabled(false);
                 }
@@ -831,4 +1644,231 @@ void ATwinInstance::ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& B
 
         UE_LOG(LogTemp, Log, TEXT("[孪生体] UI标签更新: %s → \"%s\""), *InstanceId, *LabelContent);
     }
+}
+
+void ATwinInstance::ApplyOverlayFromSnapshot(const TSharedPtr<FJsonObject>& OverlayObj)
+{
+    if (!OverlayObj.IsValid())
+    {
+        ClearOverlay();
+        return;
+    }
+
+    bool bEnabled = false;
+    OverlayObj->TryGetBoolField(TEXT("enabled"), bEnabled);
+    FString DisplayMode;
+    OverlayObj->TryGetStringField(TEXT("display_mode"), DisplayMode);
+    if (DisplayMode != TEXT("selected") && DisplayMode != TEXT("always"))
+    {
+        DisplayMode = TEXT("selected");
+    }
+
+    OverlayOffsetCm = FVector(0.0f, 0.0f, 20.0f);
+    const TSharedPtr<FJsonObject>* Anchor = nullptr;
+    const TSharedPtr<FJsonObject>* Offset = nullptr;
+    if (OverlayObj->TryGetObjectField(TEXT("anchor"), Anchor) && Anchor && Anchor->IsValid()
+        && (*Anchor)->TryGetObjectField(TEXT("offset_cm"), Offset) && Offset && Offset->IsValid())
+    {
+        double X = 0.0;
+        double Y = 0.0;
+        double Z = 20.0;
+        (*Offset)->TryGetNumberField(TEXT("x"), X);
+        (*Offset)->TryGetNumberField(TEXT("y"), Y);
+        (*Offset)->TryGetNumberField(TEXT("z"), Z);
+        OverlayOffsetCm = FVector(X, Y, Z);
+    }
+
+    bOverlayEnabled = bEnabled;
+    OverlayDisplayMode = DisplayMode;
+    CurrentOverlayData = OverlayObj;
+    ++OverlayPayloadSerial;
+
+    if (LabelComponent)
+    {
+        if (bOverlayEnabled)
+        {
+            LabelComponent->SetVisibility(false);
+        }
+        else if (!CurrentLabelContent.IsEmpty())
+        {
+            LabelComponent->SetText(FText::FromString(CurrentLabelContent));
+            LabelComponent->SetVisibility(true);
+        }
+    }
+
+    if (OverlayWidgetComponent)
+    {
+        if (!WorldOverlayWidget)
+        {
+            OverlayWidgetComponent->SetWidgetClass(UOntoTwinOverlayWidget::StaticClass());
+            OverlayWidgetComponent->InitWidget();
+            WorldOverlayWidget = Cast<UOntoTwinOverlayWidget>(OverlayWidgetComponent->GetUserWidgetObject());
+            if (WorldOverlayWidget)
+            {
+                WorldOverlayWidget->SetWorldSpacePresentation(true);
+            }
+        }
+        if (WorldOverlayWidget)
+        {
+            WorldOverlayWidget->ApplyOverlayData(OverlayObj);
+            UpdateWorldOverlayRenderTarget();
+        }
+        OverlayWidgetComponent->SetVisibility(bOverlayEnabled && HasAlwaysOverlay());
+    }
+
+    if (HasAlwaysOverlay() || (LabelComponent && LabelComponent->IsVisible()))
+    {
+        SetActorTickEnabled(true);
+    }
+    else if (!bAnimRunning)
+    {
+        SetActorTickEnabled(false);
+    }
+}
+
+void ATwinInstance::ClearOverlay()
+{
+    bOverlayEnabled = false;
+    OverlayDisplayMode.Empty();
+    CurrentOverlayData.Reset();
+    ++OverlayPayloadSerial;
+    if (OverlayWidgetComponent)
+    {
+        OverlayWidgetComponent->SetVisibility(false);
+        OverlayWidgetComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    }
+    if (LabelComponent && !CurrentLabelContent.IsEmpty())
+    {
+        LabelComponent->SetText(FText::FromString(CurrentLabelContent));
+        LabelComponent->SetVisibility(true);
+        SetActorTickEnabled(true);
+    }
+    else if (!bAnimRunning)
+    {
+        SetActorTickEnabled(false);
+    }
+}
+
+FVector ATwinInstance::GetOverlayAnchorWorldLocation() const
+{
+    if (!MeshComponent)
+    {
+        return GetActorLocation() + OverlayOffsetCm;
+    }
+
+    FBox CombinedBounds(EForceInit::ForceInit);
+    if (MeshComponent->GetStaticMesh())
+    {
+        CombinedBounds += MeshComponent->Bounds.GetBox();
+    }
+    for (const UStaticMeshComponent* PartComponent : RenderPartComponents)
+    {
+        if (PartComponent && IsValid(PartComponent) && PartComponent->GetStaticMesh())
+        {
+            CombinedBounds += PartComponent->Bounds.GetBox();
+        }
+    }
+    const FVector BoundsTop = CombinedBounds.IsValid
+        ? FVector(CombinedBounds.GetCenter().X, CombinedBounds.GetCenter().Y, CombinedBounds.Max.Z)
+        : GetActorLocation();
+    const FVector RotatedOffset = GetActorTransform().TransformVectorNoScale(OverlayOffsetCm);
+    return BoundsTop + RotatedOffset;
+}
+
+float ATwinInstance::GetOverlayRenderWidthPixels() const
+{
+    if (!OverlayWidgetComponent) return 720.0f;
+    const FVector2D CurrentSize = OverlayWidgetComponent->GetCurrentDrawSize();
+    if (CurrentSize.X > 1.0f) return CurrentSize.X;
+    return FMath::Max(1.0f, OverlayWidgetComponent->GetDrawSize().X);
+}
+
+bool ATwinInstance::IsScreenPointOverAlwaysOverlay(
+    APlayerController* PlayerController,
+    const FVector2D& ScreenPoint,
+    float PaddingPixels) const
+{
+    if (!PlayerController || !HasAlwaysOverlay() || !OverlayWidgetComponent
+        || !OverlayWidgetComponent->IsVisible()
+        || OverlayWidgetComponent->GetCollisionEnabled() == ECollisionEnabled::NoCollision)
+    {
+        return false;
+    }
+
+    const FBox WorldBounds = OverlayWidgetComponent->Bounds.GetBox();
+    FVector2D ScreenMin(FLT_MAX, FLT_MAX);
+    FVector2D ScreenMax(-FLT_MAX, -FLT_MAX);
+    bool bProjectedAnyCorner = false;
+
+    for (int32 X = 0; X < 2; ++X)
+    {
+        for (int32 Y = 0; Y < 2; ++Y)
+        {
+            for (int32 Z = 0; Z < 2; ++Z)
+            {
+                const FVector Corner(
+                    X ? WorldBounds.Max.X : WorldBounds.Min.X,
+                    Y ? WorldBounds.Max.Y : WorldBounds.Min.Y,
+                    Z ? WorldBounds.Max.Z : WorldBounds.Min.Z);
+                FVector2D Projected;
+                if (!PlayerController->ProjectWorldLocationToScreen(Corner, Projected, true))
+                {
+                    continue;
+                }
+                bProjectedAnyCorner = true;
+                ScreenMin.X = FMath::Min(ScreenMin.X, Projected.X);
+                ScreenMin.Y = FMath::Min(ScreenMin.Y, Projected.Y);
+                ScreenMax.X = FMath::Max(ScreenMax.X, Projected.X);
+                ScreenMax.Y = FMath::Max(ScreenMax.Y, Projected.Y);
+            }
+        }
+    }
+
+    if (!bProjectedAnyCorner) return false;
+    const float Padding = FMath::Max(0.0f, PaddingPixels);
+    return ScreenPoint.X >= ScreenMin.X - Padding
+        && ScreenPoint.X <= ScreenMax.X + Padding
+        && ScreenPoint.Y >= ScreenMin.Y - Padding
+        && ScreenPoint.Y <= ScreenMax.Y + Padding;
+}
+
+void ATwinInstance::UpdateWorldOverlayRenderTarget()
+{
+    if (!OverlayWidgetComponent || !WorldOverlayWidget) return;
+
+    const FVector2D DesiredSize = WorldOverlayWidget->GetDesiredRenderSize();
+    const FVector2D CurrentSize = OverlayWidgetComponent->GetDrawSize();
+    if (!CurrentSize.Equals(DesiredSize, 1.0f))
+    {
+        OverlayWidgetComponent->SetDrawSize(DesiredSize);
+    }
+    OverlayWidgetComponent->RequestRenderUpdate();
+}
+
+void ATwinInstance::RefreshAlwaysOverlay(
+    const FVector& CameraLocation,
+    bool bShouldShow,
+    float WorldScale)
+{
+    if (!OverlayWidgetComponent) return;
+    const bool bVisible = bShouldShow && HasAlwaysOverlay();
+    OverlayWidgetComponent->SetVisibility(bVisible);
+    const ECollisionEnabled::Type DesiredCollision = bVisible
+        ? ECollisionEnabled::QueryOnly
+        : ECollisionEnabled::NoCollision;
+    if (OverlayWidgetComponent->GetCollisionEnabled() != DesiredCollision)
+    {
+        OverlayWidgetComponent->SetCollisionEnabled(DesiredCollision);
+    }
+    if (!bVisible) return;
+
+    const FVector AnchorLocation = GetOverlayAnchorWorldLocation();
+    OverlayWidgetComponent->SetWorldLocation(AnchorLocation);
+    if (WorldScale > 0.0f)
+    {
+        OverlayWidgetComponent->SetWorldScale3D(FVector(WorldScale));
+    }
+    FRotator LookAt = UKismetMathLibrary::FindLookAtRotation(AnchorLocation, CameraLocation);
+    LookAt.Roll = 0.0f;
+    OverlayWidgetComponent->SetWorldRotation(LookAt);
 }

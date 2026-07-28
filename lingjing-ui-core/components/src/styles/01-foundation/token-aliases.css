@@ -1,0 +1,69 @@
+/**
+ * Lingjing Core - Token Aliases
+ *
+ * 语义兼容层：用于桥接旧变量命名与当前主题令牌，优先保证 v3.1
+ * 架构收敛阶段的稳定性，避免未定义变量继续进入正式产物。
+ */
+
+:root {
+  /* Brand aliases */
+  --brand-primary: var(--theme-primary);
+  --brand-secondary: var(--theme-secondary);
+  --brand-success: var(--success-base);
+  --brand-warning: var(--warning-base);
+  --brand-error: var(--error-base);
+  --brand-info: var(--info-base);
+
+  /* Background aliases */
+  --bg-base: var(--theme-bg-base);
+  --bg-secondary: var(--bg-card-light);
+  --bg-elevated: var(--bg-card-heavy);
+  --bg-tertiary: var(--bg-card-solid);
+  --bg-card-dark: var(--bg-card-heavy);
+  --bg-hover: var(--glass-overlay-light);
+  --bg-active: var(--glass-overlay-medium);
+  --theme-bg-secondary: var(--bg-card-light);
+  --theme-bg-tertiary: var(--bg-card-solid);
+  --color-background-dark: var(--neutral-900);
+
+  /* Text aliases */
+  --text-tertiary: var(--text-placeholder);
+  --text-disabled: var(--neutral-400);
+  --text-primary-dark: var(--theme-text-primary);
+  --text-secondary-dark: var(--theme-text-secondary);
+
+
+  /* Border aliases */
+  --border-secondary: var(--nav-border-light);
+  --theme-border-light: var(--nav-border-light);
+
+  /* Effect aliases */
+  --shadow-dialog: var(--shadow-lg);
+
+  /* Radius aliases */
+  --border-radius-sm: var(--radius-sm);
+  --border-radius-md: var(--radius-md);
+  --border-radius-lg: var(--radius-lg);
+
+  /* Spacing aliases */
+  --spacing-xxl: var(--spacing-2xl);
+
+  /* Layer aliases */
+  --z-tooltip: 1080;
+}
+
+[data-theme="dark"] {
+  --bg-card-dark: var(--bg-card-heavy);
+  --bg-hover: var(--glass-overlay-light);
+  --bg-active: var(--glass-overlay-medium);
+  --theme-bg-secondary: var(--bg-card-light);
+  --theme-bg-tertiary: var(--bg-card-solid);
+  --color-background-dark: var(--neutral-900);
+  --border-secondary: var(--nav-border-light);
+  --theme-border-light: var(--nav-border-light);
+  --text-disabled: var(--neutral-500);
+  --text-primary-dark: var(--theme-text-primary);
+  --text-secondary-dark: var(--theme-text-secondary);
+  --shadow-dialog: var(--shadow-lg);
+}
+

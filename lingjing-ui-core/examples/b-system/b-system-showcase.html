@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>灵境组件 - B端系统展示</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+  <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+  <div class="b-layout-sidebar">
+    <!-- 侧边栏 -->
+    <aside class="b-sidebar" id="sidebar">
+      <div class="b-sidebar-header">
+        <div class="b-sidebar-logo">
+          <img src="../../assets/logo-flat.png" alt="灵境" height="32">
+        </div>
+        <span class="b-sidebar-brand">灵境管理系统</span>
+      </div>
+      <nav class="b-sidebar-nav b-scrollable">
+        <ul class="b-sidebar-nav-list">
+          <li class="b-sidebar-nav-item">
+            <a href="#" class="b-sidebar-nav-link active">
+              <span class="b-sidebar-nav-icon"><i data-lucide="home"></i></span>
+              <span class="b-sidebar-nav-text">工作台</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="layers"></i></span>
+              <span class="b-sidebar-nav-text">组件展示</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="file-text"></i></span>
+              <span class="b-sidebar-nav-text">表单页面</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="table"></i></span>
+              <span class="b-sidebar-nav-text">数据表格</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="settings"></i></span>
+              <span class="b-sidebar-nav-text">系统设置</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+      <div class="b-sidebar-footer">
+        <button class="b-sidebar-toggle" onclick="toggleSidebar()">
+          <span class="b-sidebar-toggle-icon"><i data-lucide="chevron-left"></i></span>
+          <span class="b-sidebar-toggle-text">收起导航</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="b-main">
+      <header class="b-header">
+        <div class="b-header-left">
+          <div class="b-breadcrumb">
+            <div class="b-breadcrumb-item">
+              <a href="#" class="b-breadcrumb-link">首页</a>
+              <span class="b-breadcrumb-separator">/</span>
+            </div>
+            <div class="b-breadcrumb-item">
+              <span class="b-breadcrumb-current">组件展示</span>
+            </div>
+          </div>
+        </div>
+        <div class="b-header-right">
+          <button class="btn-icon" aria-label="搜索">
+            <i data-lucide="search"></i>
+          </button>
+          <button class="btn-icon" aria-label="通知">
+            <i data-lucide="bell"></i>
+          </button>
+          <button class="btn-icon" aria-label="切换主题" onclick="toggleTheme()">
+            <i data-lucide="moon" id="theme-icon"></i>
+          </button>
+        </div>
+      </header>
+
+      <div class="b-content b-scrollable">
+
+        <!-- 页面说明 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h1 class="card-title">B端系统组件展示</h1>
+          </div>
+          <p class="text-secondary">展示灵境设计系统中所有B端系统组件，包括按钮、表单、卡片、表格、模态框、提示等</p>
+        </div>
+
+        <!-- 1. 按钮组件 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h2 class="card-title">🔘 按钮组件</h2>
+            <span class="text-secondary text-sm">不同类型、尺寸和状态的按钮</span>
+          </div>
+
+          <div>
+            <p class="text-xs text-secondary font-semibold uppercase mb-md">Primary / Outline / Text / Ghost</p>
+            <div class="d-flex flex-wrap gap-md items-center">
+              <button class="btn-primary">主按钮</button>
+              <button class="btn-outline">轮廓按钮</button>
+              <button class="btn-text">文本按钮</button>
+              <button class="btn-ghost">幽灵按钮</button>
+              <button class="btn-icon" aria-label="编辑"><i data-lucide="edit-3"></i></button>
+              <button class="btn-primary" disabled>禁用按钮</button>
+            </div>
+          </div>
+
+          <div>
+            <p class="text-xs text-secondary font-semibold uppercase mb-md">Feedback Colors</p>
+            <div class="d-flex flex-wrap gap-md items-center">
+              <button class="btn-success">成功按钮</button>
+              <button class="btn-warning">警告按钮</button>
+              <button class="btn-error">错误按钮</button>
+              <button class="btn-danger">危险按钮</button>
+              <button class="btn-secondary">次要按钮</button>
+            </div>
+          </div>
+
+          <div>
+            <p class="text-xs text-secondary font-semibold uppercase mb-md">Icon Buttons</p>
+            <div class="d-flex flex-wrap gap-md items-center">
+              <button class="btn-icon" aria-label="搜索"><i data-lucide="search"></i></button>
+              <button class="btn-icon" aria-label="编辑"><i data-lucide="edit-3"></i></button>
+              <button class="btn-icon" aria-label="删除"><i data-lucide="trash-2"></i></button>
+              <button class="btn-icon" aria-label="设置"><i data-lucide="settings"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 统计卡片 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h2 class="card-title">📊 统计卡片</h2>
+            <span class="text-secondary text-sm">工作台常用的数据展示卡片</span>
+          </div>
+          <div class="stats-grid">
+            <div class="b-stat-card" data-color="blue">
+              <div class="b-stat-header">
+                <span class="b-stat-label">总用户数</span>
+                <i data-lucide="users" class="b-stat-icon"></i>
+              </div>
+              <div class="b-stat-value">12,345</div>
+              <div class="b-stat-change positive">
+                <i data-lucide="trending-up"></i>
+                <span>+12.5%</span>
+              </div>
+            </div>
+            <div class="b-stat-card" data-color="cyan">
+              <div class="b-stat-header">
+                <span class="b-stat-label">月度收入</span>
+                <i data-lucide="credit-card" class="b-stat-icon"></i>
+              </div>
+              <div class="b-stat-value">¥98,765</div>
+              <div class="b-stat-change positive">
+                <i data-lucide="trending-up"></i>
+                <span>+8.2%</span>
+              </div>
+            </div>
+            <div class="b-stat-card" data-color="orange">
+              <div class="b-stat-header">
+                <span class="b-stat-label">转化率</span>
+                <i data-lucide="target" class="b-stat-icon"></i>
+              </div>
+              <div class="b-stat-value">23.6%</div>
+              <div class="b-stat-change negative">
+                <i data-lucide="trending-down"></i>
+                <span>-2.1%</span>
+              </div>
+            </div>
+            <div class="b-stat-card" data-color="purple">
+              <div class="b-stat-header">
+                <span class="b-stat-label">满意度</span>
+                <i data-lucide="star" class="b-stat-icon"></i>
+              </div>
+              <div class="b-stat-value">4.8/5.0</div>
+              <div class="b-stat-change positive">
+                <i data-lucide="trending-up"></i>
+                <span>+0.3</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. 表单组件 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h2 class="card-title">📝 表单组件</h2>
+            <span class="text-secondary text-sm">输入框、多选框、开关、单选框</span>
+          </div>
+
+          <div class="grid-cols-2">
+            <!-- 基础表单 -->
+            <div>
+              <p class="text-xs text-secondary font-semibold uppercase mb-md">基础表单</p>
+              <form>
+                <div class="form-group">
+                  <label class="form-label">用户名</label>
+                  <input type="text" class="form-input" placeholder="请输入用户名">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">邮箱</label>
+                  <input type="email" class="form-input" placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">密码</label>
+                  <input type="password" class="form-input" placeholder="请输入密码">
+                </div>
+              </form>
+            </div>
+
+            <!-- Checkbox & Switch -->
+            <div>
+              <p class="text-xs text-secondary font-semibold uppercase mb-md">Checkbox & Switch</p>
+              <form>
+                <div class="form-group">
+                  <label class="form-label">兴趣爱好</label>
+                  <div class="form-checkbox-group">
+                    <label class="form-checkbox"><input type="checkbox" checked> 编程</label>
+                    <label class="form-checkbox"><input type="checkbox"> 设计</label>
+                    <label class="form-checkbox"><input type="checkbox"> 写作</label>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">通知设置</label>
+                  <label class="form-switch"><input type="checkbox" checked> 接收邮件通知</label>
+                  <label class="form-switch"><input type="checkbox"> 接收短信通知</label>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- Radio & Select -->
+          <div>
+            <p class="text-xs text-secondary font-semibold uppercase mb-md">Radio & Select</p>
+            <div class="grid-cols-3">
+              <div class="form-group">
+                <label class="form-label">性别</label>
+                <div class="form-radio-group">
+                  <label class="form-radio"><input type="radio" name="gender" checked><span>男</span></label>
+                  <label class="form-radio"><input type="radio" name="gender"><span>女</span></label>
+                  <label class="form-radio"><input type="radio" name="gender"><span>其他</span></label>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">城市</label>
+                <select class="form-select">
+                  <option>北京</option>
+                  <option>上海</option>
+                  <option>广州</option>
+                  <option>深圳</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">备注</label>
+                <textarea class="form-textarea" rows="3" placeholder="请输入备注信息"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. 模态框 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h2 class="card-title">🪟 模态框 (Modal)</h2>
+            <span class="text-secondary text-sm">不同尺寸和类型的弹窗</span>
+          </div>
+
+          <div>
+            <p class="text-xs text-secondary font-semibold uppercase mb-md">不同尺寸</p>
+            <div class="d-flex flex-wrap gap-md items-center">
+              <button class="btn-primary" onclick="showModal('modal-sm')">小号弹窗</button>
+              <button class="btn-primary" onclick="showModal('modal-md')">中号弹窗</button>
+              <button class="btn-primary" onclick="showModal('modal-lg')">大号弹窗</button>
+              <button class="btn-primary" onclick="showModal('modal-xl')">超大弹窗</button>
+            </div>
+          </div>
+
+          <div>
+            <p class="text-xs text-secondary font-semibold uppercase mb-md">不同类型</p>
+            <div class="d-flex flex-wrap gap-md items-center">
+              <button class="btn-primary" onclick="showModal('modal-success')">成功弹窗</button>
+              <button class="btn-outline" onclick="showModal('modal-warning')">警告弹窗</button>
+              <button class="btn-text" onclick="showModal('modal-danger')">危险弹窗</button>
+              <button class="btn-ghost" onclick="showModal('modal-form')">表单弹窗</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Tooltip -->
+        <div class="content-card">
+          <div class="card-header">
+            <h2 class="card-title">💬 提示 (Tooltip)</h2>
+            <span class="text-secondary text-sm">鼠标悬停显示的提示信息</span>
+          </div>
+
+          <div>
+            <p class="text-xs text-secondary font-semibold uppercase mb-md">不同位置</p>
+            <div class="d-flex flex-wrap gap-md items-center">
+              <button class="btn-secondary tooltip" data-tooltip="顶部提示" data-position="top">顶部</button>
+              <button class="btn-secondary tooltip" data-tooltip="右侧提示" data-position="right">右侧</button>
+              <button class="btn-secondary tooltip" data-tooltip="底部提示" data-position="bottom">底部</button>
+              <button class="btn-secondary tooltip" data-tooltip="左侧提示" data-position="left">左侧</button>
+            </div>
+          </div>
+
+          <div>
+            <p class="text-xs text-secondary font-semibold uppercase mb-md">不同类型</p>
+            <div class="d-flex flex-wrap gap-md items-center">
+              <button class="btn-primary tooltip tooltip-primary" data-tooltip="主要提示">Primary</button>
+              <button class="btn-success tooltip tooltip-success" data-tooltip="成功提示">Success</button>
+              <button class="btn-warning tooltip tooltip-warning" data-tooltip="警告提示">Warning</button>
+              <button class="btn-error tooltip tooltip-error" data-tooltip="错误提示">Error</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. 下拉菜单 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h2 class="card-title">📋 下拉菜单 (Dropdown)</h2>
+            <span class="text-secondary text-sm">点击显示的菜单列表</span>
+          </div>
+
+          <div>
+            <p class="text-xs text-secondary font-semibold uppercase mb-md">基础下拉菜单</p>
+            <div class="d-flex flex-wrap gap-md items-center">
+              <div class="dropdown">
+                <button class="btn-primary dropdown-trigger">操作菜单 ▾</button>
+                <div class="dropdown-menu">
+                  <a href="#" class="dropdown-item">编辑</a>
+                  <a href="#" class="dropdown-item">复制</a>
+                  <a href="#" class="dropdown-item">分享</a>
+                  <div class="dropdown-divider"></div>
+                  <a href="#" class="dropdown-item danger">删除</a>
+                </div>
+              </div>
+
+              <div class="dropdown">
+                <button class="btn-secondary dropdown-trigger">带图标菜单 ▾</button>
+                <div class="dropdown-menu">
+                  <a href="#" class="dropdown-item">
+                    <span class="dropdown-icon"><i data-lucide="edit-3"></i></span>
+                    编辑
+                  </a>
+                  <a href="#" class="dropdown-item">
+                    <span class="dropdown-icon"><i data-lucide="copy"></i></span>
+                    复制
+                  </a>
+                  <a href="#" class="dropdown-item">
+                    <span class="dropdown-icon"><i data-lucide="share-2"></i></span>
+                    分享
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 7. Toast -->
+        <div class="content-card">
+          <div class="card-header">
+            <h2 class="card-title">🔔 轻提示 (Toast)</h2>
+            <span class="text-secondary text-sm">临时显示的消息提示</span>
+          </div>
+          <div>
+            <p class="text-xs text-secondary font-semibold uppercase mb-md">不同类型</p>
+            <div class="d-flex flex-wrap gap-md items-center">
+              <button class="btn-primary" onclick="showToast('success')">成功提示</button>
+              <button class="btn-outline" onclick="showToast('info')">信息提示</button>
+              <button class="btn-text" onclick="showToast('warning')">警告提示</button>
+              <button class="btn-ghost" onclick="showToast('error')">错误提示</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8. 数据表格 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h2 class="card-title">📊 数据表格</h2>
+            <span class="text-secondary text-sm">展示结构化数据的表格</span>
+          </div>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>用户名</th>
+                  <th>邮箱</th>
+                  <th>角色</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1</td>
+                  <td>张三</td>
+                  <td>zhangsan@example.com</td>
+                  <td><span class="badge badge-primary">管理员</span></td>
+                  <td><span class="badge badge-success">活跃</span></td>
+                  <td>
+                    <button class="btn-icon" aria-label="编辑"><i data-lucide="edit-3"></i></button>
+                    <button class="btn-icon" aria-label="删除"><i data-lucide="trash-2"></i></button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>2</td>
+                  <td>李四</td>
+                  <td>lisi@example.com</td>
+                  <td><span class="badge badge-secondary">用户</span></td>
+                  <td><span class="badge badge-success">活跃</span></td>
+                  <td>
+                    <button class="btn-icon" aria-label="编辑"><i data-lucide="edit-3"></i></button>
+                    <button class="btn-icon" aria-label="删除"><i data-lucide="trash-2"></i></button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>3</td>
+                  <td>王五</td>
+                  <td>wangwu@example.com</td>
+                  <td><span class="badge badge-secondary">用户</span></td>
+                  <td><span class="badge badge-warning">待审核</span></td>
+                  <td>
+                    <button class="btn-icon" aria-label="编辑"><i data-lucide="edit-3"></i></button>
+                    <button class="btn-icon" aria-label="删除"><i data-lucide="trash-2"></i></button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 9. 徽章和标签 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h2 class="card-title">🏷️ 徽章和标签</h2>
+            <span class="text-secondary text-sm">用于状态标识和分类</span>
+          </div>
+
+          <div>
+            <p class="text-xs text-secondary font-semibold uppercase mb-md">徽章 (Badge)</p>
+            <div class="d-flex flex-wrap gap-md items-center">
+              <span class="badge badge-primary">主要</span>
+              <span class="badge badge-secondary">次要</span>
+              <span class="badge badge-success">成功</span>
+              <span class="badge badge-warning">警告</span>
+              <span class="badge badge-danger">危险</span>
+              <span class="badge badge-error">错误</span>
+              <span class="badge badge-info">信息</span>
+            </div>
+          </div>
+
+          <div>
+            <p class="text-xs text-secondary font-semibold uppercase mb-md">标签 (Tag)</p>
+            <div class="d-flex flex-wrap gap-md items-center">
+              <span class="data-tag">默认标签</span>
+              <span class="data-tag">主要标签</span>
+              <span class="data-tag">成功标签</span>
+              <span class="data-tag closable">可关闭标签 ×</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 10. 进度组件 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h2 class="card-title">📈 进度组件</h2>
+            <span class="text-secondary text-sm">显示任务完成进度</span>
+          </div>
+
+          <div>
+            <p class="text-xs text-secondary font-semibold uppercase mb-md">进度条 (Progress Bar)</p>
+            <div class="progress-linear">
+              <div class="progress-linear-info">
+                <span class="progress-linear-label">默认进度</span>
+                <span class="progress-linear-percentage">60%</span>
+              </div>
+              <div class="progress-linear-track">
+                <div class="progress-linear-fill" style="width: 60%;"></div>
+              </div>
+            </div>
+            <div class="progress-linear mt-md">
+              <div class="progress-linear-info">
+                <span class="progress-linear-label">成功进度</span>
+                <span class="progress-linear-percentage">100%</span>
+              </div>
+              <div class="progress-linear-track">
+                <div class="progress-linear-fill" data-status="success" style="width: 100%;"></div>
+              </div>
+            </div>
+            <div class="progress-linear mt-md">
+              <div class="progress-linear-info">
+                <span class="progress-linear-label">警告进度</span>
+                <span class="progress-linear-percentage">30%</span>
+              </div>
+              <div class="progress-linear-track">
+                <div class="progress-linear-fill" data-status="warning" style="width: 30%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p class="text-xs text-secondary font-semibold uppercase mb-md">加载动画 (Loading)</p>
+            <div class="d-flex flex-wrap gap-lg items-center">
+              <div class="feedback-loading">
+                <div class="feedback-loading-spinner small"></div>
+                <span class="feedback-loading-text">加载中...</span>
+              </div>
+              <div class="feedback-loading">
+                <div class="feedback-loading-spinner"></div>
+              </div>
+              <div class="feedback-loading">
+                <div class="feedback-loading-spinner large"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /.b-content -->
+    </main>
+  </div>
+
+  <!-- Modal 模板 -->
+  <div id="modal-sm" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content small">
+      <button class="modal-close" onclick="closeModal('modal-sm')">×</button>
+      <div class="modal-header"><h3 class="modal-title">小号弹窗</h3></div>
+      <div class="modal-body"><p>这是一个小号弹窗示例，适合简单的提示信息。</p></div>
+      <div class="modal-footer">
+        <button class="btn-text" onclick="closeModal('modal-sm')">取消</button>
+        <button class="btn-primary" onclick="closeModal('modal-sm')">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-md" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal('modal-md')">×</button>
+      <div class="modal-header"><h3 class="modal-title">中号弹窗</h3></div>
+      <div class="modal-body">
+        <p>这是一个中号弹窗示例，默认尺寸，适合大多数场景。</p>
+        <p>可以包含更多的内容和表单元素。</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-text" onclick="closeModal('modal-md')">取消</button>
+        <button class="btn-primary" onclick="closeModal('modal-md')">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-lg" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content large">
+      <button class="modal-close" onclick="closeModal('modal-lg')">×</button>
+      <div class="modal-header"><h3 class="modal-title">大号弹窗</h3></div>
+      <div class="modal-body">
+        <p>这是一个大号弹窗示例，适合复杂表单或详细内容展示。</p>
+        <div class="form-group">
+          <label class="form-label">示例表单</label>
+          <input type="text" class="form-input" placeholder="输入内容...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">备注</label>
+          <textarea class="form-textarea" rows="4" placeholder="输入备注..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-text" onclick="closeModal('modal-lg')">取消</button>
+        <button class="btn-primary" onclick="closeModal('modal-lg')">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-xl" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content xlarge">
+      <button class="modal-close" onclick="closeModal('modal-xl')">×</button>
+      <div class="modal-header"><h3 class="modal-title">超大弹窗</h3></div>
+      <div class="modal-body">
+        <p>这是一个超大弹窗示例，适合数据表格、图表等大内容展示。</p>
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead><tr><th>列1</th><th>列2</th><th>列3</th><th>列4</th></tr></thead>
+            <tbody>
+              <tr><td>数据1</td><td>数据2</td><td>数据3</td><td>数据4</td></tr>
+              <tr><td>数据1</td><td>数据2</td><td>数据3</td><td>数据4</td></tr>
+              <tr><td>数据1</td><td>数据2</td><td>数据3</td><td>数据4</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-text" onclick="closeModal('modal-xl')">取消</button>
+        <button class="btn-primary" onclick="closeModal('modal-xl')">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-success" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content success">
+      <button class="modal-close" onclick="closeModal('modal-success')">×</button>
+      <div class="modal-header"><h3 class="modal-title">✅ 操作成功</h3></div>
+      <div class="modal-body"><p>您的操作已成功完成！</p></div>
+      <div class="modal-footer">
+        <button class="btn-primary" onclick="closeModal('modal-success')">知道了</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-warning" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content warning">
+      <button class="modal-close" onclick="closeModal('modal-warning')">×</button>
+      <div class="modal-header"><h3 class="modal-title">⚠️ 操作警告</h3></div>
+      <div class="modal-body"><p>此操作可能会影响系统数据，请谨慎操作。</p></div>
+      <div class="modal-footer">
+        <button class="btn-text" onclick="closeModal('modal-warning')">取消</button>
+        <button class="btn-secondary" onclick="closeModal('modal-warning')">继续</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-danger" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content danger">
+      <button class="modal-close" onclick="closeModal('modal-danger')">×</button>
+      <div class="modal-header"><h3 class="modal-title">🚨 危险操作</h3></div>
+      <div class="modal-body"><p>此操作不可撤销，确定要删除吗？</p></div>
+      <div class="modal-footer">
+        <button class="btn-text" onclick="closeModal('modal-danger')">取消</button>
+        <button class="btn-danger" onclick="closeModal('modal-danger')">确认删除</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-form" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal('modal-form')">×</button>
+      <div class="modal-header"><h3 class="modal-title">新建用户</h3></div>
+      <div class="modal-body">
+        <form>
+          <div class="form-group">
+            <label class="form-label">用户名</label>
+            <input type="text" class="form-input" placeholder="请输入用户名">
+          </div>
+          <div class="form-group">
+            <label class="form-label">邮箱</label>
+            <input type="email" class="form-input" placeholder="your@email.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label">角色</label>
+            <select class="form-select">
+              <option>管理员</option>
+              <option>普通用户</option>
+              <option>访客</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-text" onclick="closeModal('modal-form')">取消</button>
+        <button class="btn-primary" onclick="closeModal('modal-form')">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast 容器 -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script>
+    lucide.createIcons();
+
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('collapsed');
+      const sidebar = document.getElementById('sidebar');
+      const icon = sidebar.querySelector('.b-sidebar-toggle-icon i');
+      icon.setAttribute('data-lucide', sidebar.classList.contains('collapsed') ? 'chevron-right' : 'chevron-left');
+      lucide.createIcons();
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const themeIcon = document.getElementById('theme-icon');
+      const newTheme = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      themeIcon.setAttribute('data-lucide', newTheme === 'dark' ? 'sun' : 'moon');
+      lucide.createIcons();
+    }
+
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    if (savedTheme === 'dark') {
+      document.getElementById('theme-icon').setAttribute('data-lucide', 'sun');
+      lucide.createIcons();
+    }
+
+    function showModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      }
+    }
+
+    function closeModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) {
+        modal.classList.remove('active');
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+    }
+
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', function() {
+        const modal = this.closest('.modal');
+        if (modal) closeModal(modal.id);
+      });
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.modal.active').forEach(modal => closeModal(modal.id));
+      }
+    });
+
+    function showToast(type) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      const icons = { success: '✓', info: 'ℹ', warning: '⚠', error: '✕' };
+      const messages = { success: '操作成功！', info: '这是一条信息提示', warning: '请注意相关风险', error: '操作失败，请重试' };
+      toast.innerHTML = `
+        <span class="toast-icon">${icons[type]}</span>
+        <span class="toast-message">${messages[type]}</span>
+        <button class="toast-close" onclick="closeToast(this)">×</button>
+        <div class="toast-progress"></div>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => toast.classList.add('show'), 10);
+      setTimeout(() => closeToast(toast.querySelector('.toast-close')), 3000);
+    }
+
+    function closeToast(btn) {
+      const toast = btn.closest('.toast');
+      if (toast) {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+      }
+    }
+
+    document.querySelectorAll('.dropdown-trigger').forEach(trigger => {
+      trigger.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const menu = this.closest('.dropdown').querySelector('.dropdown-menu');
+        document.querySelectorAll('.dropdown-menu.active').forEach(m => { if (m !== menu) m.classList.remove('active'); });
+        menu.classList.toggle('active');
+      });
+    });
+
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.dropdown-menu.active').forEach(m => m.classList.remove('active'));
+    });
+
+    document.querySelectorAll('.dropdown-menu').forEach(menu => {
+      menu.addEventListener('click', e => e.stopPropagation());
+    });
+  </script>
+</body>
+</html>

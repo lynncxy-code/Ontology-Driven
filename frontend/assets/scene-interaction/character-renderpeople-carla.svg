@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 144" role="img" aria-labelledby="title">
+  <title id="title">Carla 扫描人物占位图</title>
+  <rect width="120" height="144" rx="10" fill="#f3f3f3"/>
+  <path d="M42 29c0-14 8-22 18-22s18 8 18 22v20H42V29Z" fill="#5c5c5c"/>
+  <circle cx="60" cy="31" r="15" fill="#d4d4d4" stroke="#5c5c5c" stroke-width="2"/>
+  <path d="M41 56c7-7 31-7 38 0l9 49H32l9-49Z" fill="#c9c9c9" stroke="#5c5c5c" stroke-width="2"/>
+  <path d="M45 105v28M75 105v28M34 67 21 99M86 67l13 32" fill="none" stroke="#5c5c5c" stroke-width="7" stroke-linecap="round"/>
+</svg>

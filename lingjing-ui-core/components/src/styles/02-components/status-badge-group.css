@@ -1,0 +1,59 @@
+/**
+ * Status Badge Group
+ * 将多个状态徽章配合标签一起展示。
+ */
+
+.status-badge-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.status-badge-group-label {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  margin-right: var(--spacing-xs);
+}
+
+.status-badge-group .badge {
+  font-size: var(--font-size-xs);
+  padding-inline: var(--spacing-sm);
+  padding-block: 0.25rem;
+}
+
+/* Status Dot Component */
+.status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.status-dot::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--text-tertiary);
+}
+
+.status-dot-success::before { background: var(--brand-success, #00A383); box-shadow: 0 0 8px var(--brand-success); }
+.status-dot-error::before { background: var(--brand-error, #FF4757); box-shadow: 0 0 8px var(--brand-error); }
+.status-dot-warning::before { background: var(--brand-warning, #FFA726); box-shadow: 0 0 8px var(--brand-warning); }
+.status-dot-info::before { background: var(--brand-primary, #0084FF); box-shadow: 0 0 8px var(--brand-primary); }
+
+.status-dot-processing::before {
+  background: var(--brand-primary, #0084FF);
+  animation: status-dot-pulse 2s infinite;
+}
+
+@keyframes status-dot-pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 132, 255, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(0, 132, 255, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 132, 255, 0); }
+}
+

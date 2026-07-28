@@ -1,0 +1,171 @@
+/* Lingjing Core Theme Switcher CSS */
+
+/* 主题切换按钮样式 */
+.theme-switcher {
+  position: fixed;
+  top: calc(var(--spacing-3xl) + var(--spacing-lg));
+  right: var(--spacing-lg);
+  z-index: 1080;
+
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--blur-lg));
+  -webkit-backdrop-filter: blur(var(--blur-lg));
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
+  padding: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+}
+
+.theme-switcher:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover), var(--glow-primary);
+  border-color: var(--glass-border-hover);
+}
+
+.theme-btn {
+  width: var(--btn-height-lg);
+  height: var(--btn-height-lg);
+  border-radius: var(--radius-md);
+  border: 2px solid transparent;
+  background: var(--bg-glass);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+  font-size: var(--font-size-lg);
+}
+
+.theme-btn:hover {
+  background: var(--glass-overlay-light);
+  transform: scale(1.05);
+}
+
+.theme-btn.active {
+  border-color: var(--color-aero-blue);
+  background: var(--glass-overlay-light);
+  box-shadow: var(--glow-primary);
+}
+
+/* 主题切换器移动端适配 */
+@media (max-width: var(--breakpoint-md)) {
+  .theme-switcher {
+    top: auto;
+    bottom: var(--spacing-lg);
+    right: var(--spacing-lg);
+  }
+}
+
+/* 深色主题下的主题切换器样?*/
+[data-theme="dark"] .theme-switcher {
+  background: var(--bg-glass);
+  border-color: var(--glass-border);
+  box-shadow: var(--glow-primary);
+}
+
+[data-theme="dark"] .theme-switcher:hover {
+  box-shadow: var(--glass-shadow-light);
+}
+
+[data-theme="dark"] .theme-btn {
+  background: var(--glass-overlay-light);
+}
+
+[data-theme="dark"] .theme-btn:hover {
+  background: var(--glass-overlay-medium);
+}
+
+[data-theme="dark"] .theme-btn.active {
+  border-color: var(--color-pulse-cyan);
+  background: var(--glass-overlay-medium);
+  box-shadow: none;
+}
+
+[data-theme="dark"] .theme-btn.active:hover {
+  box-shadow: var(--glow-secondary);
+}
+
+/* 主题切换动画 */
+@keyframes theme-switch {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.theme-switching {
+  animation: theme-switch var(--anim-duration-normal) var(--anim-ease-in-out);
+}
+
+/* 页面过渡效果 */
+body.theme-transition {
+  transition: background-color var(--anim-duration-normal) var(--anim-ease-out),
+              color var(--anim-duration-normal) var(--anim-ease-out);
+}
+
+/* 主题切换提示 */
+.theme-tooltip {
+  position: absolute;
+  right: calc(var(--btn-height-lg) + var(--spacing-md));
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--theme-primary);
+  color: #fff;
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--anim-duration-fast) var(--anim-ease-out);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .theme-tooltip {
+  background: var(--theme-primary);
+  color: #fff;
+}
+
+
+.theme-switcher:hover .theme-tooltip {
+  opacity: 1;
+}
+
+/* 主题切换器容?*/
+.theme-switcher-container {
+  position: relative;
+}
+
+/* 主题切换器图标样?*/
+.theme-icon {
+  width: var(--spacing-lg);
+  height: var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 浅色主题图标 */
+.theme-icon-light::before {
+  content: '☀';
+}
+
+
+/* 深色主题图标 */
+.theme-icon-dark::before {
+  content: '🌙';
+}
+
+/* 系统主题图标 */
+.theme-icon-system::before {
+  content: '💻';
+}

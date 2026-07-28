@@ -1,0 +1,286 @@
+/*
+  布局模式 5：双侧面板 + 底部时间轴 — 项目级覆写样式
+  ──────────────────────────────────────────────────────────────────
+  本文件由 ue5_overlay_sidepanel_dock_layout.html 独立引用。
+  所有规则均使用 CSS token（var(--ue5-overlay-*)），无硬编码颜色/尺寸。
+  pj-ue5-* 类遵循 §2.6 项目前缀规约。
+  ──────────────────────────────────────────────────────────────────
+*/
+
+/* ================================================================
+   覆写 safe-area Grid：去掉顶部预留行，调整尺寸变量
+   ================================================================ */
+.ue5-overlay-safe-area {
+  /* 面板宽度：随视口响应，大屏更宽 */
+  --ue5-overlay-left-width:   clamp(300px, 20vw, 420px);
+  --ue5-overlay-right-width:  clamp(300px, 21vw, 440px);
+  /* 底部 dock 高度（仅时间轴，无控制条） */
+  --ue5-overlay-bottom-height: 96px;
+
+  /* 只保留 2 行（内容行 + 底部行），去掉顶部空行 */
+  grid-template-rows: minmax(0, 1fr) var(--ue5-overlay-bottom-height);
+
+  /* padding-top：system-bar 高度 + 10px 间距；左右 10px；底部 0（dock 贴底） */
+  padding: calc(var(--ue5-overlay-system-bar-height, 56px) + 10px) 10px 0 !important;
+  gap: 10px;
+}
+
+/* ================================================================
+   面板 Grid 放置
+   ================================================================ */
+
+/* 左侧面板：第 1 列，第 1 行（项目级 Grid 定位辅助类，前缀 pj-ue5-） */
+.pj-ue5-layout-left {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* 右侧面板：第 3 列，第 1 行（项目级 Grid 定位辅助类，前缀 pj-ue5-） */
+.pj-ue5-layout-right {
+  grid-column: 3;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* 面板主体：填满剩余高度 */
+.detail-panel__body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* 指标卡 → 图表之间补充间距 */
+.detail-panel__metrics + .charts-grid {
+  margin-top: 12px;
+}
+
+/* 左侧面板 header：两行排版
+   行1: 面板标题 + 机号徽章（inline-flex 横排）
+   行2: 阶段说明 + 日期（较小字号，次要信息）
+*/
+.pj-ue5-layout-left .detail-panel__header {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding-bottom: 10px;
+}
+.pj-ue5-layout-left .detail-panel__title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.pj-ue5-layout-left .detail-panel__title {
+  font-size: 14px;  /* 稍小，避免撑满一行 */
+  white-space: nowrap;
+}
+.pj-ue5-layout-left .detail-panel__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ================================================================
+   底部 Dock：跨全部 3 列，第 2 行，贴满浏览器底部无间距
+   ================================================================ */
+.ue5-overlay-bottom-dock {
+  /* ── Grid 放置 ─────────────────── */
+  grid-column: 1 / 4;
+  grid-row: 2;
+  justify-self: stretch;
+  align-self: stretch;
+
+  /* ── 容器布局 ───────────────────── */
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch;
+
+  /* ── 外观覆写 ───────────────────── */
+  border-radius: 0;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+  /* 左右负边距抵消 safe-area 10px 侧边距，实现全视口宽度 */
+  margin-left: -10px;
+  margin-right: -10px;
+}
+
+/* ================================================================
+   时间轴（pj-ue5-timeline）刻度尺风格
+   ── 结构 ──────────────────────────────────────────────────
+   · 轴线位于容器 66% 处（上方 66% 放标签+圆点，下方 34% 放刻度+标签）
+   · 三档刻度：周（3px 无标签）· 月（6px 小标签）· 季（11px 大标签）
+   · 周刻度由 JS 按 7 天间隔密集生成，形成刻度尺视觉
+   ================================================================ */
+
+/* 外层：填满 dock 控制条以下的所有空间 */
+.pj-ue5-timeline {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  contain: layout paint; /* 强制 paint 边界，防止 transform 子元素穿透 overflow clip */
+}
+
+/* ── 主轴线 ───────────────────────────────────────────────── */
+.pj-ue5-timeline__rail {
+  position: absolute;
+  top: 66%;
+  left: 2%;
+  right: 2%;
+  height: 1px;
+  transform: translateY(-50%);
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    var(--ue5-overlay-panel-border, rgba(185,201,220,0.32)) 2%,
+    var(--ue5-overlay-panel-border, rgba(185,201,220,0.32)) 98%,
+    transparent 100%
+  );
+}
+
+/* ── 今日游标：贯穿全高，顶部有小三角 ────────────────────── */
+.pj-ue5-timeline__cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--ue5-overlay-brand, #4f8df5) 12%,
+    var(--ue5-overlay-brand, #4f8df5) 88%,
+    transparent 100%
+  );
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 3;
+}
+.pj-ue5-timeline__cursor::after {
+  content: '';
+  position: absolute;
+  top: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: var(--ue5-overlay-brand, #4f8df5);
+}
+
+/* ── 里程碑标签：轴线上方（bottom 从底部算）──────────────── */
+.pj-ue5-timeline__node-label {
+  position: absolute;
+  /* 轴线在 66%，圆点半径 4px，间隙 5px → bottom = 34% + 9px */
+  bottom: calc(34% + 9px);
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--ue5-overlay-text-muted, rgba(185,201,220,0.7));
+  white-space: nowrap;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 2;
+}
+.pj-ue5-timeline__node-label--done   { color: var(--ue5-overlay-success, #02c39a); }
+.pj-ue5-timeline__node-label--alert  { color: var(--ue5-overlay-warning, #ffb547); }
+.pj-ue5-timeline__node-label--active {
+  color: var(--ue5-overlay-brand, #4f8df5);
+  font-weight: var(--font-weight-semibold, 600);
+  font-size: 11px;
+}
+.pj-ue5-timeline__node-label--future {
+  color: var(--ue5-overlay-text-dim, rgba(148,165,188,0.42));
+}
+
+/* ── 里程碑圆点：在轴线上 ────────────────────────────────── */
+.pj-ue5-timeline__dot {
+  position: absolute;
+  top: 66%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ue5-overlay-panel-border, rgba(185,201,220,0.3));
+  background: var(--ue5-overlay-bg, rgba(2,8,20,0.9));
+  z-index: 4;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.pj-ue5-timeline__dot:hover {
+  transform: translate(-50%, -50%) scale(1.8);
+  z-index: 5;
+}
+.pj-ue5-timeline__dot--done {
+  background: var(--ue5-overlay-success, #02c39a);
+  border-color: var(--ue5-overlay-success, #02c39a);
+}
+.pj-ue5-timeline__dot--alert {
+  background: var(--ue5-overlay-warning, #ffb547);
+  border-color: var(--ue5-overlay-warning, #ffb547);
+  box-shadow: 0 0 5px var(--ue5-overlay-warning, #ffb547);
+}
+.pj-ue5-timeline__dot--active {
+  width: 12px;
+  height: 12px;
+  background: var(--ue5-overlay-brand, #4f8df5);
+  border-color: var(--ue5-overlay-brand, #4f8df5);
+  box-shadow:
+    0 0 0 3px var(--ue5-overlay-brand-halo, rgba(79,141,245,0.22)),
+    0 0 10px var(--ue5-overlay-brand, #4f8df5);
+}
+.pj-ue5-timeline__dot--future {
+  background: transparent;
+  border-color: var(--ue5-overlay-text-dim, rgba(148,165,188,0.35));
+  opacity: 0.5;
+}
+
+/* ── 刻度（轴线下方延伸）────────────────────────────────────
+   .tick 容器锚定在 top:66%（轴线），flex-column 向下展开
+   三档：周（默认 3px）· 月（--month 6px + 小标签）· 季（--quarter 11px + 大标签）
+   ──────────────────────────────────────────────────────── */
+.pj-ue5-timeline__tick {
+  position: absolute;
+  top: 66%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  z-index: 1;
+}
+/* 周刻度（默认，最多最小） */
+.pj-ue5-timeline__tick-mark {
+  width: 1px;
+  height: 3px;
+  flex-shrink: 0;
+  background: var(--ue5-overlay-sub-border, rgba(185,201,220,0.2));
+}
+/* 月刻度 */
+.pj-ue5-timeline__tick--month .pj-ue5-timeline__tick-mark {
+  height: 6px;
+  background: var(--ue5-overlay-panel-border, rgba(185,201,220,0.35));
+}
+/* 季度刻度 */
+.pj-ue5-timeline__tick--quarter .pj-ue5-timeline__tick-mark {
+  height: 11px;
+  background: var(--ue5-overlay-text-dim, rgba(185,201,220,0.5));
+}
+/* 月标签（月/季共用，季度覆写字号和颜色） */
+.pj-ue5-timeline__tick-label {
+  margin-top: 3px;
+  font-size: 9px;
+  color: var(--ue5-overlay-text-dim, rgba(148,165,188,0.5));
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+.pj-ue5-timeline__tick--quarter .pj-ue5-timeline__tick-label {
+  font-size: 10px;
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--ue5-overlay-text-muted, rgba(185,201,220,0.78));
+}

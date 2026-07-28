@@ -1,0 +1,59 @@
+{
+  "round_id": "w9_round1",
+  "created_at": "2026-07-27T11:38:18.0789564+08:00",
+  "status": "blocked_at_stage_0",
+  "operator": "Codex",
+  "ue": {
+    "engine": "D:\\UE_5.6",
+    "project_file": "D:\\SCC\\SCC2\\scc2\\scc2.uproject",
+    "main_map": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Main",
+    "source_sublevel": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Building",
+    "additional_loaded_sublevel": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Light",
+    "actor_count": 757,
+    "level_actor_counts": {
+      "/Game/SCC_W9/Art/Maps/L_SCC_W9_Building": 563,
+      "/Game/SCC_W9/Art/Maps/L_SCC_W9_Light": 152,
+      "/Game/SCC_W9/Art/Maps/L_SCC_W9_Main": 42
+    },
+    "read_only_inventory": true,
+    "saved_assets": false
+  },
+  "ontotwin": {
+    "repository": "D:\\tmp\\digital_twin_aircraft",
+    "git_commit": "73f9e586de7bd1845f8c1c4e984b5380115d17a1",
+    "worktree_preexisting_change_count": 46,
+    "backend_url": "http://127.0.0.1:5000",
+    "active_dataset_id": "ds_1784694647848",
+    "active_dataset_name": "ZHHZ",
+    "bound_ue_project_id": "ueproj_ZHHZ",
+    "bound_ue_project_name": "ZHHZ",
+    "object_type_count": 80,
+    "instance_count": 228,
+    "render_part_count": 8068,
+    "unique_ext_guid_count": 228
+  },
+  "requested_target": {
+    "dataset_name": "W9",
+    "ue_project_name": "SCC_W9",
+    "business_category": "not_yet_approved",
+    "allowlist": "not_yet_approved"
+  },
+  "blocking_conditions": [
+    {
+      "code": "UE_BINDING_MISMATCH",
+      "message": "The active OntoTwin dataset is bound to ZHHZ, not W9. The SOP requires stopping before any database write or migration export based on an unapproved target dataset."
+    },
+    {
+      "code": "ALLOWLIST_NOT_APPROVED",
+      "message": "The user requested W9 models broadly but has not yet approved explicit mother Actor GUIDs and a business category."
+    }
+  ],
+  "recommended_resolution": {
+    "create_new_dataset": "W9",
+    "bind_ue_project_id": "ueproj_SCC_W9",
+    "bind_ue_project_name": "SCC_W9",
+    "first_round_business_category": "建筑模型",
+    "first_round_hierarchy_path": "W9/建筑",
+    "proposed_allowlist_file": "proposed_allowlist_round1.txt"
+  }
+}

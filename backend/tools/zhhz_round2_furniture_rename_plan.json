@@ -1,0 +1,39 @@
+{
+  "schema_version": "zhhz_round2_furniture_rename_v1",
+  "evidence_basis": [
+    "Datasmith geometry signature",
+    "assembly render-part structure",
+    "material semantic names",
+    "world-space module ordering"
+  ],
+  "type_names": {
+    "zhhz.furniture.model_00f6e344f4bc728d": "浅灰模块沙发-端头A（FUR-01）",
+    "zhhz.furniture.model_08b8830e0759ec98": "黑边操作台-03（FUR-02）",
+    "zhhz.furniture.model_1e271d28426dbb11": "浅灰模块沙发-中间模块A（FUR-03）",
+    "zhhz.furniture.model_2c43c2099c60a0f1": "黑边操作台-04（FUR-04）",
+    "zhhz.furniture.model_475c912888eccf1b": "蓝色布面展示桌（FUR-05）",
+    "zhhz.furniture.model_61c27ee7c2b1fe3f": "浅灰模块沙发-端头B（FUR-06）",
+    "zhhz.furniture.model_76d7245c5c5eb6f3": "黑边操作台-01（FUR-07）",
+    "zhhz.furniture.model_8af3f2d41ac15d21": "简式黑边操作台（FUR-08）",
+    "zhhz.furniture.model_c1be81bd0e519f10": "黑边操作台-02（FUR-09）",
+    "zhhz.furniture.model_c5aac92959d48644": "浅灰模块沙发-中间模块B（FUR-10）"
+  },
+  "instance_names": {
+    "ue_800CE4A2-48CF-090B-F08B-E88BEF914BAD": "东南二层浅灰模块沙发-01（端头A）",
+    "ue_39C1B6A4-42FD-3111-BE07-72AFE388961C": "东南二层浅灰模块沙发-02（中间模块B）",
+    "ue_3745D63B-4A9E-E37E-4C71-CDB42260BA93": "东南二层浅灰模块沙发-03（中间模块A）",
+    "ue_D35FE9EC-4411-47C4-F469-6D8EA64CAFB5": "东南二层浅灰模块沙发-04（中间模块B）",
+    "ue_2EDE717E-4664-EF8E-C330-F69BF8B827C8": "东南二层浅灰模块沙发-05（中间模块A）",
+    "ue_85E5EF19-4DED-F454-E536-778EC0A0FA2B": "东南二层浅灰模块沙发-06（中间模块B）",
+    "ue_5208D077-49BB-F04E-1FAE-9F99827DE47B": "东南二层浅灰模块沙发-07（中间模块A）",
+    "ue_E9E61DE4-4607-5BEE-B5AF-A0AB8AA83693": "东南二层浅灰模块沙发-08（中间模块B）",
+    "ue_14F9FE6D-4E21-816E-BD4F-0D90DB6BEC9F": "东南二层浅灰模块沙发-09（中间模块A）",
+    "ue_EC1845BE-4C68-2C0F-62AB-478AFF1C46E6": "东南二层浅灰模块沙发-10（端头B）",
+    "ue_64323BFB-463C-61AB-D4C3-749D74EA728B": "黑边操作台-01",
+    "ue_28952A88-4523-942B-EE82-C880CC3B099E": "黑边操作台-02",
+    "ue_C8C95E72-4763-972C-3B84-F9BE1250357F": "黑边操作台-03",
+    "ue_C1BCEBFD-4907-A427-1488-84921B891B3A": "黑边操作台-04",
+    "ue_78A2BE02-4702-DF48-C162-0B8DABCDBC02": "简式黑边操作台-01",
+    "ue_EED40DDD-4C65-BF50-0CDD-878A29CC2213": "蓝色布面展示桌-01"
+  }
+}

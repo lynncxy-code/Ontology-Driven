@@ -1,0 +1,348 @@
+/**
+ * Feedback Components
+ * LingJing Core Design System v1.5.1+
+ *
+ * 包含用户反馈组件:
+ * - Alert (警告?
+ * - Toast (轻提?
+ * - Modal (模态框)
+ * - Drawer (抽屉)
+ * - Success/Error/Warning/Info 状态变?
+ */
+
+/* ========================================
+   CSS Variables
+   ======================================== */
+:root {
+  /* Feedback Colors */
+  --feedback-success: var(--success-base);
+  --feedback-error: var(--error-base);
+  --feedback-warning: var(--warning-base);
+  --feedback-info: var(--theme-primary);
+
+
+  /* Feedback Backgrounds */
+  --feedback-success-bg: rgba(0, 163, 131, 0.1);
+  --feedback-error-bg: rgba(255, 71, 87, 0.1);
+  --feedback-warning-bg: rgba(255, 167, 38, 0.1);
+  --feedback-info-bg: rgba(0, 132, 255, 0.1);
+
+  /* Component Sizing */
+  --alert-padding: var(--spacing-md, 16px);
+  --drawer-width: 400px;
+}
+
+/* ========================================
+   Alert (警告提示)
+   ======================================== */
+
+/**
+ * .feedback-alert
+ * 描述: 页面内警告提示框
+ * 用法: <div class="feedback-alert feedback-alert-info">...</div>
+ */
+.feedback-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm, 8px);
+  padding: var(--alert-padding);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-left-width: 4px;
+  border-radius: var(--radius-md, 8px);
+  font-size: var(--font-size-base, 16px);
+  line-height: 1.5;
+  position: relative;
+}
+
+.feedback-alert-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+
+.feedback-alert-content {
+  flex: 1;
+  color: var(--text-primary);
+}
+
+.feedback-alert-title {
+  font-weight: 600;
+  margin-bottom: var(--spacing-xs, 4px);
+}
+
+.feedback-alert-description {
+  color: var(--text-secondary);
+}
+
+.feedback-alert-close {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: color 0.2s ease;
+}
+
+.feedback-alert-close:hover {
+  color: var(--text-primary);
+}
+
+/* Alert Variants */
+.feedback-alert-success {
+  background: var(--feedback-success-bg);
+  border-left-color: var(--feedback-success);
+}
+
+.feedback-alert-success .feedback-alert-icon {
+  color: var(--feedback-success);
+}
+
+.feedback-alert-error {
+  background: var(--feedback-error-bg);
+  border-left-color: var(--feedback-error);
+}
+
+.feedback-alert-error .feedback-alert-icon {
+  color: var(--feedback-error);
+}
+
+.feedback-alert-warning {
+  background: var(--feedback-warning-bg);
+  border-left-color: var(--feedback-warning);
+}
+
+.feedback-alert-warning .feedback-alert-icon {
+  color: var(--feedback-warning);
+}
+
+.feedback-alert-info {
+  background: var(--feedback-info-bg);
+  border-left-color: var(--feedback-info);
+}
+
+.feedback-alert-info .feedback-alert-icon {
+  color: var(--feedback-info);
+}
+
+/* Dark Mode */
+[data-theme="dark"] .feedback-alert {
+  background: var(--bg-elevated);
+  border-color: var(--nav-border-light);
+}
+
+[data-theme="dark"] .feedback-drawer-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="dark"] .feedback-drawer {
+  background: var(--bg-elevated);
+}
+
+
+/* ========================================
+   Drawer (抽屉)
+   ======================================== */
+
+/**
+ * .feedback-drawer
+ * 描述: 侧边抽屉面板
+ * 用法: <div class="feedback-drawer feedback-drawer-right">...</div>
+ */
+.feedback-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  animation: modal-overlay-in 0.2s ease;
+}
+
+.feedback-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: var(--drawer-width);
+  max-width: 90vw;
+  background: var(--bg-base);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.15);
+  z-index: 10001;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Drawer Positions */
+.feedback-drawer-right {
+  right: 0;
+  animation: drawer-slide-in-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes drawer-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.feedback-drawer-left {
+  left: 0;
+  animation: drawer-slide-in-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes drawer-slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.feedback-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-lg, 24px);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.feedback-drawer-title {
+  font-size: var(--font-size-lg, 20px);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.feedback-drawer-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: all 0.2s ease;
+}
+
+.feedback-drawer-close:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.feedback-drawer-body {
+  flex: 1;
+  padding: var(--spacing-lg, 24px);
+  overflow-y: auto;
+}
+
+.feedback-drawer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-sm, 8px);
+  padding: var(--spacing-lg, 24px);
+  border-top: 1px solid var(--border-primary);
+}
+
+/* Dark Mode */
+[data-theme="dark"] .feedback-drawer {
+  background: var(--bg-elevated);
+}
+
+/* ========================================
+   Status Shortcuts (Success/Error/Warning/Info)
+   ======================================== */
+
+/**
+ * 快捷状态类 - 可单独使?
+ */
+.feedback-success {
+  color: var(--feedback-success);
+}
+
+.feedback-error {
+  color: var(--feedback-error);
+}
+
+.feedback-warning {
+  color: var(--feedback-warning);
+}
+
+.feedback-info {
+  color: var(--feedback-info);
+}
+
+/* ========================================
+   Utility Classes
+   ======================================== */
+
+/* Prevent Body Scroll when Modal/Drawer is Open */
+body.feedback-no-scroll {
+  overflow: hidden;
+}
+
+/* ========================================
+   Responsive Design
+   ======================================== */
+
+@media (max-width: 768px) {
+  .feedback-modal {
+    max-width: 100%;
+    border-radius: var(--radius-md, 8px);
+  }
+
+  .feedback-drawer {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .feedback-modal-header,
+  .feedback-modal-body,
+  .feedback-modal-footer,
+  .feedback-drawer-header,
+  .feedback-drawer-body,
+  .feedback-drawer-footer {
+    padding: var(--spacing-md, 16px);
+  }
+}
+
+/* ========================================
+   Accessibility
+   ======================================== */
+
+/* Focus Visible */
+.feedback-alert-close:focus-visible,
+.feedback-modal-close:focus-visible,
+.feedback-drawer-close:focus-visible {
+  outline: 2px solid var(--brand-primary, #0084FF);
+  outline-offset: 2px;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .feedback-modal,
+  .feedback-drawer-right,
+  .feedback-drawer-left,
+  .feedback-modal-overlay,
+  .feedback-drawer-overlay {
+    animation: none;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .feedback-alert,
+  .feedback-modal,
+  .feedback-drawer {
+    border-width: 2px;
+  }
+}

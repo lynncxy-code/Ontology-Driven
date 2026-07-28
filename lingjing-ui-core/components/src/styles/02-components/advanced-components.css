@@ -1,0 +1,802 @@
+/**
+ * Advanced Components
+ * LingJing Core Design System v1.5.1+
+ *
+ * 包含高级/专用组件:
+ * - Rating (评分)
+ * - Transfer (穿梭?
+ * - Tree (树形控件)
+ * - Notification Center (通知中心)
+ * - User Menu (用户菜单)
+ * - Stepper (步骤?
+ * - Descriptions (描述列表)
+ * - Result Pages (结果?
+ */
+
+/* ========================================
+   Rating (评分)
+   ======================================== */
+
+/**
+ * .rating-star
+ * 描述: 星级评分组件
+ * 用法: <div class="rating-star" data-rating="4.5">...</div>
+ */
+.rating-star {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs, 4px);
+}
+
+.rating-star-item {
+  width: 24px;
+  height: 24px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rating-star-item.filled {
+  color: var(--brand-warning, #FFA726);
+}
+
+.rating-star-item.half-filled {
+  position: relative;
+}
+
+.rating-star-item.half-filled::before {
+  content: '★';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  overflow: hidden;
+  color: var(--brand-warning, #FFA726);
+}
+
+
+.rating-star-item:hover,
+.rating-star-item.hovering {
+  color: var(--brand-warning, #FFA726);
+  transform: scale(1.1);
+}
+
+.rating-star-readonly .rating-star-item {
+  cursor: default;
+}
+
+.rating-star-readonly .rating-star-item:hover {
+  transform: none;
+}
+
+.rating-star-value {
+  margin-left: var(--spacing-xs, 4px);
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-secondary);
+}
+
+/* ========================================
+   Transfer (穿梭?
+   ======================================== */
+
+/**
+ * .transfer-basic
+ * 描述: 双列表穿梭框
+ * 用法: <div class="transfer-basic">...</div>
+ */
+.transfer-basic {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md, 16px);
+}
+
+.transfer-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+  max-width: 300px;
+}
+
+.transfer-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.transfer-panel-title {
+  font-size: var(--font-size-sm, 14px);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.transfer-panel-count {
+  font-size: var(--font-size-xs, 12px);
+  color: var(--text-tertiary);
+}
+
+.transfer-panel-body {
+  flex: 1;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.transfer-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.transfer-item:hover {
+  background: var(--bg-secondary);
+}
+
+.transfer-item-checkbox {
+  flex-shrink: 0;
+}
+
+.transfer-item-label {
+  flex: 1;
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-primary);
+}
+
+.transfer-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 8px);
+  align-self: center;
+}
+
+.transfer-control-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-primary, #0084FF);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.transfer-control-btn:hover:not(:disabled) {
+  background: var(--brand-primary-hover, #0070DD);
+  transform: scale(1.05);
+}
+
+.transfer-control-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Transfer with Search */
+.transfer-search {
+  composes: transfer-basic;
+}
+
+.transfer-search-input {
+  width: 100%;
+  padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm, 14px);
+}
+
+.transfer-search-input:focus {
+  outline: none;
+}
+
+/* Dark Mode */
+[data-theme="dark"] .transfer-panel {
+  background: var(--bg-elevated);
+}
+
+/* ========================================
+   Tree (树形控件)
+   ======================================== */
+
+/**
+ * .tree-basic
+ * 描述: 基础树形控件
+ * 用法: <div class="tree-basic">...</div>
+ */
+.tree-basic {
+  background: var(--bg-base);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg, 12px);
+  padding: var(--spacing-sm, 8px);
+}
+
+.tree-node {
+  margin: var(--spacing-xs, 4px) 0;
+}
+
+.tree-node-content {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs, 4px);
+  padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  user-select: none;
+}
+
+.tree-node-content:hover {
+  background: var(--bg-secondary);
+}
+
+.tree-node-expand {
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.tree-node.expanded > .tree-node-content .tree-node-expand {
+  transform: rotate(90deg);
+}
+
+.tree-node-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+}
+
+.tree-node-label {
+  flex: 1;
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-primary);
+}
+
+.tree-node-children {
+  margin-left: var(--spacing-lg, 24px);
+  display: none;
+}
+
+.tree-node.expanded > .tree-node-children {
+  display: block;
+}
+
+/* Tree with Checkbox */
+.tree-checkbox .tree-node-content {
+  gap: var(--spacing-sm, 8px);
+}
+
+.tree-node-checkbox {
+  flex-shrink: 0;
+}
+
+/* Dark Mode */
+[data-theme="dark"] .tree-basic {
+  background: var(--bg-elevated);
+}
+
+/* ========================================
+   Notification Center (通知中心)
+   ======================================== */
+
+/**
+ * .notification-center-dropdown
+ * 描述: 下拉式通知中心
+ * 用法: <div class="notification-center-dropdown">...</div>
+ */
+.notification-center-trigger {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-full, 999px);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.notification-center-trigger:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.notification-center-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-error, #FF4757);
+  color: white;
+  font-size: var(--font-size-xs, 12px);
+  font-weight: 600;
+  border-radius: var(--radius-full, 999px);
+  pointer-events: none;
+}
+
+.notification-center-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 360px;
+  max-height: 480px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.notification-center-dropdown.active {
+  display: flex;
+}
+
+.notification-center-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md, 16px);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.notification-center-title {
+  font-size: var(--font-size-base, 16px);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.notification-center-actions {
+  display: flex;
+  gap: var(--spacing-xs, 4px);
+}
+
+.notification-center-action-btn {
+  padding: var(--spacing-xs, 4px);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.notification-center-action-btn:hover {
+  color: var(--brand-primary, #0084FF);
+}
+
+.notification-center-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.notification-item {
+  display: flex;
+  gap: var(--spacing-sm, 8px);
+  padding: var(--spacing-md, 16px);
+  border-bottom: 1px solid var(--border-primary);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.notification-item:hover {
+  background: var(--bg-secondary);
+}
+
+.notification-item.unread {
+  background: var(--feedback-info-bg, rgba(0, 132, 255, 0.05));
+}
+
+.notification-item-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-full, 999px);
+  color: var(--brand-primary, #0084FF);
+}
+
+.notification-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-item-title {
+  font-size: var(--font-size-sm, 14px);
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-xs, 4px);
+}
+
+.notification-item-description {
+  font-size: var(--font-size-xs, 12px);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-item-time {
+  font-size: var(--font-size-xs, 12px);
+  color: var(--text-tertiary);
+}
+
+.notification-center-footer {
+  padding: var(--spacing-sm, 8px);
+  border-top: 1px solid var(--border-primary);
+  text-align: center;
+}
+
+.notification-center-view-all {
+  width: 100%;
+  padding: var(--spacing-sm, 8px);
+  background: transparent;
+  border: none;
+  color: var(--brand-primary, #0084FF);
+  font-size: var(--font-size-sm, 14px);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  border-radius: var(--radius-sm, 4px);
+}
+
+.notification-center-view-all:hover {
+  background: var(--bg-secondary);
+}
+
+/* Dark Mode */
+[data-theme="dark"] .notification-center-dropdown {
+  background: var(--bg-elevated);
+}
+
+/* ========================================
+   Stepper (步骤?
+   ======================================== */
+
+/**
+ * .stepper-horizontal
+ * 描述: 水平步骤?
+ * 用法: <div class="stepper-horizontal">...</div>
+ */
+.stepper-horizontal {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+}
+
+
+.stepper-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.stepper-step-header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  position: relative;
+}
+
+.stepper-step-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-primary);
+  border-radius: var(--radius-full, 999px);
+  color: var(--text-tertiary);
+  font-weight: 600;
+  font-size: var(--font-size-sm, 14px);
+  z-index: 1;
+  transition: all 0.2s ease;
+}
+
+.stepper-step.active .stepper-step-icon {
+  background: var(--brand-primary, #0084FF);
+  border-color: var(--brand-primary, #0084FF);
+  color: white;
+}
+
+.stepper-step.completed .stepper-step-icon {
+  background: var(--brand-success, #00A383);
+  border-color: var(--brand-success, #00A383);
+  color: white;
+}
+
+.stepper-step-connector {
+  flex: 1;
+  height: 2px;
+  background: var(--border-primary);
+  margin: 0 var(--spacing-xs, 4px);
+  transition: background 0.2s ease;
+}
+
+.stepper-step.completed .stepper-step-connector {
+  background: var(--brand-success, #00A383);
+}
+
+.stepper-step:last-child .stepper-step-connector {
+  display: none;
+}
+
+.stepper-step-content {
+  margin-top: var(--spacing-sm, 8px);
+  text-align: center;
+}
+
+.stepper-step-title {
+  font-size: var(--font-size-sm, 14px);
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-xs, 4px);
+}
+
+.stepper-step.active .stepper-step-title {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.stepper-step-description {
+  font-size: var(--font-size-xs, 12px);
+  color: var(--text-tertiary);
+}
+
+/* Vertical Stepper */
+.stepper-vertical {
+  display: flex;
+  flex-direction: column;
+}
+
+.stepper-vertical .stepper-step {
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.stepper-vertical .stepper-step-header {
+  flex-direction: column;
+  width: auto;
+}
+
+.stepper-vertical .stepper-step-connector {
+  width: 2px;
+  height: 100%;
+  min-height: 32px;
+  margin: var(--spacing-xs, 4px) 0;
+}
+
+.stepper-vertical .stepper-step-content {
+  margin-top: 0;
+  margin-left: var(--spacing-md, 16px);
+  text-align: left;
+  flex: 1;
+  padding-bottom: var(--spacing-lg, 24px);
+}
+
+/* ========================================
+   Descriptions (描述列表)
+   ======================================== */
+
+/**
+ * .descriptions-basic
+ * 描述: 键值对描述列表
+ * 用法: <div class="descriptions-basic">...</div>
+ */
+.descriptions-basic {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 8px);
+}
+
+.descriptions-item {
+  display: flex;
+  gap: var(--spacing-md, 16px);
+  padding: var(--spacing-sm, 8px) 0;
+}
+
+.descriptions-label {
+  flex-shrink: 0;
+  width: 120px;
+  font-size: var(--font-size-sm, 14px);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.descriptions-content {
+  flex: 1;
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-primary);
+}
+
+/* Bordered Descriptions */
+.descriptions-bordered {
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+}
+
+.descriptions-bordered .descriptions-item {
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.descriptions-bordered .descriptions-item:last-child {
+  border-bottom: none;
+}
+
+.descriptions-bordered .descriptions-label {
+  background: var(--bg-secondary);
+  margin: calc(var(--spacing-sm, 8px) * -1) 0;
+  margin-right: var(--spacing-md, 16px);
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+}
+
+/* Dark Mode */
+[data-theme="dark"] .descriptions-bordered {
+  background: var(--bg-elevated);
+}
+
+/* ========================================
+   Result Pages (结果?
+   ======================================== */
+
+/**
+ * .result-success / .result-error / .result-warning
+ * 描述: 结果页面
+ * 用法: <div class="result-success">...</div>
+ */
+.result-success,
+.result-error,
+.result-warning {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--spacing-xxl, 48px) var(--spacing-lg, 24px);
+  min-height: 400px;
+}
+
+.result-icon {
+  width: 72px;
+  height: 72px;
+  margin-bottom: var(--spacing-lg, 24px);
+}
+
+.result-success .result-icon {
+  color: var(--brand-success, #00A383);
+}
+
+.result-error .result-icon {
+  color: var(--brand-error, #FF4757);
+}
+
+.result-warning .result-icon {
+  color: var(--brand-warning, #FFA726);
+}
+
+.result-title {
+  font-size: var(--font-size-xxl, 32px);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm, 8px);
+}
+
+.result-description {
+  max-width: 480px;
+  font-size: var(--font-size-base, 16px);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--spacing-lg, 24px);
+}
+
+.result-actions {
+  display: flex;
+  gap: var(--spacing-sm, 8px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ========================================
+   Responsive Design
+   ======================================== */
+
+@media (max-width: 768px) {
+  .transfer-basic {
+    flex-direction: column;
+  }
+
+  .transfer-panel {
+    max-width: none;
+  }
+
+  .transfer-controls {
+    flex-direction: row;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .notification-center-dropdown,
+  .user-menu-dropdown {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: 80vh;
+    border-radius: var(--radius-lg, 12px) var(--radius-lg, 12px) 0 0;
+  }
+
+  .stepper-horizontal {
+    flex-direction: column;
+  }
+
+  .stepper-horizontal .stepper-step-connector {
+    display: none;
+  }
+
+  .descriptions-item {
+    flex-direction: column;
+    gap: var(--spacing-xs, 4px);
+  }
+
+  .descriptions-label {
+    width: auto;
+  }
+}
+
+/* ========================================
+   Accessibility
+   ======================================== */
+
+/* Focus Visible */
+.rating-star-item:focus-visible,
+.transfer-item:focus-visible,
+.tree-node-content:focus-visible,
+.notification-item:focus-visible,
+.user-menu-item:focus-visible {
+  outline: 2px solid var(--brand-primary, #0084FF);
+  outline-offset: 2px;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .rating-star-item,
+  .transfer-control-btn,
+  .tree-node-expand,
+  .stepper-step-icon,
+  .stepper-step-connector {
+    transition: none;
+  }
+}

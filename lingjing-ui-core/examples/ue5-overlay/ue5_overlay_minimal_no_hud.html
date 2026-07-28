@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UE5 Overlay · 极简无 HUD 示例</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-ue5-overlay.css">
+  <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+  <main class="ue5-overlay-root">
+    <div class="ue5-overlay-background"></div>
+    <div class="ue5-overlay-viewport">
+      <img class="ue5-overlay-scene-image" src="../../assets/ue5-bg-scene.png" alt="航空制造三维背景场景">
+    </div>
+    <div class="ue5-overlay-grid"></div>
+    <div class="ue5-overlay-center-guard"></div>
+
+    <section class="ue5-overlay-safe-area" aria-label="极简 Overlay 无 HUD 示例">
+      <!--
+        本页面用于验证：
+        · 仅包含 ue5-overlay-root / ue5-overlay-viewport / ue5-overlay-safe-area 外层骨架；
+        · 不包含 topbar-hud，也不包含 alert-center / detail-panel / dock；
+        · 仍然是合法的 UE5 Overlay 页面，并可通过 skill-audit.js 审计。
+      -->
+      <div class="ue5-overlay-layer ue5-overlay-layer--marker" aria-label="关键工位标记">
+        <article class="world-marker world-marker--info world-marker--selected">
+          <div class="world-marker__label">
+            <div class="world-marker__label-top">
+              <span class="world-marker__icon" aria-hidden="true"><i data-lucide="map-pin"></i></span>
+              <span class="world-marker__title">关键工位簇</span>
+              <span class="world-marker__status">P3</span>
+            </div>
+            <div class="world-marker__label-bottom">极简视图仅保留必要标记，不展示 HUD。</div>
+          </div>
+          <span class="world-marker__line" aria-hidden="true"></span>
+          <span class="world-marker__anchor" aria-hidden="true"></span>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    if (window.lucide && window.lucide.createIcons) {
+      window.lucide.createIcons();
+    }
+  </script>
+</body>
+</html>

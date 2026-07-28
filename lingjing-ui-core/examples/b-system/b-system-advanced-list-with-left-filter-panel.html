@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>高级筛选列表示例 · b_system_advanced_list（正例）</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+</head>
+
+<body>
+  <div class="b-layout-sidebar">
+    <aside class="b-sidebar">
+      <div class="b-sidebar-header"><span class="b-sidebar-brand">Advanced List 正例</span></div>
+      <nav class="b-sidebar-nav"><ul class="b-sidebar-nav-list"><li class="b-sidebar-nav-item"><a class="b-sidebar-nav-link active">高级筛选列表</a></li></ul></nav>
+    </aside>
+    <main class="b-main">
+      <header class="b-header">
+        <div class="b-header-left"><nav class="b-breadcrumb"><div class="b-breadcrumb-item"><span class="b-breadcrumb-current">设备高级筛选列表（正例）</span></div></nav></div>
+        <div class="b-header-right"></div>
+      </header>
+      <div class="b-content">
+        <!-- 高级筛选列表壳：左侧筛选面板 + 右侧主表格区 -->
+        <section class="advanced-data-table advanced-data-table--filter-left" aria-label="高级筛选列表示例布局">
+          <aside class="advanced-data-table-side" aria-label="左侧高级筛选面板">
+            <div class="filter-panel">
+              <div class="filter-panel-header">
+                <div>
+                  <div class="filter-panel-title">筛选条件</div>
+                  <div class="table-toolbar-meta">左侧常驻多维筛选面板</div>
+                </div>
+                <button class="btn-text">重置</button>
+              </div>
+              <div class="filter-panel-body">
+                <label class="form-group">
+                  <span class="form-label">状态</span>
+                  <select class="form-select"><option>全部</option><option>在线</option><option>离线</option></select>
+                </label>
+                <label class="form-group">
+                  <span class="form-label">产线</span>
+                  <select class="form-select"><option>全部产线</option><option>A 线</option><option>B 线</option></select>
+                </label>
+                <label class="form-group">
+                  <span class="form-label">风险等级</span>
+                  <select class="form-select"><option>全部</option><option>高风险</option><option>需关注</option><option>正常</option></select>
+                </label>
+              </div>
+              <div class="filter-panel-footer">
+                <button class="btn-outline">清空</button>
+                <button class="btn-primary">应用筛选</button>
+              </div>
+            </div>
+          </aside>
+          <div class="advanced-data-table-main">
+            <section class="content-card">
+              <div class="table-toolbar">
+                <div class="table-toolbar-meta">设备台账 1 条 · 右侧主区承载表格与操作</div>
+                <div class="table-toolbar-actions">
+                  <button class="btn-outline">导出</button>
+                  <button class="btn-primary">新增设备</button>
+                </div>
+              </div>
+              <div class="card-header">
+                <h2 class="card-title">设备列表</h2>
+                <span class="badge badge-success">advanced_list 正例</span>
+              </div>
+              <div class="data-table-container">
+                <table class="data-table">
+                  <thead><tr><th>设备编号</th><th>名称</th><th>状态</th></tr></thead>
+                  <tbody><tr><td>D-001</td><td>扭矩工装</td><td><span class="badge badge-success">在线</span></td></tr></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+      </div>
+
+    </main>
+  </div>
+</body>
+</html>

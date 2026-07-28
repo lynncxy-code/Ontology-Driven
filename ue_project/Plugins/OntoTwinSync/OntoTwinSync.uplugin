@@ -16,7 +16,7 @@
 			"LoadingPhase": "Default"
 		},
 		{
-			"Name": "DigitalFactoryBaseEditor",
+			"Name": "OntoTwinSyncEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
 		}
@@ -29,6 +29,21 @@
 		{
 			"Name": "glTFRuntime",
 			"Enabled": true
+		},
+		{
+			"Name": "EnhancedInput",
+			"Enabled": true
+		},
+		{
+			"Name": "ElectraPlayer",
+			"Enabled": true
+		},
+		{
+			"Name": "WmfMedia",
+			"Enabled": true,
+			"PlatformAllowList": [
+				"Win64"
+			]
 		}
 	]
 }

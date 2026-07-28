@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UE Overlay 质量追踪复测</title>
+  <link rel="stylesheet" href="../../../components/dist/lingjing-core-ue5-overlay.css">
+</head>
+<body>
+  <main class="ue5-overlay-root">
+    <div class="ue5-overlay-background"></div>
+    <div class="ue5-overlay-viewport">
+      <img class="ue5-overlay-scene-image" src="../../../assets/ue5-bg-scene.png" alt="总装线三维场景">
+    </div>
+    <div class="ue5-overlay-grid"></div>
+    <div class="ue5-overlay-center-guard"></div>
+
+    <header class="ue5-overlay-system-bar">
+      <div class="ue5-overlay-system-bar__brand">
+        <span class="ue5-overlay-system-bar__brand-mark" aria-hidden="true"></span>
+        <div class="ue5-overlay-system-bar__brand-copy">
+          <span class="ue5-overlay-system-bar__brand-name">C919 总装线 · 质量追踪</span>
+          <span class="ue5-overlay-system-bar__brand-subtitle">只保留质量判断需要的 HUD、图层控制、marker 与详情面板</span>
+        </div>
+      </div>
+      <div class="ue5-overlay-system-bar__meta">
+        <span class="ue5-overlay-system-bar__meta-item">当前班次 · 夜班</span>
+        <span class="ue5-overlay-system-bar__meta-item">冻结工位 1</span>
+        <span class="ue5-overlay-system-bar__meta-item">闭环率 88%</span>
+      </div>
+    </header>
+
+    <section class="ue5-overlay-safe-area ue5-overlay-safe-area--quality" aria-label="质量追踪视图">
+      <div class="topbar-hud topbar-hud--with-sidepanel topbar-hud--quality ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--hud">
+        <div class="topbar-hud__headline">
+          <h1 class="topbar-hud__title">当前班次质量态势</h1>
+          <p class="topbar-hud__subtitle">聚焦冻结工位、待判根因与闭环动作，不引入 dock 或后台式重控制台。</p>
+        </div>
+        <div class="quality-command-grid" aria-label="质量决策信号">
+          <article class="quality-command-tile quality-command-tile--critical">
+            <span class="quality-command-tile__label">冻结工位</span>
+            <strong class="quality-command-tile__value">S4 对接</strong>
+          </article>
+          <article class="quality-command-tile quality-command-tile--warning">
+            <span class="quality-command-tile__label">根因复核</span>
+            <strong class="quality-command-tile__value">密封波动</strong>
+          </article>
+          <article class="quality-command-tile quality-command-tile--success">
+            <span class="quality-command-tile__label">闭环率</span>
+            <strong class="quality-command-tile__value">88%</strong>
+          </article>
+        </div>
+      </div>
+
+      <aside class="layer-switcher ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--hud" aria-label="质量图层控制">
+        <div class="layer-switcher__header">
+          <h2 class="layer-switcher__title">质量图层</h2>
+          <span class="layer-switcher__status">只保留决策必要图层</span>
+        </div>
+        <div class="layer-switcher__list">
+          <div class="layer-switcher__item is-on">
+            <span class="layer-switcher__item-title">冻结工位带</span>
+          </div>
+          <div class="layer-switcher__item is-on">
+            <span class="layer-switcher__item-title">重复缺陷热区</span>
+          </div>
+          <div class="layer-switcher__item is-on">
+            <span class="layer-switcher__item-title">闭环节奏提示</span>
+          </div>
+        </div>
+      </aside>
+
+      <div class="ue5-overlay-layer ue5-overlay-layer--marker" aria-label="三维对象标注">
+        <article class="world-marker world-marker--critical world-marker--selected" style="top:34%;left:58%;">
+          <div class="world-marker__label">
+            <div class="world-marker__label-top">
+              <span class="world-marker__title">S4 对接簇</span>
+              <span class="world-marker__status">P1</span>
+            </div>
+            <div class="world-marker__label-bottom">扭矩复核超窗，当前保持冻结。</div>
+          </div>
+          <span class="world-marker__line" aria-hidden="true"></span>
+          <span class="world-marker__anchor" aria-hidden="true"></span>
+        </article>
+
+        <article class="world-marker world-marker--warning" style="top:46%;left:36%;">
+          <div class="world-marker__label">
+            <div class="world-marker__label-top">
+              <span class="world-marker__title">前舱段密封</span>
+              <span class="world-marker__status">待确认</span>
+            </div>
+            <div class="world-marker__label-bottom">重复缺陷 4 项，待工艺结论。</div>
+          </div>
+          <span class="world-marker__line" aria-hidden="true"></span>
+          <span class="world-marker__anchor" aria-hidden="true"></span>
+        </article>
+      </div>
+
+      <aside class="detail-panel ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--detail" aria-label="质量详情">
+        <div class="detail-panel__header">
+          <h2 class="detail-panel__title">S4 对接处置方案</h2>
+          <span class="ue5-overlay-status ue5-overlay-status--critical">冻结中</span>
+        </div>
+        <div class="detail-panel__body">
+          <section class="detail-panel__section">
+            <h3 class="detail-panel__section-title">根因判断</h3>
+            <p class="detail-panel__assist">当前最可能为扭矩工艺窗口波动与夹具重复偏移叠加，需先完成复核再释放工位。</p>
+          </section>
+          <section class="detail-panel__section">
+            <h3 class="detail-panel__section-title">本班动作</h3>
+            <div class="detail-panel__metrics">
+              <div class="detail-panel__metric">
+                <span class="detail-panel__metric-label">22:30 前</span>
+                <span class="detail-panel__metric-value">完成扭矩复核</span>
+              </div>
+              <div class="detail-panel__metric">
+                <span class="detail-panel__metric-label">23:00 前</span>
+                <span class="detail-panel__metric-value">输出工艺结论</span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>

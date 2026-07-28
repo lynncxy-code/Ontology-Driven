@@ -1,0 +1,83 @@
+/**
+ * Digital Twin Scene Styles
+ * 
+ * 适用于数字孪生、UE5 UI 叠加层及态势感知仪表盘的专属样式。
+ * 继承灵境核心样式体系，仅进行场景化增强。
+ */
+
+.scene-digital-twin {
+  --dt-glow-color: rgba(var(--ue5-overlay-info-rgb), 0.4);
+  --dt-grid-line: rgba(var(--ue5-overlay-info-rgb), 0.1);
+  background-color: #000; /* 数字孪生场景通常背景纯黑以突出 3D 内容 */
+}
+
+/* 3D 空间标签样式 */
+.world-space-tag {
+  position: absolute;
+  padding: 4px 12px;
+  background: var(--ue5-overlay-card-bg);
+  border: 1px solid var(--ue5-overlay-card-border);
+  backdrop-filter: blur(var(--ue5-overlay-card-blur));
+  border-radius: var(--radius-sm);
+  color: var(--ue5-overlay-text-strong);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  pointer-events: auto;
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  z-index: 10;
+}
+
+.world-space-tag::after {
+  content: '';
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  width: 1px;
+  height: 20px;
+  background: linear-gradient(to bottom, var(--ue5-overlay-text-strong), transparent);
+}
+
+/* 屏幕空间 HUD 叠加层 */
+.hud-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: var(--spacing-lg);
+}
+
+.hud-overlay > * {
+  pointer-events: auto;
+}
+
+/* 数字化背景网格 */
+.dt-background-grid {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(var(--dt-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--dt-grid-line) 1px, transparent 1px);
+  background-size: 50px 50px;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+/* 场景切换动画 */
+.viewport-transition-mask {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+
+.viewport-transition-mask.active {
+  opacity: 1;
+}

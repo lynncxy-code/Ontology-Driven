@@ -1,0 +1,522 @@
+/**
+ * Lingjing Core - Toast Component
+ * 
+ * @version 2.6.2
+ * @description 轻提示组?- 用于操作反馈、消息通知
+ * @usage 所有场景通用的核心交互组?
+ * 
+ * Components:
+ * - .toast-container      Toast容器（固定定位）
+ * - .toast                单个提示
+ * - .toast-icon           图标?
+ * - .toast-content        内容?
+ * - .toast-close          关闭按钮
+ * 
+ * Types:
+ * - .toast-success        成功提示（绿色）
+ * - .toast-error          错误提示（红色）
+ * - .toast-warning        警告提示（橙色）
+ * - .toast-info           信息提示（蓝色）
+ * 
+ * Positions:
+ * - .toast-top-right      右上角（默认?
+ * - .toast-top-left       左上?
+ * - .toast-top-center     顶部居中
+ * - .toast-bottom-right   右下?
+ * - .toast-bottom-left    左下?
+ * - .toast-bottom-center  底部居中
+ */
+
+/* ============================================================================
+   Toast Container - Toast容器
+   ========================================================================= */
+
+.toast-container {
+  /* Positioning */
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  
+  /* Layout */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg);
+  max-width: 420px;
+}
+
+/* Position Variants - 位置变体 */
+.toast-container.toast-top-right {
+  top: 0;
+  right: 0;
+}
+
+.toast-container.toast-top-left {
+  top: 0;
+  left: 0;
+}
+
+.toast-container.toast-top-center {
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.toast-container.toast-bottom-right {
+  bottom: 0;
+  right: 0;
+}
+
+.toast-container.toast-bottom-left {
+  bottom: 0;
+  left: 0;
+}
+
+.toast-container.toast-bottom-center {
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* ============================================================================
+   Toast - 单个提示
+   ========================================================================= */
+
+.toast {
+  /* Layout */
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  min-width: 320px;
+  max-width: 100%;
+  pointer-events: auto;
+  
+  /* Style - 玻璃拟态效?*/
+  background: var(--bg-card);
+  border: var(--glass-border);
+  border-left: 3px solid var(--theme-primary);
+  border-radius: var(--radius-md);
+
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  
+  /* Animation */
+  animation: toast-slide-in var(--anim-duration-normal) var(--anim-ease-out);
+}
+
+[data-theme="dark"] .toast {
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--blur-md));
+  -webkit-backdrop-filter: blur(var(--blur-md));
+  border-color: var(--glass-border);
+  box-shadow: var(--shadow-hover);
+}
+
+
+/* Slide In Animation */
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Slide Out Animation */
+.toast.toast-exit {
+  animation: toast-slide-out var(--anim-duration-normal) var(--anim-ease-out);
+}
+
+@keyframes toast-slide-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+/* ============================================================================
+   Toast Icon - 图标?
+   ========================================================================= */
+
+.toast-icon {
+  /* Layout */
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toast-icon i,
+.toast-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ============================================================================
+   Toast Content - 内容?
+   ========================================================================= */
+
+.toast-content {
+  /* Layout */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.toast-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+[data-theme="dark"] .toast-title {
+  color: var(--theme-text-primary);
+}
+
+
+.toast-message {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+[data-theme="dark"] .toast-message {
+  color: var(--theme-text-secondary);
+}
+
+
+/* ============================================================================
+   Toast Close - 关闭按钮
+   ========================================================================= */
+
+.toast-close {
+  /* Reset */
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  
+  /* Layout */
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  transition: color var(--anim-duration-fast) var(--anim-ease-out);
+}
+
+.toast-close:hover {
+  color: var(--text-primary);
+}
+
+.toast-close i,
+.toast-close svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================================================
+   Toast Types - 类型变体
+   ========================================================================= */
+
+/* Success Toast - 成功提示 */
+.toast-success {
+  border-left-color: var(--success-base);
+}
+
+.toast-success .toast-icon {
+  color: var(--success-base);
+}
+
+/* Error Toast - 错误提示 */
+.toast-error {
+  border-left-color: var(--error-base);
+}
+
+.toast-error .toast-icon {
+  color: var(--error-base);
+}
+
+/* Warning Toast - 警告提示 */
+.toast-warning {
+  border-left-color: var(--warning-base);
+}
+
+.toast-warning .toast-icon {
+  color: var(--warning-base);
+}
+
+/* Info Toast - 信息提示 */
+.toast-info {
+  border-left-color: var(--info-base);
+}
+
+.toast-info .toast-icon {
+  color: var(--info-base);
+}
+
+
+/* ============================================================================
+   Toast Variants - 变体样式
+   ========================================================================= */
+
+/* Simple Toast - 简单提示（无图标无标题?*/
+.toast-simple {
+  padding: var(--spacing-sm) var(--spacing-md);
+  min-width: 240px;
+}
+
+.toast-simple .toast-message {
+  font-size: var(--font-size-sm);
+}
+
+/* Compact Toast - 紧凑提示 */
+.toast-compact {
+  padding: var(--spacing-sm) var(--spacing-md);
+  min-width: 200px;
+}
+
+.toast-compact .toast-icon i,
+.toast-compact .toast-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================================================
+   Progress Bar - 进度条（可选）
+   ========================================================================= */
+
+.toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  overflow: hidden;
+}
+
+[data-theme="dark"] .toast-progress {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.toast-progress-bar {
+  height: 100%;
+  background: var(--brand-primary, var(--theme-primary));
+  animation: toast-progress 3s linear forwards;
+}
+
+
+.toast-success .toast-progress-bar {
+  background: #52C41A;
+}
+
+.toast-error .toast-progress-bar {
+  background: #F5222D;
+}
+
+.toast-warning .toast-progress-bar {
+  background: #FAAD14;
+}
+
+@keyframes toast-progress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+/* ============================================================================
+   Responsive Design - 响应式设?
+   ========================================================================= */
+
+@media (max-width: 768px) {
+  .toast-container {
+    padding: var(--spacing-md);
+    max-width: 100%;
+    left: 0;
+    right: 0;
+  }
+  
+  .toast {
+    min-width: auto;
+    width: 100%;
+  }
+  
+  .toast-container.toast-top-center,
+  .toast-container.toast-bottom-center {
+    transform: none;
+  }
+}
+
+/* ============================================================================
+   Accessibility - 无障碍访?
+   ========================================================================= */
+
+/* Focus State */
+.toast:focus-visible {
+  outline: 2px solid var(--brand-primary, var(--theme-primary));
+  outline-offset: 2px;
+}
+
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+  
+  .toast-exit {
+    animation: none;
+  }
+}
+
+/* ============================================================================
+   Usage Examples - 使用示例
+   ========================================================================= */
+
+/**
+ * 基础用法（成功提示）?
+ * 
+ * <div class="toast-container toast-top-right">
+ *   <div class="toast toast-success">
+ *     <div class="toast-icon">
+ *       <i data-lucide="check-circle"></i>
+ *     </div>
+ *     <div class="toast-content">
+ *       <h4 class="toast-title">操作成功</h4>
+ *       <p class="toast-message">数据已保?/p>
+ *     </div>
+ *     <button class="toast-close">
+ *       <i data-lucide="x"></i>
+ *     </button>
+ *   </div>
+ * </div>
+ * 
+ * 错误提示?
+ * 
+ * <div class="toast-container toast-top-right">
+ *   <div class="toast toast-error">
+ *     <div class="toast-icon">
+ *       <i data-lucide="x-circle"></i>
+ *     </div>
+ *     <div class="toast-content">
+ *       <h4 class="toast-title">操作失败</h4>
+ *       <p class="toast-message">网络连接错误，请稍后重试</p>
+ *     </div>
+ *     <button class="toast-close">
+ *       <i data-lucide="x"></i>
+ *     </button>
+ *   </div>
+ * </div>
+ * 
+ * 警告提示?
+ * 
+ * <div class="toast-container toast-top-right">
+ *   <div class="toast toast-warning">
+ *     <div class="toast-icon">
+ *       <i data-lucide="alert-triangle"></i>
+ *     </div>
+ *     <div class="toast-content">
+ *       <h4 class="toast-title">注意</h4>
+ *       <p class="toast-message">该操作将影响所有用?/p>
+ *     </div>
+ *     <button class="toast-close">
+ *       <i data-lucide="x"></i>
+ *     </button>
+ *   </div>
+ * </div>
+ * 
+ * 简单提示（无标题）?
+ * 
+ * <div class="toast-container toast-bottom-center">
+ *   <div class="toast toast-simple toast-info">
+ *     <div class="toast-icon">
+ *       <i data-lucide="info"></i>
+ *     </div>
+ *     <div class="toast-content">
+ *       <p class="toast-message">复制成功</p>
+ *     </div>
+ *   </div>
+ * </div>
+ * 
+ * 带进度条的提示：
+ * 
+ * <div class="toast-container toast-top-right">
+ *   <div class="toast toast-success">
+ *     <div class="toast-icon">
+ *       <i data-lucide="check-circle"></i>
+ *     </div>
+ *     <div class="toast-content">
+ *       <h4 class="toast-title">上传成功</h4>
+ *       <p class="toast-message">文件已上传到服务?/p>
+ *     </div>
+ *     <button class="toast-close">
+ *       <i data-lucide="x"></i>
+ *     </button>
+ *     <div class="toast-progress">
+ *       <div class="toast-progress-bar"></div>
+ *     </div>
+ *   </div>
+ * </div>
+ * 
+ * JavaScript API示例?
+ * 
+ * // 显示成功提示
+ * function showToast(type, title, message) {
+ *   const container = document.querySelector('.toast-container') || createContainer();
+ *   
+ *   const toast = document.createElement('div');
+ *   toast.className = `toast toast-${type}`;
+ *   toast.innerHTML = `
+ *     <div class="toast-icon">
+ *       <i data-lucide="${getIcon(type)}"></i>
+ *     </div>
+ *     <div class="toast-content">
+ *       <h4 class="toast-title">${title}</h4>
+ *       <p class="toast-message">${message}</p>
+ *     </div>
+ *     <button class="toast-close">
+ *       <i data-lucide="x"></i>
+ *     </button>
+ *   `;
+ *   
+ *   container.appendChild(toast);
+ *   lucide.createIcons();
+ *   
+ *   // 自动关闭
+ *   setTimeout(() => {
+ *     toast.classList.add('toast-exit');
+ *     setTimeout(() => toast.remove(), 300);
+ *   }, 3000);
+ *   
+ *   // 点击关闭
+ *   toast.querySelector('.toast-close').addEventListener('click', () => {
+ *     toast.classList.add('toast-exit');
+ *     setTimeout(() => toast.remove(), 300);
+ *   });
+ * }
+ * 
+ * // 调用示例
+ * showToast('success', '操作成功', '数据已保?);
+ * showToast('error', '操作失败', '请检查网络连?);
+ * showToast('warning', '注意', '该操作不可撤销');
+ * showToast('info', '提示', '系统将在5分钟后维?);
+ */

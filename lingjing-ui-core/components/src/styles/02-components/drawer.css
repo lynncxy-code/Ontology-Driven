@@ -1,0 +1,109 @@
+/**
+ * Lingjing Core - Drawer Component
+ * 
+ * @version 3.1.0
+ * @description 抽屉组件 - 用于侧边展示详情、设置或导航
+ */
+
+.drawer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--glass-overlay-dark);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+}
+
+.drawer-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.drawer-container {
+  width: 100%;
+  max-width: 400px;
+  height: 100%;
+  background: var(--bg-card-heavy);
+  border-left: var(--glass-border);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform var(--anim-duration-normal) var(--anim-ease-out);
+}
+
+.drawer-overlay.open .drawer-container {
+  transform: translateX(0);
+}
+
+.drawer-header {
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-bottom: var(--glass-border-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.drawer-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.drawer-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+}
+
+.drawer-close:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.drawer-body {
+  padding: var(--spacing-xl);
+  flex: 1;
+  overflow-y: auto;
+}
+
+.drawer-footer {
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-top: var(--glass-border-light);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-md);
+}
+
+/* Variants */
+.drawer-left {
+  justify-content: flex-start;
+}
+
+.drawer-left .drawer-container {
+  border-left: none;
+  border-right: var(--glass-border);
+  transform: translateX(-100%);
+}
+
+.drawer-left.open .drawer-container {
+  transform: translateX(0);
+}
+
+/* Dark Mode */
+[data-theme="dark"] .drawer-container {
+  background: var(--bg-card-heavy);
+  border-color: var(--glass-border-heavy);
+}

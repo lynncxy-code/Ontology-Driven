@@ -1,0 +1,403 @@
+/* Lingjing Core - B端系统卡片组?*/
+
+/*
+ * B端系统专用卡片样? * 适用于管理系统、数据平台、工作台?B?项目
+ */
+
+/* -------------------------- */
+/* KPI 统计卡片 */
+/* -------------------------- */
+
+/**
+ * .b-stat-card
+ * B端系?KPI 统计卡片
+ * 特征：左?3px 彩色?+ 数据展示
+ */
+.b-stat-card {
+  position: relative;
+  background: var(--bg-card);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+  overflow: hidden;
+}
+
+/* 左侧彩色?*/
+.b-stat-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--color-aero-blue);
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+}
+
+/* 彩色条颜色变?*/
+.b-stat-card[data-color="blue"]::before {
+  background: var(--color-aero-blue);
+}
+
+.b-stat-card[data-color="green"]::before {
+  background: var(--color-signal-green);
+}
+
+.b-stat-card[data-color="orange"]::before {
+  background: var(--color-warning-amber);
+}
+
+.b-stat-card[data-color="purple"]::before {
+  background: linear-gradient(180deg, #8B5CF6, #6366F1);
+}
+
+.b-stat-card[data-color="red"]::before {
+  background: var(--color-alert-red);
+}
+
+.b-stat-card[data-color="cyan"]::before {
+  background: var(--color-pulse-cyan);
+}
+
+/* Hover 效果 */
+.b-stat-card:hover {
+  /* B端卡片默认不添加hover效果，避免误导用户认为可以点?*/
+  /* 如需交互，请添加链接或按?*/
+}
+
+/* 卡片头部 */
+.b-stat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.b-stat-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.b-stat-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--text-placeholder);
+  opacity: 0.6;
+}
+
+/* 统计数?*/
+.b-stat-value {
+  font-size: var(--font-size-3xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+  margin-bottom: var(--spacing-sm);
+}
+
+/* 变化趋势 */
+.b-stat-change {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+}
+
+.b-stat-change.positive {
+  color: var(--color-signal-green);
+}
+
+.b-stat-change.negative {
+  color: var(--color-alert-red);
+}
+
+.b-stat-change.neutral {
+  color: var(--text-secondary);
+}
+
+/* 深色模式 */
+[data-theme="dark"] .b-stat-card {
+  background: rgba(10, 20, 40, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 132, 255, 0.2);
+}
+
+[data-theme="dark"] .b-stat-card:hover {
+  border-color: rgba(0, 132, 255, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .b-stat-card[data-color="blue"]::before {
+  background: linear-gradient(180deg, var(--color-aero-blue), var(--color-pulse-cyan));
+}
+
+/* -------------------------- */
+/* 图表容器卡片 */
+/* -------------------------- */
+
+/**
+ * .b-chart-card
+ * B端系统图表容器卡? * 适用于包含图表、数据可视化的场? */
+.b-chart-card {
+  background: var(--bg-card);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  /* B端卡片不添加hover效果 */
+}
+
+/* 图表卡片头部 */
+.b-chart-header {
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+}
+
+/* 图表头部内的 select/form-select：收缩为 auto 宽，与标题左右分离 */
+.b-chart-header .form-select {
+  width: auto;
+  flex-shrink: 0;
+  min-width: 120px;
+  align-self: center;
+}
+
+.b-chart-title {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.b-chart-subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: var(--spacing-xs) 0 0 0;
+  line-height: 1.5;
+}
+
+/* 图表卡片主体 */
+.b-chart-body {
+  padding: var(--spacing-lg) var(--spacing-xl);
+  min-height: 200px;
+}
+
+/* 图表卡片底部（可选） */
+.b-chart-footer {
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-top: 1px solid var(--glass-border);
+  background: var(--bg-glass);
+}
+
+/* 深色模式 */
+[data-theme="dark"] .b-chart-card {
+  background: rgba(10, 20, 40, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 132, 255, 0.2);
+}
+
+[data-theme="dark"] .b-chart-header {
+  border-bottom-color: rgba(0, 132, 255, 0.15);
+}
+
+[data-theme="dark"] .b-chart-footer {
+  background: rgba(5, 10, 20, 0.6);
+  border-top-color: rgba(0, 132, 255, 0.15);
+}
+
+/* -------------------------- */
+/* 实心卡片（表?设置场景?*/
+/* -------------------------- */
+
+/**
+ * .card-solid
+ * B端系统实心卡? * 适用于表单、设置、输入等场景
+ */
+.card-solid {
+  background: var(--bg-card);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+
+
+/* 深色模式 */
+[data-theme="dark"] .card-solid {
+  background: rgba(10, 20, 40, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 132, 255, 0.2);
+}
+
+/* -------------------------- */
+/* 响应式适配 */
+/* -------------------------- */
+
+/* 平板及以?*/
+@media (max-width: 768px) {
+  .b-stat-card {
+    padding: var(--spacing-md);
+  }
+
+  .b-stat-value {
+    font-size: var(--font-size-2xl);
+  }
+
+  .b-chart-header {
+    padding: var(--spacing-md) var(--spacing-lg);
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .b-chart-body {
+    padding: var(--spacing-md) var(--spacing-lg);
+  }
+
+  .b-chart-footer {
+    padding: var(--spacing-sm) var(--spacing-lg);
+  }
+
+  .card-solid {
+    padding: var(--spacing-lg);
+  }
+}
+
+/* 手机竖屏 */
+@media (max-width: 480px) {
+  .b-stat-card {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .b-stat-value {
+    font-size: var(--font-size-xl);
+  }
+
+  .b-chart-header {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .b-chart-body {
+    padding: var(--spacing-sm) var(--spacing-md);
+    min-height: 150px;
+  }
+
+  .b-chart-footer {
+    padding: var(--spacing-xs) var(--spacing-md);
+  }
+
+  .card-solid {
+    padding: var(--spacing-md);
+  }
+}
+
+/* -------------------------- */
+/* 内容卡片与卡片头部（迁移自 forms-b.css） */
+/* -------------------------- */
+
+.content-card {
+  background: var(--bg-card);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  /* B端卡片不添加hover效果 */
+}
+
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+  /* margin-bottom 已移除：间距由父容器 content-card / card-solid 的 flex gap 统一管理 */
+}
+
+.card-title {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .content-card {
+  background: rgba(10, 20, 40, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 132, 255, 0.2);
+}
+
+/* -------------------------- */
+/* 卡片标签（迁移自 forms-b.css） */
+/* -------------------------- */
+
+.card-label {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: var(--spacing-sm);
+}
+
+.card-label.primary {
+  background: rgba(0, 102, 204, 0.1);
+  color: var(--color-aero-blue);
+}
+
+.card-label.success {
+  background: rgba(0, 163, 131, 0.1);
+  color: var(--color-signal-green);
+}
+
+.card-label.warning {
+  background: rgba(217, 119, 6, 0.1);
+  color: var(--color-warning-amber);
+}
+
+.card-label.info {
+  background: rgba(0, 153, 170, 0.1);
+  color: var(--color-pulse-cyan);
+}
+
+[data-theme="dark"] .card-label.primary {
+  background: rgba(0, 132, 255, 0.15);
+  color: var(--color-aero-blue);
+}
+
+[data-theme="dark"] .card-label.info {
+  background: rgba(0, 132, 255, 0.15);
+  color: var(--color-aero-blue);
+}
+
+/* -------------------------- */
+/* 兼容断点修正（迁移自 components.css） */
+/* -------------------------- */
+
+@media (max-width: 768px) {
+  .card-solid {
+    padding: var(--spacing-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .card-solid {
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-md);
+  }
+}
+

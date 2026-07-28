@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UE5 Overlay · C919 总装线质量追踪</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-ue5-overlay.css">
+
+</head>
+<body>
+  <main class="ue5-overlay-root">
+    <div class="ue5-overlay-background"></div>
+    <div class="ue5-overlay-viewport">
+      <img class="ue5-overlay-scene-image" src="../../assets/ue5-bg-scene.png" alt="航空制造三维背景场景">
+    </div>
+    <div class="ue5-overlay-grid"></div>
+    <div class="ue5-overlay-center-guard"></div>
+
+    <header class="ue5-overlay-system-bar">
+      <div class="ue5-overlay-system-bar__brand">
+        <span class="ue5-overlay-system-bar__brand-mark" aria-hidden="true"></span>
+        <div class="ue5-overlay-system-bar__brand-copy">
+          <span class="ue5-overlay-system-bar__brand-name">C919 总装线 · 质量追踪</span>
+          <span class="ue5-overlay-system-bar__brand-subtitle">面向质量工程师与班组长的质量诊断、根因分析与闭环处置视图</span>
+        </div>
+      </div>
+      <nav class="ue5-overlay-system-bar__nav" aria-label="场景导航">
+        <span class="ue5-overlay-system-bar__nav-item">全局总览</span>
+        <span class="ue5-overlay-system-bar__nav-item is-active">质量追踪</span>
+        <span class="ue5-overlay-system-bar__nav-item">工艺联动</span>
+      </nav>
+      <div class="ue5-overlay-system-bar__meta">
+        <span class="ue5-overlay-system-bar__meta-item"><span class="ue5-overlay-system-bar__meta-dot" aria-hidden="true"></span>质量专用视图已同步</span>
+        <span class="ue5-overlay-system-bar__meta-item">总装车间 · 夜班</span>
+        <span class="ue5-overlay-system-bar__meta-item">2026/03/23 · 22:18</span>
+      </div>
+    </header>
+
+    <section class="ue5-overlay-safe-area ue5-overlay-safe-area--quality" aria-label="质量追踪视图">
+      <!--
+        Mode 2（质量追踪）布局说明：
+          · 顶部 HUD（topbar-hud--quality）承载当前班次质量态势与决策节奏；
+          · 单侧质量详情面板（detail-panel + quality-cause-panel / quality-closure-panel）承载根因与闭环追踪；
+          · world-marker 层在三维场景上标注关键设备/工位簇；
+        Guard 提示：本模板不包含 Dock 或双侧固定面板结构，
+          如 PRD 未明确要求“告警中心 / Dock / 驾驶舱 / 双侧固定面板”，
+          必须保持 Mode 2，不得擅自引入 ue5-overlay-bottom-dock 等 Mode 5 特征。
+      -->
+      <div class="topbar-hud topbar-hud--with-sidepanel topbar-hud--quality ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--hud">
+        <div class="topbar-hud__headline">
+          <h1 class="topbar-hud__title">当前班次质量态势</h1>
+          <p class="topbar-hud__subtitle">围绕冻结工位、待判根因与闭环验证展示本班重点。</p>
+        </div>
+        <div class="quality-command-grid" aria-label="质量决策信号">
+          <article class="quality-command-tile quality-command-tile--critical">
+            <div class="quality-command-tile__head">
+              <span class="quality-command-tile__label">冻结工位</span>
+              <span class="quality-command-tile__badge">P1</span>
+            </div>
+            <strong class="quality-command-tile__value">S4 对接</strong>
+            <div class="quality-command-tile__track quality-command-tile__track--critical"><span></span></div>
+          </article>
+          <article class="quality-command-tile quality-command-tile--warning">
+            <div class="quality-command-tile__head">
+              <span class="quality-command-tile__label">根因复核</span>
+              <span class="quality-command-tile__badge">2 类</span>
+            </div>
+            <strong class="quality-command-tile__value">前舱段密封</strong>
+            <div class="quality-command-tile__track quality-command-tile__track--warning"><span></span></div>
+          </article>
+          <article class="quality-command-tile quality-command-tile--success">
+            <div class="quality-command-tile__head">
+              <span class="quality-command-tile__label">验证观察</span>
+              <span class="quality-command-tile__badge">88%</span>
+            </div>
+            <strong class="quality-command-tile__value">线束布置</strong>
+            <div class="quality-command-tile__track quality-command-tile__track--success"><span></span></div>
+          </article>
+        </div>
+        <div class="topbar-hud__actions">
+          <div class="quality-hud-strip">
+            <div class="quality-hud-strip__group">
+              <span class="quality-hud-strip__pill quality-hud-strip__pill--critical">P1 工位聚集</span>
+              <span class="quality-hud-strip__pill quality-hud-strip__pill--warning">根因待确认 2 类</span>
+              <span class="quality-hud-strip__pill quality-hud-strip__pill--success">闭环率 88%</span>
+            </div>
+            <div class="quality-hud-strip__matrix">
+              <div class="quality-hud-strip__matrix-row">
+                <span>22:30 前</span>
+                <strong>完成 S4 扭矩复核</strong>
+              </div>
+              <div class="quality-hud-strip__matrix-row">
+                <span>23:00 前</span>
+                <strong>输出密封工艺复核结论</strong>
+              </div>
+              <div class="quality-hud-strip__matrix-row">
+                <span>本班结束前</span>
+                <strong>确认线束簇闭环动作可复用</strong>
+              </div>
+            </div>
+            <p class="quality-hud-strip__note">已去掉场景中的定位标签，避免与信息卡片重叠；当前只保留质量决策所需的面板层。</p>
+          </div>
+        </div>
+      </div>
+
+      <aside class="layer-switcher layer-switcher--quality ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--hud" aria-label="质量图层控制">
+        <div class="layer-switcher__header">
+          <h2 class="layer-switcher__title">质量图层</h2>
+          <span class="layer-switcher__status">已过滤低优先定位与弱提示</span>
+        </div>
+        <div class="layer-switcher__quality-summary">
+          <article class="layer-switcher__summary-stat">
+            <span class="layer-switcher__summary-label">显示规则</span>
+            <strong class="layer-switcher__summary-value">03</strong>
+          </article>
+          <article class="layer-switcher__summary-stat">
+            <span class="layer-switcher__summary-label">冻结簇</span>
+            <strong class="layer-switcher__summary-value">01</strong>
+          </article>
+          <article class="layer-switcher__summary-stat">
+            <span class="layer-switcher__summary-label">观察簇</span>
+            <strong class="layer-switcher__summary-value">02</strong>
+          </article>
+        </div>
+        <div class="layer-switcher__list">
+          <div class="layer-switcher__item layer-switcher__item--quality is-on">
+            <div class="layer-switcher__item-copy">
+              <div class="layer-switcher__item-head">
+                <span class="layer-switcher__item-title">缺陷热区覆盖</span>
+                <span class="layer-switcher__item-tag layer-switcher__item-tag--info">热区</span>
+              </div>
+              <span class="layer-switcher__item-meta">仅保留问题密度较高的区域提示</span>
+              <div class="layer-switcher__item-meter layer-switcher__item-meter--info"><span></span></div>
+            </div>
+            <button class="layer-switcher__toggle" type="button" aria-label="切换缺陷热区覆盖"></button>
+          </div>
+          <div class="layer-switcher__item layer-switcher__item--quality is-on is-syncing">
+            <div class="layer-switcher__item-copy">
+              <div class="layer-switcher__item-head">
+                <span class="layer-switcher__item-title">工序冻结带</span>
+                <span class="layer-switcher__item-tag layer-switcher__item-tag--critical">门控</span>
+              </div>
+              <span class="layer-switcher__item-meta">突出显示当前不能放行的工位簇</span>
+              <div class="layer-switcher__item-meter layer-switcher__item-meter--critical"><span></span></div>
+            </div>
+            <button class="layer-switcher__toggle" type="button" aria-label="切换工序冻结带"></button>
+          </div>
+          <div class="layer-switcher__item layer-switcher__item--quality is-on">
+            <div class="layer-switcher__item-copy">
+              <div class="layer-switcher__item-head">
+                <span class="layer-switcher__item-title">闭环节奏提示</span>
+                <span class="layer-switcher__item-tag layer-switcher__item-tag--success">节奏</span>
+              </div>
+              <span class="layer-switcher__item-meta">按超时风险弱提示责任节奏</span>
+              <div class="layer-switcher__item-meter layer-switcher__item-meter--success"><span></span></div>
+            </div>
+            <button class="layer-switcher__toggle" type="button" aria-label="切换闭环节奏提示"></button>
+          </div>
+        </div>
+        <p class="layer-switcher__quality-note">当前图层只服务质量判断，不再承载通用场景导航信息。</p>
+      </aside>
+
+
+      <section class="quality-cluster-panel ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--detail" aria-label="质量问题聚集区">
+        <div class="quality-cluster-panel__header">
+          <div class="quality-cluster-panel__title-group">
+            <h2 class="quality-cluster-panel__title">质量问题聚集区</h2>
+            <p class="quality-cluster-panel__meta">先判断问题集中在哪些工位簇，再决定是升级门控、启动根因复核，还是转入观察验证。</p>
+          </div>
+          <div class="quality-cluster-panel__status-row">
+            <span class="ue5-overlay-status ue5-overlay-status--critical">3 个高风险工位簇</span>
+            <span class="quality-cluster-panel__status-copy">当前班次最需要关注 S4 对接、前舱段密封与航电线束布置。</span>
+          </div>
+        </div>
+        <div class="quality-cluster-panel__body">
+          <section class="quality-cluster-panel__pulse-board" aria-label="风险脉冲带">
+            <article class="quality-pulse-lane quality-pulse-lane--critical">
+              <div class="quality-pulse-lane__head">
+                <div>
+                  <span class="quality-pulse-lane__label">工位簇一</span>
+                  <strong class="quality-pulse-lane__title">S4 对接工位簇</strong>
+                </div>
+                <span class="quality-pulse-lane__count">07 项</span>
+              </div>
+              <div class="quality-pulse-lane__track"><span></span></div>
+              <div class="quality-pulse-lane__meta">
+                <span>门控触发 2</span>
+                <span>复核超窗 1</span>
+                <span>当前冻结</span>
+              </div>
+            </article>
+            <article class="quality-pulse-lane quality-pulse-lane--warning">
+              <div class="quality-pulse-lane__head">
+                <div>
+                  <span class="quality-pulse-lane__label">工位簇二</span>
+                  <strong class="quality-pulse-lane__title">前舱段密封工位簇</strong>
+                </div>
+                <span class="quality-pulse-lane__count">09 项</span>
+              </div>
+              <div class="quality-pulse-lane__track"><span></span></div>
+              <div class="quality-pulse-lane__meta">
+                <span>重复缺陷 4</span>
+                <span>抽检波动增大</span>
+                <span>待工艺确认</span>
+              </div>
+            </article>
+            <article class="quality-pulse-lane quality-pulse-lane--info">
+              <div class="quality-pulse-lane__head">
+                <div>
+                  <span class="quality-pulse-lane__label">工位簇三</span>
+                  <strong class="quality-pulse-lane__title">航电线束布置簇</strong>
+                </div>
+                <span class="quality-pulse-lane__count">02 项</span>
+              </div>
+              <div class="quality-pulse-lane__track"><span></span></div>
+              <div class="quality-pulse-lane__meta">
+                <span>5/7 已闭环</span>
+                <span>重复触发下降</span>
+                <span>验证观察</span>
+              </div>
+            </article>
+          </section>
+
+          <section class="quality-cluster-panel__triage-board" aria-label="质量分诊板">
+            <article class="quality-triage-column quality-triage-column--critical">
+              <div class="quality-triage-column__head">
+                <h3 class="quality-triage-column__title">立即处置</h3>
+                <span class="quality-triage-column__meta">先排除阻断项</span>
+              </div>
+              <ul class="quality-triage-column__list">
+                <li class="quality-triage-chip">Q-2026-014 · 扭矩复核超窗</li>
+                <li class="quality-triage-chip">Q-2026-021 · 对接间隙复测待确认</li>
+              </ul>
+            </article>
+            <article class="quality-triage-column quality-triage-column--warning">
+              <div class="quality-triage-column__head">
+                <h3 class="quality-triage-column__title">根因复核</h3>
+                <span class="quality-triage-column__meta">判断是否同源</span>
+              </div>
+              <ul class="quality-triage-column__list">
+                <li class="quality-triage-chip">Q-2026-032 · 密封重复缺陷</li>
+                <li class="quality-triage-chip">Q-2026-038 · 抽检波动扩大</li>
+                <li class="quality-triage-chip">物料批次 A7 复盘</li>
+              </ul>
+            </article>
+            <article class="quality-triage-column quality-triage-column--info">
+              <div class="quality-triage-column__head">
+                <h3 class="quality-triage-column__title">观察验证</h3>
+                <span class="quality-triage-column__meta">验证动作是否稳定</span>
+              </div>
+              <ul class="quality-triage-column__list">
+                <li class="quality-triage-chip">Q-2026-041 · 线束复核 5/7</li>
+                <li class="quality-triage-chip">观察样本 2 个班次</li>
+              </ul>
+            </article>
+          </section>
+
+          <div class="quality-cluster-panel__focus ue-focus-banner">
+            <strong class="ue-focus-banner__title">当前处置建议</strong>
+            <p class="ue-focus-banner__content">先在 S4 对接工位完成门控问题闭环，再同步推进前舱段密封的根因确认；若 30 分钟后仍未解除 P1，则升级到质量评审会。</p>
+          </div>
+
+        </div>
+      </section>
+
+      <aside class="detail-panel quality-cause-panel ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--detail" aria-label="根因诊断">
+        <div class="detail-panel__header">
+          <div class="detail-panel__title-group">
+            <h2 class="detail-panel__title">根因诊断</h2>
+            <div class="detail-panel__meta">
+              <span>按问题簇而非单工位展开</span>
+              <span>22:16 更新</span>
+            </div>
+          </div>
+          <span class="detail-panel__status">根因</span>
+        </div>
+        <div class="detail-panel__body">
+          <section class="detail-panel__section">
+            <h3 class="detail-panel__section-title">证据拼图</h3>
+            <div class="quality-cause-panel__evidence-grid">
+              <article class="quality-evidence-card quality-evidence-card--critical">
+                <div class="quality-evidence-card__head">
+                  <strong>工艺执行偏差</strong>
+                  <span>高</span>
+                </div>
+                <p>复核超窗，动作不一。</p>
+              </article>
+              <article class="quality-evidence-card quality-evidence-card--warning">
+                <div class="quality-evidence-card__head">
+                  <strong>物料批次差异</strong>
+                  <span>中</span>
+                </div>
+                <p>A7 批次波动异常。</p>
+              </article>
+              <article class="quality-evidence-card quality-evidence-card--info">
+                <div class="quality-evidence-card__head">
+                  <strong>设备状态漂移</strong>
+                  <span>弱</span>
+                </div>
+                <p>线束区弱相关信号。</p>
+              </article>
+            </div>
+            <p class="detail-panel__assist">该面板用于判断“为什么集中出现”，所以采用证据拼图而不是指标复刻。</p>
+          </section>
+
+          <section class="detail-panel__section">
+            <h3 class="detail-panel__section-title">因果链</h3>
+            <ol class="quality-cause-panel__chain">
+              <li class="quality-cause-panel__chain-step">
+                <span class="quality-cause-panel__chain-index">01</span>
+                <div class="quality-cause-panel__chain-body">
+                  <strong>班次切换后节拍被压缩</strong>
+                  <p>复核窗口收窄，导致 S4 对接工位先出现超窗问题。</p>
+                </div>
+              </li>
+              <li class="quality-cause-panel__chain-step">
+                <span class="quality-cause-panel__chain-index">02</span>
+                <div class="quality-cause-panel__chain-body">
+                  <strong>密封工位沿用旧参数</strong>
+                  <p>与当前批次材料特性不匹配，重复缺陷开始累积。</p>
+                </div>
+              </li>
+              <li class="quality-cause-panel__chain-step">
+                <span class="quality-cause-panel__chain-index">03</span>
+                <div class="quality-cause-panel__chain-body">
+                  <strong>线束区闭环动作已初步生效</strong>
+                  <p>说明问题并非全线系统性失控，而是局部工艺与执行偏差叠加。</p>
+                </div>
+              </li>
+            </ol>
+          </section>
+
+          <details class="detail-panel__fold">
+            <summary class="detail-panel__fold-summary">低频分析入口</summary>
+            <div class="detail-panel__fold-body">
+              <div class="detail-panel__footer">
+                <button class="detail-panel__footer-action detail-panel__footer-action--primary" type="button">查看根因链路</button>
+                <button class="detail-panel__footer-action" type="button">联动工艺评审</button>
+              </div>
+            </div>
+          </details>
+        </div>
+      </aside>
+
+      <aside class="detail-panel quality-closure-panel ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--detail" aria-label="闭环追踪">
+        <div class="detail-panel__header">
+          <div class="detail-panel__title-group">
+            <h2 class="detail-panel__title">闭环追踪</h2>
+            <div class="detail-panel__meta">
+              <span>按责任与节奏组织</span>
+              <span>当前班次内闭环目标</span>
+            </div>
+          </div>
+          <span class="detail-panel__status">闭环</span>
+        </div>
+        <div class="detail-panel__body">
+          <section class="detail-panel__section">
+            <h3 class="detail-panel__section-title">闭环节奏</h3>
+            <ol class="quality-closure-panel__timeline">
+              <li class="quality-closure-panel__timeline-step quality-closure-panel__timeline-step--critical">
+                <div class="quality-closure-panel__timeline-head">
+                  <strong>22:30 前复核 S4 扭矩</strong>
+                  <span class="quality-closure-panel__timeline-status">进行中</span>
+                </div>
+                <p class="quality-closure-panel__timeline-meta">责任人：质量工程师 Q1 · 未完成前不释放质量门控。</p>
+              </li>
+              <li class="quality-closure-panel__timeline-step quality-closure-panel__timeline-step--warning">
+                <div class="quality-closure-panel__timeline-head">
+                  <strong>23:00 前输出密封结论</strong>
+                  <span class="quality-closure-panel__timeline-status">待确认</span>
+                </div>
+                <p class="quality-closure-panel__timeline-meta">责任人：工艺工程师 P3 · 需决定是否修订工艺卡参数。</p>
+              </li>
+              <li class="quality-closure-panel__timeline-step quality-closure-panel__timeline-step--info">
+                <div class="quality-closure-panel__timeline-head">
+                  <strong>本班结束前完成线束验证</strong>
+                  <span class="quality-closure-panel__timeline-status">观察中</span>
+                </div>
+                <p class="quality-closure-panel__timeline-meta">责任人：班组 T2 · 验证闭环动作是否能跨班次复用。</p>
+              </li>
+            </ol>
+            <p class="detail-panel__assist">这里回答“先做什么、何时完成、是否会超时”，而不是继续展示问题明细。</p>
+          </section>
+
+          <section class="detail-panel__section">
+            <h3 class="detail-panel__section-title">责任负载</h3>
+            <div class="quality-closure-panel__load-list">
+              <div class="quality-closure-panel__load-row">
+                <div class="quality-closure-panel__load-head">
+                  <strong>质量工程师 Q1</strong>
+                  <span>2 项 / 最高优先</span>
+                </div>
+                <div class="quality-meter quality-meter--dominant"><span></span></div>
+              </div>
+              <div class="quality-closure-panel__load-row">
+                <div class="quality-closure-panel__load-head">
+                  <strong>工艺工程师 P3</strong>
+                  <span>1 项 / 待结论输出</span>
+                </div>
+                <div class="quality-meter quality-meter--medium"><span></span></div>
+              </div>
+              <div class="quality-closure-panel__load-row">
+                <div class="quality-closure-panel__load-head">
+                  <strong>班组 T2</strong>
+                  <span>验证复核 / 风险下降</span>
+                </div>
+                <div class="quality-meter quality-meter--low"><span></span></div>
+              </div>
+            </div>
+          </section>
+
+          <details class="detail-panel__fold">
+            <summary class="detail-panel__fold-summary">低频处置入口</summary>
+            <div class="detail-panel__fold-body">
+              <div class="detail-panel__footer">
+                <button class="detail-panel__footer-action detail-panel__footer-action--primary" type="button">导出闭环清单</button>
+                <button class="detail-panel__footer-action" type="button">同步质量例会</button>
+              </div>
+            </div>
+          </details>
+        </div>
+      </aside>
+      <div class="ue5-overlay-layer ue5-overlay-layer--marker" aria-label="三维对象标注">
+        <article class="world-marker world-marker--critical world-marker--selected">
+          <div class="world-marker__label">
+            <div class="world-marker__label-top">
+              <span class="world-marker__title">设备簇 · S4 对接扭矩工装</span>
+              <span class="world-marker__status">P1</span>
+            </div>
+            <div class="world-marker__label-bottom">当前班次扭矩复核超窗，需优先复核并解除冻结。</div>
+          </div>
+          <span class="world-marker__line" aria-hidden="true"></span>
+          <span class="world-marker__anchor" aria-hidden="true"></span>
+        </article>
+        <article class="world-marker world-marker--warning">
+          <div class="world-marker__label">
+            <div class="world-marker__label-top">
+              <span class="world-marker__title">设备簇 · 前舱段密封工位</span>
+              <span class="world-marker__status">P2</span>
+            </div>
+            <div class="world-marker__label-bottom">密封重复缺陷，正在等待根因确认。</div>
+          </div>
+          <span class="world-marker__line" aria-hidden="true"></span>
+          <span class="world-marker__anchor" aria-hidden="true"></span>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,218 @@
+{
+  "_meta": {
+    "description": "模板 → 场景 / 分级 / 使用范围索引（从 scene_coverage_matrix.yml 和 skill_version.json 手工同步）",
+    "version": "1.0.0",
+    "updated": "2026-04-05",
+    "note_zh": "此文件为轻量级索引，方便上层工具快速按路径查询模板分级信息；真实权威信息仍以 scene_coverage_matrix.yml 与 skill_version.json 为准。"
+  },
+  "templates": [
+    {
+      "path": "examples/b-system/b-system-complete.html",
+      "scene": "b_system",
+      "grade": "canonical",
+      "use_scope": "default",
+      "page_types": ["dashboard", "overview"],
+      "preferred_level": "level_1"
+    },
+    {
+      "path": "examples/b-system/b-system-charts.html",
+      "scene": "b_system",
+      "grade": "canonical",
+      "use_scope": "default",
+      "page_types": ["dashboard"],
+      "preferred_level": "level_1"
+    },
+    {
+      "path": "examples/b-system/b-system-production-plan.html",
+      "scene": "b_system",
+      "grade": "candidate",
+      "use_scope": "default",
+      "page_types": ["planning"],
+      "preferred_level": "level_1"
+    },
+    {
+      "path": "examples/b-system/b-system-saas.html",
+      "scene": "b_system",
+      "grade": "candidate",
+      "use_scope": "default",
+      "page_types": ["saas_admin", "operations_workspace"],
+      "preferred_level": "level_1"
+    },
+    {
+      "path": "examples/b-system/b-system-task-list-top-filters.html",
+      "scene": "b_system",
+      "grade": "candidate",
+      "use_scope": "default",
+      "page_types": ["list"],
+      "preferred_level": "level_1"
+    },
+    {
+      "path": "examples/b-system/b-system-advanced-list-with-left-filter-panel.html",
+      "scene": "b_system",
+      "grade": "candidate",
+      "use_scope": "default",
+      "page_types": ["advanced_list"],
+      "preferred_level": "level_2"
+    },
+    {
+      "path": "examples/b-system/b-system-detail-order.html",
+      "scene": "b_system",
+      "grade": "candidate",
+      "use_scope": "default",
+      "page_types": ["detail"],
+      "preferred_level": "level_1"
+    },
+    {
+      "path": "examples/b-system/b-system-showcase.html",
+      "scene": "b_system",
+      "grade": "demo",
+      "use_scope": "forbidden",
+      "page_types": ["component_gallery"],
+      "preferred_level": "level_2"
+    },
+    {
+      "path": "examples/b-system/b-system-sidebar.html",
+      "scene": "b_system",
+      "grade": "demo",
+      "use_scope": "forbidden",
+      "page_types": ["component_gallery"],
+      "preferred_level": "level_2"
+    },
+    {
+      "path": "examples/website/website-complete.html",
+      "scene": "website",
+      "grade": "canonical",
+      "use_scope": "default",
+      "page_types": ["landing", "pricing"],
+      "preferred_level": "level_1"
+    },
+
+    {
+      "path": "examples/website/website-feature-solution.html",
+      "scene": "website",
+      "grade": "candidate",
+      "use_scope": "default",
+      "page_types": ["feature"],
+      "preferred_level": "level_1"
+    },
+
+    {
+      "path": "examples/website/website-showcase.html",
+      "scene": "website",
+      "grade": "demo",
+      "use_scope": "forbidden",
+      "page_types": ["component_gallery"],
+      "preferred_level": "level_2"
+    },
+    {
+      "path": "examples/ue5-overlay/ue5_overlay_data_viz.html",
+      "scene": "ue5_overlay",
+      "grade": "canonical",
+      "use_scope": "default",
+      "layout_mode": 1,
+      "page_types": ["overlay_dashboard", "data_viz"],
+      "preferred_level": "level_1"
+    },
+    {
+      "path": "examples/ue5-overlay/ue5_overlay_minimal_no_hud.html",
+      "scene": "ue5_overlay",
+      "grade": "candidate",
+      "use_scope": "default",
+      "layout_mode": "minimal",
+      "page_types": ["overlay_dashboard", "minimal_overlay"],
+      "preferred_level": "level_1"
+    },
+    {
+      "path": "examples/ue5-overlay/ue5_overlay_quality_tracking.html",
+      "scene": "ue5_overlay",
+      "grade": "canonical",
+      "use_scope": "default",
+      "layout_mode": 2,
+      "page_types": ["overlay_dashboard", "quality_tracking"],
+      "preferred_level": "level_1"
+    },
+    {
+      "path": "examples/ue5-overlay/ue5_overlay_dashboard.html",
+      "scene": "ue5_overlay",
+      "grade": "canonical",
+      "use_scope": "default",
+      "layout_mode": 3,
+      "page_types": ["overlay_dashboard"],
+      "preferred_level": "level_1"
+    },
+
+    {
+      "path": "examples/ue5-overlay/ue5_overlay_sidepanel_dock_layout.html",
+      "scene": "ue5_overlay",
+      "grade": "candidate",
+      "use_scope": "limited",
+      "layout_mode": 5,
+      "page_types": ["overlay_full_layout"],
+      "preferred_level": "level_2"
+    },
+    {
+      "path": "examples/ue5-overlay/digital_twin_overlay_dashboard.html",
+      "scene": "ue5_overlay",
+      "grade": "candidate",
+      "use_scope": "limited",
+      "page_types": ["digital_twin_dashboard"],
+      "preferred_level": "level_2"
+    },
+    {
+      "path": "examples/ue5-overlay/ue5_overlay_mock_bridge.html",
+      "scene": "ue5_overlay",
+      "grade": "anti_pattern",
+      "use_scope": "forbidden",
+      "page_types": ["placeholder"],
+      "preferred_level": "level_2"
+    },
+    {
+      "path": "examples/b-system/b-system-ai-assistant.html",
+      "scene": "ai_assistant",
+      "grade": "limited",
+      "use_scope": "limited",
+      "page_types": ["assistant_workspace"],
+      "preferred_level": "level_2"
+    },
+    {
+      "path": "examples/presentation/presentation-product.html",
+      "scene": "presentation",
+      "grade": "candidate",
+      "use_scope": "default",
+      "page_types": ["product_presentation"],
+      "preferred_level": "level_1"
+    },
+    {
+      "path": "examples/presentation/presentation-business.html",
+      "scene": "presentation",
+      "grade": "candidate",
+      "use_scope": "default",
+      "page_types": ["business_report"],
+      "preferred_level": "level_1"
+    },
+    {
+      "path": "examples/presentation/presentation-planning.html",
+      "scene": "presentation",
+      "grade": "candidate",
+      "use_scope": "default",
+      "page_types": ["planning_proposal"],
+      "preferred_level": "level_1"
+    },
+    {
+      "path": "examples/presentation/presentation-work-report.html",
+      "scene": "presentation",
+      "grade": "anti_pattern",
+      "use_scope": "forbidden",
+      "page_types": ["work_report"],
+      "preferred_level": "level_2"
+    },
+    {
+      "path": "examples/presentation/presentation-minimal.html",
+      "scene": "presentation",
+      "grade": "anti_pattern",
+      "use_scope": "forbidden",
+      "page_types": ["minimal_presentation"],
+      "preferred_level": "level_2"
+    }
+  ]
+}

@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>灵境Core - B端系统参考页</title>
+
+    <!-- 引入标准CSS -->
+    <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+
+    <!-- ECharts + 灵境主题（必须先于业务脚本加载） -->
+    <script src="../../scripts/echarts.min.js"></script>
+    <script src="../../scripts/echarts-theme-lingjing.js"></script>
+    <!-- 引入 Lucide Icons -->
+    <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+    <!-- ============================================
+         B端布局容器
+         ============================================ -->
+    <div class="b-layout-sidebar">
+        <!-- ============================================
+             左侧导航栏
+             ============================================ -->
+        <aside class="b-sidebar" id="sidebar">
+            <!-- 侧边栏头部 -->
+            <div class="b-sidebar-header">
+                <div class="b-sidebar-logo">
+                    <img src="../../assets/logo-flat.png" id="siteLogo" alt="灵境" height="32">
+                </div>
+                <span class="b-sidebar-brand">灵境Core</span>
+            </div>
+
+            <!-- 侧边栏导航 -->
+            <nav class="b-sidebar-nav b-scrollable">
+                <ul class="b-sidebar-nav-list">
+                    <!-- 仪表盘 -->
+                    <li class="b-sidebar-nav-item">
+                        <a href="#dashboard" class="b-sidebar-nav-link active">
+                            <span class="b-sidebar-nav-icon">
+                                <i data-lucide="layout-dashboard"></i>
+                            </span>
+                            <span class="b-sidebar-nav-text">仪表盘</span>
+                        </a>
+                    </li>
+
+                    <!-- 数据管理 -->
+                    <li class="b-sidebar-nav-item">
+                        <a href="#data" class="b-sidebar-nav-link">
+                            <span class="b-sidebar-nav-icon">
+                                <i data-lucide="database"></i>
+                            </span>
+                            <span class="b-sidebar-nav-text">数据管理</span>
+                        </a>
+                    </li>
+
+                    <!-- 用户管理 -->
+                    <li class="b-sidebar-nav-item">
+                        <a href="#users" class="b-sidebar-nav-link">
+                            <span class="b-sidebar-nav-icon">
+                                <i data-lucide="users"></i>
+                            </span>
+                            <span class="b-sidebar-nav-text">用户管理</span>
+                        </a>
+                    </li>
+
+                    <!-- 系统设置 -->
+                    <li class="b-sidebar-nav-item">
+                        <a href="#settings" class="b-sidebar-nav-link">
+                            <span class="b-sidebar-nav-icon">
+                                <i data-lucide="settings"></i>
+                            </span>
+                            <span class="b-sidebar-nav-text">系统设置</span>
+                        </a>
+                    </li>
+
+                    <!-- 分割线 -->
+                    <li><hr class="divider"></li>
+
+                    <!-- 统计分析 -->
+                    <li class="b-sidebar-nav-item">
+                        <a href="#analytics" class="b-sidebar-nav-link">
+                            <span class="b-sidebar-nav-icon">
+                                <i data-lucide="bar-chart-2"></i>
+                            </span>
+                            <span class="b-sidebar-nav-text">统计分析</span>
+                        </a>
+                    </li>
+
+                    <!-- 报表导出 -->
+                    <li class="b-sidebar-nav-item">
+                        <a href="#reports" class="b-sidebar-nav-link">
+                            <span class="b-sidebar-nav-icon">
+                                <i data-lucide="file-text"></i>
+                            </span>
+                            <span class="b-sidebar-nav-text">报表导出</span>
+                        </a>
+                    </li>
+
+                    <!-- 日志记录 -->
+                    <li class="b-sidebar-nav-item">
+                        <a href="#logs" class="b-sidebar-nav-link">
+                            <span class="b-sidebar-nav-icon">
+                                <i data-lucide="scroll-text"></i>
+                            </span>
+                            <span class="b-sidebar-nav-text">日志记录</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <!-- 侧边栏底部 -->
+            <div class="b-sidebar-footer">
+                <button class="b-sidebar-toggle" onclick="toggleSidebarCollapse()">
+                    <span class="b-sidebar-toggle-icon">
+                        <i data-lucide="chevrons-left"></i>
+                    </span>
+                    <span class="b-sidebar-toggle-text">收起</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- 移动端遮罩层 -->
+        <div class="b-sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+        <!-- ============================================
+             主内容区
+             ============================================ -->
+        <main class="b-main">
+            <!-- Header -->
+            <header class="b-header">
+                <!-- 左侧：面包屑 -->
+                <div class="b-header-left">
+                    <!-- 面包屑导航 -->
+                    <nav class="b-breadcrumb">
+                        <div class="b-breadcrumb-item">
+                            <a href="#" class="b-breadcrumb-link">首页</a>
+                            <span class="b-breadcrumb-separator">/</span>
+                        </div>
+                        <div class="b-breadcrumb-item">
+                            <span class="b-breadcrumb-current">系统总览</span>
+                        </div>
+                    </nav>
+                </div>
+
+                <!-- 右侧：功能按钮 - Header中不包含收起侧边栏按钮，该功能已在侧边栏底部提供 -->
+                <div class="b-header-right">
+                    <!-- 主题切换 -->
+                    <button class="btn-icon" onclick="window.Lingjing.toggleTheme()" title="切换主题">
+                        <i data-lucide="moon" class="icon-light"></i>
+                        <i data-lucide="sun" class="icon-dark hidden"></i>
+                    </button>
+
+                    <!-- 通知 -->
+                    <button class="btn-icon" title="通知">
+                        <i data-lucide="bell"></i>
+                    </button>
+
+                    <!-- 用户菜单 -->
+                    <button class="btn-icon" title="用户菜单">
+                        <i data-lucide="user"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- 内容区（可滚动） -->
+            <div class="b-content">
+                <!-- ============================================
+                     KPI 统计卡片
+                     ============================================ -->
+                <div class="stats-grid">
+                    <!-- 蓝色卡片 -->
+                    <div class="b-stat-card" data-color="blue">
+                        <div class="b-stat-header">
+                            <span class="b-stat-label">总用户数</span>
+                            <i data-lucide="users" class="b-stat-icon"></i>
+                        </div>
+                        <div class="b-stat-value">12,847</div>
+                        <div class="b-stat-change positive">
+                            <i data-lucide="trending-up"></i>
+                            <span>+18.2% 较上月</span>
+                        </div>
+                    </div>
+
+                    <!-- 绿色卡片 -->
+                    <div class="b-stat-card" data-color="green">
+                        <div class="b-stat-header">
+                            <span class="b-stat-label">活跃用户</span>
+                            <i data-lucide="activity" class="b-stat-icon"></i>
+                        </div>
+                        <div class="b-stat-value">8,432</div>
+                        <div class="b-stat-change positive">
+                            <i data-lucide="trending-up"></i>
+                            <span>+24.5% 较上月</span>
+                        </div>
+                    </div>
+
+                    <!-- 橙色卡片 -->
+                    <div class="b-stat-card" data-color="orange">
+                        <div class="b-stat-header">
+                            <span class="b-stat-label">待处理任务</span>
+                            <i data-lucide="clipboard-list"></i>
+                        </div>
+                        <div class="b-stat-value">156</div>
+                        <div class="b-stat-change negative">
+                            <i data-lucide="trending-down"></i>
+                            <span>-5.8% 较上月</span>
+                        </div>
+                    </div>
+
+                    <!-- 紫色卡片 -->
+                    <div class="b-stat-card" data-color="purple">
+                        <div class="b-stat-header">
+                            <span class="b-stat-label">系统负载</span>
+                            <i data-lucide="cpu"></i>
+                        </div>
+                        <div class="b-stat-value">45.6%</div>
+                        <div class="b-stat-change neutral">
+                            <i data-lucide="minus"></i>
+                            <span>保持稳定</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================
+                     图表卡片
+                     ============================================ -->
+                <div class="charts-grid">
+                    <!-- 图表卡片 1 -->
+                    <div class="b-chart-card">
+                        <div class="b-chart-header">
+                            <div>
+                                <h3 class="b-chart-title">用户增长趋势</h3>
+                                <p class="b-chart-subtitle">近12个月数据统计</p>
+                            </div>
+                            <div>
+                                <button class="btn-text">
+                                    <i data-lucide="download"></i>
+                                    <span>导出</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="b-chart-body">
+                            <div id="chartGrowth" style="height:280px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- 图表卡片 2 -->
+                    <div class="b-chart-card">
+                        <div class="b-chart-header">
+                            <div>
+                                <h3 class="b-chart-title">系统性能监控</h3>
+                                <p class="b-chart-subtitle">实时数据监控</p>
+                            </div>
+                            <div>
+                                <button class="btn-text">
+                                    <i data-lucide="refresh-cw"></i>
+                                    <span>刷新</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="b-chart-body">
+                            <div id="chartPerf" style="height:280px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================
+                     数据表格（list 默认列表页示例）
+                     提示：此处 search-bar 是普通 list 页的默认筛选位，
+                     仅当 PRD 明确要求左侧独立筛选面板 / 高级筛选侧栏时，
+                     才应改用 advanced_list 布局，不得因“有筛选条件”就默认升为高级筛选。
+                     ============================================ -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2 class="card-title">用户管理</h2>
+                        <button class="btn-primary">
+                            <i data-lucide="plus"></i>
+                            <span>新增用户</span>
+                        </button>
+                    </div>
+
+                    <!-- 顶部筛选条：list 场景下的默认筛选位置（表格上方 search-bar） -->
+                    <div class="search-bar">
+                        <input type="text" class="search-input" placeholder="搜索用户名称、邮箱...">
+                        <select class="filter-select">
+                            <option>全部状态</option>
+                            <option>已激活</option>
+                            <option>待审核</option>
+                            <option>已禁用</option>
+                        </select>
+                        <button class="btn-outline">
+                            <i data-lucide="filter"></i>
+                            <span>筛选</span>
+                        </button>
+                    </div>
+
+                    <!-- 数据表格 -->
+                    <div class="data-table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>用户ID</th>
+                                <th>用户名称</th>
+                                <th>邮箱</th>
+                                <th>角色</th>
+                                <th>状态</th>
+                                <th>注册时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>U2024001</td>
+                                <td>张三</td>
+                                <td>zhangsan@example.com</td>
+                                <td>管理员</td>
+                                <td><span class="badge badge-success">已激活</span></td>
+                                <td>2024-01-15</td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn-icon" title="查看详情">
+                                            <i data-lucide="eye"></i>
+                                        </button>
+                                        <button class="btn-icon" title="编辑">
+                                            <i data-lucide="edit"></i>
+                                        </button>
+                                        <button class="btn-icon" title="删除">
+                                            <i data-lucide="trash-2"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>U2024002</td>
+                                <td>李四</td>
+                                <td>lisi@example.com</td>
+                                <td>普通用户</td>
+                                <td><span class="badge badge-success">已激活</span></td>
+                                <td>2024-01-18</td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn-icon" title="查看详情">
+                                            <i data-lucide="eye"></i>
+                                        </button>
+                                        <button class="btn-icon" title="编辑">
+                                            <i data-lucide="edit"></i>
+                                        </button>
+                                        <button class="btn-icon" title="删除">
+                                            <i data-lucide="trash-2"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>U2024003</td>
+                                <td>王五</td>
+                                <td>wangwu@example.com</td>
+                                <td>普通用户</td>
+                                <td><span class="badge badge-warning">待审核</span></td>
+                                <td>2024-01-20</td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn-icon" title="查看详情">
+                                            <i data-lucide="eye"></i>
+                                        </button>
+                                        <button class="btn-icon" title="编辑">
+                                            <i data-lucide="edit"></i>
+                                        </button>
+                                        <button class="btn-icon" title="删除">
+                                            <i data-lucide="trash-2"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>U2024004</td>
+                                <td>赵六</td>
+                                <td>zhaoliu@example.com</td>
+                                <td>普通用户</td>
+                                <td><span class="badge badge-error">已禁用</span></td>
+                                <td>2024-01-22</td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn-icon" title="查看详情">
+                                            <i data-lucide="eye"></i>
+                                        </button>
+                                        <button class="btn-icon" title="编辑">
+                                            <i data-lucide="edit"></i>
+                                        </button>
+                                        <button class="btn-icon" title="删除">
+                                            <i data-lucide="trash-2"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>U2024005</td>
+                                <td>孙七</td>
+                                <td>sunqi@example.com</td>
+                                <td>编辑</td>
+                                <td><span class="badge badge-success">已激活</span></td>
+                                <td>2024-01-25</td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn-icon" title="查看详情">
+                                            <i data-lucide="eye"></i>
+                                        </button>
+                                        <button class="btn-icon" title="编辑">
+                                            <i data-lucide="edit"></i>
+                                        </button>
+                                        <button class="btn-icon" title="删除">
+                                            <i data-lucide="trash-2"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    </div><!-- /data-table-container -->
+                </div>
+
+                <!-- ============================================
+                     抽屉组件
+                     ============================================ -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2 class="card-title">抽屉示例</h2>
+                        <div class="action-buttons">
+                            <button class="btn-outline" id="openDrawerLeft">
+                                <i data-lucide="panel-left"></i>
+                                <span>打开左侧抽屉</span>
+                            </button>
+                            <button class="btn-primary" id="openDrawerRight">
+                                <i data-lucide="panel-right"></i>
+                                <span>打开右侧抽屉</span>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-secondary">
+                        支持左右侧抽屉、遮罩点击关闭与 ESC 关闭，适用于详情、设置和二级流程。
+                    </p>
+                </div>
+
+                <!-- Drawer Overlay - Left -->
+                <div class="drawer-overlay drawer-left" id="drawerLeft" aria-hidden="true">
+                    <div class="drawer-container" role="dialog" aria-modal="true" aria-labelledby="drawerLeftTitle">
+                        <div class="drawer-header">
+                            <h3 class="drawer-title" id="drawerLeftTitle">左侧抽屉</h3>
+                            <button class="drawer-close" type="button" data-drawer-close="drawerLeft" aria-label="关闭">
+                                <i data-lucide="x"></i>
+                            </button>
+                        </div>
+                        <div class="drawer-body">
+                            <p>这里展示左侧抽屉内容，可用于筛选条件或导航入口。</p>
+                            <div class="stats-grid grid-cols-2 mt-lg">
+                                <div class="b-stat-card" data-color="blue">
+                                    <div class="b-stat-header">
+                                        <span class="b-stat-label">活跃会话</span>
+                                        <i data-lucide="activity" class="b-stat-icon"></i>
+                                    </div>
+                                    <div class="b-stat-value">1,248</div>
+                                    <div class="b-stat-change positive">
+                                        <i data-lucide="trending-up"></i>
+                                        <span>+6.2%</span>
+                                    </div>
+                                </div>
+                                <div class="b-stat-card" data-color="green">
+                                    <div class="b-stat-header">
+                                        <span class="b-stat-label">待审核</span>
+                                        <i data-lucide="clipboard-check" class="b-stat-icon"></i>
+                                    </div>
+                                    <div class="b-stat-value">36</div>
+                                    <div class="b-stat-change neutral">
+                                        <i data-lucide="minus"></i>
+                                        <span>稳定</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="drawer-footer">
+                            <button class="btn-outline" type="button" data-drawer-close="drawerLeft">取消</button>
+                            <button class="btn-primary" type="button">应用筛选</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Drawer Overlay - Right -->
+                <div class="drawer-overlay" id="drawerRight" aria-hidden="true">
+                    <div class="drawer-container" role="dialog" aria-modal="true" aria-labelledby="drawerRightTitle">
+                        <div class="drawer-header">
+                            <h3 class="drawer-title" id="drawerRightTitle">右侧抽屉</h3>
+                            <button class="drawer-close" type="button" data-drawer-close="drawerRight" aria-label="关闭">
+                                <i data-lucide="x"></i>
+                            </button>
+                        </div>
+                        <div class="drawer-body">
+                            <p>这里可以放置详情信息、二级表单或快速设置。</p>
+                            <div class="form-group mt-lg">
+                                <label class="form-label">负责人</label>
+                                <input class="form-input" type="text" placeholder="输入负责人名称" value="张三">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">通知方式</label>
+                                <select class="form-select">
+                                    <option>邮件</option>
+                                    <option>短信</option>
+                                    <option>站内信</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="drawer-footer">
+                            <button class="btn-outline" type="button" data-drawer-close="drawerRight">取消</button>
+                            <button class="btn-primary" type="button">保存设置</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- ============================================
+         JavaScript 交互
+         ============================================ -->
+    <script>
+        // 0. 图标初始化（保证首屏可见）
+        function initIcons() {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
+        // 1. 移动端侧边栏切换
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        }
+
+        // 2. 桌面端侧边栏收起/展开
+        function toggleSidebarCollapse() {
+            const sidebar = document.getElementById('sidebar');
+            const isCollapsed = sidebar.classList.contains('collapsed');
+
+            sidebar.classList.toggle('collapsed');
+
+            // 更新按钮图标
+            const toggleIcon = sidebar.querySelector('.b-sidebar-toggle-icon i');
+            const toggleText = sidebar.querySelector('.b-sidebar-toggle-text');
+
+            if (isCollapsed) {
+                toggleIcon.setAttribute('data-lucide', 'chevrons-left');
+                toggleText.textContent = '收起';
+            } else {
+                toggleIcon.setAttribute('data-lucide', 'chevrons-right');
+                toggleText.textContent = '展开';
+            }
+
+            // 重新初始化图标
+            initIcons();
+        }
+
+        // 3. 主题切换
+        window.Lingjing = window.Lingjing || {};
+        window.Lingjing.toggleTheme = function() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+
+            // 更新主题切换按钮图标
+            const lightIcon = document.querySelector('.icon-light');
+            const darkIcon = document.querySelector('.icon-dark');
+            if (newTheme === 'dark') {
+                lightIcon.style.display = 'none';
+                darkIcon.style.display = 'block';
+            } else {
+                lightIcon.style.display = 'block';
+                darkIcon.style.display = 'none';
+            }
+
+            // 销毁旧图表实例 → 用新主题重建（保证 getTokens 取到正确色板）
+            Object.values(charts).forEach(function(c) { if (c && !c.isDisposed()) c.dispose(); });
+            charts = {};
+            if (typeof echarts !== 'undefined') { initCharts(); }
+        };
+
+        // 4. 读取保存的主题
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        if (savedTheme === 'dark') {
+            const lightIcon = document.querySelector('.icon-light');
+            const darkIcon = document.querySelector('.icon-dark');
+            if (lightIcon && darkIcon) {
+                lightIcon.style.display = 'none';
+                darkIcon.style.display = 'block';
+            }
+        }
+
+        // 5. 抽屉组件开关
+        function openDrawer(drawerId) {
+            const drawer = document.getElementById(drawerId);
+            if (!drawer) return;
+            drawer.classList.add('open');
+            drawer.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeDrawer(drawerId) {
+            const drawer = document.getElementById(drawerId);
+            if (!drawer) return;
+            drawer.classList.remove('open');
+            drawer.setAttribute('aria-hidden', 'true');
+        }
+
+        function bindDrawerEvents() {
+            const openLeft = document.getElementById('openDrawerLeft');
+            const openRight = document.getElementById('openDrawerRight');
+
+            if (openLeft) {
+                openLeft.addEventListener('click', function() {
+                    openDrawer('drawerLeft');
+                });
+            }
+
+            if (openRight) {
+                openRight.addEventListener('click', function() {
+                    openDrawer('drawerRight');
+                });
+            }
+
+            document.querySelectorAll('[data-drawer-close]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const targetId = this.getAttribute('data-drawer-close');
+                    closeDrawer(targetId);
+                });
+            });
+
+            document.querySelectorAll('.drawer-overlay').forEach(overlay => {
+                overlay.addEventListener('click', function(event) {
+                    if (event.target === overlay) {
+                        closeDrawer(overlay.id);
+                    }
+                });
+            });
+
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    document.querySelectorAll('.drawer-overlay.open').forEach(openDrawerEl => {
+                        closeDrawer(openDrawerEl.id);
+                    });
+                }
+            });
+        }
+
+        // 6. 初始化 Lucide 图标与抽屉事件
+        document.addEventListener('DOMContentLoaded', function() {
+            initIcons();
+            bindDrawerEvents();
+        });
+
+        // ── 图表配置工厂（主题切换时用相同配置重建） ────────────────────────
+        function buildGrowthOption(tk) {
+            return {
+                tooltip: { trigger: 'axis' },
+                grid: { top: 36, right: 8, bottom: 0, left: 0, containLabel: true },
+                xAxis: {
+                    type: 'category',
+                    boundaryGap: false,
+                    data: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
+                },
+                yAxis: { type: 'value', name: '人', min: 0 },
+                series: [{
+                    name: '新增用户', type: 'line', smooth: true,
+                    data: [1200,1450,1380,1650,1820,2100,2350,2600,2480,2900,3150,3420],
+                    lineStyle: { color: tk.series[0], width: 2 },
+                    itemStyle: { color: tk.series[0] },
+                    areaStyle: { color: tk.series[0], opacity: 0.06 },
+                    symbol: 'circle', symbolSize: 5
+                }]
+            };
+        }
+
+        function buildPerfOption(tk) {
+            return {
+                tooltip: { trigger: 'axis' },
+                legend: { data: ['CPU', '内存', '磁盘'], right: 0, top: 0 },
+                grid: { top: 36, right: 8, bottom: 0, left: 0, containLabel: true },
+                xAxis: {
+                    type: 'category',
+                    data: ['00:00','04:00','08:00','12:00','16:00','20:00']
+                },
+                yAxis: { type: 'value', max: 100, name: '%' },
+                series: [
+                    { name: 'CPU',  type: 'bar', barMaxWidth: 28,
+                      data: [42,35,68,82,75,58],
+                      itemStyle: { color: tk.series[0], borderRadius: [4,4,0,0] } },
+                    { name: '内存', type: 'bar', barMaxWidth: 28,
+                      data: [55,52,60,72,68,63],
+                      itemStyle: { color: tk.series[1], borderRadius: [4,4,0,0] } },
+                    { name: '磁盘', type: 'bar', barMaxWidth: 28,
+                      data: [22,22,25,28,30,27],
+                      itemStyle: { color: tk.series[2], borderRadius: [4,4,0,0] } }
+                ]
+            };
+        }
+
+        // ── 图表实例引用 ──────────────────────────────────────────────────
+        var charts = {};
+
+        function initCharts() {
+            var scene = document.documentElement.getAttribute('data-theme') === 'dark'
+                        ? 'b_system_dark' : 'b_system';
+            var tk = LingJingChart.getTokens(scene);
+            charts.growth = LingJingChart.init(document.getElementById('chartGrowth'), scene);
+            charts.perf   = LingJingChart.init(document.getElementById('chartPerf'),   scene);
+            charts.growth.setOption(buildGrowthOption(tk));
+            charts.perf.setOption(buildPerfOption(tk));
+        }
+
+        if (typeof echarts !== 'undefined') {
+            initCharts();
+        } else {
+            console.warn('[b-system-complete] echarts 未加载，图表跳过渲染。');
+        }
+
+        window.addEventListener('resize', function () { LingJingChart.resizeAll(); });
+
+        // 6. 导航链接激活状态
+        document.querySelectorAll('.b-sidebar-nav-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                // 移除所有active类
+                document.querySelectorAll('.b-sidebar-nav-link').forEach(l => {
+                    l.classList.remove('active');
+                });
+                // 添加active类到当前链接
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

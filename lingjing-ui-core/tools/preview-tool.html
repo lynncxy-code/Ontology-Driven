@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LingJing Core - 组件预览工具 v3.0</title>
+  
+  <!-- 核心引用：统一使用 dist 产物 -->
+  <link rel="stylesheet" id="core-style" href="../components/dist/lingjing-core-b-system.css">
+  
+  <style>
+    :root {
+      --sidebar-width: 280px;
+    }
+
+    body {
+      background: var(--bg-base);
+      color: var(--text-primary);
+      margin: 0;
+      font-family: var(--font-body);
+    }
+
+    /* 预览工具框架 */
+    .preview-layout {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) 1fr;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* 侧边栏 */
+    .preview-sidebar {
+      background: var(--bg-card-heavy);
+      border-right: 1px solid var(--glass-border-medium);
+      display: flex;
+      flex-direction: column;
+      backdrop-filter: blur(var(--glass-blur));
+      z-index: 100;
+      overflow: hidden;
+    }
+
+
+    .sidebar-header {
+      padding: var(--spacing-xl);
+      border-bottom: 1px solid var(--glass-border-light);
+    }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      color: var(--theme-primary);
+      font-weight: 700;
+      font-size: var(--font-size-lg);
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .scenario-selector {
+      width: 100%;
+      padding: var(--spacing-sm);
+      background: var(--bg-glass-accent);
+      border: 1px solid var(--glass-border-medium);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: var(--font-size-xs);
+      margin-top: var(--spacing-md);
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--spacing-md);
+    }
+
+    .nav-group-title {
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin: var(--spacing-lg) var(--spacing-sm) var(--spacing-sm);
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-sm) var(--spacing-md);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: all var(--anim-duration-fast);
+      margin-bottom: 2px;
+      font-size: var(--font-size-sm);
+    }
+
+    .nav-item:hover {
+      background: var(--bg-glass-accent);
+      color: var(--text-primary);
+    }
+
+    .nav-item.active {
+      background: var(--bg-status-info);
+      color: var(--theme-primary);
+      font-weight: 600;
+    }
+
+    /* 主预览区 */
+    .preview-main {
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      background: var(--bg-base);
+    }
+
+    .preview-toolbar {
+      padding: var(--spacing-lg) var(--spacing-2xl);
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--glass-border-light);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(var(--glass-blur));
+    }
+
+    .preview-content {
+      padding: var(--spacing-2xl);
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .component-header {
+      margin-bottom: var(--spacing-2xl);
+    }
+
+    .component-title {
+      font-size: var(--font-size-2xl);
+      font-weight: 700;
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .component-desc {
+      color: var(--text-secondary);
+    }
+
+    /* 预览容器样式 */
+    .example-section {
+      margin-bottom: var(--spacing-3xl);
+    }
+
+    .example-label {
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+      color: var(--text-tertiary);
+      margin-bottom: var(--spacing-md);
+      display: block;
+    }
+
+    .example-box {
+      padding: var(--spacing-2xl);
+      background: var(--bg-card);
+      border: 1px solid var(--glass-border-light);
+      border-radius: var(--radius-xl);
+      margin-bottom: var(--spacing-lg);
+      position: relative;
+    }
+
+    /* 代码块 */
+    .code-container {
+      position: relative;
+      background: var(--bg-card-heavy);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      border: 1px solid var(--glass-border-medium);
+    }
+
+    .code-header {
+      padding: var(--spacing-sm) var(--spacing-md);
+      background: rgba(0,0,0,0.05);
+      border-bottom: 1px solid var(--glass-border-light);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    pre {
+      margin: 0;
+      padding: var(--spacing-lg);
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      color: var(--text-secondary);
+    }
+
+    /* 工具类补丁 */
+    .theme-toggle-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid var(--glass-border-medium);
+      background: var(--bg-glass);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      transition: all 0.2s;
+    }
+
+    .theme-toggle-btn:hover {
+      background: var(--bg-glass-accent);
+      border-color: var(--theme-primary);
+    }
+
+    /* ── Audit 面板 ── */
+    .audit-panel {
+      border-top: 1px solid var(--glass-border-medium);
+      background: var(--bg-card-heavy);
+      font-size: var(--font-size-xs);
+      animation: slideDown 0.2s ease;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .audit-header {
+      padding: var(--spacing-md) var(--spacing-2xl);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+      border-bottom: 1px solid var(--glass-border-light);
+    }
+
+    .audit-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 11px;
+    }
+    .audit-badge.pass  { background: var(--bg-status-success); color: var(--status-success); }
+    .audit-badge.warn  { background: var(--bg-status-warning); color: var(--status-warning); }
+    .audit-badge.fail  { background: var(--bg-status-error);   color: var(--status-error); }
+
+    .audit-checks {
+      padding: var(--spacing-md) var(--spacing-2xl) var(--spacing-lg);
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: var(--spacing-sm);
+    }
+
+    .audit-check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-sm) var(--spacing-md);
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+    }
+    .audit-check-item.pass { border-color: var(--bg-status-success); background: var(--bg-status-success); }
+    .audit-check-item.warn { border-color: var(--bg-status-warning); background: var(--bg-status-warning); }
+    .audit-check-item.fail { border-color: var(--bg-status-error);   background: var(--bg-status-error); }
+
+    .audit-check-icon { flex-shrink: 0; margin-top: 1px; }
+    .audit-check-icon.pass { color: var(--status-success); }
+    .audit-check-icon.warn { color: var(--status-warning); }
+    .audit-check-icon.fail { color: var(--status-error); }
+
+    .audit-check-body { flex: 1; min-width: 0; }
+    .audit-check-name { font-weight: 600; color: var(--text-primary); }
+    .audit-check-detail { color: var(--text-secondary); margin-top: 2px; line-height: 1.4; }
+
+    .audit-run-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: var(--bg-glass-accent);
+      border: 1px solid var(--glass-border-medium);
+      border-radius: var(--radius-md);
+      color: var(--text-secondary);
+      font-size: var(--font-size-xs);
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: var(--font-body);
+    }
+    .audit-run-btn:hover {
+      background: var(--bg-status-info);
+      border-color: var(--theme-primary);
+      color: var(--theme-primary);
+    }
+    .audit-run-btn.running { opacity: 0.6; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div class="preview-layout">
+    <!-- 侧边栏 -->
+    <aside class="preview-sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-brand">
+          <i data-lucide="layers"></i>
+          <span>LingJing Preview</span>
+        </div>
+        <select class="scenario-selector" id="scenarioSelect" onchange="changeScenario()">
+          <option value="b-system">B端作业系统 (B-System)</option>
+          <option value="website">营销门户 (Website)</option>
+          <option value="presentation">专业汇报 (Presentation)</option>
+        </select>
+      </div>
+      
+      <nav class="sidebar-nav" id="componentNav">
+        <!-- 分组内容动态生成 -->
+      </nav>
+    </aside>
+
+    <!-- 主区 -->
+    <main class="preview-main">
+      <header class="preview-toolbar">
+        <div id="breadcrumb">组件预览 / 基础组件</div>
+        <div style="display: flex; gap: var(--spacing-md); align-items: center;">
+          <button class="audit-run-btn" id="auditBtn" onclick="runAudit()" title="对当前预览 HTML 运行规范审计">
+            <i data-lucide="shield-check" style="width:14px;height:14px;"></i>
+            运行 Audit
+          </button>
+          <button class="theme-toggle-btn" onclick="toggleTheme()" title="切换主题">
+            <i data-lucide="moon" id="themeIcon"></i>
+          </button>
+        </div>
+      </header>
+      <!-- Audit 结果面板（默认隐藏） -->
+      <div id="auditPanel" style="display:none;"></div>
+
+      <div class="preview-content" id="previewArea">
+        <!-- 默认引导页 -->
+        <div style="text-align: center; padding: 100px 0; opacity: 0.5;">
+          <i data-lucide="box" style="width: 80px; height: 80px; margin-bottom: var(--spacing-lg);"></i>
+          <h2>灵境组件实验室 v3.0</h2>
+          <p>请从左侧导航选择组件进行实时预览</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Scripts -->
+  <script src="../scripts/lucide-umd-500.js"></script>
+  <script src="../scripts/component-generator.js"></script>
+  <script>
+    const generator = new ComponentGenerator();
+    
+    // 模拟分类数据
+    const catalog = {
+      "基础组件": [
+        { id: "button", name: "按钮 Button", icon: "mouse-pointer-2" },
+        { id: "badge", name: "徽章 Badge", icon: "tag" },
+        { id: "input", name: "输入框 Input", icon: "type" },
+        { id: "select", name: "选择器 Select", icon: "chevron-down" },
+        { id: "status-dot", name: "状态圆点 Status Dot", icon: "circle" }
+      ],
+      "容器与布局": [
+        { id: "card", name: "卡片 Card", icon: "layout" },
+        { id: "drawer", name: "抽屉 Drawer", icon: "panel-right" },
+        { id: "accordion", name: "手风琴 Accordion", icon: "list" },
+        { id: "stepper", name: "步骤条 Stepper", icon: "list-ordered" },
+        { id: "popover", name: "气泡卡片 Popover", icon: "message-circle" }
+      ],
+      "B端复合组件": [
+        { id: "advanced-data-table", name: "高级表格 Table", icon: "table" },
+        { id: "filter-panel", name: "筛选面板 Filter", icon: "filter" },
+        { id: "detail-panel", name: "详情面板 Detail", icon: "info" },
+        { id: "segmented-control", name: "分段控制 Segmented", icon: "columns" }
+      ],
+      "AI 助手组件": [
+        { id: "chat-layout", name: "对话布局 Chat", icon: "message-square" },
+        { id: "message-bubble", name: "消息气泡 Bubble", icon: "message-circle" },
+        { id: "agent-thinking", name: "思考状态 Thinking", icon: "brain" },
+        { id: "tool-call", name: "工具调用 Tool", icon: "terminal" },
+        { id: "task-status-card", name: "任务状态 Task", icon: "activity" }
+      ],
+      "航空场景组件": [
+        { id: "flight-metric-card", name: "航空指标卡", icon: "plane" },
+        { id: "route-leg-card", name: "航段卡片", icon: "map-pin" },
+        { id: "mission-status-board", name: "任务状态板", icon: "clipboard-list" }
+      ],
+      "可视化组件": [
+        { id: "chart-card", name: "图表卡片", icon: "bar-chart-3" },
+        { id: "metric-trend", name: "指标趋势", icon: "trending-up" },
+        { id: "progress-ring", name: "进度环", icon: "pie-chart" },
+        { id: "timeline-strip", name: "时间轴条", icon: "clock" }
+      ],
+      "反馈与状态": [
+        { id: "empty-state", name: "空状态 Empty", icon: "folder-open" },
+        { id: "skeleton", name: "骨架屏 Skeleton", icon: "ghost" }
+      ]
+    };
+
+
+    function initNav() {
+      const nav = document.getElementById('componentNav');
+      nav.innerHTML = '';
+      for (const group in catalog) {
+        const title = document.createElement('div');
+        title.className = 'nav-group-title';
+        title.textContent = group;
+        nav.appendChild(title);
+        
+        catalog[group].forEach(comp => {
+          const item = document.createElement('div');
+          item.className = 'nav-item';
+          item.innerHTML = `<i data-lucide="${comp.icon}" style="width:16px;"></i><span>${comp.name}</span>`;
+          item.onclick = () => loadComponent(comp);
+          nav.appendChild(item);
+        });
+      }
+      lucide.createIcons();
+    }
+
+    function loadComponent(comp) {
+      // 样式切换
+      document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+
+      const area = document.getElementById('previewArea');
+      area.innerHTML = `
+        <div class="component-header">
+          <h1 class="component-title">${comp.name}</h1>
+          <p class="component-desc">基于规范的 ${comp.id} 组件实时预览与代码参考</p>
+        </div>
+        <div id="examplesList"></div>
+      `;
+
+      // 模拟渲染变体
+      const variants = [
+        { label: "默认样式 (Default)", options: { id: comp.id } },
+        { label: "紧凑/次要变体 (Compact/Secondary)", options: { id: comp.id, variant: 'secondary' } }
+      ];
+
+      const list = document.getElementById('examplesList');
+      variants.forEach(v => {
+        const html = generator.generate(comp.id, v.options);
+        const section = document.createElement('div');
+        section.className = 'example-section';
+        section.innerHTML = `
+          <span class="example-label">${v.label}</span>
+          <div class="example-box">${html}</div>
+          <div class="code-container">
+            <div class="code-header">
+              <span style="font-size:10px; color:var(--text-tertiary);">HTML SOURCE</span>
+              <button class="btn-text btn-sm" onclick="copyCode(this)">复制</button>
+            </div>
+            <pre><code>${html.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+          </div>
+        `;
+        list.appendChild(section);
+      });
+      lucide.createIcons();
+    }
+
+    function changeScenario() {
+      const scenario = document.getElementById('scenarioSelect').value;
+      const link = document.getElementById('core-style');
+      link.href = `../components/dist/lingjing-core-${scenario}.css`;
+      console.log(`Switched to scenario: ${scenario}`);
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const theme = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      html.setAttribute('data-theme', theme);
+      const icon = document.getElementById('themeIcon');
+      icon.setAttribute('data-lucide', theme === 'light' ? 'moon' : 'sun');
+      lucide.createIcons();
+    }
+
+    function copyCode(btn) {
+      const code = btn.closest('.code-container').querySelector('code').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const oldText = btn.textContent;
+        btn.textContent = '已复制';
+        setTimeout(() => btn.textContent = oldText, 2000);
+      });
+    }
+
+    window.onload = initNav;
+
+    // ── Audit Engine (browser-side, 6 of 7 checks; unknown_classes needs Node.js) ──
+    function runAudit() {
+      const btn = document.getElementById('auditBtn');
+      const panel = document.getElementById('auditPanel');
+      const area = document.getElementById('previewArea');
+
+      const html = area.innerHTML;
+      // Check if we're on the default landing page (no component loaded)
+      if (!html || !document.querySelector('.nav-item.active')) {
+        panel.style.display = 'none';
+        alert('请先从左侧选择一个组件再运行 Audit。');
+        return;
+      }
+
+      btn.classList.add('running');
+      btn.innerHTML = '<i data-lucide="loader" style="width:14px;height:14px;"></i> 检查中\u2026';
+      lucide.createIcons();
+
+      setTimeout(function() {
+        var results = [];
+
+        // ① style_tag_leak: <style> with non-:root selectors
+        (function() {
+          var styleTags = html.match(/<style[\s\S]*?<\/style>/gi) || [];
+          var leaks = [];
+          styleTags.forEach(function(tag) {
+            var inner = tag.replace(/<style[^>]*>|<\/style>/gi, '');
+            var selectorMatches = inner.match(/([^{}\n]+)\s*\{/g) || [];
+            selectorMatches.forEach(function(sel) {
+              var s = sel.replace(/\s*\{$/, '').trim();
+              if (!s.startsWith(':root') && !s.startsWith('@') && s.length > 0) {
+                leaks.push(s.length > 40 ? s.slice(0, 40) + '\u2026' : s);
+              }
+            });
+          });
+          if (styleTags.length === 0) {
+            results.push({ id: 'style_tag_leak', status: 'pass', name: 'style_tag_leak', detail: '无 &lt;style&gt; 标签泄漏' });
+          } else if (leaks.length > 0) {
+            results.push({ id: 'style_tag_leak', status: 'fail', name: 'style_tag_leak', detail: '发现非 :root 选择器 ' + leaks.length + ' 个，如：' + leaks[0] });
+          } else {
+            results.push({ id: 'style_tag_leak', status: 'warn', name: 'style_tag_leak', detail: '发现 &lt;style&gt; 标签，但仅含 :root 或 @规则（可接受）' });
+          }
+        })();
+
+        // ② inline_style_leak: style="" attributes
+        (function() {
+          var inlineStyles = html.match(/\bstyle\s*=\s*["'][^"']*["']/gi) || [];
+          var real = inlineStyles.filter(function(s) {
+            var val = s.replace(/^style\s*=\s*["']|["']$/gi, '').trim();
+            return val.length > 0 && !val.startsWith('--');
+          });
+          if (real.length === 0) {
+            results.push({ id: 'inline_style_leak', status: 'pass', name: 'inline_style_leak', detail: '无内联 style 属性' });
+          } else {
+            var sample = real[0].replace(/^style\s*=\s*/i, '').slice(0, 50);
+            results.push({ id: 'inline_style_leak', status: real.length > 3 ? 'fail' : 'warn', name: 'inline_style_leak', detail: '发现 ' + real.length + ' 处内联样式，首例：' + sample });
+          }
+        })();
+
+        // ③ demo_modifier_leak: class names containing -demo-
+        (function() {
+          var demoClasses = [];
+          var re = /class\s*=\s*["']([^"']*)["']/gi;
+          var m;
+          while ((m = re.exec(html)) !== null) {
+            m[1].split(/\s+/).forEach(function(cls) {
+              if (/-demo-/.test(cls)) demoClasses.push(cls);
+            });
+          }
+          if (demoClasses.length === 0) {
+            results.push({ id: 'demo_modifier_leak', status: 'pass', name: 'demo_modifier_leak', detail: '无 *-demo-* 类名泄漏' });
+          } else {
+            var unique = demoClasses.filter(function(v, i, a) { return a.indexOf(v) === i; });
+            results.push({ id: 'demo_modifier_leak', status: 'fail', name: 'demo_modifier_leak', detail: 'demo_only 类：' + unique.join(', ') });
+          }
+        })();
+
+        // ④ table_overflow_check: <table> must be inside .data-table-container
+        (function() {
+          var parser = new DOMParser();
+          var doc = parser.parseFromString('<div>' + html + '</div>', 'text/html');
+          var tables = doc.querySelectorAll('table');
+          var unWrapped = [];
+          tables.forEach(function(t) {
+            if (!t.closest('.data-table-container')) {
+              unWrapped.push(t.className || t.id || 'table');
+            }
+          });
+          if (tables.length === 0) {
+            results.push({ id: 'table_overflow_check', status: 'pass', name: 'table_overflow_check', detail: '当前组件无 &lt;table&gt; 元素' });
+          } else if (unWrapped.length > 0) {
+            results.push({ id: 'table_overflow_check', status: 'fail', name: 'table_overflow_check', detail: unWrapped.length + ' 个 &lt;table&gt; 未包裹在 .data-table-container' });
+          } else {
+            results.push({ id: 'table_overflow_check', status: 'pass', name: 'table_overflow_check', detail: '全部 ' + tables.length + ' 个表格已正确包裹' });
+          }
+        })();
+
+        // ⑤ frame_shell_check: B-system scenario check
+        (function() {
+          var scenario = document.getElementById('scenarioSelect').value;
+          if (scenario !== 'b-system') {
+            results.push({ id: 'frame_shell_check', status: 'pass', name: 'frame_shell_check', detail: '场景 ' + scenario + '：跳过 B 端骨架检查' });
+          } else {
+            results.push({ id: 'frame_shell_check', status: 'pass', name: 'frame_shell_check', detail: '单组件预览模式：骨架层由工具本身提供' });
+          }
+        })();
+
+        // ⑥ resource_ref_check: detect external absolute URLs
+        (function() {
+          var extRefs = [];
+          var re = /(?:href|src)\s*=\s*["']([^"'#?]+)["']/gi;
+          var m;
+          while ((m = re.exec(html)) !== null) {
+            var ref = m[1].trim();
+            if (ref.startsWith('http://') || ref.startsWith('https://') || ref.startsWith('//')) {
+              extRefs.push(ref.slice(0, 50));
+            }
+          }
+          if (extRefs.length === 0) {
+            results.push({ id: 'resource_ref_check', status: 'pass', name: 'resource_ref_check', detail: '无外部绝对 URL 引用' });
+          } else {
+            results.push({ id: 'resource_ref_check', status: 'warn', name: 'resource_ref_check', detail: extRefs.length + ' 处外部 URL（需人工确认）：' + extRefs[0] });
+          }
+        })();
+
+        // ⑦ unknown_classes: requires class_registry.json (Node.js only in browser)
+        results.push({ id: 'unknown_classes', status: 'warn', name: 'unknown_classes', detail: '浏览器环境跳过；完整校验：node scripts/skill-audit.js &lt;html&gt;' });
+
+        renderAuditPanel(results);
+
+        btn.classList.remove('running');
+        btn.innerHTML = '<i data-lucide="shield-check" style="width:14px;height:14px;"></i> 运行 Audit';
+        lucide.createIcons();
+      }, 50);
+    }
+
+    function renderAuditPanel(results) {
+      var panel = document.getElementById('auditPanel');
+      var errors = results.filter(function(r) { return r.status === 'fail'; });
+      var warns  = results.filter(function(r) { return r.status === 'warn'; });
+      var passes = results.filter(function(r) { return r.status === 'pass'; });
+
+      var overall, overallLabel;
+      if (errors.length > 0) {
+        overall = 'fail';
+        overallLabel = 'FAIL \u2014 ' + errors.length + ' ERROR, ' + warns.length + ' WARN, ' + passes.length + ' PASS';
+      } else if (warns.length > 0) {
+        overall = 'warn';
+        overallLabel = 'WARN \u2014 ' + warns.length + ' 项需关注，' + passes.length + ' 项通过';
+      } else {
+        overall = 'pass';
+        overallLabel = 'PASS \u2014 全部 ' + passes.length + ' 项通过';
+      }
+
+      var iconMap = { pass: 'check-circle', warn: 'alert-triangle', fail: 'x-circle' };
+
+      var checkItems = results.map(function(r) {
+        return '<div class="audit-check-item ' + r.status + '">' +
+          '<i data-lucide="' + iconMap[r.status] + '" class="audit-check-icon ' + r.status + '" style="width:14px;height:14px;flex-shrink:0;"></i>' +
+          '<div class="audit-check-body">' +
+            '<div class="audit-check-name">' + r.name + '</div>' +
+            '<div class="audit-check-detail">' + r.detail + '</div>' +
+          '</div></div>';
+      }).join('');
+
+      panel.innerHTML =
+        '<div class="audit-header">' +
+          '<span class="audit-badge ' + overall + '">' +
+            '<i data-lucide="' + iconMap[overall] + '" style="width:10px;height:10px;"></i>' +
+            '&nbsp;' + overallLabel +
+          '</span>' +
+          '<span style="color:var(--text-tertiary); margin-left:auto; font-size:11px;">skill-audit (browser) &middot; ' + results.length + '/7 checks</span>' +
+          '<button class="audit-run-btn" onclick="document.getElementById(\'auditPanel\').style.display=\'none\'" style="padding:2px 8px; margin-left:8px;">' +
+            '<i data-lucide="x" style="width:12px;height:12px;"></i>' +
+          '</button>' +
+        '</div>' +
+        '<div class="audit-checks">' + checkItems + '</div>';
+      panel.style.display = 'block';
+      lucide.createIcons();
+    }
+
+    window.onload = initNav;
+  </script>
+</body>
+</html>

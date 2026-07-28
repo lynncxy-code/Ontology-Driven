@@ -1,0 +1,356 @@
+/* World Marker */
+
+.world-marker {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  pointer-events: auto;
+  transform: translate(-50%, -100%);
+  transition: opacity var(--anim-duration-fast) ease, transform var(--anim-duration-fast) ease;
+}
+
+.world-marker__label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 206px;
+  max-width: 224px;
+  padding: 10px 12px 12px;
+  border-radius: 16px;
+  background: var(--ue5-overlay-world-marker-label-bg);
+  border: 1px solid var(--ue5-overlay-world-marker-label-border);
+  color: var(--ue5-overlay-text-strong);
+  box-shadow: var(--ue5-overlay-world-marker-label-shadow);
+}
+
+.world-marker__label-top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.world-marker__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--ue5-overlay-brand-secondary);
+}
+
+.world-marker__icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.world-marker__title {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ue5-overlay-text-strong);
+  white-space: nowrap;
+}
+
+.world-marker__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--ue5-overlay-world-marker-pill-border);
+  background: var(--ue5-overlay-world-marker-pill-bg);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.world-marker__label-bottom {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ue5-overlay-text-muted);
+}
+
+.world-marker__meta-row {
+  display: none;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.world-marker__meta-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--ue5-overlay-world-marker-pill-border);
+  background: var(--ue5-overlay-world-marker-pill-bg);
+  color: var(--ue5-overlay-text-base);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.world-marker__meta {
+  color: var(--ue5-overlay-text-muted);
+}
+
+
+.world-marker__line {
+  width: 2px;
+  height: 28px;
+  background: var(--ue5-overlay-world-marker-line-bg);
+}
+
+.world-marker__anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--ue5-overlay-world-marker-anchor-bg);
+  border: 1px solid var(--ue5-overlay-world-marker-anchor-border);
+  box-shadow: var(--ue5-overlay-world-marker-anchor-shadow);
+}
+
+.world-marker__anchor::before {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 1px solid var(--ue5-overlay-world-marker-anchor-ring);
+  animation: ue5-overlay-marker-pulse 2s infinite cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes ue5-overlay-marker-pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+.world-marker__anchor::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ue5-overlay-brand-secondary);
+  box-shadow: var(--ue5-overlay-world-marker-anchor-dot-shadow);
+}
+
+.world-marker__card,
+.world-marker__card-actions {
+  display: none;
+}
+
+.world-marker__card-title {
+  margin: 0 0 6px;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--ue5-overlay-text-strong);
+}
+
+.world-marker__card-subtitle {
+  margin: 0;
+  color: var(--ue5-overlay-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.world-marker__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--ue5-overlay-world-marker-action-border);
+  border-radius: var(--radius-full);
+  background: var(--ue5-overlay-world-marker-action-bg);
+  color: var(--ue5-overlay-text-strong);
+  cursor: pointer;
+  box-shadow: var(--ue5-overlay-world-marker-action-shadow);
+}
+
+.world-marker--warning .world-marker__label {
+  border-color: var(--ue5-overlay-world-marker-warning-border);
+  background: var(--ue5-overlay-world-marker-warning-bg);
+}
+
+.world-marker--warning .world-marker__icon,
+.world-marker--warning .world-marker__status {
+  color: var(--ue5-overlay-world-marker-warning-text);
+}
+
+.world-marker--warning .world-marker__status {
+  border-color: var(--ue5-overlay-world-marker-warning-pill-border);
+  background: var(--ue5-overlay-world-marker-warning-pill-bg);
+}
+
+.world-marker--warning .world-marker__line {
+  background: var(--ue5-overlay-world-marker-warning-line-bg);
+}
+
+.world-marker--warning .world-marker__anchor,
+.world-marker--warning .world-marker__anchor::before {
+  border-color: var(--ue5-overlay-world-marker-warning-anchor-border);
+}
+
+.world-marker--warning .world-marker__anchor::after {
+  background: var(--ue5-overlay-warning);
+  box-shadow: var(--ue5-overlay-world-marker-warning-anchor-shadow);
+}
+
+.world-marker--critical .world-marker__label {
+  border-color: var(--ue5-overlay-world-marker-critical-border);
+  background: var(--ue5-overlay-world-marker-critical-bg);
+  box-shadow: var(--ue5-overlay-world-marker-critical-shadow);
+}
+
+.world-marker--critical .world-marker__icon,
+.world-marker--critical .world-marker__status {
+  color: var(--ue5-overlay-world-marker-critical-text);
+}
+
+.world-marker--critical .world-marker__status {
+  border-color: var(--ue5-overlay-world-marker-critical-pill-border);
+  background: var(--ue5-overlay-world-marker-critical-pill-bg);
+}
+
+.world-marker--critical .world-marker__label-bottom {
+  color: var(--ue5-overlay-world-marker-critical-body-text);
+}
+
+.world-marker--critical .world-marker__line {
+  background: var(--ue5-overlay-world-marker-critical-line-bg);
+}
+
+.world-marker--critical .world-marker__anchor,
+.world-marker--critical .world-marker__anchor::before {
+  border-color: var(--ue5-overlay-world-marker-critical-anchor-border);
+}
+
+.world-marker--critical .world-marker__anchor::after {
+  background: var(--ue5-overlay-danger);
+  box-shadow: var(--ue5-overlay-world-marker-critical-anchor-shadow);
+}
+
+
+.world-marker--info .world-marker__label {
+  border-color: var(--ue5-overlay-world-marker-info-border);
+  background: var(--ue5-overlay-world-marker-info-bg);
+}
+
+.world-marker--info .world-marker__icon,
+.world-marker--info .world-marker__status {
+  color: var(--ue5-overlay-world-marker-info-text);
+}
+
+.world-marker--info .world-marker__status {
+  border-color: var(--ue5-overlay-world-marker-info-pill-border);
+  background: var(--ue5-overlay-world-marker-info-pill-bg);
+}
+
+.world-marker--info .world-marker__line {
+  background: var(--ue5-overlay-world-marker-info-line-bg);
+}
+
+.world-marker--info .world-marker__anchor,
+.world-marker--info .world-marker__anchor::before {
+  border-color: var(--ue5-overlay-world-marker-info-anchor-border);
+}
+
+.world-marker--info .world-marker__anchor::after {
+  background: var(--ue5-overlay-info);
+  box-shadow: var(--ue5-overlay-world-marker-info-anchor-shadow);
+}
+
+.world-marker--selected {
+  transform: translate(-50%, -102%);
+  filter: var(--ue5-overlay-world-marker-selected-shadow);
+}
+
+.world-marker--selected .world-marker__label {
+  border-color: var(--ue5-overlay-world-marker-selected-border);
+}
+
+.world-marker--critical.world-marker--selected .world-marker__label {
+  border-color: var(--ue5-overlay-world-marker-selected-critical-border);
+}
+
+.world-marker--quality .world-marker__label {
+  min-width: 220px;
+}
+
+.world-marker--quality .world-marker__meta-row {
+  display: flex;
+}
+
+.world-marker--quality .world-marker__meta-pill {
+  background: var(--ue5-overlay-world-marker-quality-pill-bg);
+}
+
+.world-marker--quality.world-marker--collapsed .world-marker__label {
+  min-width: 176px;
+}
+
+
+.world-marker--occluded {
+
+  opacity: 0.58;
+}
+
+.world-marker--occluded .world-marker__label {
+  border-style: dashed;
+}
+
+.world-marker--offscreen {
+  transform: none;
+}
+
+.world-marker--offscreen .world-marker__line,
+.world-marker--offscreen .world-marker__card {
+  display: none;
+}
+
+.world-marker--offscreen .world-marker__label {
+  background: var(--ue5-overlay-world-marker-offscreen-bg);
+}
+
+.world-marker--collapsed .world-marker__label {
+  min-width: auto;
+  padding: 10px 12px;
+}
+
+.world-marker--demo-a {
+  top: 40%;
+  left: 45%;
+}
+
+.world-marker--demo-b {
+  top: 63%;
+  left: 61%;
+}
+
+.world-marker--demo-d {
+  top: 31%;
+  left: 80%;
+}
+
+
+@media (max-width: 1366px) {
+  .world-marker__label {
+    min-width: 190px;
+    max-width: 210px;
+  }
+
+  .world-marker__line {
+    height: 24px;
+  }
+}

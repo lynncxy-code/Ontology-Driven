@@ -13,6 +13,12 @@ from mapping_store import (
 from ontology_parser import validate_files, parse_ontology_csvs
 from writeback import apply_writeback          # FR-5：UE→ontotwin 空间回写
 from ue_project_binding import bind_active_dataset, check_request_matches_active, request_ue_project
+from realtime_channel import enrich_instances_with_realtime_channel
+from scene_interaction.service import get_runtime_status
+from dataset_activation import (
+    activate_or_create_project,
+    project_dataset_to_object_types,
+)
 
 # ── App Setup ───────────────────────────────────────────────────
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
@@ -20,16 +26,24 @@ app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
 app.json.ensure_ascii = False  # 中文字符不转义为 \uXXXX，便于 2.9.2 调试（Flask 2.2+ 用法）
 CORS(app)
 
-# ── ArtStudio 资产库配置 ─────────────────────────────────────────
-ARTSTUDIO_BASE_URL = "http://studio.xjbg.tech:12345/api"
-ARTSTUDIO_TIMEOUT  = 5  # 秒，超时后自动回退 MOCK_ASSETS
-ARTSTUDIO_TOKEN    = None  # 后续有固定 token 后填写
+# ── ArtStudio 资产库配置（3.3.2：新库 + 环境变量可回滚）────────────
+ARTSTUDIO_BASE_URL = os.environ.get(
+    "ARTSTUDIO_BASE_URL", "https://artstudio.digioasis.tech/api"
+).rstrip("/")
+ARTSTUDIO_TIMEOUT = float(os.environ.get("ARTSTUDIO_TIMEOUT", "5"))
+ARTSTUDIO_TOKEN = os.environ.get("ARTSTUDIO_TOKEN") or None
 
 # 3.3：ArtStudio 运行时同步客户端（详情/版本缓存/下载代理/后端预取）
 import artstudio_client
 artstudio_client.configure(
     ARTSTUDIO_BASE_URL, ARTSTUDIO_TOKEN, ARTSTUDIO_TIMEOUT,
     models_dir=os.environ.get("MODELS_DIR"),   # 预取落盘目录（容器 /models → UE 固定 Models）
+)
+import artstudio_auth
+artstudio_auth.configure(
+    ARTSTUDIO_BASE_URL,
+    ARTSTUDIO_TIMEOUT,
+    session_path=os.environ.get("ARTSTUDIO_SESSION_FILE"),
 )
 
 @app.after_request
@@ -76,6 +90,10 @@ def serve_ontology():
 @app.route('/instance')
 def serve_instance():
     return app.send_static_file('instance.html')
+
+@app.route('/interaction')
+def serve_interaction():
+    return app.send_static_file('interaction.html')
 
 @app.route('/ontology_graph')
 def serve_ontology_graph():
@@ -319,7 +337,9 @@ def _commit_publish(data, items, source_file, force):
     }
     _datasets.append(new_ds)
     _active_dataset_id = ds_id
-    _object_types = _project_dataset_to_object_types(new_ds)
+    # A new project must not inherit capability configuration from the project
+    # that happened to be active when it was published.
+    _object_types = _project_dataset_to_object_types(new_ds, existing_types={})
     # 持久化为一个项目(含类型表+graph),并设为激活 → 后续 coord 投产落入此项目
     project_store.create_project(name, object_types=_object_types,
                                  project_id=ds_id, dataset=new_ds)
@@ -797,15 +817,31 @@ def coord_save_components():
     if mode == "dxf":
         profile["ue_transform"]["matrix"] = source_to_ue_matrix
         project_store.set_spatial_profile(profile)
-    frame_id = "frame_image" if mode == "image" else "frame_cad"
+    requested_frame_id = str(data.get("frame_id") or "").strip()
+    frame_id = requested_frame_id if mode == "image" and requested_frame_id else (
+        "frame_image" if mode == "image" else "frame_cad"
+    )
     frame_name = "图片平面图" if mode == "image" else "CAD 图纸"
     frame_unit = "px" if mode == "image" else "mm"
-    project_store.upsert_frame({
-        "id": frame_id, "name": frame_name, "kind": mode, "unit": frame_unit,
-        "to_canonical": {"method": "anchor", "matrix": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]},
-        "to_ue": {"method": "anchor", "matrix": source_to_ue_matrix},
-        "floor": 1, "map_code": None,
-    })
+    existing_frame = project_store.get_frame(frame_id) if requested_frame_id else None
+    if mode == "image" and requested_frame_id:
+        if not existing_frame or existing_frame.get("kind") != "image":
+            return jsonify({"error": "找不到当前图片对应的项目空间底图"}), 400
+        existing_to_ue = existing_frame.get("to_ue") or {}
+        existing_matrix = existing_to_ue.get("matrix") if isinstance(existing_to_ue, dict) else existing_to_ue
+        if not existing_matrix:
+            return jsonify({"error": "当前空间底图尚未保存有效标定"}), 400
+        source_to_ue_matrix = existing_matrix
+        frame_name = existing_frame.get("name") or frame_name
+    else:
+        # 兼容旧图片/CAD 工作流；4.0.1 项目图片 Frame 已由 spatial_assets 模块维护，
+        # 保存构件时不得再覆盖其图片身份、锚点、版本或 Z 基准。
+        project_store.upsert_frame({
+            "id": frame_id, "name": frame_name, "kind": mode, "unit": frame_unit,
+            "to_canonical": {"method": "anchor", "matrix": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]},
+            "to_ue": {"method": "anchor", "matrix": source_to_ue_matrix},
+            "floor": 1, "map_code": None,
+        })
 
     old = project_store.get_components()
     def _source_key(comp):
@@ -1559,6 +1595,7 @@ def _object_type_response(rid, ot):
         "color": ot.get("color", "#888888"),
         "properties": ot.get("properties", []),
         "injected_interfaces": injected,
+        "interface_configs": ot.get("interface_configs", {}),
         "asset_id": ot.get("asset_id"),
         "ue_asset_path": ot.get("ue_asset_path", ""),
         "mock_instances": ot.get("mock_instances", []),
@@ -1627,7 +1664,7 @@ def inject_interfaces():
     # 校验：若要挂载子接口，必须先有 I3D_Representable
     current = set(_object_types[rid].get("injected_interfaces", []))
     adding = set(interfaces)
-    child_ifaces = {"I3D_Spatial", "I3D_Visual", "I3D_Behavioral"}
+    child_ifaces = {"I3D_Spatial", "I3D_Visual", "I3D_Behavioral", "I3D_Overlay"}
     if adding & child_ifaces and "I3D_Representable" not in (current | adding):
         return jsonify({"error": "子能力接口需要先挂载 I3D_Representable"}), 400
 
@@ -1712,11 +1749,35 @@ def get_transform_types():
 # 2.3 API — 资产管理 (Asset Registry)
 # ═══════════════════════════════════════════════════════════════
 
+def _artstudio_identity_payload(result):
+    payload = {
+        "authenticated": bool(result.get("ok")),
+        "configured": bool(result.get("configured")),
+    }
+    if result.get("ok"):
+        payload["user"] = result.get("user", {})
+    else:
+        payload["code"] = result.get("code", "artstudio_identity_unavailable")
+        payload["message"] = result.get("message", "ArtStudio 身份校验失败。")
+    return payload
+
+
+@app.route('/api/v2/assets/identity', methods=['GET'])
+def get_artstudio_identity():
+    """校验当前设备的 ArtStudio 会话；响应中绝不返回 Token。"""
+    result = artstudio_client.fetch_identity()
+    return jsonify(_artstudio_identity_payload(result)), int(result.get("status", 502))
+
+
+artstudio_auth.register_routes(app)
+
+
 @app.route('/api/v2/assets', methods=['GET'])
 def list_assets():
     """
     资产列表。
-    - source=studio：只返回 ArtStudio；不可达时返回空列表 + warning，不静默混入本地资产。
+    - source=studio：返回 ArtStudio 公开资产；无需登录。
+    - source=mine：个人 Token 校验通过后，只返回当前用户自己的资产。
     - source=mock：只返回本地默认资产库。
 
     支持服务端分页 + 分类筛选：
@@ -1726,44 +1787,74 @@ def list_assets():
     size     = int(request.args.get("size", 10))
     source   = request.args.get("source", "studio")
     category = request.args.get("category")
+    owner_type = request.args.get("ownerType")
     sort     = request.args.get("sort", "newest")
     q        = request.args.get("q", "")
 
+    if source not in ("studio", "mine", "mock"):
+        return jsonify({"error": "不支持的资产源"}), 400
+
+    is_mine = source == "mine"
+    if is_mine:
+        identity = artstudio_client.fetch_identity()
+        if not identity.get("ok"):
+            return jsonify(_artstudio_identity_payload(identity)), int(identity.get("status", 502))
+
     # ── ArtStudio：失败时不回退 MOCK，避免标签页显示错数据源 ─────────────
-    if source != "mock":
+    if source in ("studio", "mine"):
         try:
             params = {"page": page, "size": size, "sort": sort}
             if category:
                 params["category"] = category
+            if is_mine:
+                params["ownerType"] = "2"
+                params["mine"] = "true"
+            elif owner_type:
+                params["ownerType"] = owner_type
             if q:
-                params["q"] = q
+                params["keyword"] = q
 
-            headers = {}
-            if ARTSTUDIO_TOKEN:
-                headers["Authorization"] = f"Bearer {ARTSTUDIO_TOKEN}"
+            # 公开库始终匿名访问；只有“我的资产”携带个人 Token。
+            headers = artstudio_client.auth_headers() if is_mine else {}
 
             resp = http_requests.get(
                 f"{ARTSTUDIO_BASE_URL}/assets",
                 params=params, headers=headers, timeout=ARTSTUDIO_TIMEOUT,
             )
+            if is_mine and resp.status_code in (401, 403):
+                invalid = {
+                    "ok": False,
+                    "configured": True,
+                    "status": 401,
+                    "code": "artstudio_token_invalid",
+                    "message": "ArtStudio 登录状态已失效，请重新连接账号后再试。",
+                }
+                return jsonify(_artstudio_identity_payload(invalid)), 401
             resp.raise_for_status()
             body = resp.json()
 
             raw_items = body.get("data", {}).get("list", [])
             items = []
             for a in raw_items:
-                ext_list = a.get("fileExtensions") or []
-                fmt = ext_list[0].upper() if ext_list else "未知"
+                asset_id = str(a["id"])
+                ext_list = [
+                    str(ext).lstrip(".").upper()
+                    for ext in (a.get("fileExtensions") or [])
+                    if ext
+                ]
+                fmt = "GLB" if "GLB" in ext_list else (ext_list[0] if ext_list else "未知")
                 items.append({
-                    "file_number": str(a["id"]),
+                    "file_number": asset_id,
                     "name":        a.get("name", ""),
                     "format":      fmt,
+                    "formats":     ext_list,
+                    "bindable":    "GLB" in ext_list,
                     "bounding_box": {},
                     "download_url": "",
                     "cover_url":   a.get("coverUrl", ""),
                     "ue_path":     "",
                     "_source": {
-                        "artstudio_id": a["id"],
+                        "artstudio_id": asset_id,
                     },
                 })
 
@@ -1772,28 +1863,32 @@ def list_assets():
                 "total":     body.get("data", {}).get("total", len(items)),
                 "page":      page,
                 "size":      size,
-                "_source":   "studio",
+                "_source":   "mine" if is_mine else "studio",
             })
 
         except Exception as e:
             msg = f"ArtStudio 资产库暂不可用: {e}"
             app.logger.warning(f"[ArtStudio] {msg}")
-            return jsonify({
+            payload = {
                 "items": [],
                 "total": 0,
                 "page": page,
                 "size": size,
-                "_source": "studio_error",
+                "_source": "mine_error" if is_mine else "studio_error",
                 "warning": msg,
-            })
+            }
+            return jsonify(payload), (502 if is_mine else 200)
 
     # ── MOCK_ASSETS（服务端模拟分页） ───────────────────────────
     all_items = []
     for fn, meta in MOCK_ASSETS.items():
+        fmt = str(meta.get("format", "glb")).lstrip(".").upper()
         all_items.append({
             "file_number":  fn,
             "name":         meta.get("name", fn),
-            "format":       meta.get("format", "glb"),
+            "format":       fmt,
+            "formats":      [fmt],
+            "bindable":     True,
             "bounding_box": meta.get("bounding_box", {}),
             "download_url": meta.get("download_url", ""),
             "cover_url":    "",
@@ -1844,27 +1939,15 @@ def bind_asset():
     # ── 判断数据源 ─────────────────────────────────────────────
     asset_meta = None
     is_from_studio = False
-    artstudio_id = None
     name = ""
 
     # 先查 ArtStudio（数字 ID）
+    artstudio_detail = None
     if file_number.isdigit():
-        try:
-            headers = {}
-            if ARTSTUDIO_TOKEN:
-                headers["Authorization"] = f"Bearer {ARTSTUDIO_TOKEN}"
-            resp = http_requests.get(
-                f"{ARTSTUDIO_BASE_URL}/assets/{file_number}",
-                headers=headers, timeout=ARTSTUDIO_TIMEOUT,
-            )
-            if resp.ok:
-                body = resp.json()
-                adata = body.get("data", {})
-                name = adata.get("name", "")
-                is_from_studio = True
-                artstudio_id = int(file_number)
-        except Exception:
-            pass  # 查不到也继续
+        artstudio_detail = artstudio_client.fetch_detail(file_number)
+        if artstudio_detail:
+            name = artstudio_detail.get("name", "")
+            is_from_studio = True
 
     # 再查 MOCK_ASSETS（语义标识）
     if not is_from_studio:
@@ -1890,10 +1973,9 @@ def bind_asset():
     artstudio_stable_id = None
     artstudio_reject = None
     if is_from_studio:
-        detail = artstudio_client.fetch_detail(file_number)
-        glb = artstudio_client.pick_glb_file(detail)
+        glb = artstudio_client.pick_glb_file(artstudio_detail)
         if glb:
-            artstudio_stable_id = artstudio_client.make_stable_id(file_number, detail["version"])
+            artstudio_stable_id = artstudio_client.make_stable_id(file_number, artstudio_detail["version"])
         else:
             artstudio_reject = "该资产暂不支持（本期仅支持 glb 模型，fbx/usd 待格式转换上线）"
 
@@ -1981,25 +2063,14 @@ def resolve_asset():
 
     # 先查 ArtStudio
     if file_number.isdigit():
-        try:
-            headers = {}
-            if ARTSTUDIO_TOKEN:
-                headers["Authorization"] = f"Bearer {ARTSTUDIO_TOKEN}"
-            resp = http_requests.get(
-                f"{ARTSTUDIO_BASE_URL}/assets/{file_number}",
-                headers=headers, timeout=ARTSTUDIO_TIMEOUT,
-            )
-            if resp.ok:
-                body = resp.json()
-                adata = body.get("data", {})
-                return jsonify({
-                    "valid": True,
-                    "file_number": file_number,
-                    "name": adata.get("name", ""),
-                    "_source": "studio",
-                })
-        except Exception:
-            pass
+        detail = artstudio_client.fetch_detail(file_number)
+        if detail:
+            return jsonify({
+                "valid": True,
+                "file_number": file_number,
+                "name": detail.get("name", ""),
+                "_source": "studio",
+            })
 
     # 再查 MOCK_ASSETS
     asset = MOCK_ASSETS.get(file_number)
@@ -2020,7 +2091,9 @@ def list_instances():
     切换数据集后，不属于当前数据集的实例自动隐藏（不删除，切回即恢复）。
     """
     all_inst = instance_store.list_all()
-    return jsonify([i for i in all_inst if i["object_type_rid"] in _object_types])
+    visible = [i for i in all_inst if i["object_type_rid"] in _object_types]
+    runtime_status = get_runtime_status(project_store.get_active_id())
+    return jsonify(enrich_instances_with_realtime_channel(visible, runtime_status))
 
 @app.route('/api/v2/instances', methods=['POST'])
 def spawn_instance():
@@ -2095,10 +2168,47 @@ def _build_render_config(object_type_rid):
     asset_meta = MOCK_ASSETS.get(asset_id, {})
     return {
         "injected_interfaces": list(ot.get("injected_interfaces", [])),
+        "interface_configs": dict(ot.get("interface_configs") or {}),
         "asset_id": asset_id,
         "ue_asset_path": ot.get("ue_asset_path") or asset_meta.get("ue_path") or asset_id,
         "object_type_name": ot.get("name", object_type_rid),
     }
+
+
+def _is_assembly_render_config(config):
+    """Whether an instance freezes an assembly_v1 composite representation."""
+    return isinstance(config, dict) and (
+        "render_parts" in config or "assembly_signature" in config
+    )
+
+
+def _resolve_instance_render_assets(raw, config, object_type, asset_catalog):
+    """Resolve model fields, giving assembly_v1 instance geometry precedence."""
+    if _is_assembly_render_config(config):
+        asset_id = config.get("asset_id") or raw.get("asset_id", "")
+        return asset_id, config.get("ue_asset_path") or asset_id
+
+    asset_id = object_type.get("asset_id") or raw.get("asset_id", "")
+    asset_meta = asset_catalog.get(asset_id, {})
+    ue_asset_path = object_type.get("ue_asset_path") or asset_meta.get("ue_path") or asset_id
+    return asset_id, ue_asset_path
+
+
+def _build_representable_interface(ue_asset_path, asset_id, is_visible, config=None):
+    """Build I3D_Representable while preserving assembly data byte-for-byte logically."""
+    payload = {
+        "asset_id": ue_asset_path,
+        "file_number": asset_id,
+        "is_visible": is_visible,
+    }
+    if isinstance(config, dict):
+        # Do not reshape, filter, or infer part transforms here. UE exported these
+        # values in its own coordinate contract and must receive them unchanged.
+        if "render_parts" in config:
+            payload["render_parts"] = config["render_parts"]
+        if "assembly_signature" in config:
+            payload["assembly_signature"] = config["assembly_signature"]
+    return payload
 
 
 def _build_snapshot(instance_id):
@@ -2120,9 +2230,14 @@ def _build_snapshot(instance_id):
         # 类型在当前激活数据集 → 用实时配置：绑定资产/换模型立即生效（不被 spawn 时的快照锁死）
         ot = _object_types[ot_rid]
         injected = ot.get("injected_interfaces", [])
-        asset_id = ot.get("asset_id") or raw.get("asset_id", "")
-        asset_meta = MOCK_ASSETS.get(asset_id, {})
-        ue_asset_path = ot.get("ue_asset_path") or asset_meta.get("ue_path") or asset_id
+        # Migrated composites are an instance-level geometry override. A type
+        # default model must not collapse an assembly to a single asset.
+        asset_id, ue_asset_path = _resolve_instance_render_assets(
+            raw,
+            cfg,
+            ot,
+            MOCK_ASSETS,
+        )
         ot_name = ot.get("name", ot_rid)
     elif cfg:
         # 类型已不在当前数据集（场景被切走/移植到别的后端）→ 回退实例冻结的配置
@@ -2150,11 +2265,12 @@ def _build_snapshot(instance_id):
     interfaces = {}
 
     if "I3D_Representable" in injected:
-        interfaces["I3D_Representable"] = {
-            "asset_id": ue_asset_path,
-            "file_number": asset_id,
-            "is_visible": raw.get("is_loaded", True)
-        }
+        interfaces["I3D_Representable"] = _build_representable_interface(
+            ue_asset_path,
+            asset_id,
+            raw.get("is_loaded", True),
+            cfg,
+        )
 
     if "I3D_Spatial" in injected:
         interfaces["I3D_Spatial"] = {
@@ -2181,6 +2297,28 @@ def _build_snapshot(instance_id):
             "fx_trigger":       raw.get("fx_trigger", ""),
             "ui_label_content": raw.get("ui_label_content", instance_id)
         }
+
+    if "I3D_Overlay" in injected:
+        try:
+            overlay_type = ot if ot_rid in _object_types else {
+                "rid": ot_rid,
+                "name": ot_name,
+                "injected_interfaces": injected,
+                "interface_configs": cfg.get("interface_configs") or {},
+            }
+            overlay_instance = dict(inst_meta)
+            overlay_instance["render_config"] = cfg
+            overlay_instance["raw_state"] = raw
+            overlay_payload = overlay_service.resolve_instance_interface(
+                overlay_type,
+                overlay_instance,
+                raw_state=raw,
+                online=online,
+            )
+            if overlay_payload is not None:
+                interfaces["I3D_Overlay"] = overlay_payload
+        except Exception as overlay_error:
+            print(f"[overlay] snapshot resolve failed instance={instance_id}: {overlay_error}")
 
     hierarchy_path = inst_meta.get("hierarchy_path") or [ot_name]
     if not isinstance(hierarchy_path, list):
@@ -2670,22 +2808,33 @@ def list_datasets():
     project_meta = {p["id"]: p for p in project_store.list_projects()}
     result = []
     for ds in _datasets:
-        meta = project_meta.get(ds["id"], {})
+        dataset_id = ds.get("id")
+        if not dataset_id:
+            continue
+        meta = project_meta.get(dataset_id, {})
+        graph = ds.get("graph_data")
+        node_count = ds.get("node_count")
+        link_count = ds.get("link_count")
+        if isinstance(graph, dict):
+            if node_count is None:
+                node_count = len(graph.get("nodes") or [])
+            if link_count is None:
+                link_count = len(graph.get("links") or [])
         result.append({
-            "id": ds["id"],
-            "name": ds["name"],
-            "created_at": ds["created_at"],
-            "node_count": ds.get("node_count"),
-            "link_count": ds.get("link_count"),
-            "project_id": ds["id"] if ds["id"] != "demo" else "",
-            "project_name": meta.get("name") or (ds.get("name") if ds["id"] != "demo" else ""),
+            "id": dataset_id,
+            "name": ds.get("name") or meta.get("name") or dataset_id,
+            "created_at": ds.get("created_at") or meta.get("created_at") or "",
+            "node_count": node_count,
+            "link_count": link_count,
+            "project_id": dataset_id if dataset_id != "demo" else "",
+            "project_name": meta.get("name") or (ds.get("name") if dataset_id != "demo" else ""),
             "type_count": meta.get("type_count"),
             "instance_count": meta.get("instance_count"),
             "zone_count": meta.get("zone_count", 0),
             "unzoned_instance_count": meta.get("unzoned_instance_count", 0),
             "bound_ue_project_id": ds.get("bound_ue_project_id") or meta.get("bound_ue_project_id", ""),
             "bound_ue_project_name": ds.get("bound_ue_project_name") or meta.get("bound_ue_project_name", ""),
-            "is_active": ds["id"] == _active_dataset_id
+            "is_active": dataset_id == _active_dataset_id
         })
     return jsonify(result)
 
@@ -2799,35 +2948,17 @@ def publish_custom_graph():
     return jsonify({"status": "ok", "dataset_id": ds_id, "name": name})
 
 
-def _project_dataset_to_object_types(ds):
+def _project_dataset_to_object_types(ds, existing_types=None):
     """
     把数据集 ds 投影为 _object_types 字典并返回（不写全局，让调用方决定）。
     PRD 2.9.2 § "node 自带字段优先 fallback old/默认" 规则。
     """
-    # Demo / 内置 Demo（graph_data is None）→ 用 OBJECT_TYPES 常量
-    if ds.get("id") == "demo" or ds.get("graph_data") is None:
-        return {k: dict(v) for k, v in OBJECT_TYPES.items()}
-
-    new_types = {}
-    for node in ds["graph_data"].get("nodes", []):
-        rid = node.get("rid")
-        if not rid:
-            continue
-        old = _object_types.get(rid, {})  # 同名 rid 的现有定义（如果有）
-        new_types[rid] = {
-            "rid": rid,
-            "name":        node.get("name", rid),
-            "category":    node.get("category", "Core"),
-            "description": node.get("description", ""),
-            # ↓ 4 行修复：node 自带字段优先，fallback 到 old / 默认值
-            "color":               node.get("color")               or old.get("color", "#888888"),
-            "properties":          node.get("properties", []),
-            "injected_interfaces": node.get("injected_interfaces") or old.get("injected_interfaces", []),
-            "asset_id":            node.get("asset_id")            if node.get("asset_id") is not None else old.get("asset_id"),
-            "mock_instances":      node.get("mock_instances", [])  or old.get("mock_instances", []),
-            "source":              node.get("source"),  # 2.9.2 新增字段
-        }
-    return new_types
+    source_types = _object_types if existing_types is None else existing_types
+    return project_dataset_to_object_types(
+        ds,
+        existing_types=source_types,
+        demo_types=OBJECT_TYPES,
+    )
 
 
 def _detect_dangling_refs(removed_or_overwritten_rids):
@@ -2865,17 +2996,26 @@ def activate_dataset():
     if not ds:
         return jsonify({"error": f"找不到数据集: {ds_id}"}), 404
 
-    _active_dataset_id = ds_id
-    _object_types = _project_dataset_to_object_types(ds)
     if ds_id == "demo":
+        _active_dataset_id = ds_id
+        _object_types = _project_dataset_to_object_types(ds)
         project_store.deactivate()            # demo 无项目 → 不服务实例
     else:
-        _persist_active_project()             # 切换激活项目(不存在则建)
+        # Existing-project activation is read-only. Re-projecting graph nodes and
+        # persisting them here used to erase type-level capability configuration.
+        _object_types, _created = activate_or_create_project(
+            project_store,
+            ds,
+            lambda target: _project_dataset_to_object_types(
+                target, existing_types={}
+            ),
+        )
+        _active_dataset_id = ds_id
     return jsonify({"status": "ok", "active": _active_dataset_id})
 
 
 def _normalize_graph_data(graph):
-    """读取端归一化：补齐节点 id/symbolSize/category，并在 categories 为空时从节点派生。
+    """读取端归一化：补齐节点 id/symbolSize/category，并补全节点实际引用的分类。
     保证任何来源（CAD 提交 / CSV 导入 / 旧数据）建的数据集，预览时节点都有身份、
     有分类、有图例，不再渲染成无结构散点（修复"新建数据集预览图谱空白"）。"""
     if not isinstance(graph, dict):
@@ -2888,14 +3028,23 @@ def _normalize_graph_data(graph):
             n["symbolSize"] = 30
         if not n.get("category"):
             n["category"] = "Core"
-    if not graph.get("categories"):
-        seen, cats = set(), []
-        for n in nodes:
-            c = n.get("category") or "Core"
-            if c not in seen:
-                seen.add(c)
-                cats.append({"name": c})
-        graph["categories"] = cats
+
+    # categories 不能只在完全为空时才派生。直接入库或后续增量追加节点时，调用方
+    # 很容易只更新 nodes，导致新节点引用了尚未注册的分类；ECharts graph 会忽略
+    # 这类节点。保留已有分类元数据，同时把所有节点实际使用的分类补齐。
+    seen, categories = set(), []
+    for category in graph.get("categories") or []:
+        normalized = category if isinstance(category, dict) else {"name": category}
+        name = normalized.get("name")
+        if name and name not in seen:
+            seen.add(name)
+            categories.append(normalized)
+    for n in nodes:
+        category = n.get("category") or "Core"
+        if isinstance(category, str) and category not in seen:
+            seen.add(category)
+            categories.append({"name": category})
+    graph["categories"] = categories
     graph.setdefault("links", [])
     return graph
 
@@ -4269,6 +4418,30 @@ def get_graph_data():
 
 # 启动时从 ProjectStore 恢复数据集 + 激活态 + 类型表（须在所有函数定义之后调用）
 _init_from_project_store()
+
+
+def _refresh_object_types_after_overlay_save():
+    global _object_types
+    _object_types = project_store.get_object_types()
+
+
+from overlay import register_overlay_routes
+overlay_service = register_overlay_routes(app, project_store, _refresh_object_types_after_overlay_save)
+
+from scene_interaction import register_scene_interaction_routes
+register_scene_interaction_routes(app, project_store)
+
+from spatial_assets import register_spatial_asset_routes
+register_spatial_asset_routes(app, project_store)
+
+from snapshot_delta import register_snapshot_delta_routes
+snapshot_delta_service = register_snapshot_delta_routes(
+    app,
+    project_store,
+    _build_snapshot,
+    check_request_matches_active,
+    lambda: _object_types,
+)
 
 if __name__ == '__main__':
     # threaded=True：支持并发请求（UE 多实例同时拉模型下载代理流，单线程会串行超时）

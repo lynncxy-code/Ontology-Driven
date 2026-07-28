@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>实例绑定台 | OntoTwin Nexus</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/nexus_titlebar.css">
 <style>
 :root{
   --ink:#1a1a1a;--ink-2:#5c5c5c;--ink-3:#8a8a8a;
@@ -22,11 +23,6 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:var(--font);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--t-base)}
 .wrap{max-width:1180px;margin:0 auto;padding:20px 24px 48px}
-header.pg{display:flex;align-items:center;gap:12px;margin-bottom:4px}
-header.pg h1{font-size:var(--t-xl);font-weight:600}
-.eyebrow{font-size:var(--t-xs);letter-spacing:.08em;color:var(--ink-3);border:1px solid var(--line);padding:2px 8px;border-radius:999px}
-.sub{color:var(--ink-2);font-size:var(--t-sm);margin:6px 0 18px;line-height:1.6}
-.badge{font-size:var(--t-xs);color:var(--ink-2);background:var(--bg-3);padding:4px 10px;border-radius:999px;border:1px solid var(--line)}
 /* toolbar */
 .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .spacer{flex:1}
@@ -84,21 +80,19 @@ select.bind{height:32px;font-size:var(--t-sm);max-width:180px;border:1px solid v
 </style>
 </head>
 <body>
+<header class="nexus-titlebar">
+  <div class="nexus-titlebar__main">
+    <h1 class="nexus-titlebar__title">实例绑定台</h1>
+    <p class="nexus-titlebar__subtitle">为坐标标定构件绑定业务实例编号，铸造后用于实例运维与 UE 展示</p>
+  </div>
+</header>
 <div class="wrap">
-  <header class="pg">
-    <h1>实例绑定台</h1>
-    <span class="eyebrow">BINDING</span>
-    <span class="badge" id="projBadge">项目：加载中…</span>
-    <div style="flex:1"></div>
-    <button class="btn btn-sm btn-ghost" onclick="loadAll()">刷新</button>
-  </header>
-  <p class="sub">把坐标标定产出的<strong>构件</strong>绑定到业务<strong>实例编号</strong>，绑定后铸造为实例，方可在实例运维与 UE 中显示。墙体/地面等无身份构件不在此处。</p>
-
   <div class="toolbar">
     <button class="btn btn-sm" id="btnAuto" onclick="autoMatch()">自动撮合（EQUIP_ID）</button>
     <label class="chk"><input type="checkbox" id="onlyUnbound" onchange="render()"> 仅看未绑定</label>
     <input class="field" id="searchBox" placeholder="搜索 类型 / 编号 / 实例编号…" oninput="render()" style="width:200px">
     <div class="spacer"></div>
+    <button class="btn btn-sm btn-ghost" onclick="loadAll()">刷新</button>
     <button class="btn btn-sm btn-primary" id="btnMint" onclick="mint()">铸造为实例（<span id="mintN">0</span>）</button>
   </div>
 
@@ -160,22 +154,13 @@ function esc(t){ return (''+(t==null?'':t)).replace(/[<>&"]/g, function(m){retur
 async function loadAll(){
   try{
     var rc = await fetch('/api/v2/binding/components');
-    if(rc.status === 400){ State.noProject = true; render(); refreshProjBadge(); return; }
+    if(rc.status === 400){ State.noProject = true; render(); return; }
     State.noProject = false;
     State.components = (await rc.json()).components || [];
     var rr = await fetch('/api/v2/binding/roster');
     State.roster = (await rr.json()).roster || [];
   }catch(e){ toast('加载失败：' + e.message, 'err'); return; }
-  refreshProjBadge();
   render();
-}
-async function refreshProjBadge(){
-  try{
-    var r = await fetch('/api/v2/scenes');
-    var d = await r.json();
-    var active = (d.projects||[]).find(function(p){ return p.id === d.active_project; });
-    document.getElementById('projBadge').textContent = '项目：' + (active ? active.name : '（无激活项目）');
-  }catch(e){ document.getElementById('projBadge').textContent = '项目：—'; }
 }
 
 function takenSet(){

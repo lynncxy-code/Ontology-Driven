@@ -19,7 +19,17 @@ import threading
 
 from psycopg.types.json import Jsonb
 
-from project_store import ProjectStore, _clean_hierarchy_path, _default_spatial_profile, apply_instance_metadata
+from project_store import (
+    CURRENT_SCHEMA_VERSION,
+    ProjectStore,
+    _clean_hierarchy_path,
+    _as_graph_dataset,
+    _default_media_policy,
+    _default_scene_interactions,
+    _default_spatial_profile,
+    apply_instance_metadata,
+    migrate_project_schema,
+)
 from db import pg
 
 
@@ -72,7 +82,8 @@ class ProjectStorePG(ProjectStore):
             with conn.cursor() as cur:
                 cur.execute(
                     """SELECT id, name, created_at, dataset, calibration, spatial_profile,
-                              components, instance_roster, frames
+                              components, instance_roster, frames, schema_version,
+                              scene_interactions, media_policy
                        FROM project WHERE id = %s AND deleted_at IS NULL""",
                     (pid,),
                 )
@@ -80,6 +91,7 @@ class ProjectStorePG(ProjectStore):
                 if not row:
                     return None
                 proj = {
+                    "schema_version": row[9],
                     "id": row[0],
                     "name": row[1],
                     "created_at": row[2],
@@ -89,6 +101,8 @@ class ProjectStorePG(ProjectStore):
                     "components": row[6] or {},
                     "instance_roster": row[7] or [],
                     "frames": row[8] or [],
+                    "scene_interactions": row[10] or _default_scene_interactions(),
+                    "media_policy": row[11] or _default_media_policy(),
                     "object_types": {},
                     "instances": {},
                 }
@@ -137,6 +151,7 @@ class ProjectStorePG(ProjectStore):
                         rec["ext_guid"] = r[6]
                     apply_instance_metadata(rec)
                     proj["instances"][r[0]] = rec
+                migrate_project_schema(proj)
                 return self._ensure_collections(proj)
 
     # ── 存当前项目：把内存 dict 拆解写回分表（事务原子）────────
@@ -154,12 +169,16 @@ class ProjectStorePG(ProjectStore):
                     cur.execute(
                         """INSERT INTO project
                              (id, name, created_at, dataset, calibration, spatial_profile,
-                              components, instance_roster, frames, deleted_at)
-                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s, NULL)
+                               schema_version, scene_interactions, media_policy,
+                               components, instance_roster, frames, deleted_at)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, NULL)
                            ON CONFLICT (id) DO UPDATE SET
                              name=EXCLUDED.name, created_at=EXCLUDED.created_at,
                              dataset=EXCLUDED.dataset, calibration=EXCLUDED.calibration,
                              spatial_profile=EXCLUDED.spatial_profile,
+                             schema_version=EXCLUDED.schema_version,
+                             scene_interactions=EXCLUDED.scene_interactions,
+                             media_policy=EXCLUDED.media_policy,
                              components=EXCLUDED.components,
                              instance_roster=EXCLUDED.instance_roster,
                              frames=EXCLUDED.frames, deleted_at=NULL""",
@@ -167,6 +186,9 @@ class ProjectStorePG(ProjectStore):
                             pid, proj.get("name"), proj.get("created_at"),
                             Jsonb(proj.get("dataset")), Jsonb(proj.get("calibration")),
                             Jsonb(proj.get("spatial_profile")),
+                            proj.get("schema_version", CURRENT_SCHEMA_VERSION),
+                            Jsonb(proj.get("scene_interactions") or _default_scene_interactions()),
+                            Jsonb(proj.get("media_policy") or _default_media_policy()),
                             Jsonb(proj.get("components") or {}),
                             Jsonb(proj.get("instance_roster") or []),
                             Jsonb(proj.get("frames") or []),
@@ -282,7 +304,7 @@ class ProjectStorePG(ProjectStore):
         with pg.get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """SELECT p.id, p.name, p.created_at, p.dataset,
+                    """SELECT p.id, p.name, p.created_at, p.dataset, p.schema_version,
                               (SELECT count(*) FROM object_type o
                                  WHERE o.project_id = p.id AND o.deleted_at IS NULL),
                               (SELECT count(*) FROM instance i
@@ -293,10 +315,11 @@ class ProjectStorePG(ProjectStore):
                                  WHERE i.project_id = p.id AND i.deleted_at IS NULL AND i.zone_id IS NULL)
                        FROM project p WHERE p.deleted_at IS NULL""",
                 )
-                for pid, name, created, dataset, tc, ic, zc, unzoned in cur.fetchall():
+                for pid, name, created, dataset, schema_version, tc, ic, zc, unzoned in cur.fetchall():
                     ds = dataset or {}
                     out.append({
                         "id": pid, "name": name, "created_at": created,
+                        "schema_version": schema_version,
                         "type_count": tc, "instance_count": ic,
                         "zone_count": zc or 0,
                         "unzoned_instance_count": unzoned or 0,
@@ -307,12 +330,19 @@ class ProjectStorePG(ProjectStore):
         return out
 
     def all_datasets(self):
+        out = []
         with pg.get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT dataset FROM project WHERE deleted_at IS NULL AND dataset IS NOT NULL"
+                    """SELECT id, name, created_at, dataset
+                       FROM project
+                       WHERE deleted_at IS NULL AND dataset IS NOT NULL"""
                 )
-                return [r[0] for r in cur.fetchall() if r[0]]
+                for pid, name, created_at, raw_dataset in cur.fetchall():
+                    dataset = _as_graph_dataset(pid, name, created_at, raw_dataset)
+                    if dataset:
+                        out.append(dataset)
+        return out
 
     # ── 新建 / 删除 ──────────────────────────────────────────
     def create_project(self, name, object_types=None, calibration=None,
@@ -320,6 +350,7 @@ class ProjectStorePG(ProjectStore):
         with self._lock:
             pid = project_id or f"p_{int(time.time() * 1000)}"
             proj = {
+                "schema_version": CURRENT_SCHEMA_VERSION,
                 "id": pid,
                 "name": name,
                 "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -331,6 +362,8 @@ class ProjectStorePG(ProjectStore):
                 "calibration": calibration,
                 "spatial_profile": _default_spatial_profile(),
                 "frames": [],
+                "scene_interactions": _default_scene_interactions(),
+                "media_policy": _default_media_policy(),
             }
             self._current = proj
             self._active_id = pid

@@ -1,0 +1,504 @@
+/**
+ * Lingjing Core - Presentation Components
+ * 灵境核心 - 演示文稿专用组件样式
+ *
+ * @version 2.7.1
+ * @description 演示文稿场景专用 - 统计卡片、时间线等组件
+ * @design 完全复用variables.css设计令牌，遵循实施方案v2.0
+ */
+
+/* ============================================================================
+   Statistics Card - 统计卡片
+   ========================================================================= */
+
+.presentation-stat-card {
+  padding: var(--spacing-2xl);
+  text-align: center;
+}
+
+.presentation-stat-number {
+  font-size: 3.5rem;
+  font-weight: var(--font-weight-bold);
+  background: linear-gradient(135deg, 
+      var(--theme-primary), 
+      var(--theme-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: var(--spacing-md);
+  line-height: 1;
+}
+
+.presentation-stat-label {
+  font-size: var(--font-size-base);
+  color: var(--theme-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.presentation-stat-change {
+  margin-top: var(--spacing-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.presentation-stat-change.positive {
+  color: var(--success-base);
+}
+
+.presentation-stat-change.negative {
+  color: var(--error-base);
+}
+
+/* ============================================================================
+   Timeline - 时间线组件
+   ========================================================================= */
+
+.presentation-timeline-item {
+  padding: var(--spacing-xl);
+  margin-bottom: var(--spacing-lg);
+  border-left: 4px solid var(--theme-primary);
+  background: linear-gradient(90deg, 
+      rgba(0, 102, 204, 0.08), 
+      transparent);
+  transition: all var(--anim-duration-normal);
+  border-radius: var(--radius-lg);
+}
+
+[data-theme="dark"] .presentation-timeline-item {
+  background: linear-gradient(90deg, 
+      rgba(0, 132, 255, 0.08), 
+      transparent);
+}
+
+.presentation-timeline-item:hover {
+  background: linear-gradient(90deg, 
+      rgba(0, 102, 204, 0.12), 
+      transparent);
+  transform: translateX(8px);
+}
+
+[data-theme="dark"] .presentation-timeline-item:hover {
+  background: linear-gradient(90deg, 
+      rgba(0, 132, 255, 0.12), 
+      transparent);
+}
+
+.presentation-timeline-date {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--theme-primary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: var(--spacing-sm);
+}
+
+.presentation-timeline-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--theme-text-primary);
+  margin-bottom: var(--spacing-md);
+}
+
+.presentation-timeline-desc {
+  font-size: var(--font-size-base);
+  color: var(--theme-text-secondary);
+  line-height: 1.7;
+}
+
+/* ============================================================================
+   Card Grid - 卡片网格
+   ========================================================================= */
+
+.presentation-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-xl);
+  margin-top: var(--spacing-lg);
+}
+
+.presentation-card-grid-item {
+  padding: var(--spacing-xl);
+  text-align: center;
+}
+
+.presentation-card-grid-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto var(--spacing-lg);
+  background: linear-gradient(135deg, 
+      var(--theme-primary), 
+      var(--theme-secondary));
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-3xl);
+  color: white;
+  box-shadow: var(--glow-primary);
+}
+
+.presentation-card-grid-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--theme-text-primary);
+  margin-bottom: var(--spacing-sm);
+  margin-top: 0;
+}
+
+.presentation-card-grid-title-inline {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--theme-text-primary);
+}
+
+.presentation-card-grid-desc {
+  font-size: var(--font-size-sm);
+  color: var(--theme-text-secondary);
+  line-height: 1.7;
+}
+
+/* ============================================================================
+   Progress Ring - 进度环
+   ========================================================================= */
+
+.presentation-progress-ring {
+  width: 160px;
+  height: 160px;
+  margin: 0 auto var(--spacing-lg);
+  position: relative;
+}
+
+.presentation-progress-ring svg {
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+}
+
+.presentation-progress-ring circle {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.presentation-progress-ring-bg {
+  stroke: var(--neutral-300);
+}
+
+[data-theme="dark"] .presentation-progress-ring-bg {
+  stroke: var(--neutral-700);
+}
+
+.presentation-progress-ring-fill {
+  stroke: url(#progressGradient);
+  stroke-dasharray: 440;
+  stroke-dashoffset: 440;
+  transition: stroke-dashoffset 1.5s var(--anim-ease-out);
+}
+
+.presentation-progress-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.presentation-progress-value {
+  font-size: 2.625rem;
+  font-weight: var(--font-weight-bold);
+  background: linear-gradient(135deg, 
+      var(--theme-primary), 
+      var(--theme-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+.presentation-progress-unit {
+  font-size: var(--font-size-sm);
+  color: var(--theme-text-secondary);
+  margin-top: var(--spacing-xs);
+}
+
+/* ============================================================================
+   Comparison Table - 对比表格
+   ========================================================================= */
+
+.presentation-comparison-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 var(--spacing-md);
+  font-size: var(--font-size-base);
+}
+
+.presentation-comparison-table th,
+.presentation-comparison-table td {
+  padding: var(--spacing-lg) var(--spacing-xl);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.presentation-comparison-table th {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--theme-text-secondary);
+  padding-bottom: var(--spacing-md);
+}
+
+.presentation-comparison-table tbody tr {
+  background: rgba(248, 250, 252, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(203, 213, 225, 0.3);
+  border-radius: var(--radius-lg);
+  transition: all var(--anim-duration-normal);
+}
+
+[data-theme="dark"] .presentation-comparison-table tbody tr {
+  background: rgba(0, 132, 255, 0.06);
+  border: 1px solid rgba(0, 132, 255, 0.1);
+}
+
+.presentation-comparison-table tbody tr:hover {
+  box-shadow: var(--glow-primary);
+  border-color: var(--theme-secondary);
+  transform: translateY(-2px);
+}
+
+.presentation-comparison-table tbody tr td:first-child {
+  font-weight: var(--font-weight-semibold);
+  color: var(--theme-text-primary);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+
+.presentation-comparison-table tbody tr td:last-child {
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+}
+
+/* ============================================================================
+   Tag List - 标签列表
+   ========================================================================= */
+
+.presentation-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+
+.presentation-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: linear-gradient(135deg, 
+      rgba(0, 102, 204, 0.1), 
+      rgba(0, 153, 170, 0.05));
+  border: 1px solid rgba(0, 102, 204, 0.2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--theme-text-primary);
+  transition: all var(--anim-duration-normal);
+}
+
+.presentation-tag:hover {
+  background: linear-gradient(135deg, 
+      rgba(0, 102, 204, 0.15), 
+      rgba(0, 153, 170, 0.1));
+  border-color: var(--theme-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--glow-primary);
+}
+
+.presentation-tag-icon {
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(135deg, 
+      var(--theme-primary), 
+      var(--theme-secondary));
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: var(--font-size-xs);
+}
+
+/* ============================================================================
+   Feature List - 特性列表
+   ========================================================================= */
+
+.presentation-feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.presentation-feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg) 0;
+  border-bottom: 1px solid var(--neutral-300);
+  transition: all var(--anim-duration-normal);
+}
+
+[data-theme="dark"] .presentation-feature-item {
+  border-bottom-color: var(--neutral-700);
+}
+
+.presentation-feature-item:hover {
+  transform: translateX(8px);
+}
+
+.presentation-feature-item:last-child {
+  border-bottom: none;
+}
+
+.presentation-feature-icon {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  margin: 0 auto var(--spacing-lg);
+  background: linear-gradient(135deg, 
+      var(--theme-primary), 
+      var(--theme-secondary));
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xl);
+  color: white;
+  box-shadow: var(--glow-primary);
+}
+
+.presentation-feature-content {
+  flex: 1;
+}
+
+.presentation-feature-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--theme-text-primary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.presentation-feature-desc {
+  font-size: var(--font-size-base);
+  color: var(--theme-text-secondary);
+  line-height: 1.7;
+}
+
+/* ============================================================================
+   Badge - 徽章
+   ========================================================================= */
+
+.presentation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  border: 1px solid;
+  transition: all var(--anim-duration-normal);
+}
+
+.presentation-badge.primary {
+  background: linear-gradient(135deg, 
+      rgba(0, 102, 204, 0.15), 
+      rgba(0, 153, 170, 0.1));
+  border-color: rgba(0, 102, 204, 0.3);
+  color: var(--theme-primary);
+}
+
+.presentation-badge.success {
+  background: linear-gradient(135deg, 
+      rgba(0, 163, 131, 0.15), 
+      rgba(0, 255, 200, 0.1));
+  border-color: rgba(0, 163, 131, 0.3);
+  color: var(--theme-accent);
+}
+
+.presentation-badge.warning {
+  background: linear-gradient(135deg, 
+      rgba(255, 176, 32, 0.15), 
+      rgba(255, 221, 0, 0.1));
+  border-color: rgba(255, 176, 32, 0.3);
+  color: var(--color-warning-amber);
+}
+
+.presentation-badge.danger {
+  background: linear-gradient(135deg, 
+      rgba(220, 38, 38, 0.15), 
+      rgba(255, 77, 79, 0.1));
+  border-color: rgba(220, 38, 38, 0.3);
+  color: var(--color-error-red);
+}
+
+.presentation-badge:hover {
+  transform: translateY(-2px);
+}
+
+/* ============================================================================
+  Code Example - 代码示例展示（迁移自 forms-b.css）
+  ========================================================================= */
+
+.code-example {
+  background: var(--bg-glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  overflow-x: auto;
+}
+
+.code-example code {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  line-height: 1.6;
+  white-space: pre;
+  display: block;
+}
+
+[data-theme="dark"] .code-example {
+  background: rgba(10, 20, 40, 0.6);
+  border-color: rgba(0, 132, 255, 0.2);
+}
+
+/* ============================================================================
+  Responsive - 响应式
+  ========================================================================= */
+
+
+@media (max-width: 1024px) {
+  .presentation-card-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .presentation-card-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .presentation-stat-number {
+    font-size: 2.5rem;
+  }
+  
+  .presentation-progress-value {
+    font-size: 2rem;
+  }
+}

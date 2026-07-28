@@ -1,0 +1,743 @@
+/* Lingjing Core Bento Grid Layout CSS */
+
+/* -------------------------- */
+/* Bento网格基础样式 */
+/* -------------------------- */
+
+/* Bento网格容器 */
+.grid-bento {
+  display: grid;
+  gap: var(--grid-gap-lg, 16px);
+  padding: var(--spacing-lg, 16px);
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-auto-rows: minmax(200px, auto);
+  grid-auto-flow: dense;
+}
+
+/* 不同尺寸的Bento网格 */
+.grid-bento-sm {
+  gap: var(--grid-gap-md, 12px);
+  padding: var(--spacing-md, 12px);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-auto-rows: minmax(160px, auto);
+}
+
+.grid-bento-md {
+  gap: var(--grid-gap-lg, 16px);
+  padding: var(--spacing-lg, 16px);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-auto-rows: minmax(180px, auto);
+}
+
+.grid-bento-lg {
+  gap: var(--grid-gap-xl, 24px);
+  padding: var(--spacing-xl, 24px);
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-auto-rows: minmax(220px, auto);
+}
+
+.grid-bento-xl {
+  gap: var(--grid-gap-2xl, 32px);
+  padding: var(--spacing-2xl, 32px);
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  grid-auto-rows: minmax(240px, auto);
+}
+
+/* -------------------------- */
+/* Bento网格?*/
+/* -------------------------- */
+
+/* 基础Bento?*/
+.grid-bento-item {
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--blur-md, 12px));
+  -webkit-backdrop-filter: blur(var(--blur-md, 12px));
+  border: var(--glass-border);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--glass-shadow);
+  padding: var(--spacing-lg, 16px);
+  transition: all var(--anim-duration-normal, 0.3s) var(--anim-ease-out, ease-out);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.grid-bento-item:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover, 0 12px 40px rgba(28, 102, 196, 0.15)), var(--glow-primary, 0 0 20px rgba(0, 132, 255, 0.2));
+  border-color: rgba(0, 132, 255, 0.3);
+}
+
+/* Bento项尺?*/
+.grid-bento-item-sm {
+  padding: var(--spacing-md, 12px);
+  border-radius: var(--radius-md, 8px);
+  grid-row: span 1;
+  grid-column: span 1;
+}
+
+.grid-bento-item-md {
+  padding: var(--spacing-lg, 16px);
+  border-radius: var(--radius-lg, 12px);
+  grid-row: span 1;
+  grid-column: span 1;
+}
+
+.grid-bento-item-lg {
+  padding: var(--spacing-xl, 24px);
+  border-radius: var(--radius-xl, 16px);
+  grid-row: span 2;
+  grid-column: span 1;
+}
+
+.grid-bento-item-xl {
+  padding: var(--spacing-2xl, 32px);
+  border-radius: var(--radius-xl, 16px);
+  grid-row: span 2;
+  grid-column: span 2;
+}
+
+/* Bento项跨度控?*/
+.grid-bento-item-span-2 {
+  grid-column: span 2;
+}
+
+.grid-bento-item-span-3 {
+  grid-column: span 3;
+}
+
+.grid-bento-item-span-4 {
+  grid-column: span 4;
+}
+
+.grid-bento-item-row-2 {
+  grid-row: span 2;
+}
+
+.grid-bento-item-row-3 {
+  grid-row: span 3;
+}
+
+.grid-bento-item-row-4 {
+  grid-row: span 4;
+}
+
+/* -------------------------- */
+/* Bento网格项变?*/
+/* -------------------------- */
+
+/* 玻璃拟态Bento?*/
+.grid-bento-item-glass {
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--blur-lg, 16px));
+  -webkit-backdrop-filter: blur(var(--blur-lg, 16px));
+  border: var(--glass-border);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--glass-shadow);
+}
+
+/* 实心Bento?*/
+.grid-bento-item-solid {
+  background: var(--bg-primary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.08));
+}
+
+/* UE风格Bento?*/
+.grid-bento-item-ue {
+  background: var(--ue-bg-glass);
+  backdrop-filter: blur(var(--blur-xl, 24px));
+  -webkit-backdrop-filter: blur(var(--blur-xl, 24px));
+  border: var(--ue-border-glow);
+  border-radius: var(--radius-xl, 16px);
+  box-shadow: var(--ue-shadow-prism), 0 0 30px rgba(0, 132, 255, 0.2);
+  padding: var(--spacing-xl, 24px);
+}
+
+.grid-bento-item-ue:hover {
+  transform: translateY(-8px);
+  box-shadow: 
+    var(--ue-shadow-prism), 
+    0 0 50px rgba(0, 132, 255, 0.4),
+    0 0 100px rgba(0, 229, 255, 0.2);
+  border-color: rgba(0, 229, 255, 0.6);
+}
+
+/* 彩色Bento?*/
+.grid-bento-item-blue {
+  background: linear-gradient(135deg, rgba(0, 102, 204, 0.1) 0%, rgba(0, 132, 255, 0.05) 100%);
+  border-color: rgba(0, 132, 255, 0.2);
+}
+
+.grid-bento-item-cyan {
+  background: linear-gradient(135deg, rgba(0, 153, 170, 0.1) 0%, rgba(0, 229, 255, 0.05) 100%);
+  border-color: rgba(0, 229, 255, 0.2);
+}
+
+.grid-bento-item-green {
+  background: linear-gradient(135deg, rgba(0, 163, 131, 0.1) 0%, rgba(0, 255, 200, 0.05) 100%);
+  border-color: rgba(0, 255, 200, 0.2);
+}
+
+/* 带边框的Bento?*/
+.grid-bento-item-bordered {
+  border-width: 2px;
+  border-style: solid;
+  border-color: var(--color-aero-blue);
+}
+
+.grid-bento-item-bordered-cyan {
+  border-width: 2px;
+  border-style: solid;
+  border-color: var(--color-pulse-cyan);
+}
+
+.grid-bento-item-bordered-green {
+  border-width: 2px;
+  border-style: solid;
+  border-color: var(--color-signal-green);
+}
+
+/* 带图案的Bento?*/
+.grid-bento-item-pattern {
+  background: var(--bg-glass);
+  position: relative;
+}
+
+.grid-bento-item-pattern::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 25% 25%, rgba(0, 132, 255, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(0, 229, 255, 0.05) 0%, transparent 50%);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* -------------------------- */
+/* Bento网格项内?*/
+/* -------------------------- */
+
+/* Bento项标?*/
+.grid-bento-item-title {
+  font-size: var(--font-size-lg, 16px);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-md, 12px);
+  line-height: 1.3;
+}
+
+.grid-bento-item-subtitle {
+  font-size: var(--font-size-sm, 14px);
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-lg, 16px);
+  line-height: 1.4;
+}
+
+/* Bento项内?*/
+.grid-bento-item-content {
+  flex: 1;
+  margin-bottom: var(--spacing-md, 12px);
+  font-size: var(--font-size-md, 14px);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Bento项底?*/
+.grid-bento-item-footer {
+  margin-top: auto;
+  padding-top: var(--spacing-md, 12px);
+  border-top: 1px solid var(--border-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-size-sm, 12px);
+  color: var(--text-muted);
+}
+
+/* Bento项图?*/
+.grid-bento-item-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md, 8px);
+  background: rgba(0, 132, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--spacing-md, 12px);
+  font-size: var(--font-size-xl, 20px);
+  color: var(--color-aero-blue);
+  transition: all var(--anim-duration-fast, 0.2s) var(--anim-ease-out, ease-out);
+}
+
+.grid-bento-item:hover .grid-bento-item-icon {
+  background: var(--color-aero-blue);
+  color: white;
+  transform: scale(1.05);
+  box-shadow: var(--glow-primary, 0 0 20px rgba(0, 132, 255, 0.4));
+}
+
+/* Bento项按?*/
+.grid-bento-item-btn {
+  background: transparent;
+  border: 1px solid var(--color-aero-blue);
+  border-radius: var(--radius-sm, 6px);
+  padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-aero-blue);
+  cursor: pointer;
+  transition: all var(--anim-duration-fast, 0.2s) var(--anim-ease-out, ease-out);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs, 4px);
+}
+
+.grid-bento-item-btn:hover {
+  background: var(--color-aero-blue);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: var(--glow-primary, 0 0 20px rgba(0, 132, 255, 0.4));
+}
+
+/* -------------------------- */
+/* Bento网格布局变体 */
+/* -------------------------- */
+
+/* 中心对齐的Bento网格 */
+.grid-bento-center {
+  align-items: center;
+  justify-items: center;
+}
+
+/* 紧凑的Bento网格 */
+.grid-bento-compact {
+  gap: var(--grid-gap-sm, 8px);
+  padding: var(--spacing-sm, 8px);
+}
+
+/* 宽松的Bento网格 */
+.grid-bento-relaxed {
+  gap: var(--grid-gap-2xl, 32px);
+  padding: var(--spacing-2xl, 32px);
+}
+
+/* 垂直Bento网格 */
+.grid-bento-vertical {
+  grid-template-columns: 1fr;
+  grid-template-rows: repeat(auto-fit, minmax(200px, auto));
+}
+
+/* 水平Bento网格 */
+.grid-bento-horizontal {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-rows: 1fr;
+}
+
+/* 交错Bento网格 */
+.grid-bento-staggered {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-auto-rows: 200px;
+}
+
+.grid-bento-staggered .grid-bento-item:nth-child(2n) {
+  grid-row: span 2;
+}
+
+.grid-bento-staggered .grid-bento-item:nth-child(3n) {
+  grid-row: span 3;
+}
+
+/* 对称Bento网格 */
+.grid-bento-symmetric {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-rows: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+/* -------------------------- */
+/* Bento网格动画效果 */
+/* -------------------------- */
+
+/* 加载动画 */
+.grid-bento-item-loading {
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.grid-bento-item-loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(0, 132, 255, 0.1), transparent);
+  animation: bento-loading 1.5s ease-in-out infinite;
+  border-radius: inherit;
+}
+
+@keyframes bento-loading {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* 进入动画 */
+.grid-bento-item-enter {
+  opacity: 0;
+  transform: translateY(20px) scale(0.95);
+  animation: bento-enter var(--anim-duration-normal, 0.5s) var(--anim-ease-out, ease-out) forwards;
+}
+
+@keyframes bento-enter {
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 交错进入动画 */
+.grid-bento-item-enter:nth-child(1) { animation-delay: 0ms; }
+.grid-bento-item-enter:nth-child(2) { animation-delay: 100ms; }
+.grid-bento-item-enter:nth-child(3) { animation-delay: 200ms; }
+.grid-bento-item-enter:nth-child(4) { animation-delay: 300ms; }
+.grid-bento-item-enter:nth-child(5) { animation-delay: 400ms; }
+.grid-bento-item-enter:nth-child(6) { animation-delay: 500ms; }
+
+/* 脉冲动画 */
+.grid-bento-item-pulse {
+  animation: bento-pulse 2s ease-in-out infinite;
+}
+
+@keyframes bento-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: var(--glass-shadow);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: var(--shadow-hover, 0 12px 40px rgba(28, 102, 196, 0.15));
+  }
+}
+
+/* -------------------------- */
+/* 深色主题 */
+/* -------------------------- */
+
+[data-theme="dark"] .grid-bento-item {
+  background: var(--bg-glass-dark, rgba(15, 30, 60, 0.85));
+  border-color: rgba(0, 132, 255, 0.12);
+  box-shadow: none;
+}
+
+[data-theme="dark"] .grid-bento-item:hover {
+  box-shadow: var(--shadow-hover-dark, 0 12px 40px rgba(0, 132, 255, 0.25)), var(--glow-primary-dark, 0 0 25px rgba(0, 132, 255, 0.3));
+  border-color: rgba(0, 132, 255, 0.4);
+}
+
+[data-theme="dark"] .grid-bento-item-solid {
+  background: var(--bg-primary-dark, rgba(15, 30, 60, 0.95));
+  border-color: rgba(0, 132, 255, 0.12);
+  box-shadow: none;
+}
+
+[data-theme="dark"] .grid-bento-item-solid:hover {
+  border-color: rgba(0, 132, 255, 0.4);
+}
+
+[data-theme="dark"] .grid-bento-item-blue {
+  background: linear-gradient(135deg, rgba(0, 132, 255, 0.15) 0%, rgba(0, 132, 255, 0.08) 100%);
+  border-color: rgba(0, 132, 255, 0.2);
+}
+
+[data-theme="dark"] .grid-bento-item-blue:hover {
+  border-color: rgba(0, 132, 255, 0.5);
+}
+
+[data-theme="dark"] .grid-bento-item-cyan {
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.15) 0%, rgba(0, 229, 255, 0.08) 100%);
+  border-color: rgba(0, 229, 255, 0.2);
+}
+
+[data-theme="dark"] .grid-bento-item-cyan:hover {
+  border-color: rgba(0, 229, 255, 0.5);
+}
+
+[data-theme="dark"] .grid-bento-item-green {
+  background: linear-gradient(135deg, rgba(0, 255, 200, 0.15) 0%, rgba(0, 255, 200, 0.08) 100%);
+  border-color: rgba(0, 255, 200, 0.2);
+}
+
+[data-theme="dark"] .grid-bento-item-green:hover {
+  border-color: rgba(0, 255, 200, 0.5);
+}
+
+[data-theme="dark"] .grid-bento-item-icon {
+  background: rgba(0, 132, 255, 0.15);
+  color: var(--color-pulse-cyan, #00B2CC);
+}
+
+[data-theme="dark"] .grid-bento-item:hover .grid-bento-item-icon {
+  background: var(--color-pulse-cyan, #00B2CC);
+  color: white;
+}
+
+/* -------------------------- */
+/* 响应式设?*/
+/* -------------------------- */
+
+/* 超小屏幕 */
+@media (max-width: 479px) {
+  .grid-bento {
+    grid-template-columns: 1fr;
+    gap: var(--grid-gap-sm, 8px);
+    padding: var(--spacing-sm, 8px);
+  }
+  
+  .grid-bento-item {
+    padding: var(--spacing-md, 12px);
+    border-radius: var(--radius-md, 8px);
+  }
+  
+  .grid-bento-item-lg,
+  .grid-bento-item-xl {
+    grid-column: span 1;
+    grid-row: span 1;
+  }
+  
+  .grid-bento-item-title {
+    font-size: var(--font-size-md, 14px);
+  }
+  
+  .grid-bento-item-subtitle {
+    font-size: var(--font-size-xs, 12px);
+  }
+  
+  .grid-bento-item-content {
+    font-size: var(--font-size-sm, 12px);
+  }
+}
+
+/* 小屏?*/
+@media (min-width: 480px) and (max-width: 639px) {
+  .grid-bento {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--grid-gap-md, 12px);
+    padding: var(--spacing-md, 12px);
+  }
+  
+  .grid-bento-item-lg {
+    grid-column: span 2;
+    grid-row: span 1;
+  }
+  
+  .grid-bento-item-xl {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+}
+
+/* 中屏?*/
+@media (min-width: 640px) and (max-width: 767px) {
+  .grid-bento {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--grid-gap-lg, 16px);
+    padding: var(--spacing-lg, 16px);
+  }
+  
+  .grid-bento-item-lg {
+    grid-column: span 1;
+    grid-row: span 2;
+  }
+  
+  .grid-bento-item-xl {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+}
+
+/* 大屏?*/
+@media (min-width: 768px) and (max-width: 1023px) {
+  .grid-bento {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--grid-gap-lg, 16px);
+    padding: var(--spacing-lg, 16px);
+  }
+  
+  .grid-bento-item-xl {
+    grid-column: span 3;
+    grid-row: span 2;
+  }
+}
+
+/* 超大屏幕 */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .grid-bento {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--grid-gap-xl, 24px);
+    padding: var(--spacing-xl, 24px);
+  }
+}
+
+/* 2X大屏?*/
+@media (min-width: 1280px) and (max-width: 1535px) {
+  .grid-bento {
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--grid-gap-xl, 24px);
+    padding: var(--spacing-xl, 24px);
+  }
+}
+
+/* 3X大屏?*/
+@media (min-width: 1536px) {
+  .grid-bento {
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--grid-gap-2xl, 32px);
+    padding: var(--spacing-2xl, 32px);
+  }
+}
+
+/* -------------------------- */
+/* 工具?*/
+/* -------------------------- */
+
+/* Bento网格对齐 */
+.grid-bento-align-start {
+  align-items: start;
+}
+
+.grid-bento-align-center {
+  align-items: center;
+}
+
+.grid-bento-align-end {
+  align-items: end;
+}
+
+.grid-bento-justify-start {
+  justify-items: start;
+}
+
+.grid-bento-justify-center {
+  justify-items: center;
+}
+
+.grid-bento-justify-end {
+  justify-items: end;
+}
+
+/* Bento项内容对?*/
+.grid-bento-item-content-start {
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.grid-bento-item-content-center {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.grid-bento-item-content-end {
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+
+/* Bento项间?*/
+.grid-bento-item-padding-sm {
+  padding: var(--spacing-sm, 8px);
+}
+
+.grid-bento-item-padding-md {
+  padding: var(--spacing-md, 12px);
+}
+
+.grid-bento-item-padding-lg {
+  padding: var(--spacing-lg, 16px);
+}
+
+.grid-bento-item-padding-xl {
+  padding: var(--spacing-xl, 24px);
+}
+
+/* Bento项边框半?*/
+.grid-bento-item-rounded-sm {
+  border-radius: var(--radius-sm, 4px);
+}
+
+.grid-bento-item-rounded-md {
+  border-radius: var(--radius-md, 8px);
+}
+
+.grid-bento-item-rounded-lg {
+  border-radius: var(--radius-lg, 12px);
+}
+
+.grid-bento-item-rounded-xl {
+  border-radius: var(--radius-xl, 16px);
+}
+
+/* Bento项阴?*/
+.grid-bento-item-shadow-sm {
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(28, 102, 196, 0.08));
+}
+
+.grid-bento-item-shadow-md {
+  box-shadow: var(--shadow-md, 0 4px 16px rgba(28, 102, 196, 0.12));
+}
+
+.grid-bento-item-shadow-lg {
+  box-shadow: var(--shadow-lg, 0 8px 32px rgba(28, 102, 196, 0.16));
+}
+
+.grid-bento-item-shadow-xl {
+  box-shadow: var(--shadow-xl, 0 16px 48px rgba(28, 102, 196, 0.2));
+}
+
+/* Bento项光?*/
+.grid-bento-item-glow {
+  box-shadow: var(--glass-shadow), var(--glow-primary, 0 0 20px rgba(0, 132, 255, 0.2));
+}
+
+.grid-bento-item-glow-cyan {
+  box-shadow: var(--glass-shadow), var(--glow-secondary, 0 0 20px rgba(0, 229, 255, 0.2));
+}
+
+.grid-bento-item-glow-green {
+  box-shadow: var(--glass-shadow), var(--glow-tertiary, 0 0 20px rgba(0, 163, 131, 0.2));
+}
+
+/* -------------------------- */
+/* Legacy Responsive Overrides (迁移自 components.css) */
+/* -------------------------- */
+
+@media (max-width: 768px) {
+  .grid-bento {
+    grid-template-columns: 1fr;
+    gap: var(--grid-gap-md);
+    padding: var(--spacing-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .grid-bento {
+    gap: var(--grid-gap-sm);
+    padding: var(--spacing-sm);
+  }
+}
+

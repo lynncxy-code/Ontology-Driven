@@ -1,0 +1,468 @@
+/**
+ * Lingjing Core - Tooltip Component
+ * 
+ * @version 2.6.2
+ * @description 提示组件 - 用于图标说明、帮助信息、简短提?
+ * @usage 所有场景通用的核心交互组?
+ * 
+ * Components:
+ * - .tooltip            提示容器（悬停触发）
+ * - .tooltip-trigger    触发元素（按钮、图标等?
+ * - .tooltip-content    提示内容（自动定位）
+ * - .tooltip-arrow      箭头指示?
+ * 
+ * Positions:
+ * - .tooltip-top        顶部（默认）
+ * - .tooltip-bottom     底部
+ * - .tooltip-left       左侧
+ * - .tooltip-right      右侧
+ * 
+ * Themes:
+ * - .tooltip-dark       深色主题（默认）
+ * - .tooltip-light      浅色主题
+ */
+
+/* ============================================================================
+   Tooltip Container - 提示容器
+   ========================================================================= */
+
+.tooltip {
+  /* Layout */
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Trigger Element - 触发元素 */
+.tooltip-trigger {
+  /* 无需特殊样式，使用原有元素样?*/
+  cursor: help;
+}
+
+/* ============================================================================
+   Tooltip Content - 提示内容
+   ========================================================================= */
+
+.tooltip-content {
+  /* Positioning */
+  position: absolute;
+  z-index: 10000;
+  pointer-events: none;
+  
+  /* Layout */
+  padding: var(--spacing-xs) var(--spacing-sm);
+  max-width: 320px;
+  
+  /* Style - 深色主题（默认） */
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  
+  /* Animation */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--anim-duration-fast) var(--anim-ease-out),
+              visibility var(--anim-duration-fast) var(--anim-ease-out),
+              transform var(--anim-duration-fast) var(--anim-ease-out);
+}
+
+/* Show on hover */
+.tooltip:hover .tooltip-content {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ============================================================================
+   Attribute based Tooltip - 属性触发式提示 (v2.0.6 新增)
+   用法: <button class="tooltip" data-tooltip="提示文字">
+   ========================================================================= */
+
+[data-tooltip] {
+  position: relative;
+  cursor: help;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 10000;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+  pointer-events: none;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+}
+
+[data-tooltip]:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Position variants for attribute tooltip */
+[data-position="bottom"]::after {
+  top: calc(100% + 8px);
+  bottom: auto;
+  transform: translateX(-50%) translateY(-4px);
+}
+
+[data-position="bottom"]:hover::after {
+  transform: translateX(-50%) translateY(0);
+}
+
+[data-position="left"]::after {
+  right: calc(100% + 8px);
+  left: auto;
+  bottom: auto;
+  top: 50%;
+  transform: translateY(-50%) translateX(4px);
+}
+
+[data-position="left"]:hover::after {
+  transform: translateY(-50%) translateX(0);
+}
+
+[data-position="right"]::after {
+  left: calc(100% + 8px);
+  right: auto;
+  bottom: auto;
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+}
+
+[data-position="right"]:hover::after {
+  transform: translateY(-50%) translateX(0);
+}
+
+/* Dark theme support for attribute tooltip */
+[data-theme="dark"] [data-tooltip]::after {
+  background: var(--neutral-800);
+  color: var(--neutral-100);
+  border: 1px solid var(--neutral-700);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Light Theme */
+
+.tooltip-light .tooltip-content {
+  background: white;
+  color: var(--text-primary);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .tooltip-light .tooltip-content {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+
+/* ============================================================================
+   Tooltip Arrow - 箭头指示?
+   ========================================================================= */
+
+.tooltip-arrow {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.85);
+  transform: rotate(45deg);
+}
+
+/* Light Theme Arrow */
+.tooltip-light .tooltip-arrow {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .tooltip-light .tooltip-arrow {
+  background: var(--bg-card);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+
+/* ============================================================================
+   Tooltip Positions - 位置变体
+   ========================================================================= */
+
+/* Top Position - 顶部（默认） */
+.tooltip-top .tooltip-content,
+.tooltip .tooltip-content {
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+}
+
+.tooltip-top:hover .tooltip-content,
+.tooltip:hover .tooltip-content {
+  transform: translateX(-50%) translateY(0);
+}
+
+.tooltip-top .tooltip-arrow,
+.tooltip .tooltip-arrow {
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  margin-top: -4px;
+}
+
+/* Bottom Position - 底部 */
+.tooltip-bottom .tooltip-content {
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+}
+
+.tooltip-bottom:hover .tooltip-content {
+  transform: translateX(-50%) translateY(0);
+}
+
+.tooltip-bottom .tooltip-arrow {
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  margin-bottom: -4px;
+}
+
+/* Left Position - 左侧 */
+.tooltip-left .tooltip-content {
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%) translateX(4px);
+}
+
+.tooltip-left:hover .tooltip-content {
+  transform: translateY(-50%) translateX(0);
+}
+
+.tooltip-left .tooltip-arrow {
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+  margin-left: -4px;
+}
+
+/* Right Position - 右侧 */
+.tooltip-right .tooltip-content {
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+}
+
+.tooltip-right:hover .tooltip-content {
+  transform: translateY(-50%) translateX(0);
+}
+
+.tooltip-right .tooltip-arrow {
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+  margin-right: -4px;
+}
+
+/* ============================================================================
+   Tooltip Variants - 变体样式
+   ========================================================================= */
+
+/* Multiline Tooltip - 多行提示 */
+.tooltip-multiline .tooltip-content {
+  max-width: 240px;
+  text-align: left;
+  white-space: normal;
+}
+
+/* Large Tooltip - 大号提示 */
+.tooltip-large .tooltip-content {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  max-width: 400px;
+}
+
+/* Success Tooltip - 成功提示 */
+.tooltip-success .tooltip-content {
+  background: #52C41A;
+  color: white;
+}
+
+.tooltip-success .tooltip-arrow {
+  background: #52C41A;
+}
+
+/* Warning Tooltip - 警告提示 */
+.tooltip-warning .tooltip-content {
+  background: #FAAD14;
+  color: white;
+}
+
+.tooltip-warning .tooltip-arrow {
+  background: #FAAD14;
+}
+
+/* Error Tooltip - 错误提示 */
+.tooltip-error .tooltip-content {
+  background: #F5222D;
+  color: white;
+}
+
+.tooltip-error .tooltip-arrow {
+  background: #F5222D;
+}
+
+/* Info Tooltip - 信息提示 */
+.tooltip-info .tooltip-content {
+  background: var(--brand-primary);
+  color: white;
+}
+
+.tooltip-info .tooltip-arrow {
+  background: var(--brand-primary);
+}
+
+/* ============================================================================
+   Responsive Design - 响应式设?
+   ========================================================================= */
+
+@media (max-width: 768px) {
+  .tooltip-content {
+    max-width: 240px;
+    font-size: var(--font-size-xs);
+  }
+  
+  .tooltip-large .tooltip-content {
+    max-width: 280px;
+  }
+}
+
+/* ============================================================================
+   Accessibility - 无障碍访?
+   ========================================================================= */
+
+/* Focus State */
+.tooltip-trigger:focus + .tooltip-content {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .tooltip-content {
+    transition: none;
+  }
+  
+  .tooltip:hover .tooltip-content {
+    transform: translateX(-50%);
+  }
+  
+  .tooltip-bottom:hover .tooltip-content {
+    transform: translateX(-50%);
+  }
+  
+  .tooltip-left:hover .tooltip-content {
+    transform: translateY(-50%);
+  }
+  
+  .tooltip-right:hover .tooltip-content {
+    transform: translateY(-50%);
+  }
+}
+
+/* ============================================================================
+   Usage Examples - 使用示例
+   ========================================================================= */
+
+/**
+ * 基础用法（顶部）?
+ * 
+ * <div class="tooltip">
+ *   <button class="btn-icon tooltip-trigger">
+ *     <i data-lucide="help-circle"></i>
+ *   </button>
+ *   <div class="tooltip-content">
+ *     这是一条提示信?
+ *     <div class="tooltip-arrow"></div>
+ *   </div>
+ * </div>
+ * 
+ * 底部提示?
+ * 
+ * <div class="tooltip tooltip-bottom">
+ *   <button class="btn-icon tooltip-trigger">
+ *     <i data-lucide="info"></i>
+ *   </button>
+ *   <div class="tooltip-content">
+ *     底部提示信息
+ *     <div class="tooltip-arrow"></div>
+ *   </div>
+ * </div>
+ * 
+ * 左侧提示?
+ * 
+ * <div class="tooltip tooltip-left">
+ *   <button class="btn-icon tooltip-trigger">
+ *     <i data-lucide="settings"></i>
+ *   </button>
+ *   <div class="tooltip-content">
+ *     设置选项说明
+ *     <div class="tooltip-arrow"></div>
+ *   </div>
+ * </div>
+ * 
+ * 浅色主题提示?
+ * 
+ * <div class="tooltip tooltip-light">
+ *   <button class="btn-icon tooltip-trigger">
+ *     <i data-lucide="user"></i>
+ *   </button>
+ *   <div class="tooltip-content">
+ *     用户信息
+ *     <div class="tooltip-arrow"></div>
+ *   </div>
+ * </div>
+ * 
+ * 多行提示?
+ * 
+ * <div class="tooltip tooltip-multiline">
+ *   <button class="btn-icon tooltip-trigger">
+ *     <i data-lucide="alert-circle"></i>
+ *   </button>
+ *   <div class="tooltip-content">
+ *     这是一条较长的提示信息?br>
+ *     它可以包含多行文本，<br>
+ *     自动换行显示?
+ *     <div class="tooltip-arrow"></div>
+ *   </div>
+ * </div>
+ * 
+ * 成功提示?
+ * 
+ * <div class="tooltip tooltip-success">
+ *   <i data-lucide="check-circle" class="tooltip-trigger"></i>
+ *   <div class="tooltip-content">
+ *     操作成功
+ *     <div class="tooltip-arrow"></div>
+ *   </div>
+ * </div>
+ * 
+ * 警告提示?
+ * 
+ * <div class="tooltip tooltip-warning">
+ *   <i data-lucide="alert-triangle" class="tooltip-trigger"></i>
+ *   <div class="tooltip-content">
+ *     请注意风?
+ *     <div class="tooltip-arrow"></div>
+ *   </div>
+ * </div>
+ */

@@ -1,0 +1,178 @@
+/**
+ * Lingjing Core - Components Styles
+ *
+ * 灵境核心组件样式?
+ *
+ * @version 2.6.2
+ * @description 基于灵境设计系统的组件样式实?
+ * @update 2026-02-21 - 优化CSS文件复制指引，明确建议使用RunCommand直接复制文件，避免Read工具截断
+ *
+ * v2.0.3更新?
+ * - 保留v1.8.1所有调试好的样式（涟漪效果、导航菜单、Header/Footer等）
+ * - 新增4个辅助类?stats-grid, .charts-grid, .chart-placeholder, .action-buttons
+ * - 放宽样式限制，允许使用CSS变量和必要布局样式
+ *
+ * Usage:
+ * 1. 导入 variables.css 作为基础
+ * 2. 根据需要导入特定组件样?
+ * 3. 遵循设计令牌和反模式规范
+ */
+
+/* Foundation - 基础令牌与兼容层 */
+@import '../01-foundation/variables.css';
+@import '../01-foundation/token-aliases.css';
+@import '../01-foundation/scrollbar.css';
+
+/* Utilities - 工具类 */
+@import '../01-foundation/utilities.css';
+
+/* Core Components - 核心组件 */
+@import '../02-components/ue-components.css';          /* UE 专用组件 */
+@import '../01-foundation/glass-effects.css';          /* 玻璃拟态效果 */
+@import '../02-components/buttons.css';  /* 按钮和交互 */
+@import '../02-components/feedback-legacy.css'; /* 反馈组件旧 API 兼容层（内部桥接 feedback.css） */
+@import '../02-components/navigation-legacy.css'; /* 导航组件旧 API 兼容层 */
+@import '../02-components/navigation.css'; /* 导航组件（breadcrumb, top-nav, tabs, pagination）*/
+@import '../02-components/data-display.css';           /* 数据展示组件（accordion, tabs, list-group）*/
+@import '../02-components/forms-advanced.css';         /* 高级表单组件（radio, select, textarea, slider, time-picker）*/
+@import '../02-components/advanced-components.css';    /* 高级组件（rating, tree, transfer, notification, stepper）*/
+@import '../02-components/metric-cards.css';           /* 指标卡片（stat-card, trend, comparison, progress）*/
+@import '../02-components/progress-components.css';    /* 进度条（linear, circle, steps, dashboard）*/
+@import '../02-components/date-picker.css';            /* 日期选择器（date, range, month, year）*/
+@import '../03-layouts/bento-grid.css';             /* Bento Grid 布局 */
+@import '../02-components/icon-system.css';            /* 图标系统 */
+@import '../02-components/dropdown-menu.css';          /* 下拉菜单 */
+@import '../02-components/tooltip.css';                /* 提示 */
+@import '../02-components/modal-dialog.css';           /* 模态框 */
+@import '../02-components/toast.css';                  /* 轻提示 */
+@import '../02-components/popover.css';                /* 气泡卡片 */
+@import '../02-components/drawer.css';                 /* 抽屉组件 */
+@import '../02-components/empty-state.css';            /* 空状态 */
+@import '../02-components/skeleton.css';               /* 骨架屏 */
+@import '../02-components/loading-block.css';          /* 加载块 */
+@import '../02-components/status-badge-group.css';     /* 状态徽章组 */
+@import '../02-components/filter-bar.css';             /* 筛选条 */
+@import '../02-components/search-suggestion.css';      /* 搜索联想 */
+@import '../02-components/ai-assistant.css';           /* AI 助手组件 */
+
+
+
+/* Scene Components - 场景组件（按需选择） */
+@import '../02-components/website-components.css';     /* 网站场景组件 */
+@import '../03-layouts/layout-system.css';          /* B端系统布局 */
+@import '../03-layouts/cards-b.css';                /* B端系统卡片 */
+
+/* Enhancements - 增强能力 */
+@import '../03-layouts/responsive.css';             /* 响应式样式 */
+@import '../04-themes/theme-switcher.css';         /* 主题切换 */
+
+/* ============================================================================
+   Quick Start
+   ========================================================================= */
+
+/*
+1. ?HTML 中引?
+   <link rel="stylesheet" href="path/to/index.css">
+
+2. 使用组件:
+   <div class="card-glass">
+     <h3>卡片标题</h3>
+     <p>卡片内容</p>
+   </div>
+
+3. 切换主题:
+   document.documentElement.setAttribute('data-theme', 'dark');
+*/
+
+/* ============================================================================
+   Component Classes Reference
+   ========================================================================= */
+
+/*
+卡片组件:
+  .card-glass         - 标准玻璃卡片
+  .card-ue-mimetic    - UE场景卡片
+
+按钮组件:
+  .btn-primary        - 主按?
+  .btn-secondary      - 次按?
+  .btn-ghost          - 幽灵按钮
+  .btn-ue             - UE场景按钮
+
+表单组件:
+  .input-field        - 文本输入?
+  .form-checkbox      - 复选框
+  .form-select        - 下拉选择
+  .form-switch        - 开?
+
+布局组件:
+  .grid-bento         - Bento网格
+  .nav-sidebar        - 侧边导航
+  .header-top         - 顶部导航
+  .container          - 网站版心容器（max-width: 1200-1440px?
+
+B端系统布局:
+  .b-layout-sidebar   - 侧边栏布局容器
+  .b-sidebar          - 侧边导航栏（固定 260px?
+  .b-main             - 主内容区（flex: 1, ?max-width?
+  .b-header           - 顶部标题?
+  .b-content          - 内容区（可滚动，撑满浏览器）
+  .b-layout-topbar    - 顶部导航布局容器
+  .b-topbar           - 顶部导航?
+
+B端系统卡?
+  .b-stat-card        - KPI 统计卡片（左?3px 彩色条）
+  .b-chart-card       - 图表容器卡片
+  .card-solid         - 实心卡片（表?设置场景?
+
+B端表单和交互:
+  .btn-text           - 文本按钮（无边框?
+  .btn-icon           - 图标按钮（正方形小按钮）
+  .search-input       - 搜索输入?
+  .filter-select      - 筛选下拉框
+  .badge              - 状态徽?
+  .card-label         - 卡片标签
+  .code-example       - 代码示例?
+  .divider            - 分隔?
+  .data-table         - 数据表格
+  .pagination         - 分页组件
+  .breadcrumb         - 面包屑导?
+  .search-bar         - 搜索栏容?
+  .content-card       - 内容卡片
+  .page-title         - 页面标题
+  .page-subtitle      - 页面副标?
+  .action-buttons     - 操作按钮容器
+  .empty-state        - 空状态提?
+
+网站组件:
+  .website-nav        - 网站顶部导航
+  .website-hero       - 英雄?
+  .website-solution-card - 解决方案卡片
+  .website-product-card  - 产品卡片
+  .website-footer     - 网站页脚
+
+数据展示:
+  .chart-container    - 图表容器
+  .badge              - 状态徽?
+  .data-tag           - 数据标签
+
+UE专用:
+  .ue-viewport        - UE视口
+  .ue-stats-hud       - UE统计HUD
+  .ue-toggle          - UE切换开?
+*/
+
+/* ============================================================================
+   Anti-Patterns Warning
+   ========================================================================= */
+
+/*
+严格禁止以下模式:
+  ?扫描线效?
+  ?噪点纹理
+  ?刚性HUD边框
+  ?圆角 > 12px
+  ?纯红?#FF0000
+
+详见: ../../../data/anti-patterns.csv
+*/

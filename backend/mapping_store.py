@@ -15,6 +15,7 @@ import threading
 import random
 import math
 import hashlib
+from runtime_source_policy import is_websocket_spatial_instance
 
 # MappingStore（2.0/2.1 映射规则存储）已废弃移除（OntoTwin 3.4 清理）：
 # v2.9 后 raw_state 直接存接口原生字段，_build_snapshot 不再消费映射规则。
@@ -78,6 +79,14 @@ INTERFACES = [
             {"name": "fx_trigger",       "label": "特效触发",  "type": "string", "default": ""},
             {"name": "ui_label_content", "label": "标签内容",  "type": "string", "default": ""}
         ]
+    },
+    {
+        "rid": "I3D_Overlay",
+        "label": "顶部信息面板接口",
+        "tier": "child",
+        "required": False,
+        "description": "赋予三维对象按标准模板展示结构化顶部信息的能力。",
+        "properties": []
     }
 ]
 
@@ -2865,6 +2874,8 @@ class MockInstanceSimulator(threading.Thread):
             time.sleep(1.0)
             self._tick += 1
             for iid in self.store.get_all_ids():
+                if is_websocket_spatial_instance(iid):
+                    continue
                 state = self.store.get_raw_state(iid)
                 if state is None:
                     continue

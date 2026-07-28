@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>B 系统工单驾驶台复测</title>
+  <link rel="stylesheet" href="../../../components/dist/lingjing-core-b-system.css">
+  <script src="../../../scripts/echarts.min.js"></script>
+  <script src="../../../scripts/echarts-theme-lingjing.js"></script>
+</head>
+<body>
+  <div class="b-layout-sidebar">
+    <aside class="b-sidebar">
+      <div class="b-sidebar-header">
+        <div class="b-sidebar-logo">
+          <img src="../../../assets/logo-flat.png" alt="灵境" height="32">
+        </div>
+        <span class="b-sidebar-brand">灵境运营中心</span>
+      </div>
+      <nav class="b-sidebar-nav">
+        <a href="#" class="b-sidebar-nav-link is-active">工单驾驶台</a>
+        <a href="#" class="b-sidebar-nav-link">排产监控</a>
+        <a href="#" class="b-sidebar-nav-link">质量例外</a>
+      </nav>
+    </aside>
+
+    <main class="b-main">
+      <header class="b-header">
+        <div class="b-header-left">
+          <nav class="b-breadcrumb">
+            <div class="b-breadcrumb-item">
+              <a href="#" class="b-breadcrumb-link">运营中心</a>
+              <span class="b-breadcrumb-separator">/</span>
+            </div>
+            <div class="b-breadcrumb-item">
+              <span class="b-breadcrumb-current">工单驾驶台</span>
+            </div>
+          </nav>
+        </div>
+        <div class="b-header-right">
+          <button class="btn-outline" type="button">导出日报</button>
+          <button class="btn-primary" type="button">新建工单</button>
+        </div>
+      </header>
+
+      <div class="b-content">
+        <section class="stats-grid" aria-label="关键指标">
+          <article class="b-stat-card">
+            <span class="b-stat-label">进行中工单</span>
+            <strong class="b-stat-value">38</strong>
+            <span class="b-stat-change positive">较昨日 +4</span>
+          </article>
+          <article class="b-stat-card">
+            <span class="b-stat-label">超时风险</span>
+            <strong class="b-stat-value">06</strong>
+            <span class="b-stat-change negative">需 2 小时内处置</span>
+          </article>
+          <article class="b-stat-card">
+            <span class="b-stat-label">一次完成率</span>
+            <strong class="b-stat-value">92%</strong>
+            <span class="b-stat-change positive">稳定上升</span>
+          </article>
+        </section>
+
+        <section class="charts-grid" aria-label="趋势图表">
+          <div class="b-chart-card">
+            <div class="b-chart-header">
+              <div>
+                <h2 class="b-chart-title">近 7 天工单吞吐</h2>
+                <p class="b-chart-subtitle">关注接收、完成与积压趋势</p>
+              </div>
+            </div>
+            <div class="b-chart-body">
+              <div id="chartThroughput" style="height: 260px;"></div>
+            </div>
+          </div>
+
+          <div class="b-chart-card">
+            <div class="b-chart-header">
+              <div>
+                <h2 class="b-chart-title">风险工单分布</h2>
+                <p class="b-chart-subtitle">按产线观察超时与质量双高风险</p>
+              </div>
+            </div>
+            <div class="b-chart-body">
+              <div id="chartRisk" style="height: 260px;"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="content-card" aria-label="工单列表">
+          <div class="card-header">
+            <h2 class="card-title">重点工单</h2>
+            <div class="action-buttons">
+              <button class="btn-outline" type="button">批量指派</button>
+              <button class="btn-primary" type="button">应用筛选</button>
+            </div>
+          </div>
+
+          <div class="search-bar">
+            <input type="text" class="search-input" placeholder="搜索工单号 / 工序 / 负责人">
+            <select class="filter-select">
+              <option>全部状态</option>
+              <option>进行中</option>
+              <option>待处理</option>
+            </select>
+            <select class="filter-select">
+              <option>全部产线</option>
+              <option>S4 对接</option>
+              <option>前舱段密封</option>
+            </select>
+          </div>
+
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>工单号</th>
+                  <th>任务</th>
+                  <th>负责人</th>
+                  <th>产线</th>
+                  <th>状态</th>
+                  <th>截止时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>WO-260406-018</td>
+                  <td>S4 对接复核</td>
+                  <td>张文浩</td>
+                  <td>S4 对接</td>
+                  <td><span class="badge">进行中</span></td>
+                  <td>今天 22:30</td>
+                </tr>
+                <tr>
+                  <td>WO-260406-023</td>
+                  <td>密封抽检加严</td>
+                  <td>李安</td>
+                  <td>前舱段密封</td>
+                  <td><span class="badge">待处理</span></td>
+                  <td>今天 23:00</td>
+                </tr>
+                <tr>
+                  <td>WO-260406-029</td>
+                  <td>齐套缺件补发</td>
+                  <td>赵楠</td>
+                  <td>航电集成</td>
+                  <td><span class="badge">已指派</span></td>
+                  <td>明天 09:00</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      if (typeof LingJingChart === 'undefined') {
+        return;
+      }
+      var scene = document.documentElement.getAttribute('data-theme') === 'dark' ? 'b_system_dark' : 'b_system';
+      var tk = LingJingChart.getTokens(scene);
+
+      var throughputChart = LingJingChart.init(document.getElementById('chartThroughput'), scene);
+      throughputChart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['接收', '完成'] },
+        xAxis: { type: 'category', data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] },
+        yAxis: { type: 'value' },
+        series: [
+          {
+            name: '接收',
+            type: 'line',
+            smooth: true,
+            data: [18, 21, 19, 24, 22, 20, 23],
+            areaStyle: { opacity: 0.06 }
+          },
+          {
+            name: '完成',
+            type: 'line',
+            smooth: true,
+            data: [16, 19, 18, 22, 21, 19, 22]
+          }
+        ],
+        color: [tk.series[0], tk.series[2]]
+      });
+
+      var riskChart = LingJingChart.init(document.getElementById('chartRisk'), scene);
+      riskChart.setOption({
+        tooltip: { trigger: 'item' },
+        xAxis: { type: 'category', data: ['S4 对接', '航电集成', '前舱段密封', '总装检查'] },
+        yAxis: { type: 'value' },
+        series: [
+          {
+            type: 'bar',
+            data: [6, 4, 5, 2],
+            itemStyle: {
+              color: function (params) {
+                var colors = [tk.series[3], tk.series[0], tk.series[1], tk.series[2]];
+                return colors[params.dataIndex];
+              }
+            }
+          }
+        ]
+      });
+
+      window.addEventListener('resize', function () {
+        LingJingChart.resizeAll();
+      });
+    })();
+  </script>
+</body>
+</html>

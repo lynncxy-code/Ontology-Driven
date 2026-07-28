@@ -1,0 +1,67 @@
+/**
+ * Lingjing Core - State Styles
+ * 
+ * 定义全局交互状态样式，如预警、告警、成功等。
+ * 遵循灵境 UX 规范中的实时监控模式定义。
+ */
+
+/* -------------------------- */
+/* Keyframes - 动画定义 */
+/* -------------------------- */
+
+@keyframes lingjing-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(217, 119, 6, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(217, 119, 6, 0);
+  }
+}
+
+@keyframes lingjing-flash {
+  0%, 100% {
+    opacity: 1;
+    background-color: transparent;
+  }
+  50% {
+    opacity: 0.8;
+    background-color: rgba(220, 38, 38, 0.15);
+  }
+}
+
+/* -------------------------- */
+/* Risk States - 风险状态 */
+/* -------------------------- */
+
+/**
+ * .state-warning - 预警状态
+ * 用于接近阈值或轻度异常场景。
+ */
+.state-warning {
+  border-color: var(--warning-base) !important;
+  color: var(--warning-base) !important;
+  animation: lingjing-pulse 2s infinite;
+}
+
+/**
+ * .state-critical - 严重告警状态
+ * 用于超过阈值或重大异常场景。
+ */
+.state-critical {
+  border-color: var(--error-base) !important;
+  color: var(--error-base) !important;
+  background-color: rgba(220, 38, 38, 0.05);
+  animation: lingjing-flash 1s infinite;
+}
+
+/* 深色模式适配 */
+[data-theme="dark"] .state-warning {
+  box-shadow: 0 0 15px rgba(255, 176, 32, 0.3);
+}
+
+[data-theme="dark"] .state-critical {
+  box-shadow: 0 0 20px rgba(255, 77, 79, 0.4);
+}

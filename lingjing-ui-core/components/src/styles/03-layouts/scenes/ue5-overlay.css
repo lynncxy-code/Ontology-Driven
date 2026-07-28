@@ -1,0 +1,1035 @@
+/* UE5 Web Overlay Scene */
+
+.ue5-overlay-root {
+  --ue5-overlay-system-bar-height: 56px;
+  --ue5-overlay-safe-top: 168px;
+  --ue5-overlay-left-width: 332px;
+  --ue5-overlay-right-width: 360px;
+  --ue5-overlay-bottom-height: 88px;
+  --ue5-overlay-brand: #4f8df5;
+  --ue5-overlay-brand-rgb: 79, 141, 245;
+  --ue5-overlay-brand-secondary: #c8e3fb;
+  --ue5-overlay-success: #02c39a;
+  --ue5-overlay-success-rgb: 2, 195, 154;
+  --ue5-overlay-warning: #ffb547;
+  --ue5-overlay-warning-rgb: 255, 181, 71;
+  --ue5-overlay-danger: #ff4a5b;
+  --ue5-overlay-danger-rgb: 255, 74, 91;
+  --ue5-overlay-info: #37c3ff;
+  --ue5-overlay-info-rgb: 55, 195, 255;
+  --ue5-overlay-neutral-rgb: 132, 160, 194;
+  --ue5-overlay-neutral-strong-rgb: 190, 215, 255;
+
+  --ue5-overlay-text-strong: #f2f7ff;
+  --ue5-overlay-text-base: rgba(221, 230, 242, 0.88);
+  --ue5-overlay-text-muted: rgba(185, 201, 220, 0.72);
+  --ue5-overlay-text-dim: rgba(148, 165, 188, 0.58);
+
+  /* ==========================================================================
+     UE5 Overlay Specification - Dashboard Baseline
+     所有 UE 场景组件统一从这里取色，做到“一处改，处处改”
+     ========================================================================== */
+  --ue5-overlay-topbar-bg: linear-gradient(180deg, rgba(1, 6, 14, 0.96) 0%, rgba(3, 10, 20, 0.88) 100%);
+  --ue5-overlay-topbar-blur: 12px;
+  --ue5-overlay-topbar-border: rgba(186, 212, 242, 0.1);
+  --ue5-overlay-topbar-height: 56px;
+
+  --ue5-overlay-panel-bg: linear-gradient(145deg, rgba(10, 16, 26, 0.52) 0%, rgba(6, 10, 18, 0.36) 100%);
+
+  --ue5-overlay-panel-blur: 10px;
+  --ue5-overlay-panel-border: rgba(226, 232, 238, 0.22);
+  --ue5-overlay-panel-sub-bg: linear-gradient(145deg, rgba(5, 12, 24, 0.88) 0%, rgba(3, 8, 18, 0.76) 100%);
+  --ue5-overlay-sub-border: rgba(var(--ue5-overlay-neutral-rgb), 0.08);
+  --ue5-overlay-panel-shadow: none;
+  --ue5-overlay-panel-shadow-soft: none;
+  --ue5-overlay-panel-highlight: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(244, 249, 255, 0.44) 50%, rgba(255, 255, 255, 0) 100%);
+
+  --ue5-overlay-card-bg: linear-gradient(145deg, rgba(15, 25, 45, 0.55) 0%, rgba(10, 18, 35, 0.45) 100%);
+  --ue5-overlay-card-blur: 12px;
+  --ue5-overlay-card-border: rgba(160, 190, 230, 0.18);
+  --ue5-overlay-card-active-bg: linear-gradient(145deg, rgba(8, 18, 34, 0.94) 0%, rgba(6, 14, 24, 0.88) 100%);
+  --ue5-overlay-card-active-border: rgba(var(--ue5-overlay-brand-rgb), 0.2);
+  --ue5-overlay-card-active-shadow: none;
+
+  --ue5-overlay-scrollbar-track-bg: rgba(255, 255, 255, 0.04);
+  --ue5-overlay-scrollbar-thumb-bg: rgba(var(--ue5-overlay-neutral-strong-rgb), 0.32);
+  --ue5-overlay-scrollbar-thumb-hover-bg: rgba(var(--ue5-overlay-neutral-strong-rgb), 0.46);
+
+  --ue5-overlay-section-bg: rgba(4, 10, 18, 0.84);
+  --ue5-overlay-section-bg-soft: rgba(4, 10, 18, 0.72);
+  --ue5-overlay-section-bg-subtle: rgba(4, 10, 18, 0.68);
+  --ue5-overlay-section-muted-bg: rgba(255, 255, 255, 0.03);
+  --ue5-overlay-section-border: rgba(var(--ue5-overlay-neutral-rgb), 0.1);
+  --ue5-overlay-section-border-soft: rgba(var(--ue5-overlay-neutral-rgb), 0.08);
+  --ue5-overlay-section-shadow: none;
+  --ue5-overlay-section-shadow-soft: none;
+
+  --ue5-overlay-pill-bg: rgba(4, 12, 24, 0.72);
+  --ue5-overlay-pill-border: rgba(var(--ue5-overlay-neutral-rgb), 0.14);
+  --ue5-overlay-pill-text: var(--ue5-overlay-text-base);
+
+  --ue5-overlay-control-bg: rgba(4, 12, 24, 0.82);
+  --ue5-overlay-control-border: rgba(var(--ue5-overlay-neutral-rgb), 0.12);
+  --ue5-overlay-control-shadow: none;
+  --ue5-overlay-control-active-bg: linear-gradient(145deg, rgba(12, 34, 66, 0.96) 0%, rgba(22, 56, 106, 0.84) 100%);
+  --ue5-overlay-control-active-border: rgba(var(--ue5-overlay-brand-rgb), 0.24);
+  --ue5-overlay-control-active-shadow: none;
+  --ue5-overlay-control-active-text: #ffffff;
+
+  --ue5-overlay-status-bg: linear-gradient(145deg, rgba(8, 22, 42, 0.94) 0%, rgba(14, 38, 74, 0.82) 100%);
+  --ue5-overlay-status-border: rgba(var(--ue5-overlay-brand-rgb), 0.22);
+  --ue5-overlay-status-text: rgba(241, 245, 249, 0.98);
+  --ue5-overlay-status-shadow: none;
+
+  --ue5-overlay-status-neutral-bg: rgba(4, 12, 24, 0.64);
+  --ue5-overlay-status-neutral-border: rgba(var(--ue5-overlay-neutral-strong-rgb), 0.12);
+  --ue5-overlay-status-neutral-dot: rgba(148, 163, 184, 0.9);
+  --ue5-overlay-status-neutral-ring: 0 0 0 4px rgba(196, 222, 255, 0.04);
+  --ue5-overlay-status-success-bg: rgba(10, 38, 33, 0.84);
+  --ue5-overlay-status-success-border: rgba(var(--ue5-overlay-success-rgb), 0.18);
+  --ue5-overlay-status-success-text: #dafef4;
+  --ue5-overlay-status-success-ring: 0 0 8px rgba(var(--ue5-overlay-success-rgb), 0.18);
+  --ue5-overlay-status-warning-bg: linear-gradient(145deg, rgba(24, 16, 8, 0.96) 0%, rgba(40, 28, 10, 0.88) 100%);
+  --ue5-overlay-status-warning-border: rgba(var(--ue5-overlay-warning-rgb), 0.3);
+  --ue5-overlay-status-warning-text: #ffe7c2;
+  --ue5-overlay-status-warning-ring: 0 0 8px rgba(var(--ue5-overlay-warning-rgb), 0.2);
+  --ue5-overlay-status-danger-bg: linear-gradient(145deg, rgba(34, 10, 16, 0.96) 0%, rgba(52, 14, 23, 0.88) 100%);
+  --ue5-overlay-status-danger-border: rgba(var(--ue5-overlay-danger-rgb), 0.24);
+  --ue5-overlay-status-danger-text: #ffe4e8;
+  --ue5-overlay-status-danger-ring: 0 0 8px rgba(var(--ue5-overlay-danger-rgb), 0.2);
+  --ue5-overlay-status-info-bg: rgba(10, 26, 48, 0.84);
+  --ue5-overlay-status-info-border: rgba(var(--ue5-overlay-info-rgb), 0.26);
+  --ue5-overlay-status-info-text: #e5f6ff;
+  --ue5-overlay-status-info-ring: 0 0 8px rgba(var(--ue5-overlay-info-rgb), 0.18);
+
+  --ue5-overlay-brand-mark-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(86, 167, 255, 0.86));
+  --ue5-overlay-brand-mark-shadow: 0 0 16px rgba(86, 167, 255, 0.16);
+  --ue5-overlay-nav-active-bg: linear-gradient(145deg, rgba(18, 46, 88, 0.92), rgba(43, 102, 192, 0.64));
+  --ue5-overlay-nav-active-border: rgba(var(--ue5-overlay-brand-rgb), 0.2);
+  --ue5-overlay-nav-active-shadow: 0 10px 18px rgba(10, 30, 62, 0.2);
+
+  --ue5-overlay-critical-strip-bg: linear-gradient(145deg, rgba(45, 10, 17, 0.65) 0%, rgba(78, 16, 28, 0.55) 100%);
+  --ue5-overlay-critical-strip-border: rgba(var(--ue5-overlay-danger-rgb), 0.22);
+  --ue5-overlay-critical-strip-blur: 14px;
+  --ue5-overlay-critical-strip-shadow: 0 14px 28px rgba(44, 10, 19, 0.22);
+  --ue5-overlay-critical-pill-bg: rgba(255, 255, 255, 0.08);
+  --ue5-overlay-critical-pill-text: #fff1f4;
+  --ue5-overlay-critical-title-text: #fff4f6;
+  --ue5-overlay-critical-meta-text: rgba(255, 227, 232, 0.76);
+  --ue5-overlay-critical-action-bg: rgba(10, 18, 30, 0.5);
+  --ue5-overlay-critical-action-border: rgba(255, 255, 255, 0.12);
+  --ue5-overlay-critical-action-primary-bg: linear-gradient(145deg, rgba(162, 38, 59, 0.96) 0%, rgba(126, 26, 45, 0.82) 100%);
+  --ue5-overlay-critical-action-primary-border: rgba(255, 168, 180, 0.2);
+  --ue5-overlay-critical-action-primary-text: #fff4f6;
+
+  --ue5-overlay-alert-badge-bg: linear-gradient(145deg, rgba(42, 10, 18, 0.96) 0%, rgba(68, 16, 28, 0.84) 100%);
+  --ue5-overlay-alert-badge-border: rgba(var(--ue5-overlay-danger-rgb), 0.3);
+  --ue5-overlay-alert-badge-text: #ffe8ec;
+  --ue5-overlay-alert-badge-shadow: 0 10px 20px rgba(40, 10, 18, 0.14);
+  --ue5-overlay-alert-open-bg: linear-gradient(145deg, rgba(28, 48, 88, 0.75) 0%, rgba(18, 32, 60, 0.65) 100%);
+  --ue5-overlay-alert-open-border: rgba(180, 215, 255, 0.45);
+  --ue5-overlay-alert-open-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 20px 40px rgba(2, 10, 24, 0.24);
+  --ue5-overlay-alert-severity-neutral-bg: rgba(148, 163, 184, 0.82);
+  --ue5-overlay-alert-severity-neutral-ring: 0 0 0 4px rgba(196, 222, 255, 0.05);
+  --ue5-overlay-alert-action-danger-bg: linear-gradient(145deg, rgba(220, 38, 56, 0.96) 0%, rgba(180, 24, 40, 0.84) 100%);
+  --ue5-overlay-alert-action-danger-border: rgba(var(--ue5-overlay-danger-rgb), 0.4);
+  --ue5-overlay-alert-action-danger-text: #ffffff;
+
+  --ue5-overlay-surface-critical-bg: linear-gradient(145deg, rgba(34, 10, 16, 0.4) 0%, rgba(52, 14, 23, 0.3) 100%);
+  --ue5-overlay-surface-critical-border: rgba(var(--ue5-overlay-danger-rgb), 0.24);
+  --ue5-overlay-surface-critical-strong-bg: linear-gradient(145deg, rgba(64, 16, 26, 0.85) 0%, rgba(88, 22, 36, 0.75) 100%);
+  --ue5-overlay-surface-critical-strong-border: rgba(var(--ue5-overlay-danger-rgb), 0.65);
+  --ue5-overlay-surface-critical-strong-shadow: 0 0 20px rgba(255, 81, 104, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --ue5-overlay-surface-warning-bg: linear-gradient(145deg, rgba(22, 16, 8, 0.6) 0%, rgba(40, 28, 10, 0.5) 100%);
+  --ue5-overlay-surface-warning-border: rgba(var(--ue5-overlay-warning-rgb), 0.18);
+  --ue5-overlay-surface-warning-strong-bg: linear-gradient(145deg, rgba(42, 32, 18, 0.98) 0%, rgba(62, 48, 28, 0.88) 100%);
+  --ue5-overlay-surface-warning-strong-border: rgba(var(--ue5-overlay-warning-rgb), 0.65);
+  --ue5-overlay-surface-warning-strong-shadow: 0 0 20px rgba(255, 176, 76, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --ue5-overlay-surface-info-bg: linear-gradient(145deg, rgba(8, 18, 34, 0.6) 0%, rgba(10, 28, 54, 0.5) 100%);
+  --ue5-overlay-surface-info-border: rgba(var(--ue5-overlay-info-rgb), 0.24);
+  --ue5-overlay-surface-info-strong-bg: linear-gradient(145deg, rgba(24, 38, 72, 0.98) 0%, rgba(34, 58, 102, 0.88) 100%);
+  --ue5-overlay-surface-info-strong-border: rgba(var(--ue5-overlay-info-rgb), 0.65);
+  --ue5-overlay-surface-info-strong-shadow: 0 0 20px rgba(116, 194, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  --ue5-overlay-dock-bg: linear-gradient(145deg, rgba(14, 24, 40, 0.82) 0%, rgba(7, 14, 26, 0.66) 100%);
+  --ue5-overlay-dock-border: rgba(196, 220, 246, 0.16);
+  --ue5-overlay-dock-blur: 10px;
+  --ue5-overlay-dock-button-bg: rgba(255, 255, 255, 0.04);
+  --ue5-overlay-dock-button-border: rgba(var(--ue5-overlay-neutral-strong-rgb), 0.08);
+  --ue5-overlay-dock-button-active-bg: var(--ue5-overlay-control-active-bg);
+  --ue5-overlay-dock-button-active-border: rgba(var(--ue5-overlay-brand-rgb), 0.22);
+  --ue5-overlay-dock-button-active-shadow: 0 10px 20px rgba(27, 74, 150, 0.2);
+  --ue5-overlay-dock-status-bg: var(--ue5-overlay-status-success-bg);
+  --ue5-overlay-dock-status-border: rgba(var(--ue5-overlay-success-rgb), 0.16);
+  --ue5-overlay-dock-time-bg: var(--ue5-overlay-status-info-bg);
+  --ue5-overlay-dock-time-border: rgba(var(--ue5-overlay-info-rgb), 0.22);
+
+  --ue5-overlay-world-marker-label-bg: linear-gradient(145deg, rgba(7, 12, 22, 0.94) 0%, rgba(3, 8, 16, 0.9) 100%);
+  --ue5-overlay-world-marker-label-border: rgba(186, 212, 242, 0.14);
+  --ue5-overlay-world-marker-label-shadow: 0 12px 24px rgba(2, 10, 24, 0.18);
+  --ue5-overlay-world-marker-pill-bg: rgba(255, 255, 255, 0.04);
+  --ue5-overlay-world-marker-pill-border: rgba(186, 212, 242, 0.12);
+  --ue5-overlay-world-marker-line-bg: linear-gradient(180deg, rgba(232, 241, 255, 0.44), rgba(116, 194, 255, 0.12));
+  --ue5-overlay-world-marker-anchor-bg: rgba(4, 10, 18, 0.94);
+  --ue5-overlay-world-marker-anchor-border: rgba(186, 212, 242, 0.18);
+  --ue5-overlay-world-marker-anchor-ring: rgba(186, 212, 242, 0.08);
+  --ue5-overlay-world-marker-anchor-shadow: 0 8px 18px rgba(2, 10, 24, 0.2);
+  --ue5-overlay-world-marker-anchor-dot-shadow: 0 0 8px rgba(var(--ue5-overlay-info-rgb), 0.2);
+  --ue5-overlay-world-marker-action-bg: var(--ue5-overlay-control-bg);
+  --ue5-overlay-world-marker-action-border: rgba(var(--ue5-overlay-neutral-rgb), 0.14);
+  --ue5-overlay-world-marker-action-shadow: 0 8px 18px rgba(2, 10, 24, 0.12);
+  --ue5-overlay-world-marker-warning-bg: linear-gradient(145deg, rgba(20, 14, 8, 0.96) 0%, rgba(34, 24, 10, 0.86) 100%);
+  --ue5-overlay-world-marker-warning-border: rgba(var(--ue5-overlay-warning-rgb), 0.3);
+  --ue5-overlay-world-marker-warning-text: #ffcf84;
+  --ue5-overlay-world-marker-warning-pill-bg: rgba(var(--ue5-overlay-warning-rgb), 0.08);
+  --ue5-overlay-world-marker-warning-pill-border: rgba(var(--ue5-overlay-warning-rgb), 0.2);
+  --ue5-overlay-world-marker-warning-line-bg: linear-gradient(180deg, rgba(255, 223, 168, 0.52), rgba(var(--ue5-overlay-warning-rgb), 0.12));
+  --ue5-overlay-world-marker-warning-anchor-border: rgba(var(--ue5-overlay-warning-rgb), 0.22);
+  --ue5-overlay-world-marker-warning-anchor-shadow: 0 0 8px rgba(var(--ue5-overlay-warning-rgb), 0.22);
+  --ue5-overlay-world-marker-critical-bg: linear-gradient(145deg, rgba(42, 10, 17, 0.96) 0%, rgba(22, 6, 11, 0.92) 100%);
+  --ue5-overlay-world-marker-critical-border: rgba(255, 81, 104, 0.72);
+  --ue5-overlay-world-marker-critical-shadow: 0 0 0 1px rgba(255, 81, 104, 0.18), 0 14px 28px rgba(44, 10, 19, 0.24);
+  --ue5-overlay-world-marker-critical-text: #ff667c;
+  --ue5-overlay-world-marker-critical-body-text: rgba(255, 230, 235, 0.86);
+  --ue5-overlay-world-marker-critical-pill-bg: rgba(255, 81, 104, 0.18);
+  --ue5-overlay-world-marker-critical-pill-border: rgba(255, 81, 104, 0.42);
+  --ue5-overlay-world-marker-critical-line-bg: linear-gradient(180deg, rgba(255, 81, 104, 0.9), rgba(255, 81, 104, 0.28));
+  --ue5-overlay-world-marker-critical-anchor-border: rgba(255, 81, 104, 0.58);
+  --ue5-overlay-world-marker-critical-anchor-shadow: 0 0 10px rgba(255, 81, 104, 0.32);
+  --ue5-overlay-world-marker-info-bg: linear-gradient(145deg, rgba(8, 18, 34, 0.96) 0%, rgba(8, 16, 28, 0.9) 100%);
+  --ue5-overlay-world-marker-info-border: rgba(var(--ue5-overlay-info-rgb), 0.22);
+  --ue5-overlay-world-marker-info-text: #72e7ff;
+  --ue5-overlay-world-marker-info-pill-bg: rgba(var(--ue5-overlay-info-rgb), 0.08);
+  --ue5-overlay-world-marker-info-pill-border: rgba(var(--ue5-overlay-info-rgb), 0.2);
+  --ue5-overlay-world-marker-info-line-bg: linear-gradient(180deg, rgba(182, 246, 255, 0.58), rgba(0, 206, 255, 0.14));
+  --ue5-overlay-world-marker-info-anchor-border: rgba(0, 206, 255, 0.2);
+  --ue5-overlay-world-marker-info-anchor-shadow: 0 0 8px rgba(0, 206, 255, 0.22);
+  --ue5-overlay-world-marker-selected-border: rgba(232, 241, 255, 0.42);
+  --ue5-overlay-world-marker-selected-critical-border: rgba(255, 81, 104, 0.84);
+  --ue5-overlay-world-marker-selected-shadow: drop-shadow(0 12px 24px rgba(2, 10, 24, 0.18));
+  --ue5-overlay-world-marker-quality-pill-bg: rgba(255, 255, 255, 0.05);
+  --ue5-overlay-world-marker-offscreen-bg: linear-gradient(135deg, rgba(10, 20, 38, 0.92) 0%, rgba(4, 11, 22, 0.82) 100%);
+
+  --ue5-overlay-toggle-thumb-bg: rgba(234, 241, 251, 0.9);
+  --ue5-overlay-toggle-on-bg: rgba(var(--ue5-overlay-brand-rgb), 0.12);
+  --ue5-overlay-toggle-on-border: rgba(var(--ue5-overlay-brand-rgb), 0.22);
+  --ue5-overlay-toggle-thumb-on-bg: rgba(244, 249, 255, 0.98);
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(112% 72% at 50% 0%, rgba(126, 170, 245, 0.04), transparent 36%),
+    linear-gradient(180deg, #02060d 0%, #07111d 44%, #071725 100%);
+  color: var(--ue5-overlay-text-strong);
+}
+
+.ue5-overlay-background,
+.ue5-overlay-viewport,
+.ue5-overlay-grid,
+.ue5-overlay-center-guard,
+.ue5-overlay-safe-area {
+  position: absolute;
+  inset: 0;
+}
+
+.ue5-overlay-background {
+  pointer-events: none;
+  isolation: isolate;
+}
+
+.ue5-overlay-background::before,
+.ue5-overlay-background::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.ue5-overlay-background::before {
+  background:
+    radial-gradient(88% 82% at 50% 50%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 76%, rgba(2, 8, 18, 0.08) 92%, rgba(0, 0, 0, 0.32) 100%),
+    radial-gradient(42% 64% at 0% 50%, rgba(2, 10, 22, 0.28) 0%, transparent 36%),
+    radial-gradient(42% 64% at 100% 50%, rgba(2, 10, 22, 0.24) 0%, transparent 36%),
+    radial-gradient(64% 48% at 50% 0%, rgba(4, 12, 24, 0.18) 0%, transparent 32%),
+    radial-gradient(64% 52% at 50% 100%, rgba(1, 6, 14, 0.22) 0%, transparent 36%);
+  z-index: 1;
+}
+
+.ue5-overlay-background::after {
+  background:
+    radial-gradient(circle at 18% 16%, rgba(145, 187, 255, 0.08), rgba(145, 187, 255, 0) 25%),
+    radial-gradient(circle at 84% 18%, rgba(110, 155, 255, 0.08), rgba(110, 155, 255, 0) 25%),
+    radial-gradient(circle at 14% 82%, rgba(86, 167, 255, 0.06), rgba(86, 167, 255, 0) 22%);
+  mix-blend-mode: screen;
+  opacity: 0.52;
+  z-index: 2;
+}
+
+
+.ue5-overlay-viewport {
+  z-index: 3;
+}
+
+.ue5-overlay-viewport::before {
+  content: '';
+  position: absolute;
+  inset: 9% 11% 13%;
+  border-radius: 44px;
+  border: 1px solid rgba(210, 226, 248, 0.12);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.ue5-overlay-viewport::after {
+  content: '';
+  position: absolute;
+  inset: 13% 17% 19%;
+  border-radius: 40px;
+  background: radial-gradient(ellipse at 50% 50%, rgba(5, 14, 28, 0) 0%, rgba(5, 14, 28, 0) 82%, rgba(2, 8, 18, 0.04) 96%, rgba(1, 6, 14, 0.1) 100%);
+}
+
+.ue5-overlay-scene-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  opacity: 0.9;
+  transform: scale(1.01);
+  filter: saturate(0.8) brightness(1.02) contrast(1.02) hue-rotate(4deg);
+}
+
+
+.ue5-overlay-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.015;
+  mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.95) 12%, rgba(0, 0, 0, 0.95) 88%, transparent 100%);
+  z-index: 4;
+}
+
+.ue5-overlay-center-guard {
+  inset: 32% 28% 30%;
+  border-radius: 36px;
+  border: 1px solid rgba(184, 206, 232, 0.02);
+  background: radial-gradient(circle at center, rgba(0, 0, 0, 0) 0%, rgba(1, 6, 14, 0.02) 100%);
+  box-shadow: none;
+  z-index: 5;
+}
+
+
+.ue5-overlay-system-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--spacing-lg);
+  height: var(--ue5-overlay-system-bar-height);
+  padding: 0 28px;
+  background: var(--ue5-overlay-topbar-bg);
+  border-bottom: 1px solid var(--ue5-overlay-topbar-border);
+  backdrop-filter: blur(var(--ue5-overlay-topbar-blur)) saturate(118%);
+  -webkit-backdrop-filter: blur(var(--ue5-overlay-topbar-blur)) saturate(118%);
+}
+
+.ue5-overlay-system-bar__brand,
+.ue5-overlay-system-bar__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ue5-overlay-system-bar__brand-mark {
+  width: 32px;
+  height: 32px;
+  background-image: url('../../../../../assets/logo_3d.png');
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.ue5-overlay-system-bar__brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ue5-overlay-system-bar__brand-name {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ue5-overlay-text-strong);
+}
+
+.ue5-overlay-system-bar__brand-subtitle,
+.ue5-overlay-system-bar__meta-item {
+  font-size: 11px;
+  color: var(--ue5-overlay-text-muted);
+}
+
+.ue5-overlay-system-bar__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ue5-overlay-system-bar__nav-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  color: var(--ue5-overlay-text-muted);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ue5-overlay-system-bar__nav-item.is-active {
+  border-color: var(--ue5-overlay-nav-active-border);
+  background: var(--ue5-overlay-nav-active-bg);
+  color: #ffffff;
+  box-shadow: var(--ue5-overlay-nav-active-shadow);
+}
+
+.ue5-overlay-system-bar__meta {
+  justify-content: flex-end;
+}
+
+.ue5-overlay-system-bar__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ue5-overlay-system-bar__meta-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ue5-overlay-success);
+  box-shadow: var(--ue5-overlay-status-success-ring);
+}
+
+.ue5-overlay-safe-area {
+  display: grid;
+  grid-template-columns: minmax(312px, var(--ue5-overlay-left-width)) minmax(0, 1fr) minmax(320px, var(--ue5-overlay-right-width));
+  grid-template-rows: var(--ue5-overlay-safe-top) minmax(0, 1fr) var(--ue5-overlay-bottom-height);
+  gap: 16px;
+  padding: calc(var(--spacing-lg) + var(--ue5-overlay-system-bar-height) + 8px) var(--spacing-lg) var(--spacing-lg);
+  z-index: 20;
+}
+
+.ue5-overlay-safe-area--quality {
+  grid-template-rows: var(--ue5-overlay-safe-top) minmax(0, 1fr) minmax(260px, 0.8fr);
+}
+
+.ue5-overlay-safe-area--quality .topbar-hud--quality {
+  grid-column: 1 / 3;
+}
+
+.ue5-overlay-safe-area--quality .layer-switcher {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.ue5-overlay-safe-area--quality .quality-cluster-panel {
+  grid-column: 1 / 3;
+  grid-row: 2 / 4;
+}
+
+.ue5-overlay-safe-area--quality .quality-cause-panel {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.ue5-overlay-safe-area--quality .quality-closure-panel {
+  grid-column: 3;
+  grid-row: 3;
+}
+
+
+.ue5-overlay-layer {
+  position: relative;
+  min-width: 0;
+}
+
+.ue5-overlay-layer--ambient {
+  z-index: 10;
+}
+
+.ue5-overlay-layer--marker {
+  z-index: 30;
+  grid-column: 1 / 4;
+  grid-row: 1 / 4;
+  pointer-events: none;
+}
+
+.ue5-overlay-layer--hud,
+.ue5-overlay-layer--detail,
+.ue5-overlay-layer--critical {
+  pointer-events: auto;
+}
+
+.ue5-overlay-panel {
+  position: relative;
+  background: var(--ue5-overlay-panel-bg);
+  border: 1px solid var(--ue5-overlay-panel-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--ue5-overlay-panel-shadow);
+  backdrop-filter: blur(var(--ue5-overlay-panel-blur)) saturate(118%);
+  -webkit-backdrop-filter: blur(var(--ue5-overlay-panel-blur)) saturate(118%);
+  overflow: hidden;
+}
+
+.ue5-overlay-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--ue5-overlay-panel-highlight);
+  opacity: 0.48;
+  pointer-events: none;
+}
+
+.ue5-overlay-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid transparent;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.11), rgba(255, 255, 255, 0.022) 24%, rgba(255, 255, 255, 0) 100%) border-box;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.ue5-overlay-subcard {
+  position: relative;
+  background: var(--ue5-overlay-panel-sub-bg);
+  border: 1px solid var(--ue5-overlay-sub-border);
+  border-radius: var(--radius-lg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), var(--ue5-overlay-panel-shadow-soft);
+}
+
+.ue5-overlay-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--ue5-overlay-status-neutral-border);
+  background: var(--ue5-overlay-status-neutral-bg);
+  color: var(--ue5-overlay-text-base);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.ue5-overlay-status::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ue5-overlay-status-neutral-dot);
+  box-shadow: var(--ue5-overlay-status-neutral-ring);
+}
+
+.ue5-overlay-status--success {
+  border-color: var(--ue5-overlay-status-success-border);
+  background: var(--ue5-overlay-status-success-bg);
+  color: var(--ue5-overlay-status-success-text);
+}
+
+.ue5-overlay-status--success::before {
+  background: var(--ue5-overlay-success);
+  box-shadow: var(--ue5-overlay-status-success-ring);
+}
+
+.ue5-overlay-status--warning {
+  border-color: var(--ue5-overlay-status-warning-border);
+  background: var(--ue5-overlay-status-warning-bg);
+  color: var(--ue5-overlay-status-warning-text);
+}
+
+.ue5-overlay-status--warning::before {
+  background: var(--ue5-overlay-warning);
+  box-shadow: var(--ue5-overlay-status-warning-ring);
+}
+
+.ue5-overlay-status--critical {
+  border-color: var(--ue5-overlay-status-danger-border);
+  background: var(--ue5-overlay-status-danger-bg);
+  color: var(--ue5-overlay-status-danger-text);
+}
+
+.ue5-overlay-status--critical::before {
+  background: var(--ue5-overlay-danger);
+  box-shadow: var(--ue5-overlay-status-danger-ring);
+}
+
+.ue5-overlay-status--info {
+  border-color: var(--ue5-overlay-status-info-border);
+  background: var(--ue5-overlay-status-info-bg);
+  color: var(--ue5-overlay-status-info-text);
+}
+
+.ue5-overlay-status--info::before {
+  background: var(--ue5-overlay-info);
+  box-shadow: var(--ue5-overlay-status-info-ring);
+}
+
+.ue5-overlay-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.ue5-overlay-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ue5-overlay-text-muted);
+}
+
+
+.ue5-overlay-bottom-dock {
+  position: relative;
+  grid-column: 2;
+  grid-row: 3;
+  align-self: end;
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-full);
+  background: var(--ue5-overlay-dock-bg);
+  border: 1px solid var(--ue5-overlay-dock-border);
+  box-shadow: var(--ue5-overlay-panel-shadow-soft);
+  backdrop-filter: blur(var(--ue5-overlay-dock-blur)) saturate(116%);
+  -webkit-backdrop-filter: blur(var(--ue5-overlay-dock-blur)) saturate(116%);
+}
+
+.ue5-overlay-bottom-dock::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--ue5-overlay-panel-highlight);
+  opacity: 0.56;
+}
+
+.ue5-overlay-dock-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ue5-overlay-dock-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--ue5-overlay-dock-button-border);
+  border-radius: var(--radius-full);
+  background: var(--ue5-overlay-dock-button-bg);
+  color: var(--ue5-overlay-text-base);
+  cursor: pointer;
+  transition: transform var(--anim-duration-fast) ease, border-color var(--anim-duration-fast) ease, background var(--anim-duration-fast) ease, box-shadow var(--anim-duration-fast) ease;
+}
+
+.ue5-overlay-dock-button:hover,
+.ue5-overlay-dock-button.is-active {
+  transform: translateY(-1px);
+  border-color: var(--ue5-overlay-dock-button-active-border);
+  background: var(--ue5-overlay-dock-button-active-bg);
+  color: var(--ue5-overlay-control-active-text);
+  box-shadow: var(--ue5-overlay-dock-button-active-shadow);
+}
+
+.ue5-overlay-dock-status,
+.ue5-overlay-dock-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  color: var(--ue5-overlay-text-base);
+  font-size: var(--font-size-xs);
+}
+
+.ue5-overlay-dock-status {
+  border: 1px solid var(--ue5-overlay-dock-status-border);
+  background: var(--ue5-overlay-dock-status-bg);
+}
+
+.ue5-overlay-dock-time {
+  border: 1px solid var(--ue5-overlay-dock-time-border);
+  background: var(--ue5-overlay-dock-time-bg);
+}
+
+.ue5-overlay-dock-status::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ue5-overlay-success);
+  box-shadow: var(--ue5-overlay-status-success-ring);
+}
+
+.ue5-critical-banner {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  justify-self: center;
+  display: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  min-width: 620px;
+  max-width: min(760px, 100%);
+  padding: 10px 14px;
+  border-radius: 20px;
+  background: var(--ue5-overlay-critical-strip-bg);
+  border: 1px solid var(--ue5-overlay-critical-strip-border);
+  color: var(--ue5-overlay-critical-title-text);
+  z-index: 95;
+  box-shadow: var(--ue5-overlay-critical-strip-shadow);
+  backdrop-filter: blur(var(--ue5-overlay-critical-strip-blur)) saturate(116%);
+  -webkit-backdrop-filter: blur(var(--ue5-overlay-critical-strip-blur)) saturate(116%);
+}
+
+.ue5-critical-banner.is-visible {
+  display: inline-flex;
+}
+
+.ue5-critical-banner__pill {
+  padding: 4px 8px;
+  border-radius: var(--radius-full);
+  background: var(--ue5-overlay-critical-pill-bg);
+  color: var(--ue5-overlay-critical-pill-text);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.ue5-critical-banner__content {
+  display: flex;
+  flex: 1 1 240px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ue5-critical-banner__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ue5-overlay-critical-title-text);
+}
+
+.ue5-critical-banner__copy {
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  color: var(--ue5-overlay-critical-meta-text);
+}
+
+.ue5-critical-banner__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.ue5-critical-banner__action {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--ue5-overlay-critical-action-border);
+  background: var(--ue5-overlay-critical-action-bg);
+  color: var(--ue5-overlay-text-strong);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.ue5-critical-banner__action--primary {
+  border-color: var(--ue5-overlay-critical-action-primary-border);
+  background: var(--ue5-overlay-critical-action-primary-bg);
+  color: var(--ue5-overlay-critical-action-primary-text);
+}
+
+.ue5-overlay-devtools {
+  display: none;
+}
+
+.ue5-overlay-event-log {
+  margin-top: var(--spacing-md);
+  max-height: 180px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.ue5-overlay-event-log__item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(186, 212, 242, 0.08);
+  font-size: var(--font-size-xs);
+  color: var(--ue5-overlay-text-muted);
+}
+
+.ue5-overlay-event-log__item strong {
+  color: var(--ue5-overlay-text-strong);
+}
+
+
+
+@media (max-width: 1600px) {
+  .ue5-overlay-root {
+    --ue5-overlay-left-width: 320px;
+    --ue5-overlay-right-width: 344px;
+  }
+}
+
+@media (max-height: 860px) {
+  .ue5-overlay-root {
+    --ue5-overlay-safe-top: 136px;
+    --ue5-overlay-right-width: 332px;
+  }
+
+  .ue5-overlay-safe-area {
+    gap: 12px;
+    padding: calc(var(--spacing-lg) + var(--ue5-overlay-system-bar-height) + 6px) 18px 14px;
+  }
+
+  .ue5-overlay-safe-area--quality {
+    grid-template-rows: var(--ue5-overlay-safe-top) minmax(0, 1fr) minmax(196px, 0.62fr);
+  }
+}
+
+
+@media (max-width: 1366px) {
+  .ue5-overlay-system-bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 12px 18px;
+    height: auto;
+    min-height: var(--ue5-overlay-system-bar-height);
+    padding: 8px 18px;
+  }
+
+  .ue5-overlay-system-bar__nav {
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .ue5-overlay-system-bar__meta {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .ue5-overlay-safe-area {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    gap: 14px;
+    padding: calc(var(--ue5-overlay-system-bar-height) + 24px) 16px 16px;
+  }
+
+  .topbar-hud--with-sidepanel {
+    grid-column: 1 / -1;
+  }
+
+  .layer-switcher {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .alert-center {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .detail-panel {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .ue5-overlay-safe-area--quality {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.88fr);
+    grid-template-rows: auto auto minmax(0, 1fr) minmax(220px, auto);
+  }
+
+  .ue5-overlay-safe-area--quality .topbar-hud--quality {
+    grid-column: 1 / -1;
+  }
+
+  .ue5-overlay-safe-area--quality .layer-switcher {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .ue5-overlay-safe-area--quality .quality-cluster-panel {
+    grid-column: 1;
+    grid-row: 3 / 5;
+  }
+
+  .ue5-overlay-safe-area--quality .quality-cause-panel {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .ue5-overlay-safe-area--quality .quality-closure-panel {
+    grid-column: 2;
+    grid-row: 4;
+  }
+
+  .ue5-critical-banner {
+
+    position: absolute;
+    top: calc(var(--ue5-overlay-system-bar-height) + 102px);
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 340px;
+  }
+
+  .ue5-overlay-bottom-dock {
+    grid-column: 1 / -1;
+    grid-row: 4;
+  }
+
+  .ue5-overlay-devtools {
+    display: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .ue5-overlay-root {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .ue5-overlay-safe-area {
+    position: relative;
+    inset: auto;
+    min-height: 100vh;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    align-content: start;
+    padding: calc(var(--ue5-overlay-system-bar-height) + 18px) 12px 24px;
+  }
+
+  .topbar-hud,
+  .topbar-hud--with-sidepanel,
+  .layer-switcher,
+  .alert-center,
+  .detail-panel,
+  .quality-cluster-panel,
+  .quality-cause-panel,
+  .quality-closure-panel,
+  .ue5-overlay-bottom-dock,
+  .ue5-critical-banner {
+    grid-column: 1;
+    width: 100%;
+  }
+
+
+  .ue5-critical-banner {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    min-width: 0;
+    justify-self: stretch;
+  }
+
+  .ue5-overlay-safe-area--quality .quality-cluster-panel,
+  .ue5-overlay-safe-area--quality .quality-cause-panel,
+  .ue5-overlay-safe-area--quality .quality-closure-panel,
+  .ue5-overlay-safe-area--quality .layer-switcher,
+  .ue5-overlay-safe-area--quality .topbar-hud--quality {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+
+  .ue5-overlay-bottom-dock {
+    justify-self: stretch;
+    flex-wrap: wrap;
+  }
+
+  .ue5-overlay-dock-status,
+  .ue5-overlay-dock-time {
+    flex: 1 1 140px;
+    justify-content: center;
+  }
+
+  .ue5-overlay-layer--marker {
+    display: none;
+  }
+
+  .ue5-overlay-center-guard {
+    inset: 24% 10% 44%;
+  }
+}
+
+@media (max-width: 768px) {
+  .ue5-overlay-system-bar {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 8px 12px;
+  }
+
+  .ue5-overlay-system-bar__brand {
+    min-width: 0;
+  }
+
+  .ue5-overlay-system-bar__brand-subtitle {
+    display: none;
+  }
+
+  .ue5-overlay-system-bar__nav-item {
+    min-width: auto;
+    padding: 0 12px;
+  }
+
+  .ue5-overlay-bottom-dock {
+    padding: 10px;
+  }
+
+  .ue5-overlay-dock-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .ue5-overlay-dock-button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
+

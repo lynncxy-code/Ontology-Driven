@@ -1,0 +1,36 @@
+/**
+ * Loading Block
+ * 卡片或区域级别的加载占位块。
+ */
+
+.loading-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xl);
+  min-height: 120px;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.loading-block-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 2px solid rgba(148, 163, 184, 0.5);
+  border-top-color: var(--theme-primary);
+  animation: loading-block-spin 0.8s linear infinite;
+}
+
+.loading-block-label {
+  font-size: var(--font-size-sm);
+}
+
+@keyframes loading-block-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

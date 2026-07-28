@@ -1,0 +1,489 @@
+/* Lingjing Core Glass Effects CSS */
+
+/* -------------------------- */
+/* 标准玻璃卡片 */
+/* -------------------------- */
+
+.card-glass {
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--blur-amount, 16px));
+  -webkit-backdrop-filter: blur(var(--blur-amount, 16px));
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
+  padding: var(--spacing-lg);
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+  position: relative;
+  overflow: hidden;
+}
+
+.card-glass::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--glass-border-light), transparent);
+  pointer-events: none;
+}
+
+.card-glass:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover), var(--glow-primary);
+  border-color: var(--glass-border-hover);
+}
+
+[data-theme="dark"] .card-glass {
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--blur-amount, 24px));
+  -webkit-backdrop-filter: blur(var(--blur-amount, 24px));
+  border: var(--glass-border);
+  box-shadow: none;
+}
+
+[data-theme="dark"] .card-glass:hover {
+  box-shadow: var(--glass-shadow-light);
+  border-color: var(--glass-border-hover);
+}
+
+/* -------------------------- */
+/* 流动玻璃效果 */
+/* -------------------------- */
+
+
+/* 旧流动玻璃效果兼容类（迁移自 components.css） */
+.effect-glass {
+  background: var(--gradient-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.effect-glass::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent,
+    rgba(0, 132, 255, 0.1),
+    transparent,
+    rgba(0, 229, 255, 0.05),
+    transparent
+  );
+  animation: flow 8s linear infinite;
+  pointer-events: none;
+}
+
+/* 高级流动玻璃 */
+.glass-flowing {
+
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--blur-lg));
+  -webkit-backdrop-filter: blur(var(--blur-lg));
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
+  position: relative;
+  overflow: hidden;
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+}
+
+.glass-flowing::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent,
+    var(--glass-overlay-medium),
+    transparent,
+    var(--glass-overlay-light),
+    transparent,
+    var(--glass-overlay-dark),
+    transparent
+  );
+  animation: glass-flow 15s linear infinite;
+  pointer-events: none;
+}
+
+.glass-flowing::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    135deg,
+    var(--glass-overlay-light) 0%,
+    transparent 50%,
+    var(--glass-overlay-medium) 100%
+  );
+  pointer-events: none;
+  border-radius: var(--radius-lg);
+}
+
+.glass-flowing:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover), var(--glow-primary);
+  border-color: var(--glass-border-hover);
+}
+
+.glass-flowing:hover::before {
+  animation-duration: 10s;
+}
+
+/* -------------------------- */
+/* 磨砂玻璃效果 */
+/* -------------------------- */
+
+.glass-frosted {
+  background: var(--glass-bg-90);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border-light);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 var(--glass-border-medium);
+  position: relative;
+  overflow: hidden;
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+}
+
+.glass-frosted::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    135deg,
+    var(--glass-overlay-light) 0%,
+    var(--glass-overlay-medium) 100%
+  );
+  pointer-events: none;
+}
+
+.glass-frosted:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 var(--glass-border-heavy);
+}
+
+/* -------------------------- */
+/* 彩色玻璃效果 */
+/* -------------------------- */
+
+.glass-colored {
+  background: linear-gradient(
+    135deg,
+    var(--glass-overlay-light),
+    var(--glass-overlay-medium),
+    var(--glass-overlay-dark)
+  );
+  backdrop-filter: blur(var(--blur-lg));
+  -webkit-backdrop-filter: blur(var(--blur-lg));
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
+  position: relative;
+  overflow: hidden;
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+}
+
+.glass-colored::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent,
+    var(--glass-overlay-medium),
+    var(--glass-overlay-light),
+    var(--glass-overlay-dark),
+    transparent
+  );
+  animation: glass-color-flow 12s linear infinite;
+  pointer-events: none;
+}
+
+.glass-colored:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-hover), var(--glow-primary);
+  border-color: var(--glass-border-hover);
+}
+
+/* -------------------------- */
+/* 深色主题玻璃效果增强 */
+/* -------------------------- */
+
+[data-theme="dark"] .glass-flowing {
+  background: var(--bg-glass);
+  border-color: rgba(0, 132, 255, 0.12);
+  box-shadow: none;
+}
+
+[data-theme="dark"] .glass-flowing::after {
+  background: linear-gradient(
+    135deg,
+    var(--glass-overlay-medium) 0%,
+    transparent 50%,
+    var(--glass-overlay-dark) 100%
+  );
+}
+
+[data-theme="dark"] .glass-frosted {
+  background: var(--bg-glass);
+  border: var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-border-light);
+}
+
+[data-theme="dark"] .glass-frosted::before {
+  background: linear-gradient(
+    135deg,
+    var(--glass-overlay-light) 0%,
+    var(--glass-overlay-dark) 100%
+  );
+}
+
+[data-theme="dark"] .glass-colored {
+  background: linear-gradient(
+    135deg,
+    rgba(0, 132, 255, 0.1),
+    rgba(0, 229, 255, 0.08),
+    rgba(0, 163, 131, 0.05)
+  );
+  border-color: rgba(0, 132, 255, 0.12);
+  box-shadow: none;
+}
+
+/* 深色主题?hover 状态的投影效果 */
+[data-theme="dark"] .glass-flowing:hover {
+  box-shadow: 0 8px 32px rgba(0, 132, 255, 0.2);
+  border-color: rgba(0, 132, 255, 0.4);
+}
+
+[data-theme="dark"] .glass-frosted:hover {
+  box-shadow:
+    0 12px 40px rgba(0, 132, 255, 0.15),
+    inset 0 1px 0 var(--glass-border-heavy);
+  border-color: rgba(0, 132, 255, 0.4);
+}
+
+[data-theme="dark"] .glass-colored:hover {
+  box-shadow: 0 12px 40px rgba(0, 132, 255, 0.2), 0 0 25px rgba(0, 229, 255, 0.2);
+  border-color: rgba(0, 132, 255, 0.4);
+}
+
+/* -------------------------- */
+/* 动画定义 */
+/* -------------------------- */
+
+@keyframes flow {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes glass-flow {
+
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes glass-color-flow {
+  0% {
+    transform: translateX(-100%) translateY(-100%) rotate(0deg);
+  }
+  100% {
+    transform: translateX(100%) translateY(100%) rotate(360deg);
+  }
+}
+
+/* -------------------------- */
+/* 响应式设?*/
+/* -------------------------- */
+
+@media (max-width: 768px) {
+  .card-glass {
+    padding: var(--spacing-md);
+  }
+
+  .glass-flowing,
+  .glass-frosted,
+  .glass-colored {
+    border-radius: var(--radius-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .card-glass {
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-md);
+  }
+
+  .glass-flowing,
+  .glass-frosted,
+  .glass-colored {
+    border-radius: var(--radius-sm);
+  }
+}
+
+
+/* -------------------------- */
+/* 工具?*/
+/* -------------------------- */
+
+/* 玻璃效果尺寸 */
+.glass-sm {
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-sm);
+}
+
+.glass-md {
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+}
+
+.glass-lg {
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+}
+
+.glass-xl {
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-xl);
+}
+
+/* 玻璃效果强度 */
+.glass-light {
+  backdrop-filter: blur(var(--blur-sm));
+  -webkit-backdrop-filter: blur(var(--blur-sm));
+  box-shadow: var(--glass-shadow-light);
+}
+
+.glass-medium {
+  backdrop-filter: blur(var(--blur-md));
+  -webkit-backdrop-filter: blur(var(--blur-md));
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-strong {
+  backdrop-filter: blur(var(--blur-lg));
+  -webkit-backdrop-filter: blur(var(--blur-lg));
+  box-shadow: var(--glass-shadow-heavy);
+}
+
+/* 玻璃效果交互 */
+.glass-interactive {
+  cursor: pointer;
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+}
+
+.glass-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover), var(--glow-primary);
+}
+
+.glass-interactive:active {
+  transform: translateY(0);
+  box-shadow: var(--glass-shadow);
+}
+
+/* 玻璃效果定位 */
+.glass-fixed {
+  position: fixed;
+  z-index: 100;
+}
+
+.glass-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+/* 玻璃效果叠加 */
+.glass-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+}
+
+/* 玻璃效果边框 */
+.glass-border {
+  border: var(--glass-border);
+}
+
+.glass-border-thick {
+  border: 2px solid var(--glass-border);
+}
+
+.glass-border-accent {
+  border: 1px solid var(--glass-border-medium);
+}
+
+/* 玻璃效果阴影 */
+.glass-shadow-sm {
+  box-shadow: var(--glass-shadow-light);
+}
+
+.glass-shadow-md {
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-shadow-lg {
+  box-shadow: var(--glass-shadow-heavy);
+}
+
+/* 玻璃效果透明?*/
+.glass-opacity-low {
+  background: var(--glass-bg-80);
+}
+
+.glass-opacity-medium {
+  background: var(--glass-bg-90);
+}
+
+.glass-opacity-high {
+  background: var(--glass-bg-95);
+}
+
+[data-theme="dark"] .glass-opacity-low {
+  background: var(--glass-bg-80);
+}
+
+[data-theme="dark"] .glass-opacity-medium {
+  background: var(--glass-bg-90);
+}
+
+[data-theme="dark"] .glass-opacity-high {
+  background: var(--glass-bg-95);
+}

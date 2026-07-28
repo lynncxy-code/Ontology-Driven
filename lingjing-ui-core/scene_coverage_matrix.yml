@@ -1,0 +1,615 @@
+﻿version: 1.0.4
+updated: 2026-04-05
+
+
+owner: lingjing-ui-core
+
+usage_zh:
+  - "本文件是 UI Skill 的机器可读判定矩阵，用于 Level 选择、框架层强一致性校验、模板/组件覆盖判断与类名规范化。"
+  - "新生成页面时，应先读取对应 scene，再据此决定使用 Level 1 / Level 2 / Level 3。"
+  - "所有新产出必须优先使用 canonical_classes；aliases 仅用于兼容旧示例、旧 prompt 与历史产物。"
+
+decision_matrix:
+  audit_contract:
+    required_summary_fields:
+      - "scene_id"
+      - "chosen_level"
+      - "template_match_score"
+      - "missing_key_modules_count"
+      - "retained_frame_shell"
+      - "resource_closure_ok"
+      - "runtime_icon_ready"
+      - "runtime_chart_ready"
+      - "runtime_table_scroll_ready"
+      - "runtime_overlay_chain_ready"
+      - "frame_shell_valid"
+      - "style_integrity_valid"
+      - "dom_shape_valid"
+      - "chart_token_bound"
+      - "prd_module_coverage_score"
+      - "template_similarity_score"
+    scoring_notes_zh:
+      - "template_match_score 使用 0-100 的整数表达模板覆盖度。"
+      - "missing_key_modules_count 只统计现有模板与组件体系都无法承载的关键业务模块。"
+      - "prd_module_coverage_score 使用 0-100 的整数表达 PRD 模块覆盖率。"
+      - "template_similarity_score 用于识别机械复刻风险，不作为强制多模板编排阈值。"
+      - "frame_shell_valid 仅在框架层必需场景判定，缺失框架层即 Fail。"
+      - "style_integrity_valid 用于拦截 <style> 与内联样式污染，非 :root 例外即 Fail。"
+  level_1:
+    label_zh: "模板直用 / 轻调"
+    machine_rules:
+      template_match_score_min: 70
+      module_coverage_percent_min: 70
+      max_missing_key_modules: 1
+      requires_single_template: true
+      requires_same_primary_flow: true
+      requires_same_information_architecture: true
+    enter_when_all:
+      - "存在高匹配模板，且页面主任务流、导航骨架、信息架构均与目标场景基本一致。"
+      - "核心页面区域中至少 70% 可直接由单一模板覆盖。"
+      - "无需新增关键业务模块，只需调整文案、字段、模块顺序或显隐。"
+    reject_when_any:
+      - "顶部栏 / 左侧导航 / HUD 之外的主体结构需要大规模重排。"
+      - "需要引入两个及以上模板外关键模块。"
+  level_2:
+    label_zh: "组件与规则编排"
+    machine_rules:
+      template_match_score_max: 69
+      module_coverage_percent_min: 60
+      max_missing_key_modules: 1
+      requires_existing_shell_or_components: true
+      allows_new_page_structure: true
+    enter_when_any:
+      - "没有单张模板可直接覆盖，但已有组件与布局骨架可覆盖至少 60% 主模块。"
+      - "页面属于列表页、详情页、配置页、工作台、驾驶舱等更适合模块重组的类型。"
+      - "模板存在但主任务流、主体区域分区或内容节奏与目标页面不一致。"
+    reject_when_any:
+      - "关键业务域、信息架构或主交互模式已明显超出现有模板与组件体系。"
+  level_3:
+    label_zh: "基于规范的场景扩展"
+    machine_rules:
+      min_missing_key_modules: 2
+      differentiation_required: true
+      must_keep_frame_shell: true
+      requires_new_domain_or_information_architecture: true
+    enter_when_any:
+      - "进入新业务域或多场景混合，现有模板与组件均无法稳定承载。"
+      - "出现新的信息架构，或两个及以上关键模块在现有模板/组件中都缺位。"
+      - "项目明确要求形成差异化页面策略，且差异点不应仅停留在文案层。"
+    mandatory_output:
+      - "必须保留同场景框架层一致性。"
+      - "必须说明项目级差异点（信息结构 / 模块组合 / 视觉节奏）至少一项。"
+
+shell_consistency:
+  b_system:
+    scope_zh: "B 端系统顶部栏 + 左侧菜单"
+    mandatory_classes:
+      - "b-layout-sidebar"
+      - "b-sidebar"
+      - "b-main"
+      - "b-sidebar-header"
+      - "b-sidebar-nav-link"
+      - "b-header"
+      - "b-header-left"
+      - "b-header-right"
+    required_dom_chains:
+      - "b-layout-sidebar > (b-sidebar + b-main)"
+      - "b-sidebar > b-sidebar-header + b-sidebar-nav"
+      - "b-main > b-header + main"
+    non_negotiable_zh:
+      - "顶部栏与左侧菜单属于框架层，必须强一致，禁止改用自定义前缀类重做同类骨架。"
+      - "项目差异应主要出现在主内容区、卡片组合、表格与详情区，不得推翻框架层。"
+    layout_shells:
+      - semantic_id: "b_system_dashboard_grid"
+        class_name: "stats-grid"
+        class_source: "components/dist/lingjing-core-b-system.css"
+        description_zh: "仪表盘统计卡片网格布局"
+        required_styles: ["display: grid", "grid-template-columns: repeat(auto-fit, minmax(250px, 1fr))"]
+      - semantic_id: "b_system_charts_grid"
+        class_name: "charts-grid"
+        class_source: "components/dist/lingjing-core-b-system.css"
+        description_zh: "图表卡片网格布局"
+        required_styles: ["display: grid", "grid-template-columns: repeat(auto-fit, minmax(400px, 1fr))"]
+      - semantic_id: "b_system_list_container"
+        class_name: "data-table-container"
+        class_source: "components/dist/lingjing-core-b-system.css"
+        description_zh: "列表页表格滚动容器，支持水平滚动"
+        required_styles: ["width: 100%", "overflow-x: auto"]
+    component_constraints:
+      advanced-data-table:
+        min_width_px: 1200
+        required_container_class: "data-table-container"
+        table_class_required: "data-table"
+        required_dom_chain: "data-table-container > table.data-table > thead + tbody"
+        overflow_behavior: "horizontal_scroll"
+      chart_card:
+        must_include_id: true
+        must_include_init_script: true
+        must_bind_token_palette: true
+        required_chart_semantic_tokens: ["theme_primary", "success_base", "warning_base", "error_base", "text_secondary", "border_primary"]
+        reject_placeholder_only: true
+    machine_enforcement:
+      class_must_exist_in_style_entry: true
+      reject_unknown_classes: true
+      reject_semantic_id_as_class_name: true
+      reject_invalid_dom_shape: true
+      enforce_shell_consistency: true
+      require_frame_shell: true
+      reject_style_tag_in_html: true
+      reject_inline_style_attr: true
+
+
+  website:
+    scope_zh: "官网 / 营销站顶部栏"
+    mandatory_classes:
+      - "website-nav"
+      - "website-nav-glass"
+      - "website-nav-container"
+      - "website-nav-brand"
+      - "website-nav-links"
+      - "website-nav-link"
+      - "website-nav-actions"
+    required_dom_chains:
+      - "website-nav.website-nav-glass > website-nav-container"
+      - "website-nav-container > (website-nav-brand + website-nav-links + website-nav-actions)"
+    non_negotiable_zh:
+      - "网站顶部栏属于品牌框架层，必须保持强一致。"
+      - "允许调整品牌文案、导航项数量与 CTA 内容，但不得另起一套导航体系替换 website-nav 骨架。"
+  ue5_overlay:
+    scope_zh: "UE5 Overlay 外层骨架（root / viewport / safe-area）"
+    mandatory_classes:
+      - "ue5-overlay-root"
+      - "ue5-overlay-viewport"
+      - "ue5-overlay-safe-area"
+    required_dom_chains:
+      - "ue5-overlay-root > ue5-overlay-viewport > ue5-overlay-safe-area"
+    non_negotiable_zh:
+      - "UE5 Overlay 必须使用 ue5-overlay-root + ue5-overlay-viewport + ue5-overlay-safe-area 作为外层骨架，不得自建根容器替代。"
+      - "HUD（topbar-hud）、告警中心（alert-center）、detail-panel、world-marker 等属于按场景按需配置的模块，不要求所有 Overlay 页面都出现。"
+    layout_shells:
+
+      - semantic_id: "ue5_overlay_safe_grid"
+        class_name: "ue5-overlay-safe-area"
+        class_source: "components/dist/lingjing-core-ue5-overlay.css"
+        description_zh: "UE Overlay 官方安全区网格，统一承载 HUD/面板/告警层"
+        required_styles: ["display: grid", "grid-template-columns: minmax(312px, var(--ue5-overlay-left-width)) minmax(0, 1fr) minmax(320px, var(--ue5-overlay-right-width))"]
+      - semantic_id: "ue5_overlay_left_panel"
+        class_name: "detail-panel"
+        class_source: "components/dist/lingjing-core-ue5-overlay.css"
+        description_zh: "左侧信息面板，依赖 safe-area 网格定位"
+      - semantic_id: "ue5_overlay_right_panel"
+        class_name: "detail-panel"
+        class_source: "components/dist/lingjing-core-ue5-overlay.css"
+        description_zh: "右侧监控面板，依赖 safe-area 网格定位"
+      - semantic_id: "ue5_overlay_alert_panel"
+        class_name: "alert-center"
+        class_source: "components/dist/lingjing-core-ue5-overlay.css"
+        description_zh: "告警中心面板，依赖 safe-area 网格定位"
+    machine_enforcement:
+      class_must_exist_in_style_entry: true
+      reject_unknown_classes: true
+      reject_semantic_id_as_class_name: true
+      reject_demo_modifier_classes: true
+      forbidden_class_patterns: ["world-marker--demo-.*", ".*-demo-.*"]
+      enforce_shell_consistency: true
+      require_frame_shell: true
+      require_overlay_root_chain: true
+      reject_style_tag_in_html: true
+      reject_inline_style_attr: true
+      reject_custom_overlay_containers: true
+      forbidden_container_classes: ["overlay-main", "overlay-root-custom", "custom-overlay"]
+
+
+anti_collision_rules:
+  overlay_scene:
+    - "禁止在 UE Overlay 主面板上使用自定义绝对定位容器（如新增 left/right 绝对定位栈）。"
+    - "必须将主面板放入 ue5-overlay-safe-area 官方网格，并通过 detail-panel/alert-center/layer-switcher 进行分区。"
+    - "禁止对内容卡片硬编码 width/height，应由官方网格与容器自适应决定。"
+  b_system_scene:
+    - "超宽表格必须放入 data-table-container 或等价 overflow-x: auto 容器。"
+    - "禁止使用仅语义字段名（如 b_system_list_container）直接作为类名，必须使用 class_name 真值字段。"
+    - "当 PRE-GEN / task 判定为 b_system_detail 时，详情页不应使用 stats-grid / charts-grid 等仪表盘壳；如确需展示整体 KPI，应拆分为 dashboard + detail。"
+
+
+
+
+scene_coverage:
+  b_system:
+    style_entry: "components/dist/lingjing-core-b-system.css"
+    candidate_templates:
+      - path: "examples/b-system/b-system-complete.html"
+        grade: "canonical"
+        use_scope: "default"
+        page_types: ["dashboard", "overview"]
+        preferred_level: "level_1"
+        suited_for:
+          - "后台首页"
+          - "管理总览"
+        risk_notes_zh: []
+      - path: "examples/b-system/b-system-charts.html"
+        grade: "canonical"
+        use_scope: "default"
+        page_types: ["charts", "data_visualization"]
+        preferred_level: "level_1"
+        suited_for:
+          - "图表页"
+          - "折线 / 柱状 / 环形 / 数据表综合展示"
+        risk_notes_zh: []
+      - path: "examples/b-system/b-system-task-list-top-filters.html"
+        grade: "candidate"
+        use_scope: "default"
+        page_types: ["list"]
+        preferred_level: "level_1"
+        suited_for:
+          - "列表页"
+          - "顶部筛选条 + 数据表格"
+          - "工单 / 台账 / 记录列表"
+        risk_notes_zh: []
+      - path: "examples/b-system/b-system-advanced-list-with-left-filter-panel.html"
+        grade: "candidate"
+        use_scope: "default"
+        page_types: ["advanced_list"]
+        preferred_level: "level_2"
+        suited_for:
+          - "高级筛选列表"
+          - "左侧筛选面板 + 右侧表格主区"
+        risk_notes_zh:
+          - "仅在 PRD 明确要求常驻侧栏筛选时使用；若顶部筛选条即可承载，应回退为普通 list。"
+      - path: "examples/b-system/b-system-detail-order.html"
+        grade: "candidate"
+        use_scope: "default"
+        page_types: ["detail"]
+        preferred_level: "level_1"
+        suited_for:
+          - "工单详情"
+          - "单实体详情页"
+          - "基本信息 + 时间线 + 关联记录"
+        risk_notes_zh:
+          - "若需求强调整体 KPI 总览或多主任务流工作台，应改回 dashboard 或拆分页面。"
+      - path: "examples/b-system/b-system-production-plan.html"
+        grade: "candidate"
+        use_scope: "default"
+        page_types: ["planning"]
+        preferred_level: "level_1"
+        suited_for:
+          - "计划管理"
+          - "生产排程"
+        risk_notes_zh:
+          - "含部分需清理的 deprecated 类与占位内容，晋级前需通过审计"
+      - path: "examples/b-system/b-system-saas.html"
+        grade: "candidate"
+        use_scope: "default"
+        page_types: ["saas_admin", "operations_workspace"]
+        preferred_level: "level_1"
+        suited_for:
+          - "SaaS 后台"
+          - "通用作业系统"
+        risk_notes_zh:
+          - "表达偏演示/验证，不应作为所有 b_system 默认模板"
+      - path: "examples/b-system/b-system-showcase.html"
+        grade: "demo"
+        use_scope: "forbidden"
+        page_types: ["component_gallery"]
+        preferred_level: "level_2"
+        suited_for:
+          - "组件展示"
+        risk_notes_zh:
+          - "showcase 页面，仅供组件展示；禁止作为业务交付模板或默认路由"
+      - path: "examples/b-system/b-system-sidebar.html"
+        grade: "demo"
+        use_scope: "forbidden"
+        page_types: ["component_gallery"]
+        preferred_level: "level_2"
+        suited_for:
+          - "侧边栏组件展示"
+        risk_notes_zh:
+          - "组件展台，仅供人工查阅侧边栏样式；禁止喂给 AI 作为业务模板"
+
+    module_shells:
+      - id: "b_system_dashboard_shell"
+        required_classes: ["b-layout-sidebar", "b-header", "content-card", "stats-grid"]
+        suited_for: ["总览", "仪表盘", "运营首页"]
+      - id: "b_system_list_detail_shell"
+        required_classes: ["b-layout-sidebar", "b-header", "data-table-container", "content-card"]
+        suited_for: ["列表页", "详情页", "审批页"]
+    level_bias:
+      preferred: ["level_1", "level_2"]
+      escalate_to_level_3_when:
+        - "需要新的信息架构或跨业务域混合工作台。"
+  website:
+    style_entry: "components/dist/lingjing-core-website.css"
+    candidate_templates:
+      - path: "examples/website/website-complete.html"
+        grade: "canonical"
+        use_scope: "default"
+        page_types: ["landing", "pricing"]
+        preferred_level: "level_1"
+        suited_for:
+          - "官网首页"
+          - "方案/产品组合定价页"
+        risk_notes_zh:
+          - "已通过审计，可作为官网首页 / 含简单定价区块的落地页起步模板；实际项目中仍需根据品牌与业务调整文案，避免直接照搬航空场景措辞。"
+      - path: "examples/website/website-feature-solution.html"
+        grade: "candidate"
+        use_scope: "default"
+        page_types: ["feature"]
+        preferred_level: "level_1"
+        suited_for:
+          - "能力/方案介绍页"
+          - "单主题产品特性页"
+        risk_notes_zh:
+          - "用于承载单一解决方案或产品能力的介绍内容，首屏不再强调整站首页定位；项目落地前需通过 skill-audit 并按品牌文案调整。"
+      - path: "examples/website/website-showcase.html"
+        grade: "demo"
+        use_scope: "forbidden"
+        page_types: ["component_gallery"]
+        preferred_level: "level_2"
+        suited_for:
+          - "组件展示"
+          - "品牌展示页"
+        risk_notes_zh:
+          - "强组件展厅倾向，仅供查阅组件；禁止作为业务模板或默认路由"
+
+
+    module_shells:
+      - id: "website_landing_shell"
+        required_classes: ["website-nav", "website-hero", "feature-card", "website-cta-card"]
+        suited_for: ["官网首页", "营销页", "方案落地页"]
+    level_bias:
+      preferred: ["level_1", "level_2"]
+      escalate_to_level_3_when:
+        - "站点信息架构、转化路径或品牌叙事方式显著不同于现有模板。"
+  ue5_overlay:
+    style_entry: "components/dist/lingjing-core-ue5-overlay.css"
+    # ⚠️ 选模板前必须先读 docs/ue5-overlay-layout-playbook.md 决策树确定 layout_mode，
+    # 再按 layout_mode 从下方列表中选取对应文件；禁止直接使用 quality_tracking 作为所有 UE5 页面的默认模板。
+    candidate_templates:
+      - path: "examples/ue5-overlay/ue5_overlay_data_viz.html"
+        grade: "canonical"
+        use_scope: "default"
+        layout_mode: 1
+        page_types: ["overlay_dashboard", "data_viz"]
+        preferred_level: "level_1"
+        suited_for:
+          - "单 HUD 监控大屏"
+          - "顶部指标条 + 三维场景全屏 + world-marker"
+          - "无需侧边面板的轻量叠加层"
+        risk_notes_zh: []
+      - path: "examples/ue5-overlay/ue5_overlay_minimal_no_hud.html"
+        grade: "candidate"
+        use_scope: "default"
+        layout_mode: "minimal"
+        page_types: ["overlay_dashboard", "minimal_overlay"]
+        preferred_level: "level_1"
+        suited_for:
+          - "极简 Overlay"
+          - "无 HUD 的 world-marker 标注视图"
+          - "仅骨架 + 轻量说明"
+        risk_notes_zh:
+          - "若 PRD 明确需要顶部 HUD / 班次 KPI / 快速操作，应回到 Mode 1，而不是继续使用 minimal overlay。"
+      - path: "examples/ue5-overlay/ue5_overlay_quality_tracking.html"
+        grade: "canonical"
+        use_scope: "default"
+        layout_mode: 2
+        page_types: ["overlay_dashboard", "quality_tracking"]
+        preferred_level: "level_1"
+        suited_for:
+          - "HUD + 右侧详情/质量面板"
+          - "质量追踪"
+          - "异常聚焦"
+        risk_notes_zh: []
+      - path: "examples/ue5-overlay/ue5_overlay_dashboard.html"
+        grade: "canonical"
+        use_scope: "default"
+        layout_mode: 3
+        page_types: ["overlay_dashboard"]
+        preferred_level: "level_1"
+        suited_for:
+          - "HUD + 告警中心面板"
+          - "标准 Overlay 总览"
+          - "运行监控"
+        risk_notes_zh:
+          - "已通过审计，可作为 UE5 Overlay 总览场景的主力模板；实际项目中仍需根据具体生产线与设备情况调整文案与标注内容，避免机械照搬示例文本。"
+
+      - path: "examples/ue5-overlay/ue5_overlay_sidepanel_dock_layout.html"
+        grade: "candidate"
+        use_scope: "limited"
+        layout_mode: 5
+        page_types: ["overlay_full_layout"]
+        preferred_level: "level_2"
+        suited_for:
+          - "双侧固定面板 + 底部时间轴 / Dock"
+          - "数字孪生监控全布局"
+          - "左右面板 + 中央三维场景"
+        risk_notes_zh:
+          - "仅作为 layout_mode 5 草图参考；不作为默认路由或通用模板"
+      - path: "examples/ue5-overlay/digital_twin_overlay_dashboard.html"
+        grade: "candidate"
+        use_scope: "limited"
+        page_types: ["digital_twin_dashboard"]
+        preferred_level: "level_2"
+        suited_for:
+          - "数字孪生叠加驾驶舱"
+        risk_notes_zh:
+          - "混合 ue5_overlay + b_system 场景，仅在明确需求为数字孪生控制台时使用"
+      - path: "examples/ue5-overlay/ue5_overlay_mock_bridge.html"
+        grade: "anti_pattern"
+        use_scope: "forbidden"
+        page_types: ["placeholder"]
+        preferred_level: "level_2"
+        suited_for:
+          - "桥接占位页（反例模板）"
+        risk_notes_zh:
+          - "仅作为占位/桥接示例；禁止作为 canonical 或默认路由"
+      # 模式 4（紧急横幅）无独立文件，见 docs/ue5-overlay-layout-playbook.md §布局模式4
+
+    module_shells:
+      - id: "ue5_overlay_shell"
+        required_classes: ["ue5-overlay-root", "topbar-hud", "alert-center", "detail-panel", "world-marker", "layer-switcher"]
+        suited_for: ["UE5 Overlay", "数字孪生叠加层"]
+    level_bias:
+      preferred: ["level_1", "level_2"]
+      selection_strategy_zh:
+        - "模板与组件取用必须需求驱动：允许单模板直用，也允许按模块编排；不得以“必须混用模板”替代业务判断。"
+        - "当 template_similarity_score 偏高但 PRD 覆盖完整且任务流匹配时，可保留单模板策略并在摘要说明理由。"
+      escalate_to_level_3_when:
+        - "出现新的三维联动任务流或 Overlay 内新业务域，且现有 HUD/面板组合无法承载。"
+    layout_mode_anchors:
+      mode_2_quality_tracking:
+        target_mode: 2
+        semantic_anchors:
+          hud:
+            classes: ["topbar-hud", "topbar-hud--with-sidepanel", "topbar-hud--quality"]
+            role_zh: "承载当前班次质量态势与关键决策节奏的顶部 HUD。"
+          world_marker_layer:
+            classes: ["ue5-overlay-layer--marker", "world-marker"]
+            role_zh: "在三维场景上标注设备簇 / 工位簇质量状态，与 HUD 卡片保持一一或一对多映射。"
+          detail_panel:
+            classes: ["detail-panel", "quality-cause-panel", "quality-closure-panel"]
+            role_zh: "单侧质量详情区域，用于承载根因诊断与闭环追踪，不引入双侧固定面板或 Dock。"
+        guard_notes_zh:
+          - "Mode 2 场景下允许存在多个 detail-panel，但它们属于同一侧质量详情带，不应演化为左右双侧固定面板布局。"
+          - "Mode 2 场景下禁止新增 ue5-overlay-bottom-dock / ue5-overlay-dock 等 Dock 结构；如确需 Dock，应使用 layout_mode 5 候选模板并经人工确认。"
+    module_preferences:
+      mode_1_single_hud:
+        description_zh: "Mode 1 单 HUD 监控大屏。"
+        recommended_modules_zh:
+          - "HUD（topbar-hud）：默认推荐保留；仅当 PRD 明确要求“全屏仅三维视口，无全局 HUD 信息”时才省略。"
+          - "world-marker：默认推荐至少 1 个 world-marker，用于验证三维场景与状态联动。"
+        optional_modules_zh:
+          - "detail-panel：通常不需要；若 PRD 强调“右侧详情”或“持续展开的属性面板”，更适合升级为 Mode 2。"
+          - "alert-center：通常不需要；若 PRD 强调“告警中心 / 告警列表”，更适合直接使用 Mode 3。"
+      mode_2_hud_sidepanel:
+        description_zh: "Mode 2 HUD + 单侧详情面板（质量追踪 / 设备详情）。"
+        recommended_modules_zh:
+          - "HUD（topbar-hud + topbar-hud--with-sidepanel）：默认推荐，用于承载班次节奏与当前 focus。"
+          - "detail-panel：默认至少 1 个单侧 detail-panel，承载质量/设备详情；完全没有详情面板时更接近 Mode 1。"
+          - "world-marker：默认推荐，用于与当前详情对象联动高亮。"
+        optional_modules_zh:
+          - "alert-center：可以出现少量告警卡片，但不宜扩展为完整告警中心面板；一旦引入完整 alert-center 区域，应考虑改用 Mode 3。"
+      mode_3_hud_alert_center:
+        description_zh: "Mode 3 HUD + 告警中心总览。"
+        recommended_modules_zh:
+          - "alert-center：强推荐，对应 Guard 要求的告警中心面板，是 Mode 3 的核心特征。"
+          - "HUD（topbar-hud）：推荐保留，用于承载全局态势与告警摘要；如确有“仅告警视图”的 PRD，可按 Guard 降级为 Mode 2 + 告警卡片。"
+          - "world-marker：推荐，用于将高优先级告警映射到三维场景。"
+        optional_modules_zh:
+          - "detail-panel：可选，常用于承载当前选中告警 / 设备的详情；不出现时，告警详情可以在 alert-center 内就地展开。"
+      mode_5_full_layout:
+        description_zh: "Mode 5 双侧固定面板 + 底部 Dock（数字孪生监控全布局）。"
+        recommended_modules_zh:
+          - "detail-panel：默认左右各一，用于承载工艺流与设备/告警详情。"
+          - "world-marker：推荐存在，用于与双侧信息结构联动。"
+        optional_modules_zh:
+          - "HUD（topbar-hud 或 ue5-overlay-system-bar）：可按项目取舍；在信息极度密集的 cockpit 中，可以弱化 HUD，仅保留系统栏与关键状态指示。"
+          - "alert-center：可选；当告警占据 cockpit 的主要视图时，通常仍推荐使用结构化 alert-center，而非散落在多处的告警卡片。"
+      minimal_overlay:
+        description_zh: "极简 Overlay 示例（对应任务 id：`ue5_overlay_minimal_no_hud`；通常仅世界标注 + 轻量文案，例如 `examples/ue5-overlay/ue5_overlay_minimal_no_hud.html`）。"
+        recommended_modules_zh:
+          - "world-marker：在存在任何实体状态标注需求时，推荐至少保留 1 个 world-marker，以体现 Overlay 的三维联动价值。"
+        optional_modules_zh:
+          - "HUD（topbar-hud）：极简 Overlay 场景下通常不需要；仅当 PRD 明确提出“运行总览 / 班次 KPI”时才补充。"
+          - "alert-center / detail-panel：极简 Overlay 通常不需要完整告警中心或持续展开的详情面板；如 PRD 提出这类需求，应优先考虑 Mode 2 或 Mode 3 布局。"
+
+
+  ai_assistant:
+    style_entry: "components/dist/lingjing-core-b-system.css"
+    candidate_templates:
+      - path: "examples/b-system/b-system-ai-assistant.html"
+        grade: "canonical"
+        use_scope: "limited"
+        allowed_scenes: ["ai_assistant"]
+        page_types: ["assistant_workspace"]
+        preferred_level: "level_2"
+        suited_for:
+          - "AI 工作台"
+          - "工具执行界面"
+        risk_notes_zh:
+          - "仅限 ai_assistant 场景；含 pj-b-ai-* 项目级扩展，禁止作为普通 b_system 模板"
+
+    module_shells:
+      - id: "ai_workspace_shell"
+        required_classes: ["chat-layout", "message-bubble", "tool-call-card", "task-status-card"]
+        suited_for: ["助手工作台", "多轮协作"]
+    level_bias:
+      preferred: ["level_2", "level_3"]
+  presentation:
+    style_entry: "components/dist/lingjing-core-presentation.css"
+    candidate_templates:
+      - path: "examples/presentation/presentation-product.html"
+        grade: "candidate"
+        use_scope: "default"
+        page_types: ["product_presentation"]
+        preferred_level: "level_1"
+        suited_for:
+          - "产品介绍"
+          - "商务汇报"
+        risk_notes_zh:
+          - "候选模板，需清理 placeholder 文案与高风险 inline style 后晋级"
+      - path: "examples/presentation/presentation-business.html"
+        grade: "candidate"
+        use_scope: "default"
+        page_types: ["business_report"]
+        preferred_level: "level_1"
+        suited_for:
+          - "经营汇报"
+        risk_notes_zh:
+          - "候选模板，需补齐审计与规范后再设为 canonical"
+      - path: "examples/presentation/presentation-planning.html"
+        grade: "candidate"
+        use_scope: "default"
+        page_types: ["planning_proposal"]
+        preferred_level: "level_1"
+        suited_for:
+          - "规划方案"
+        risk_notes_zh:
+          - "候选模板，需清理演示性内容后晋级"
+      - path: "examples/presentation/presentation-work-report.html"
+        grade: "anti_pattern"
+        use_scope: "forbidden"
+        page_types: ["work_report"]
+        preferred_level: "level_2"
+        suited_for:
+          - "工作汇报（反例模板）"
+        risk_notes_zh:
+          - "大量 placeholder 与 inline style，仅作为反面案例；禁止作为生成模板"
+      - path: "examples/presentation/presentation-minimal.html"
+        grade: "anti_pattern"
+        use_scope: "forbidden"
+        page_types: ["minimal_presentation"]
+        preferred_level: "level_2"
+        suited_for:
+          - "极简演示（反例模板）"
+        risk_notes_zh:
+          - "占位感强且依赖外部 CDN，仅供反例说明，禁止作为业务模板"
+
+    module_shells:
+      - id: "presentation_story_shell"
+        required_classes: ["presentation-slide", "slide-title", "presentation-slide-indicators"]
+        suited_for: ["演示汇报", "叙事型幻灯"]
+    level_bias:
+      preferred: ["level_1", "level_2"]
+
+canonical_class_contract:
+  rule_zh:
+    - "所有新输出与新 ux_spec 一律使用 canonical_classes。"
+    - "aliases 仅用于兼容旧示例；最终交付前应归一化到 canonical。"
+  aliases:
+    activity-timeline: "status-timeline"
+    advanced-table-layout: "advanced-data-table"
+    website-navbar: "website-nav"
+    hero-section: "website-hero"
+    tab-navigation: "website-nav"
+    form-card: "website-cta-card"
+    button-primary: "website-btn-primary"
+    content-note: "content-card"
+    poll-card: "content-card"
+    cta-band: "website-cta"
+    chat-turn: "message-bubble"
+    activity-log: "tool-call-card"
+    chart-panel: "chart-card"
+    slide-nav: "slide-toc-list"
+    slide-controller: "presentation-slide-indicators"
+    highlight-card: "presentation-highlight-box"
+    qa-panel: "content-card"
+    heatmap-panel: "ops-alert-heatmap"

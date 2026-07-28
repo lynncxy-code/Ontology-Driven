@@ -1,0 +1,277 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>飞机制造指标监控 - Lingjing Core</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+
+  <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+  <div class="b-layout-sidebar">
+    <aside class="b-sidebar" id="sidebar">
+      <div class="b-sidebar-header">
+        <div class="b-sidebar-logo">
+          <img src="../../assets/logo-flat.png" alt="灵境" height="32">
+        </div>
+        <span class="b-sidebar-brand">制造指标监控</span>
+      </div>
+      <nav class="b-sidebar-nav b-scrollable">
+        <ul class="b-sidebar-nav-list">
+          <li class="b-sidebar-nav-item">
+            <a href="#" class="b-sidebar-nav-link active">
+              <span class="b-sidebar-nav-icon"><i data-lucide="line-chart"></i></span>
+              <span class="b-sidebar-nav-text">指标总览</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="layers"></i></span>
+              <span class="b-sidebar-nav-text">工段负荷</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="shield"></i></span>
+              <span class="b-sidebar-nav-text">质量趋势</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="package"></i></span>
+              <span class="b-sidebar-nav-text">齐套进度</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+      <div class="b-sidebar-footer">
+        <button class="b-sidebar-toggle" onclick="toggleSidebar()">
+          <span class="b-sidebar-toggle-icon"><i data-lucide="chevron-left"></i></span>
+          <span class="b-sidebar-toggle-text">收起导航</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="b-main">
+      <header class="b-header">
+        <div class="b-header-left">
+          <div class="b-breadcrumb">
+            <div class="b-breadcrumb-item">
+              <a href="#" class="b-breadcrumb-link">生产监控</a>
+              <span class="b-breadcrumb-separator">/</span>
+            </div>
+            <div class="b-breadcrumb-item">
+              <span class="b-breadcrumb-current">指标监控</span>
+            </div>
+          </div>
+        </div>
+        <div class="b-header-right">
+          <button class="btn-icon" title="切换主题" onclick="toggleTheme()">
+            <i data-lucide="moon"></i>
+          </button>
+          <button class="btn-icon" title="导出">
+            <i data-lucide="download"></i>
+          </button>
+        </div>
+      </header>
+
+      <div class="b-content b-scrollable chart-theme-light" id="chartTheme">
+        <section class="aviation-section aviation-grid aviation-grid-2">
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div>
+                <h3 class="chart-card-title">关键指标趋势</h3>
+                <p class="chart-card-subtitle">生产节拍与一次合格率</p>
+              </div>
+              <span class="badge info">近 12 小时</span>
+            </div>
+            <div class="chart-card-body" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--spacing-lg);">
+              <div class="metric-trend">
+                <div class="metric-trend-main">
+                  <div class="metric-trend-value">39.2</div>
+                  <div class="metric-trend-unit">min / 架</div>
+                  <div class="metric-trend-change positive">-1.8%</div>
+                </div>
+                <div class="metric-trend-bar" style="--metric-value: 82%;"><span></span></div>
+                <div class="metric-trend-meta">
+                  <span>目标 40</span>
+                  <span>节拍优于目标</span>
+                </div>
+              </div>
+              <div class="metric-trend">
+                <div class="metric-trend-main">
+                  <div class="metric-trend-value">97.1%</div>
+                  <div class="metric-trend-unit">一次合格率</div>
+                  <div class="metric-trend-change positive">+0.6%</div>
+                </div>
+                <div class="metric-trend-bar" style="--metric-value: 71%;"><span></span></div>
+                <div class="metric-trend-meta">
+                  <span>目标 96%</span>
+                  <span>连续 4 班次达标</span>
+                </div>
+              </div>
+            </div>
+            <div class="chart-card-footer">
+              <span>异常工段：航电集成</span>
+              <span>更新于 09:25</span>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div>
+                <h3 class="chart-card-title">关键阶段进度</h3>
+                <p class="chart-card-subtitle">结构装配 → 航电 → 总装</p>
+              </div>
+              <span class="badge warning">2 项延期</span>
+            </div>
+            <div class="chart-card-body">
+              <div class="timeline-strip">
+                <div>
+                  <div class="timeline-strip-item">
+                    <div class="timeline-strip-time">结构装配</div>
+                    <div>
+                      <div class="timeline-strip-bar" style="--timeline-value: 88%;"><span></span></div>
+                      <div class="timeline-strip-label">已完成 8/9</div>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div class="timeline-strip-item">
+                    <div class="timeline-strip-time">航电集成</div>
+                    <div>
+                      <div class="timeline-strip-bar" style="--timeline-value: 64%;"><span></span></div>
+                      <div class="timeline-strip-label">进行中 5/8</div>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div class="timeline-strip-item">
+                    <div class="timeline-strip-time">总装交付</div>
+                    <div>
+                      <div class="timeline-strip-bar" style="--timeline-value: 42%;"><span></span></div>
+                      <div class="timeline-strip-label">待入场 3/7</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="chart-card-footer">
+              <span>预计完成 18:30</span>
+              <span>风险项 2</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="aviation-section aviation-grid aviation-grid-2">
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div>
+                <h3 class="chart-card-title">工位负荷与齐套</h3>
+                <p class="chart-card-subtitle">关键工位负荷与供应链齐套率</p>
+              </div>
+              <span class="badge success">稳定</span>
+            </div>
+            <div class="chart-card-body" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--spacing-lg);">
+              <div class="progress-ring" style="--progress-value: 74;">
+                <div class="progress-ring-content">
+                  <div class="progress-ring-value">74%</div>
+                  <div class="progress-ring-label">装配负荷</div>
+                </div>
+              </div>
+              <div class="progress-ring" style="--progress-value: 88;">
+                <div class="progress-ring-content">
+                  <div class="progress-ring-value">88%</div>
+                  <div class="progress-ring-label">齐套率</div>
+                </div>
+              </div>
+              <div class="progress-ring" style="--progress-value: 61;">
+                <div class="progress-ring-content">
+                  <div class="progress-ring-value">61%</div>
+                  <div class="progress-ring-label">航电协同</div>
+                </div>
+              </div>
+            </div>
+            <div class="chart-card-footer">
+              <span>关键缺件 7 项</span>
+              <span>预计补齐 16:00</span>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div>
+                <h3 class="chart-card-title">告警密度走势</h3>
+                <p class="chart-card-subtitle">近 7 天异常波动</p>
+              </div>
+              <span class="badge error">高峰期</span>
+            </div>
+            <div class="chart-card-body">
+              <div class="ops-alert-heatmap">
+                <div class="ops-alert-heat-cell" data-level="1"></div>
+                <div class="ops-alert-heat-cell" data-level="2"></div>
+                <div class="ops-alert-heat-cell" data-level="2"></div>
+                <div class="ops-alert-heat-cell" data-level="3"></div>
+                <div class="ops-alert-heat-cell" data-level="4"></div>
+                <div class="ops-alert-heat-cell" data-level="3"></div>
+                <div class="ops-alert-heat-cell" data-level="2"></div>
+                <div class="ops-alert-heat-cell" data-level="2"></div>
+                <div class="ops-alert-heat-cell" data-level="1"></div>
+                <div class="ops-alert-heat-cell" data-level="1"></div>
+                <div class="ops-alert-heat-cell" data-level="2"></div>
+                <div class="ops-alert-heat-cell" data-level="3"></div>
+                <div class="ops-alert-heat-cell" data-level="2"></div>
+                <div class="ops-alert-heat-cell" data-level="1"></div>
+              </div>
+              <div class="ops-alert-heat-legend" style="margin-top: var(--spacing-md);">
+                <span style="background: rgba(0, 102, 204, 0.12);"></span>低
+                <span style="background: rgba(0, 153, 170, 0.2);"></span>中
+                <span style="background: rgba(245, 158, 11, 0.25);"></span>高
+                <span style="background: rgba(239, 68, 68, 0.25);"></span>紧急
+              </div>
+            </div>
+            <div class="chart-card-footer">
+              <span>高风险工段：涂装</span>
+              <span>近 48h 12 项</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function toggleSidebar() {
+      var sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('collapsed');
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+
+      const themeContainer = document.getElementById('chartTheme');
+      if (themeContainer) {
+        themeContainer.classList.toggle('chart-theme-dark', newTheme === 'dark');
+        themeContainer.classList.toggle('chart-theme-light', newTheme === 'light');
+      }
+    }
+
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    const themeContainer = document.getElementById('chartTheme');
+    if (themeContainer) {
+      themeContainer.classList.toggle('chart-theme-dark', savedTheme === 'dark');
+      themeContainer.classList.toggle('chart-theme-light', savedTheme === 'light');
+    }
+
+    if (window.lucide) {
+      window.lucide.createIcons();
+    }
+  </script>
+</body>
+</html>

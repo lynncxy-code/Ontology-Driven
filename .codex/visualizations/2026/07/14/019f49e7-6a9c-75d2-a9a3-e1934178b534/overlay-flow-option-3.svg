@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="800" viewBox="0 0 1400 800">
+  <defs>
+    <marker id="arrow3" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#444"/></marker>
+    <style>
+      text { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; fill:#1a1a1a; }.title { font-size:28px; font-weight:600; }.sub { font-size:16px; fill:#666; }.head { font-size:18px; font-weight:600; }.body { font-size:15px; }.small { font-size:13px; fill:#666; }
+      .screen { fill:#fff; stroke:#222; stroke-width:2; rx:6; }.panel { fill:#fafafa; stroke:#cfcfcf; }.selected { fill:#f0f0f0; stroke:#222; stroke-width:1.5; }.line { stroke:#d8d8d8; }.button { fill:#1a1a1a; rx:5; }.buttonText { fill:#fff; font-size:14px; font-weight:600; }.flow { stroke:#444; stroke-width:2; fill:none; marker-end:url(#arrow3); }
+    </style>
+  </defs>
+  <rect width="1400" height="800" fill="#fff"/>
+  <text x="50" y="52" class="title">方案 3：统一工作台 + 上下文快捷入口</text>
+  <text x="50" y="82" class="sub">编辑器仍然只有一套，但可以从当前类型或当前实例直接进入并自动定位。</text>
+
+  <rect x="40" y="125" width="285" height="220" class="screen"/>
+  <rect x="40" y="125" width="285" height="50" fill="#f6f6f6" stroke="#222" stroke-width="2" rx="6"/>
+  <text x="60" y="157" class="head">本体配置中心</text>
+  <rect x="58" y="198" width="249" height="46" class="selected"/>
+  <text x="75" y="227" class="body">空压机 · I3D_Overlay</text>
+  <rect x="58" y="272" width="249" height="44" class="button"/>
+  <text x="113" y="300" class="buttonText">配置默认面板</text>
+
+  <rect x="40" y="410" width="285" height="220" class="screen"/>
+  <rect x="40" y="410" width="285" height="50" fill="#f6f6f6" stroke="#222" stroke-width="2" rx="6"/>
+  <text x="60" y="442" class="head">实例运维</text>
+  <rect x="58" y="483" width="249" height="46" class="selected"/>
+  <text x="75" y="512" class="body">空压机 A-03</text>
+  <rect x="58" y="557" width="249" height="44" class="button"/>
+  <text x="113" y="585" class="buttonText">配置实例面板</text>
+
+  <path d="M330 294 C380 294 380 300 430 300" class="flow"/>
+  <text x="345" y="274" class="small">携带 type_rid</text>
+  <path d="M330 579 C380 579 380 505 430 505" class="flow"/>
+  <text x="345" y="565" class="small">携带 instance_id</text>
+
+  <rect x="445" y="105" width="650" height="555" class="screen"/>
+  <rect x="445" y="105" width="650" height="58" fill="#f6f6f6" stroke="#222" stroke-width="2" rx="6"/>
+  <text x="470" y="141" class="head">场景交互 / 信息面板 / 空压机 A-03</text>
+  <rect x="922" y="116" width="150" height="38" class="button"/>
+  <text x="951" y="141" class="buttonText">保存当前配置</text>
+  <line x1="620" y1="163" x2="620" y2="660" class="line"/>
+  <line x1="870" y1="163" x2="870" y2="660" class="line"/>
+
+  <text x="467" y="196" class="small">已自动定位</text>
+  <rect x="463" y="216" width="140" height="42" class="panel"/><text x="480" y="243" class="body">类型默认</text>
+  <rect x="480" y="270" width="123" height="38" class="panel"/><text x="497" y="294" class="body">A-01</text>
+  <rect x="480" y="316" width="123" height="38" class="panel"/><text x="497" y="340" class="body">A-02</text>
+  <rect x="480" y="362" width="123" height="38" class="selected"/><text x="497" y="386" class="body">A-03</text>
+  <text x="467" y="447" class="small">仍可切换其他对象</text>
+
+  <text x="644" y="196" class="small">同一套编辑器</text>
+  <text x="644" y="238" class="small">当前配置层级</text>
+  <rect x="644" y="250" width="202" height="38" class="panel"/><text x="657" y="275" class="body">实例覆盖</text>
+  <text x="644" y="320" class="small">模板</text>
+  <rect x="644" y="332" width="202" height="38" fill="#fff" stroke="#999" stroke-dasharray="5 4"/>
+  <text x="657" y="357" class="small">继承类型默认</text>
+  <text x="644" y="402" class="small">标题</text>
+  <rect x="644" y="414" width="202" height="38" class="panel"/><text x="657" y="439" class="body">空压机 A-03</text>
+  <text x="644" y="484" class="small">指标</text>
+  <rect x="644" y="496" width="202" height="62" fill="#fff" stroke="#999" stroke-dasharray="5 4"/>
+  <text x="657" y="524" class="small">继承：状态、温度、压力</text>
+
+  <text x="894" y="196" class="small">实时预览</text>
+  <rect x="894" y="220" width="177" height="190" class="screen"/>
+  <text x="912" y="254" class="head">空压机 A-03</text>
+  <text x="912" y="282" class="small">运行中</text>
+  <line x1="912" y1="298" x2="1053" y2="298" class="line"/>
+  <text x="912" y="332" class="body">温度</text><text x="1000" y="332" class="body">42 °C</text>
+  <text x="912" y="366" class="body">压力</text><text x="1000" y="366" class="body">0.82</text>
+  <rect x="894" y="450" width="177" height="42" fill="#fff" stroke="#999" rx="5"/>
+  <text x="930" y="477" class="body">恢复继承</text>
+
+  <path d="M1110 385 H1165" class="flow"/>
+  <rect x="1180" y="205" width="180" height="350" class="screen"/>
+  <text x="1202" y="240" class="head">UE 场景</text>
+  <rect x="1205" y="410" width="70" height="82" fill="#fff" stroke="#666" stroke-width="2"/>
+  <line x1="1240" y1="410" x2="1280" y2="335" stroke="#444" stroke-width="2"/>
+  <rect x="1215" y="275" width="125" height="88" class="screen"/>
+  <text x="1225" y="300" class="small">空压机 A-03</text>
+  <text x="1225" y="324" class="small">42 °C</text>
+  <text x="1225" y="346" class="small">0.82 MPa</text>
+
+  <rect x="40" y="700" width="1320" height="60" fill="#fafafa" stroke="#d4d4d4"/>
+  <text x="62" y="735" class="head">使用链路</text>
+  <text x="180" y="735" class="body">当前类型/实例点击配置 → 工作台自动定位 → 使用统一编辑器 → UE 显示</text>
+  <text x="900" y="735" class="small">特点：一个编辑器、多个入口，但会发生页面跳转。</text>
+</svg>

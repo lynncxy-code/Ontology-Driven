@@ -1,0 +1,57 @@
+/**
+ * Lingjing Core - B端系统场景入口
+ *
+ * @version 2.7.5
+ * @description 适用于B端管理系统、SaaS后台、企业内部系统、CRM、ERP、AI工作台与常规监控台
+ * @update 2026-03-23 - 拆分 UE5 Overlay 独立入口，避免与后台系统场景耦合
+ * 仅包含后台/工作台/常规监控所需基础与组件，不含 UE5 Overlay 专属样式
+ */
+
+/* Foundation - 基础令牌与兼容层 */
+@import '../01-foundation/variables.css';            /* CSS变量 */
+@import '../01-foundation/token-aliases.css';        /* 语义兼容层 */
+@import '../01-foundation/scrollbar.css';            /* 全局滚动条 */
+@import '../01-foundation/states.css';               /* 交互状态样式 */
+
+/* Utilities - 工具类 */
+@import '../01-foundation/utilities.css';            /* 工具类 */
+
+/* Core Components - 核心组件 */
+@import '../01-foundation/glass-effects.css';        /* 玻璃拟态效果 */
+@import '../02-components/buttons.css';              /* 按钮和交互 */
+@import '../02-components/ai-assistant.css';         /* AI 助手场景组件 */
+@import '../02-components/feedback-legacy.css';      /* 反馈组件旧 API 兼容层（内部桥接 feedback.css） */
+@import '../02-components/navigation-legacy.css';    /* 导航组件旧 API 兼容层 */
+@import '../02-components/navigation.css';           /* 导航组件 */
+@import '../02-components/forms-advanced.css';       /* 高级表单 */
+@import '../02-components/data-display.css';         /* 数据展示 */
+@import '../02-components/data-panel.css';           /* 数据面板组件 */
+@import '../02-components/advanced-data-table.css';  /* 高级数据表格与列表页模块 */
+@import '../02-components/aviation-components.css';  /* 航空专属组件 */
+@import '../02-components/visualization-components.css';  /* 可视化组件 */
+@import '../02-components/progress-components.css';  /* 进度组件 */
+@import '../02-components/date-picker.css';          /* 日期选择 */
+@import '../02-components/dropdown-menu.css';        /* 下拉菜单 */
+@import '../02-components/tooltip.css';              /* 提示 */
+@import '../02-components/popover.css';              /* 悬浮气泡卡片 */
+@import '../02-components/filter-bar.css';           /* 筛选条 */
+@import '../02-components/search-suggestion.css';    /* 搜索联想面板 */
+@import '../02-components/empty-state.css';          /* 空状态 */
+@import '../02-components/skeleton.css';             /* 骨架屏 */
+@import '../02-components/loading-block.css';        /* 加载占位块 */
+@import '../02-components/status-badge-group.css';   /* 状态徽章组 */
+@import '../02-components/modal-dialog.css';         /* 模态框 */
+@import '../02-components/drawer.css';               /* 抽屉组件 */
+@import '../02-components/toast.css';                /* 轻提示 */
+@import '../02-components/icon-system.css';          /* 图标系统 */
+
+/* Scene Components - B端系统 */
+@import '../03-layouts/layout-system.css';           /* B端布局 */
+@import '../03-layouts/cards-b.css';                 /* B端卡片 */
+
+/* Enhancements - 增强能力 */
+@import '../03-layouts/responsive.css';              /* 响应式设计 */
+@import '../04-themes/theme-switcher.css';           /* 主题切换 */
+
+
+

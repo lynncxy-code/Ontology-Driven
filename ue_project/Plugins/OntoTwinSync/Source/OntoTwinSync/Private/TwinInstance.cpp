@@ -414,7 +414,7 @@ void ATwinInstance::InitializeTwin(
     UE_LOG(LogTemp, Log, TEXT("[孪生体] ████ 初始化完成 | ID=%s"), *InstanceId);
 }
 
-void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot)
+void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool bIsDelta)
 {
     if (!Snapshot.IsValid())
     {
@@ -431,8 +431,11 @@ void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot)
     const TSharedPtr<FJsonObject>* InterfacesObj;
     if (!Snapshot->TryGetObjectField(TEXT("interfaces"), InterfacesObj))
     {
-        UE_LOG(LogTemp, Warning,
-               TEXT("[孪生体] ApplySnapshot: 快照中无 'interfaces' 字段 (ID=%s)"), *InstanceId);
+        if (!bIsDelta)
+        {
+            UE_LOG(LogTemp, Warning,
+                   TEXT("[孪生体] ApplySnapshot: 快照中无 'interfaces' 字段 (ID=%s)"), *InstanceId);
+        }
         return;
     }
 
@@ -471,7 +474,7 @@ void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot)
     {
         ApplyOverlayFromSnapshot(*OverlayObj);
     }
-    else
+    else if (!bIsDelta)
     {
         ClearOverlay();
     }

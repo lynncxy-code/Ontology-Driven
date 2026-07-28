@@ -1,0 +1,30 @@
+[
+  {
+    "path": "D:\\SCC\\SCC2\\scc2\\Content\\SCC_W9\\Art\\Maps\\L_SCC_W9_Main.umap",
+    "length": 25046,
+    "last_write_time": "2026-07-27T10:28:41.4886934+08:00",
+    "sha256": "D95B7B1C0B5573D7CF8A64131801691A4AC3FA4448E3283FABE59CB4CD2C4229"
+  },
+  {
+    "path": "D:\\SCC\\SCC2\\scc2\\Content\\SCC_W9\\Art\\Maps\\L_SCC_W9_Building.umap",
+    "length": 1744607,
+    "last_write_time": "2026-07-27T10:30:51.5268203+08:00",
+    "sha256": "CD2390957A1520C999F2BACCFD8E4C6BB8D49F1AC50C70994EBBCDA299E815F0"
+  },
+  {
+    "path": "D:\\SCC\\SCC2\\scc2\\Content\\SCC_W9\\Art\\Maps\\L_SCC_W9_Light.umap",
+    "length": 343133,
+    "last_write_time": "2026-07-27T10:30:51.3658435+08:00",
+    "sha256": "FDF92EF763A8F67032381CE15B4CE42157295F5F347B13FC1AE01FC0C96AA2C1"
+  },
+  {
+    "path": "D:\\tmp\\digital_twin_aircraft\\backend\\tools\\ue_migration_result.json",
+    "length": 58828,
+    "last_write_time": "2026-07-23T12:16:09.5354044+08:00",
+    "sha256": "27758BDDC61DD5F2434FE5F034723E5EAA1393FA3A2E9E9E59E85CB575D23FE9"
+  },
+  {
+    "path": "D:\\tmp\\digital_twin_aircraft\\backend\\tools\\ue_snapshots.json",
+    "exists": false
+  }
+]

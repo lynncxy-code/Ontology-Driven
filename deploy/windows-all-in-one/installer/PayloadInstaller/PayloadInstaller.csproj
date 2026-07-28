@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>OntoTwin-ZHHZ-PayloadInstaller</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.1" />
+    <AssemblyMetadata Include="PayloadSha256" Value="$(PayloadExpectedSha256)" />
+  </ItemGroup>
+  <Target Name="ValidatePayloadExpectedSha256" BeforeTargets="CoreCompile">
+    <Error
+        Condition="'$(PayloadExpectedSha256)' == ''"
+        Text="PayloadExpectedSha256 is required so the signed payload installer is cryptographically bound to its payload archive." />
+    <Error
+        Condition="'$(PayloadExpectedSha256)' != '' and !$([System.Text.RegularExpressions.Regex]::IsMatch('$(PayloadExpectedSha256)', '^[0-9A-Fa-f]{64}$'))"
+        Text="PayloadExpectedSha256 must contain exactly 64 hexadecimal characters." />
+  </Target>
+</Project>

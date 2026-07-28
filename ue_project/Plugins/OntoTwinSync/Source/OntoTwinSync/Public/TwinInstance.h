@@ -160,7 +160,7 @@ public:
     void InitializeTwin(const FString& InInstanceId, const FString& InAssetPath, const FString& InBackendBaseUrl);
 
     /** 应用后端快照到 Actor（由 SceneManager 每 500ms 调用） */
-    void ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot);
+    void ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool bIsDelta = false);
 
     /** 应用 WebSocket 实时空间数据；保持期内优先于 HTTP 快照。 */
     void ApplyRealtimeSpatial(double X, double Y, double HeadingDeg, float HoldSeconds);

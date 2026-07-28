@@ -8,6 +8,9 @@ public class OntoTwinSync : ModuleRules
 	public OntoTwinSync(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		// Several UI translation units intentionally use the same anonymous
+		// namespace color names. Keep them as separate translation units.
+		bUseUnity = false;
 
 		PublicDependencyModuleNames.AddRange(new string[]
 		{

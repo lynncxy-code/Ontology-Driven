@@ -55,6 +55,17 @@ backend/lite/db/*.db
 backend/data/scenes/
 backend/data/projects/
 backend/data/active.json
+backend/data/.artstudio_session.json
+backend/data/.artstudio_session.json.tmp
+backend/data/backups/
+backend/data/project_assets/
+
+# Local task and test artifacts
+.tmp/
+
+# .NET build outputs
+**/bin/
+**/obj/
 
 # Windows 快捷方式
 *.lnk

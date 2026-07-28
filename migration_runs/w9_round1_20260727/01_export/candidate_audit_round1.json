@@ -1,0 +1,74 @@
+{
+  "schema": "candidate_audit_v1",
+  "round_id": "w9_round1",
+  "source_inventory": "../00_input/w9_scene_inventory_round1.json",
+  "business_category_proposed": "建筑模型",
+  "hierarchy_path_proposed": "W9/建筑",
+  "candidates": [
+    {
+      "actor_label": "SCC_Building_1F",
+      "actor_name": "Actor_20",
+      "actor_guid": "002A981BAEA83BDCBD792B81B61F710B",
+      "actor_path": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Building.L_SCC_W9_Building:PersistentLevel.Actor_20",
+      "level": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Building",
+      "descendant_count": 6,
+      "unique_static_mesh_count": 6,
+      "negative_scale_count": 0,
+      "existing_database_guid_overlap": false,
+      "recommendation": "include"
+    },
+    {
+      "actor_label": "SCC_Building_2F",
+      "actor_name": "Actor_16",
+      "actor_guid": "62D03EF5D548310F97949A9E81CD3F7A",
+      "actor_path": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Building.L_SCC_W9_Building:PersistentLevel.Actor_16",
+      "level": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Building",
+      "descendant_count": 539,
+      "unique_static_mesh_count": 13,
+      "negative_scale_count": 7,
+      "existing_database_guid_overlap": false,
+      "recommendation": "block",
+      "blocking_reason": "Contains seven negative-scale door actors; the SOP requires an explicit exception or source correction before export."
+    },
+    {
+      "actor_label": "SCC_Building_3F",
+      "actor_name": "Actor_21",
+      "actor_guid": "4976D34C8E1136E4968022FB84959DE0",
+      "actor_path": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Building.L_SCC_W9_Building:PersistentLevel.Actor_21",
+      "level": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Building",
+      "descendant_count": 6,
+      "unique_static_mesh_count": 6,
+      "negative_scale_count": 0,
+      "existing_database_guid_overlap": false,
+      "recommendation": "include"
+    },
+    {
+      "actor_label": "SCC_Building_4F",
+      "actor_name": "Actor_22",
+      "actor_guid": "A15DCC925FF03016AD7683EE89905129",
+      "actor_path": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Building.L_SCC_W9_Building:PersistentLevel.Actor_22",
+      "level": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Building",
+      "descendant_count": 6,
+      "unique_static_mesh_count": 6,
+      "negative_scale_count": 0,
+      "existing_database_guid_overlap": false,
+      "recommendation": "include"
+    }
+  ],
+  "excluded_pending_manual_boundary_approval": {
+    "main_level_root_model_actor_count": 20,
+    "standalone_static_mesh_actor_count": 16,
+    "skeletal_mesh_actor_count": 3,
+    "datasmith_scene_actor_count": 1,
+    "reason": "The SOP forbids promoting standalone StaticMeshActors to instances without explicit manual approval. These equipment models should be handled in a separate business round."
+  },
+  "proposed_allowlist_guids": [
+    "002A981BAEA83BDCBD792B81B61F710B",
+    "4976D34C8E1136E4968022FB84959DE0",
+    "A15DCC925FF03016AD7683EE89905129"
+  ],
+  "gate_a_status": "awaiting_user_approval",
+  "database_write_performed": false,
+  "ue_assets_saved": false,
+  "source_actors_deleted": false
+}

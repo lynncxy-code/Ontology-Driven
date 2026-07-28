@@ -1,0 +1,127 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Package
+      Name="OntoTwin ZHHZ"
+      Manufacturer="OntoTwin"
+      Version="$(var.MsiVersion)"
+      UpgradeCode="C3C28BD3-AD5D-489C-9291-1E88FE04D460"
+      Scope="perMachine"
+      Codepage="936"
+      Language="2052">
+
+    <SummaryInformation Description="OntoTwin ZHHZ Windows 一体化客户版" Manufacturer="OntoTwin" />
+    <MajorUpgrade
+        Schedule="afterInstallInitialize"
+        DowngradeErrorMessage="已安装更新版本的 OntoTwin ZHHZ。" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <util:CloseApplication
+        Id="CloseOntoTwinLauncher"
+        Target="OntoTwin-ZHHZ-Launcher.exe"
+        Description="OntoTwin ZHHZ 控制中心正在运行，安装程序需要先关闭它。"
+        CloseMessage="yes"
+        ElevatedCloseMessage="yes"
+        Timeout="15"
+        TerminateProcess="0"
+        RebootPrompt="no" />
+
+    <Feature Id="MainFeature" Title="OntoTwin ZHHZ" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+    </Feature>
+
+    <CustomAction
+        Id="RemoveHyperVBackend"
+        FileRef="HostServiceExe"
+        ExeCommand="--remove-backend-if-version &quot;$(var.PayloadVersion)&quot;"
+        Execute="deferred"
+        Impersonate="no"
+        Return="ignore" />
+    <CustomAction
+        Id="RemoveApplicationPayload"
+        FileRef="PayloadInstallerExe"
+        ExeCommand="uninstall &quot;$(var.PayloadVersion)&quot;"
+        Execute="deferred"
+        Impersonate="no"
+        Return="check" />
+    <InstallExecuteSequence>
+      <Custom Action="RemoveHyperVBackend" Before="RemoveApplicationPayload" Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="RemoveApplicationPayload" Before="RemoveFiles" Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+  </Package>
+
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="OntoTwinCompanyFolder" Name="OntoTwin">
+        <Directory Id="INSTALLFOLDER" Name="ZHHZ">
+          <Directory Id="LauncherFolder" Name="Launcher" />
+          <Directory Id="ServiceFolder" Name="Service" />
+          <Directory Id="HostFolder" Name="Host" />
+          <Directory Id="ToolsFolder" Name="Tools" />
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ProgramMenuProductFolder" Name="OntoTwin ZHHZ" />
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder" />
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ProductComponents">
+      <Component Id="LauncherComponent" Directory="LauncherFolder" Guid="8A440A15-D0E4-4DAE-A426-861BE7DE19B4">
+        <File Id="LauncherExe" Source="$(var.LauncherPath)" KeyPath="yes">
+          <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="启动 OntoTwin ZHHZ" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuProductFolder" Name="OntoTwin ZHHZ 控制中心" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
+        </File>
+      </Component>
+
+      <Component Id="HostServiceComponent" Directory="ServiceFolder" Guid="C8C12A03-B205-4C80-B1A4-E64B66560307">
+        <File Id="HostServiceExe" Source="$(var.ServicePath)" KeyPath="yes" />
+        <ServiceInstall
+            Id="HostServiceInstall"
+            Name="OntoTwinZHHZHost"
+            DisplayName="OntoTwin ZHHZ 后台管理服务"
+            Description="管理 OntoTwin ZHHZ 的 Hyper-V 后台设备、数据库和备份。"
+            Type="ownProcess"
+            Start="auto"
+            ErrorControl="normal"
+            Account="LocalSystem">
+          <util:ServiceConfig
+              FirstFailureActionType="restart"
+              SecondFailureActionType="restart"
+              ThirdFailureActionType="restart"
+              RestartServiceDelayInSeconds="5"
+              ResetPeriodInDays="1" />
+        </ServiceInstall>
+        <ServiceControl
+            Id="HostServiceControl"
+            Name="OntoTwinZHHZHost"
+            Start="install"
+            Stop="both"
+            Remove="uninstall"
+            Wait="yes" />
+      </Component>
+
+      <Component Id="HostScriptComponent" Directory="HostFolder" Guid="35B27C2B-8BC5-4054-A789-D0E17B4D10F8">
+        <File Id="HostControlScript" Source="$(var.HostScriptPath)" KeyPath="yes" />
+      </Component>
+
+      <Component Id="PayloadInstallerComponent" Directory="ToolsFolder" Guid="49C6977B-B783-4414-A21B-78E5B55956C8">
+        <File Id="PayloadInstallerExe" Source="$(var.PayloadInstallerPath)" KeyPath="yes" />
+      </Component>
+
+      <Component Id="ReadmeComponent" Directory="INSTALLFOLDER" Guid="B9C755C6-6A7F-4F74-B44A-F40F18273170">
+        <File Id="CustomerReadme" Source="$(var.CustomerReadmePath)" Name="部署说明.md" KeyPath="yes" />
+      </Component>
+
+      <Component Id="RegistryComponent" Directory="INSTALLFOLDER" Guid="294D46CC-75C7-45B4-BC45-982689452B2E">
+        <RegistryValue Root="HKLM" Key="SOFTWARE\OntoTwin\ZHHZ" Name="InstallRoot" Value="[INSTALLFOLDER]" Type="string" KeyPath="yes" />
+      </Component>
+
+      <Component Id="StartMenuFolderComponent" Directory="ProgramMenuProductFolder" Guid="04646D5F-E5D7-45CC-8D9E-B2BB6C04B611">
+        <RemoveFolder Id="RemoveProgramMenuProductFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\OntoTwin\ZHHZ" Name="StartMenuInstalled" Value="1" Type="integer" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

@@ -1,0 +1,4 @@
+interface:
+  display_name: "OntoTwin UE Liquid Glass UI"
+  short_description: "Design and validate OntoTwin UE5.6 glass overlays"
+  default_prompt: "Use $ontotwin-ue-glass-ui to design or review an OntoTwin UE5.6 liquid-glass overlay."

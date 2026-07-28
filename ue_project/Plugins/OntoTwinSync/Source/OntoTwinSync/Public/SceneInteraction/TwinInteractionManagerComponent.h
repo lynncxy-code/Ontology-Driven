@@ -109,6 +109,7 @@ public:
     bool HasPendingReload() const { return bPendingReload; }
     bool IsCameraTransitioning() const;
     ETwinRoamingCameraMode GetCameraMode() const;
+    bool GetGodViewTransform(FTransform& OutTransform) const;
     FString GetHudStatusText() const;
     FString GetHudHintText() const;
     void GetHudShortcutItems(
@@ -236,6 +237,8 @@ private:
     void RestoreOriginalPawn();
 
     void SetupInput();
+    void ActivateRoamingInput();
+    void DeactivateRoamingInput();
     void RemoveInput();
     void BuildDefaultInputContext();
     void BindEnhancedInput();

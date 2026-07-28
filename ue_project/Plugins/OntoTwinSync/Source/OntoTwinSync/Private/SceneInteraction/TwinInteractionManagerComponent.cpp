@@ -840,6 +840,20 @@ ATwinGodViewAnchor* UTwinInteractionManagerComponent::FindGodViewAnchor(const FS
     return nullptr;
 }
 
+bool UTwinInteractionManagerComponent::GetGodViewTransform(FTransform& OutTransform) const
+{
+    const FString CameraId = CurrentConfig.GodCamera.CameraId.IsEmpty()
+        ? TEXT("camera.god.default")
+        : CurrentConfig.GodCamera.CameraId;
+    const ATwinGodViewAnchor* Anchor = GodViewAnchor && IsValid(GodViewAnchor)
+        ? GodViewAnchor
+        : FindGodViewAnchor(CameraId);
+    if (!Anchor) return false;
+
+    OutTransform = Anchor->GetActorTransform();
+    return true;
+}
+
 bool UTwinInteractionManagerComponent::EnterRoaming(FString& OutError)
 {
     if (bRoamingActive) return true;
@@ -942,6 +956,7 @@ bool UTwinInteractionManagerComponent::EnterRoaming(FString& OutError)
     if (!GodViewAnchor) DegradedFeatures.AddUnique(TEXT("god_camera_missing"));
     RoamingCharacter->CameraMode->ActivateNear(PlayerController, true);
     bRoamingActive = true;
+    ActivateRoamingInput();
     bDefaultModeApplied = true;
     CreateHud();
 
@@ -1008,11 +1023,13 @@ void UTwinInteractionManagerComponent::ExitRoaming()
 {
     if (!bRoamingActive && !RoamingCharacter)
     {
+        DeactivateRoamingInput();
         DestroyHud();
         DestroyRuntimeRoute();
         return;
     }
     SetHudInteraction(false);
+    DeactivateRoamingInput();
     if (SceneManager) SceneManager->ClearOverlayFromSceneInteraction();
     if (RoamingCharacter && IsValid(RoamingCharacter))
     {
@@ -1379,18 +1396,45 @@ void UTwinInteractionManagerComponent::BuildDefaultInputContext()
 
 void UTwinInteractionManagerComponent::SetupInput()
 {
+    if (!PlayerController) return;
+    BuildDefaultInputContext();
+    if (!bEnhancedInputReady)
+    {
+        BindEnhancedInput();
+    }
+    if (bRoamingActive)
+    {
+        ActivateRoamingInput();
+    }
+}
+
+void UTwinInteractionManagerComponent::ActivateRoamingInput()
+{
     if (!PlayerController || ActiveMappingContext) return;
     BuildDefaultInputContext();
-    ActiveMappingContext = DefaultMappingContext;
     if (ULocalPlayer* LocalPlayer = PlayerController->GetLocalPlayer())
     {
         if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
             LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
         {
-            Subsystem->AddMappingContext(ActiveMappingContext, 20);
+            Subsystem->AddMappingContext(DefaultMappingContext, 20);
+            ActiveMappingContext = DefaultMappingContext;
         }
     }
-    BindEnhancedInput();
+}
+
+void UTwinInteractionManagerComponent::DeactivateRoamingInput()
+{
+    if (!PlayerController || !ActiveMappingContext) return;
+    if (ULocalPlayer* LocalPlayer = PlayerController->GetLocalPlayer())
+    {
+        if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
+            LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
+        {
+            Subsystem->RemoveMappingContext(ActiveMappingContext);
+        }
+    }
+    ActiveMappingContext = nullptr;
 }
 
 void UTwinInteractionManagerComponent::BindEnhancedInput()
@@ -1421,18 +1465,7 @@ void UTwinInteractionManagerComponent::BindEnhancedInput()
 
 void UTwinInteractionManagerComponent::RemoveInput()
 {
-    if (PlayerController)
-    {
-        if (ULocalPlayer* LocalPlayer = PlayerController->GetLocalPlayer())
-        {
-            if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
-                LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
-            {
-                if (ActiveMappingContext) Subsystem->RemoveMappingContext(ActiveMappingContext);
-            }
-        }
-    }
-    ActiveMappingContext = nullptr;
+    DeactivateRoamingInput();
     bEnhancedInputReady = false;
 }
 

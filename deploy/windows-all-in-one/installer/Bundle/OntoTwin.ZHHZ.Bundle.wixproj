@@ -1,0 +1,20 @@
+<Project Sdk="WixToolset.Sdk/6.0.2">
+  <PropertyGroup>
+    <OutputType>Bundle</OutputType>
+    <Platform>x64</Platform>
+    <DefineConstants>
+      BundleVersion=$(BundleVersion);
+      PayloadVersion=$(PayloadVersion);
+      EnvironmentBootstrapperPath=$(EnvironmentBootstrapperPath);
+      EnableHyperVScriptPath=$(EnableHyperVScriptPath);
+      PayloadInstallerPath=$(PayloadInstallerPath);
+      PayloadArchivePath=$(PayloadArchivePath);
+      PayloadChecksumPath=$(PayloadChecksumPath);
+      MsiPath=$(MsiPath)
+    </DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Bal.wixext" Version="6.0.2" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="6.0.2" />
+  </ItemGroup>
+</Project>

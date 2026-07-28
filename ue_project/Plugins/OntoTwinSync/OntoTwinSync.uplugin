@@ -16,7 +16,7 @@
 			"LoadingPhase": "Default"
 		},
 		{
-			"Name": "DigitalFactoryBaseEditor",
+			"Name": "OntoTwinSyncEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
 		}

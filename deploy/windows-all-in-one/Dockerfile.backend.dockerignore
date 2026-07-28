@@ -1,0 +1,12 @@
+*
+!backend/
+!backend/**
+!frontend/
+!frontend/**
+!assets/
+!assets/**
+!deploy/
+deploy/*
+!deploy/windows-all-in-one/
+deploy/windows-all-in-one/*
+!deploy/windows-all-in-one/requirements.release.txt

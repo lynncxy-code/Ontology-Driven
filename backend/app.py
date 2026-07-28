@@ -15,6 +15,10 @@ from writeback import apply_writeback          # FR-5：UE→ontotwin 空间回�
 from ue_project_binding import bind_active_dataset, check_request_matches_active, request_ue_project
 from realtime_channel import enrich_instances_with_realtime_channel
 from scene_interaction.service import get_runtime_status
+from dataset_activation import (
+    activate_or_create_project,
+    project_dataset_to_object_types,
+)
 
 # ── App Setup ───────────────────────────────────────────────────
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
@@ -22,16 +26,24 @@ app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
 app.json.ensure_ascii = False  # 中文字符不转义为 \uXXXX，便于 2.9.2 调试（Flask 2.2+ 用法）
 CORS(app)
 
-# ── ArtStudio 资产库配置 ─────────────────────────────────────────
-ARTSTUDIO_BASE_URL = "http://studio.xjbg.tech:12345/api"
-ARTSTUDIO_TIMEOUT  = 5  # 秒，超时后自动回退 MOCK_ASSETS
-ARTSTUDIO_TOKEN    = None  # 后续有固定 token 后填写
+# ── ArtStudio 资产库配置（3.3.2：新库 + 环境变量可回滚）────────────
+ARTSTUDIO_BASE_URL = os.environ.get(
+    "ARTSTUDIO_BASE_URL", "https://artstudio.digioasis.tech/api"
+).rstrip("/")
+ARTSTUDIO_TIMEOUT = float(os.environ.get("ARTSTUDIO_TIMEOUT", "5"))
+ARTSTUDIO_TOKEN = os.environ.get("ARTSTUDIO_TOKEN") or None
 
 # 3.3：ArtStudio 运行时同步客户端（详情/版本缓存/下载代理/后端预取）
 import artstudio_client
 artstudio_client.configure(
     ARTSTUDIO_BASE_URL, ARTSTUDIO_TOKEN, ARTSTUDIO_TIMEOUT,
     models_dir=os.environ.get("MODELS_DIR"),   # 预取落盘目录（容器 /models → UE 固定 Models）
+)
+import artstudio_auth
+artstudio_auth.configure(
+    ARTSTUDIO_BASE_URL,
+    ARTSTUDIO_TIMEOUT,
+    session_path=os.environ.get("ARTSTUDIO_SESSION_FILE"),
 )
 
 @app.after_request
@@ -330,7 +342,9 @@ def _commit_publish(data, items, source_file, force):
     }
     _datasets.append(new_ds)
     _active_dataset_id = ds_id
-    _object_types = _project_dataset_to_object_types(new_ds)
+    # A new project must not inherit capability configuration from the project
+    # that happened to be active when it was published.
+    _object_types = _project_dataset_to_object_types(new_ds, existing_types={})
     # 持久化为一个项目(含类型表+graph),并设为激活 → 后续 coord 投产落入此项目
     project_store.create_project(name, object_types=_object_types,
                                  project_id=ds_id, dataset=new_ds)
@@ -1740,11 +1754,35 @@ def get_transform_types():
 # 2.3 API — 资产管理 (Asset Registry)
 # ═══════════════════════════════════════════════════════════════
 
+def _artstudio_identity_payload(result):
+    payload = {
+        "authenticated": bool(result.get("ok")),
+        "configured": bool(result.get("configured")),
+    }
+    if result.get("ok"):
+        payload["user"] = result.get("user", {})
+    else:
+        payload["code"] = result.get("code", "artstudio_identity_unavailable")
+        payload["message"] = result.get("message", "ArtStudio 身份校验失败。")
+    return payload
+
+
+@app.route('/api/v2/assets/identity', methods=['GET'])
+def get_artstudio_identity():
+    """校验当前设备的 ArtStudio 会话；响应中绝不返回 Token。"""
+    result = artstudio_client.fetch_identity()
+    return jsonify(_artstudio_identity_payload(result)), int(result.get("status", 502))
+
+
+artstudio_auth.register_routes(app)
+
+
 @app.route('/api/v2/assets', methods=['GET'])
 def list_assets():
     """
     资产列表。
-    - source=studio：只返回 ArtStudio；不可达时返回空列表 + warning，不静默混入本地资产。
+    - source=studio：返回 ArtStudio 公开资产；无需登录。
+    - source=mine：个人 Token 校验通过后，只返回当前用户自己的资产。
     - source=mock：只返回本地默认资产库。
 
     支持服务端分页 + 分类筛选：
@@ -1754,44 +1792,74 @@ def list_assets():
     size     = int(request.args.get("size", 10))
     source   = request.args.get("source", "studio")
     category = request.args.get("category")
+    owner_type = request.args.get("ownerType")
     sort     = request.args.get("sort", "newest")
     q        = request.args.get("q", "")
 
+    if source not in ("studio", "mine", "mock"):
+        return jsonify({"error": "不支持的资产源"}), 400
+
+    is_mine = source == "mine"
+    if is_mine:
+        identity = artstudio_client.fetch_identity()
+        if not identity.get("ok"):
+            return jsonify(_artstudio_identity_payload(identity)), int(identity.get("status", 502))
+
     # ── ArtStudio：失败时不回退 MOCK，避免标签页显示错数据源 ─────────────
-    if source != "mock":
+    if source in ("studio", "mine"):
         try:
             params = {"page": page, "size": size, "sort": sort}
             if category:
                 params["category"] = category
+            if is_mine:
+                params["ownerType"] = "2"
+                params["mine"] = "true"
+            elif owner_type:
+                params["ownerType"] = owner_type
             if q:
-                params["q"] = q
+                params["keyword"] = q
 
-            headers = {}
-            if ARTSTUDIO_TOKEN:
-                headers["Authorization"] = f"Bearer {ARTSTUDIO_TOKEN}"
+            # 公开库始终匿名访问；只有“我的资产”携带个人 Token。
+            headers = artstudio_client.auth_headers() if is_mine else {}
 
             resp = http_requests.get(
                 f"{ARTSTUDIO_BASE_URL}/assets",
                 params=params, headers=headers, timeout=ARTSTUDIO_TIMEOUT,
             )
+            if is_mine and resp.status_code in (401, 403):
+                invalid = {
+                    "ok": False,
+                    "configured": True,
+                    "status": 401,
+                    "code": "artstudio_token_invalid",
+                    "message": "ArtStudio 登录状态已失效，请重新连接账号后再试。",
+                }
+                return jsonify(_artstudio_identity_payload(invalid)), 401
             resp.raise_for_status()
             body = resp.json()
 
             raw_items = body.get("data", {}).get("list", [])
             items = []
             for a in raw_items:
-                ext_list = a.get("fileExtensions") or []
-                fmt = ext_list[0].upper() if ext_list else "未知"
+                asset_id = str(a["id"])
+                ext_list = [
+                    str(ext).lstrip(".").upper()
+                    for ext in (a.get("fileExtensions") or [])
+                    if ext
+                ]
+                fmt = "GLB" if "GLB" in ext_list else (ext_list[0] if ext_list else "未知")
                 items.append({
-                    "file_number": str(a["id"]),
+                    "file_number": asset_id,
                     "name":        a.get("name", ""),
                     "format":      fmt,
+                    "formats":     ext_list,
+                    "bindable":    "GLB" in ext_list,
                     "bounding_box": {},
                     "download_url": "",
                     "cover_url":   a.get("coverUrl", ""),
                     "ue_path":     "",
                     "_source": {
-                        "artstudio_id": a["id"],
+                        "artstudio_id": asset_id,
                     },
                 })
 
@@ -1800,28 +1868,32 @@ def list_assets():
                 "total":     body.get("data", {}).get("total", len(items)),
                 "page":      page,
                 "size":      size,
-                "_source":   "studio",
+                "_source":   "mine" if is_mine else "studio",
             })
 
         except Exception as e:
             msg = f"ArtStudio 资产库暂不可用: {e}"
             app.logger.warning(f"[ArtStudio] {msg}")
-            return jsonify({
+            payload = {
                 "items": [],
                 "total": 0,
                 "page": page,
                 "size": size,
-                "_source": "studio_error",
+                "_source": "mine_error" if is_mine else "studio_error",
                 "warning": msg,
-            })
+            }
+            return jsonify(payload), (502 if is_mine else 200)
 
     # ── MOCK_ASSETS（服务端模拟分页） ───────────────────────────
     all_items = []
     for fn, meta in MOCK_ASSETS.items():
+        fmt = str(meta.get("format", "glb")).lstrip(".").upper()
         all_items.append({
             "file_number":  fn,
             "name":         meta.get("name", fn),
-            "format":       meta.get("format", "glb"),
+            "format":       fmt,
+            "formats":      [fmt],
+            "bindable":     True,
             "bounding_box": meta.get("bounding_box", {}),
             "download_url": meta.get("download_url", ""),
             "cover_url":    "",
@@ -1872,27 +1944,15 @@ def bind_asset():
     # ── 判断数据源 ─────────────────────────────────────────────
     asset_meta = None
     is_from_studio = False
-    artstudio_id = None
     name = ""
 
     # 先查 ArtStudio（数字 ID）
+    artstudio_detail = None
     if file_number.isdigit():
-        try:
-            headers = {}
-            if ARTSTUDIO_TOKEN:
-                headers["Authorization"] = f"Bearer {ARTSTUDIO_TOKEN}"
-            resp = http_requests.get(
-                f"{ARTSTUDIO_BASE_URL}/assets/{file_number}",
-                headers=headers, timeout=ARTSTUDIO_TIMEOUT,
-            )
-            if resp.ok:
-                body = resp.json()
-                adata = body.get("data", {})
-                name = adata.get("name", "")
-                is_from_studio = True
-                artstudio_id = int(file_number)
-        except Exception:
-            pass  # 查不到也继续
+        artstudio_detail = artstudio_client.fetch_detail(file_number)
+        if artstudio_detail:
+            name = artstudio_detail.get("name", "")
+            is_from_studio = True
 
     # 再查 MOCK_ASSETS（语义标识）
     if not is_from_studio:
@@ -1918,10 +1978,9 @@ def bind_asset():
     artstudio_stable_id = None
     artstudio_reject = None
     if is_from_studio:
-        detail = artstudio_client.fetch_detail(file_number)
-        glb = artstudio_client.pick_glb_file(detail)
+        glb = artstudio_client.pick_glb_file(artstudio_detail)
         if glb:
-            artstudio_stable_id = artstudio_client.make_stable_id(file_number, detail["version"])
+            artstudio_stable_id = artstudio_client.make_stable_id(file_number, artstudio_detail["version"])
         else:
             artstudio_reject = "该资产暂不支持（本期仅支持 glb 模型，fbx/usd 待格式转换上线）"
 
@@ -2009,25 +2068,14 @@ def resolve_asset():
 
     # 先查 ArtStudio
     if file_number.isdigit():
-        try:
-            headers = {}
-            if ARTSTUDIO_TOKEN:
-                headers["Authorization"] = f"Bearer {ARTSTUDIO_TOKEN}"
-            resp = http_requests.get(
-                f"{ARTSTUDIO_BASE_URL}/assets/{file_number}",
-                headers=headers, timeout=ARTSTUDIO_TIMEOUT,
-            )
-            if resp.ok:
-                body = resp.json()
-                adata = body.get("data", {})
-                return jsonify({
-                    "valid": True,
-                    "file_number": file_number,
-                    "name": adata.get("name", ""),
-                    "_source": "studio",
-                })
-        except Exception:
-            pass
+        detail = artstudio_client.fetch_detail(file_number)
+        if detail:
+            return jsonify({
+                "valid": True,
+                "file_number": file_number,
+                "name": detail.get("name", ""),
+                "_source": "studio",
+            })
 
     # 再查 MOCK_ASSETS
     asset = MOCK_ASSETS.get(file_number)
@@ -2905,35 +2953,17 @@ def publish_custom_graph():
     return jsonify({"status": "ok", "dataset_id": ds_id, "name": name})
 
 
-def _project_dataset_to_object_types(ds):
+def _project_dataset_to_object_types(ds, existing_types=None):
     """
     把数据集 ds 投影为 _object_types 字典并返回（不写全局，让调用方决定）。
     PRD 2.9.2 § "node 自带字段优先 fallback old/默认" 规则。
     """
-    # Demo / 内置 Demo（graph_data is None）→ 用 OBJECT_TYPES 常量
-    if ds.get("id") == "demo" or ds.get("graph_data") is None:
-        return {k: dict(v) for k, v in OBJECT_TYPES.items()}
-
-    new_types = {}
-    for node in ds["graph_data"].get("nodes", []):
-        rid = node.get("rid")
-        if not rid:
-            continue
-        old = _object_types.get(rid, {})  # 同名 rid 的现有定义（如果有）
-        new_types[rid] = {
-            "rid": rid,
-            "name":        node.get("name", rid),
-            "category":    node.get("category", "Core"),
-            "description": node.get("description", ""),
-            # ↓ 4 行修复：node 自带字段优先，fallback 到 old / 默认值
-            "color":               node.get("color")               or old.get("color", "#888888"),
-            "properties":          node.get("properties", []),
-            "injected_interfaces": node.get("injected_interfaces") or old.get("injected_interfaces", []),
-            "asset_id":            node.get("asset_id")            if node.get("asset_id") is not None else old.get("asset_id"),
-            "mock_instances":      node.get("mock_instances", [])  or old.get("mock_instances", []),
-            "source":              node.get("source"),  # 2.9.2 新增字段
-        }
-    return new_types
+    source_types = _object_types if existing_types is None else existing_types
+    return project_dataset_to_object_types(
+        ds,
+        existing_types=source_types,
+        demo_types=OBJECT_TYPES,
+    )
 
 
 def _detect_dangling_refs(removed_or_overwritten_rids):
@@ -2971,12 +3001,21 @@ def activate_dataset():
     if not ds:
         return jsonify({"error": f"找不到数据集: {ds_id}"}), 404
 
-    _active_dataset_id = ds_id
-    _object_types = _project_dataset_to_object_types(ds)
     if ds_id == "demo":
+        _active_dataset_id = ds_id
+        _object_types = _project_dataset_to_object_types(ds)
         project_store.deactivate()            # demo 无项目 → 不服务实例
     else:
-        _persist_active_project()             # 切换激活项目(不存在则建)
+        # Existing-project activation is read-only. Re-projecting graph nodes and
+        # persisting them here used to erase type-level capability configuration.
+        _object_types, _created = activate_or_create_project(
+            project_store,
+            ds,
+            lambda target: _project_dataset_to_object_types(
+                target, existing_types={}
+            ),
+        )
+        _active_dataset_id = ds_id
     return jsonify({"status": "ok", "active": _active_dataset_id})
 
 
@@ -4409,6 +4448,15 @@ register_scene_interaction_routes(app, project_store)
 
 from spatial_assets import register_spatial_asset_routes
 register_spatial_asset_routes(app, project_store)
+
+from snapshot_delta import register_snapshot_delta_routes
+snapshot_delta_service = register_snapshot_delta_routes(
+    app,
+    project_store,
+    _build_snapshot,
+    check_request_matches_active,
+    lambda: _object_types,
+)
 
 if __name__ == '__main__':
     # threaded=True：支持并发请求（UE 多实例同时拉模型下载代理流，单线程会串行超时）

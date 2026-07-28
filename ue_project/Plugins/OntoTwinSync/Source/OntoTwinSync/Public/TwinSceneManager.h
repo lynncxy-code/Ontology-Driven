@@ -32,6 +32,8 @@
 class ATwinInstance;
 class AOntoTwinRuntimeGizmo;
 class APlayerController;
+class APawn;
+class ATwinRuntimeEditorCameraPawn;
 class IWebSocket;
 class UMediaPlayer;
 class UMediaSoundComponent;
@@ -111,7 +113,7 @@ public:
     /** 连接 AGV 实时状态流；HTTP 快照仍负责实例建档、模型绑定与非空间属性。 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接|WebSocket",
               meta=(DisplayName="启用实时WebSocket"))
-    bool bEnableRealtimeWebSocket = true;
+    bool bEnableRealtimeWebSocket = false;
 
     /** OntoTwin 中间层实时目标地址。 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接|WebSocket",
@@ -204,6 +206,18 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|输入",
               meta=(DisplayName="取消键"))
     FKey CancelKey = EKeys::Escape;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|相机",
+              meta=(DisplayName="启用独立自由相机"))
+    bool bEnableRuntimeEditorFreeCamera = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|相机",
+              meta=(DisplayName="初始移动速度(cm/s)", ClampMin="100.0", ClampMax="10000.0"))
+    float RuntimeEditorCameraMoveSpeedCmS = 2400.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|相机",
+              meta=(DisplayName="右键观察灵敏度", ClampMin="0.05", ClampMax="5.0"))
+    float RuntimeEditorCameraLookSensitivity = 0.18f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|吸附",
               meta=(DisplayName="启用靠墙吸附"))
@@ -355,6 +369,10 @@ private:
     /** 连续失败计数 */
     int32 ConsecutiveFailures = 0;
 
+    /** 4.1 增量快照游标与当前会话兼容回退状态。 */
+    FString IncrementalSnapshotCursor;
+    bool bIncrementalSnapshotsFellBackToFull = false;
+
     /** 实例注册表：InstanceId → ATwinInstance* */
     UPROPERTY()
     TMap<FString, ATwinInstance*> InstanceRegistry;
@@ -396,6 +414,12 @@ private:
     UOntoTwinRuntimeEditorPanel* RuntimeEditorPanel = nullptr;
 
     UPROPERTY()
+    ATwinRuntimeEditorCameraPawn* RuntimeEditorCameraPawn = nullptr;
+
+    UPROPERTY()
+    APawn* RuntimeEditorOriginalPawn = nullptr;
+
+    UPROPERTY()
     ATwinInstance* OverlaySelectedInstance = nullptr;
 
     UPROPERTY()
@@ -414,6 +438,14 @@ private:
 
     UPROPERTY()
     UMediaSoundComponent* OverlayMediaSound = nullptr;
+
+public:
+    /** 使用 4.1 增量快照；追加在既有反射属性之后，保持旧关卡的属性索引兼容。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接",
+              meta=(DisplayName="启用增量快照"))
+    bool bEnableIncrementalSnapshots = true;
+
+private:
 
     FHttpRequestPtr OverlayMediaResolveRequest;
     FTimerHandle OverlayMediaRetryTimer;
@@ -441,6 +473,7 @@ private:
     bool bRuntimeDragging = false;
     bool bRuntimeCameraLookSuppressed = false;
     bool bRuntimeLookInputWasAlreadyIgnored = false;
+    bool bRuntimeCameraRotating = false;
     bool bRuntimePreviousMouseCursor = false;
     bool bRuntimePreviousAnimRunning = false;
     float RuntimeLastToggleInputTime = -1000.0f;
@@ -462,11 +495,15 @@ private:
     ERuntimeDragPart RuntimeDragPart = ERuntimeDragPart::None;
     ERuntimeSnapFeedback RuntimeSnapFeedback = ERuntimeSnapFeedback::None;
     FVector RuntimeSnapFeedbackPoint = FVector::ZeroVector;
+    FVector2D RuntimeCameraCursorRestorePosition = FVector2D::ZeroVector;
 
     // ── 内部方法 ─────────────────────────────────────────────────────────
 
     /** 拼接快照接口 URL（SceneId 非空时追加 ?scene= 查询参数） */
     FString BuildSnapshotsUrl() const;
+
+    /** 拼接 4.1 增量快照 URL（可携带不透明 cursor）。 */
+    FString BuildSnapshotChangesUrl() const;
 
     /** 给 UE→后端请求附加 UE 工程身份头（用于数据集强绑定校验） */
     void AddUEProjectHeaders(TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest) const;
@@ -478,6 +515,12 @@ private:
 
     /** HTTP 响应回调 */
     void OnPollResponse(FHttpRequestPtr HttpRequest, FHttpResponsePtr Response, bool bWasSuccessful);
+
+    /** 4.1 增量快照响应回调。 */
+    void OnIncrementalPollResponse(FHttpRequestPtr HttpRequest, FHttpResponsePtr Response, bool bWasSuccessful);
+
+    /** 新接口不兼容时，仅在当前会话退回旧全量接口。 */
+    void FallBackToFullSnapshots(const FString& Reason);
 
     /** 连接、消费并自动重连 AGV 实时状态流。 */
     void ConnectRealtimeWebSocket();
@@ -496,8 +539,8 @@ private:
     /** Saved/OntoTwinMigration/ue_preview_audit.json */
     FString MigrationPreviewAuditPath() const;
 
-    /** 处理单个实例快照 */
-    void ProcessSnapshot(const TSharedPtr<FJsonObject>& Snapshot);
+    /** 处理单个实例快照；delta 模式下缺席接口保持现状。 */
+    bool ProcessSnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool bIsDelta = false);
 
     /** Spawn 新的孪生体 Actor */
     ATwinInstance* SpawnTwinInstance(const FString& InstanceId, const TSharedPtr<FJsonObject>& Snapshot);
@@ -547,6 +590,15 @@ private:
     void RequestRuntimeEditToggle();
     void EnterRuntimeEditMode();
     void ExitRuntimeEditMode();
+    bool StartRuntimeEditorCamera(APlayerController* PlayerController);
+    void StopRuntimeEditorCamera(APlayerController* PlayerController);
+    void TickRuntimeEditorCamera(
+        APlayerController* PlayerController,
+        float DeltaTime,
+        bool bPointerOverRuntimePanel);
+    void BeginRuntimeEditorCameraLook(APlayerController* PlayerController);
+    void EndRuntimeEditorCameraLook(APlayerController* PlayerController);
+    FTransform BuildRuntimeEditorCameraTransform(APlayerController* PlayerController) const;
     void ShowRuntimeEditorPanel();
     void HideRuntimeEditorPanel();
     void EnsureRuntimeGizmo();

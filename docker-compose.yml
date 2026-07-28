@@ -14,6 +14,10 @@ services:
     environment:
       - ONTOTWIN_MIDDLEWARE_URL=http://host.docker.internal:5001
       - MODELS_DIR=/models
+      # 3.3.2 ArtStudio 新库；可通过宿主机环境变量切回其他资产源。
+      - ARTSTUDIO_BASE_URL=${ARTSTUDIO_BASE_URL:-https://artstudio.digioasis.tech/api}
+      - ARTSTUDIO_TIMEOUT=${ARTSTUDIO_TIMEOUT:-5}
+      - ARTSTUDIO_TOKEN=${ARTSTUDIO_TOKEN:-}
       # 3.4 PostgreSQL 真源（容器内用服务名 db 连）
       - DATABASE_URL=postgresql://ontotwin:ontotwin@db:5432/ontotwin
       - ONTOTWIN_STORE=pg

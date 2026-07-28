@@ -1,12 +1,14 @@
 # OntoTwin 3.7.1 液态玻璃信息面板模板设计 (PRD)
 
-> 状态：方案决策完成，待 Renderer Spike 与逐阶段实施确认  
-> 主线：OntoTwin Nexus / `I3D_Overlay` / UE Runtime  
-> 日期：2026-07-23  
-> 前置：3.7 顶部信息面板、3.7.1 视频 URL 面板、4.0 人物漫游选择链路  
-> 文档编号：3.7.1-UI  
-> 文档性质：3.7.1 视觉与渲染补充；视频安全、媒体生命周期和 API 继续以既有视频 PRD 为准，本文件只覆盖其视觉布局条款  
-> 本轮边界：只形成设计文档和 UE UI skill，不修改前后端、UE 插件、路由或存储
+> 文档性质：3.7.1 视觉与渲染功能设计增量
+> 主线：OntoTwin Nexus / `I3D_Overlay` / UE Runtime
+> 日期：2026-07-23
+> 设计整理：2026-07-24
+> 前置：3.7 顶部信息面板、3.7.1 视频 URL 面板、4.0 人物漫游选择链路
+> 文档编号：3.7.1-UI
+> 权威边界：视频安全、媒体生命周期和 API 以[视频 URL PRD](OntoTwin%203.7.1%20视频%20URL%20面板垂直链路%20%28PRD%29.md)为准；基础继承、revision 和选择生命周期以[3.7 PRD](OntoTwin%203.7%20顶部信息面板垂直链路%20%28PRD%29.md)为准
+> 实施与验收：[实施记录](../IMPLEMENTATION/3.7.1/OntoTwin%203.7.1%20实施记录.md)、[宿主接入与验收](../IMPLEMENTATION/3.7.1/OntoTwin%203.7.1%20宿主接入与验收.md)
+> 配套 Skill：[ontotwin-ue-glass-ui](../skills/ontotwin-ue-glass-ui/SKILL.md)
 
 ---
 
@@ -47,14 +49,14 @@
 - 为 Screen/World 明确不同且诚实的实现方案。
 - 建立高质量、均衡、性能优先三级请求与自动向下回退。
 - 让点按面板保持和模型的明确视觉关联。
-- 在同一指标模板内支持大数字、仪表、趋势图三种表现。
+- 在同一指标模板内定义大数字、仪表、趋势图三种表现；当前交付启用 Value/Gauge，Trend 在真实历史数据源接入前保持禁用。
 - 视频保持清晰，玻璃只作用于容器和控制层。
 - 保持类型默认、实例稀疏覆盖、revision、媒体和输入生命周期。
 - 给出 UE 5.6、Standalone 和打包版可执行的验收标准。
 
 ### 3.2 非目标
 
-- 本轮不修改 C++、WBP、材质、`.uasset`、前端 HTML、API 或 ProjectStore。
+- 不在本 PRD 中记录代码改动、宿主迁移、构建日志或阶段验收结果。
 - 不把 Web 场景交互工作台改成毛玻璃风格。
 - 不允许用户任意配置 HEX、模糊半径、折射、噪声、辉光或字体。
 - 不为每个 World 面板创建 `SceneCapture2D` 或独立场景缓冲。
@@ -73,8 +75,10 @@
 | 渲染结构 | selected 使用 Screen 高保真；always 使用 World 性能伪玻璃 |
 | 模板范围 | 一次设计现有全部六种模板 |
 | UE 组织 | 共享组件 + 六种组合配方，不复制六套独立 Widget |
-| 指标数据 | 向后兼容扩展原始数值、范围和时间序列 |
-| 指标选择 | 模板不膨胀；内部选择大数字、仪表或趋势图 |
+| 指标数据 | 向后兼容扩展原始数值和范围；时间序列只在真实历史提供者接入后启用 |
+| 指标选择 | 模板不膨胀；面板级选择 Value/Gauge/Trend，当前启用 Value/Gauge |
+| 指标强调 | 每个指标独立显式配置，默认不强调，不按数组顺序推断 |
+| 状态外观 | 六级状态允许配置显示文字和受控颜色 token，不允许任意 HEX |
 | 点按关联 | 模型投影锚点 + 智能位置 + 连接线 + 边缘避让 |
 | 动效 | 事件触发、短时、静止后停止 |
 | 质量 | 高质量 / 均衡 / 性能优先，运行时只向下回退 |
@@ -83,7 +87,7 @@
 | 视频 | 玻璃外壳 + 清晰视频窗口；World 只显示封面 |
 | 尺寸 | 分级尺寸 + 受限自适应 |
 | 明暗 | High Screen 读取局部后景自适应；Balanced 使用保守对比策略；World 使用深色伪玻璃 |
-| Skill | `.agents/skills/ontotwin-ue-glass-ui` 独立仓库技能 |
+| Skill | `docs/skills/ontotwin-ue-glass-ui` 作为文档侧规范源 |
 
 ---
 
@@ -141,7 +145,7 @@ flowchart LR
     POLICY --> WORLD
 ```
 
-UE 侧后续实施建议保持现有 SceneManager 和选择生命周期，将当前单体 Widget 拆成以下边界：
+UE 架构保持现有 SceneManager 和选择生命周期，并按以下边界组织：
 
 - 规范化 Overlay ViewModel。
 - Screen Renderer Profile。
@@ -205,7 +209,8 @@ Screen 面板不得超过约 42% 视口宽度和 70% 视口高度。World 面板
 
 ### 8.3 趋势图 `trend`
 
-- 首版一个面板最多一个真实时间序列。
+- Trend 是保留的设计能力；真实历史提供者未接入时，Web 必须置灰且不得保存 Trend 配置。
+- 启用后一个面板最多一个真实时间序列。
 - 编辑人员明确选择主指标和对应的时序数据源；其余指标只显示紧凑当前值。
 - selected Screen 可显示面积趋势、当前值、可选坐标轴和时间范围。
 - always World 只显示简化 sparkline，尺寸不足时回退为大数字。
@@ -213,9 +218,19 @@ Screen 面板不得超过约 42% 视口宽度和 70% 视口高度。World 面板
 - 每个解析序列首版最多 120 点，后端在进入快照前降采样。
 - 不把当前单值重复复制成假历史。
 
+### 8.4 指标强调与状态外观
+
+- 每个指标提供独立 `emphasized` 布尔配置，缺失或未勾选时按普通 Value 显示。
+- 强调指标才使用更大字号、较高字重和解析后的状态强调色；不得默认强调数组第一项。
+- 状态模板为 `normal / info / warning / critical / offline / unknown` 分别保存展示文字和受控颜色 token。
+- 默认映射为在线/绿色、信息/青蓝色、注意/橙色、告警/红色、离线/灰色、未知/灰色。
+- 状态颜色只进入状态灯、图标、Gauge/Trend 主体或明确强调的指标，不形成整块彩色底板。
+
 ---
 
 ## 9. 视频模板
+
+视频绑定、来源安全、解析、重试、播放和释放规则由[视频 URL PRD](OntoTwin%203.7.1%20视频%20URL%20面板垂直链路%20%28PRD%29.md)统一定义。本节只记录液态玻璃带来的视觉和布局变化。
 
 视频采用双层结构：
 
@@ -225,9 +240,8 @@ Screen 面板不得超过约 42% 视口宽度和 70% 视口高度。World 面板
 ```
 
 - 视频纹理不进入背景模糊或折射材质。
-- `always` World 只显示封面或占位，不创建播放器、不解析播放 URL。
-- `selected` Screen 沿用现有 MP4/HLS、autoplay/muted/loop、resolve、重试和共享媒体会话。
-- 展开/收起只改布局，不重建 MediaPlayer 或丢失进度。
+- `always` World 的封面或占位图保持清晰，不进入背景模糊。
+- `selected` Screen 的媒体控制区使用中性玻璃样式，但实际按钮仍位于可交互内容层。
 - `title_video_body` 收起时正文最多三行并截断；展开时视频在上、正文在下，正文区域最大高 160 逻辑 px并在区域内滚动；World 最多两行且不滚动。
 
 本文件将旧视频 PRD 的“收起固定 360”细化为“360 最小、480 推荐”的受限自适应；展开上限 720、媒体安全、播放和释放规则不变。
@@ -272,7 +286,7 @@ Screen 面板不得超过约 42% 视口宽度和 70% 视口高度。World 面板
 
 ### 10.4 字体、图标与可访问性
 
-- 实施时采用插件内显式 Cook 的 Composite Font：Inter 负责拉丁字符和表格数字，Noto Sans SC 负责中文 fallback；同时随资产保留各自开源许可证文件。本轮不导入字体资产。
+- 采用插件内显式 Cook 的 Composite Font：Inter 负责拉丁字符和表格数字，Noto Sans SC 负责中文 fallback；同时随资产保留各自开源许可证文件。
 - 状态图标使用 OntoTwin 自有的简单单色 SDF/SVG 图标，不引用 Apple SF Symbols。
 - 首版不增加每面板可访问性字段。插件 Project Settings/开发 CVar 提供 `ReduceMotion`、`ReduceTransparency` 和 `HighContrast` 验收开关。
 - `ReduceMotion` 关闭缩放、高光移动和状态脉冲，只保留淡入淡出；Performance 自动采用该行为。
@@ -284,7 +298,7 @@ Screen 面板不得超过约 42% 视口宽度和 70% 视口高度。World 面板
 
 | 请求档位 | selected / Screen | always / World | 回退 |
 | --- | --- | --- | --- |
-| `high` 高质量 | 一个宿主显式预留的 `SlatePostRT_N` + shared blur processor + UI Glass Material | 增强伪玻璃、高密度 RT、受控视角高光 | balanced → performance |
+| `high` 高质量 | 一个宿主显式预留的 `SlatePostRT_N` + shared blur processor + UI Glass Material | 增强伪玻璃、高密度 RT、静态高光 | balanced → performance |
 | `balanced` 均衡 | `UBackgroundBlur` + tint/rim/noise 分层 | 标准伪玻璃 | performance |
 | `performance` 性能优先 | 静态半透明或近不透明渐变 | 静态可读表面 | 不升档 |
 
@@ -309,7 +323,7 @@ Screen 面板不得超过约 42% 视口宽度和 70% 视口高度。World 面板
 World `UWidgetComponent` 先把 UI 渲染到自己的 RenderTarget，再放入三维场景。其内部普通 Background Blur 无法看到工厂场景。因此：
 
 - World 保留真实遮挡、深度、距离和视锥裁剪。
-- 通过半透明表面、视角高光、静态细噪声和状态光边表达玻璃。
+- 通过半透明表面、顶部内高光、静态细噪声和状态灯表达玻璃。World Billboard 始终朝向相机，不伪造没有有效变化的动态 Fresnel。
 - 禁止每个面板一个 SceneCapture、场景 RT 或 MediaPlayer。
 - High World 只是更精细的伪玻璃，不对用户宣传为真实后景模糊。
 
@@ -317,7 +331,7 @@ World `UWidgetComponent` 先把 UI 渲染到自己的 RenderTarget，再放入�
 
 ## 12. 前端信息面板配置
 
-不新增路由。在 `/interaction` 现有“信息面板”中设计以下增量，实施前仍需独立改码确认。
+不新增路由，在 `/interaction` 现有“信息面板”中增加以下功能。
 
 ### 12.1 展示效果
 
@@ -344,7 +358,14 @@ Web 表单继续遵循 `ontotwin-ui`：黑白灰、显式保存、可继续编�
 - `series_binding` 只能引用未来注册的数值时序字段；当前 scalar `raw_state` 不能直接作为历史来源。
 - 隐藏的条件字段不得残留提交。
 
-### 12.3 Web 预览
+### 12.3 状态与指标强调
+
+- 每个指标提供独立“强调”开关，默认关闭。
+- 未强调指标使用普通字号和白色文字；强调指标使用主值层级和当前状态强调色。
+- 状态模板提供六级状态映射表，每级可编辑显示文字并选择绿色、青蓝色、橙色、红色或灰色 token。
+- 不提供任意 HEX 输入；持久化左侧状态色边不作为配置项。
+
+### 12.4 Web 预览
 
 右侧只做结构预览，验证组合、密度、空值、状态和大致尺寸。继续使用 Web 黑白灰样式，并常驻提示：
 
@@ -354,9 +375,9 @@ Web 表单继续遵循 `ontotwin-ui`：黑白灰、显式保存、可继续编�
 
 ## 13. 向后兼容数据契约
 
-以下为实施阶段的兼容扩展设计，本轮不写入存储。
+本节只定义液态玻璃增量使用的兼容配置和运行载荷；实现状态与迁移证据不在 PRD 中记录。
 
-### 13.1 持久化配置提案
+### 13.1 持久化配置
 
 ```json
 {
@@ -426,7 +447,7 @@ UE 可在日志或未来诊断接口中输出以下本地状态，但它不进�
 
 `effective_quality` 和 `degrade_reason` 不写回项目配置。
 
-### 13.3 后端解析后的运行载荷提案
+### 13.3 后端解析后的运行载荷
 
 保留现有 `id`、`label`、`display_value`、`state`，增加可选字段：
 
@@ -434,6 +455,7 @@ UE 可在日志或未来诊断接口中输出以下本地状态，但它不进�
 {
   "status": {
     "display_value": "需要关注",
+    "accent_token": "amber",
     "level": "warning",
     "state": "ok"
   },
@@ -442,6 +464,7 @@ UE 可在日志或未来诊断接口中输出以下本地状态，但它不进�
       "id": "utilization",
       "label": "负载率",
       "display_value": "68%",
+      "emphasized": true,
       "state": "ok",
       "numeric_value": 68.0
     }
@@ -454,7 +477,7 @@ UE 可在日志或未来诊断接口中输出以下本地状态，但它不进�
 }
 ```
 
-现有 `metric.state` 只表示数据可用性：`ok | empty | offline`。业务语义色来自 `status.level`：`normal | info | warning | critical | offline | unknown`。没有 status 槽位的 `title_metrics` 默认使用中性强调色，UE 不得把 `metric.state` 当成告警等级。
+现有 `metric.state` 只表示数据可用性：`ok | empty | offline`。业务语义来自 `status.level`，颜色使用后端解析后的 `accent_token`。`emphasized` 只控制指标视觉层级；没有 status 槽位的 `title_metrics` 默认使用中性强调色。UE 不得把 `metric.state` 当成告警等级，也不得接受项目任意 HEX。
 
 Trend 的解析载荷同时包含主指标序列和面板级视觉信息：
 
@@ -501,7 +524,7 @@ Trend 的解析载荷同时包含主指标序列和面板级视觉信息：
 - 实时值/序列更新不改变配置 revision；质量档、模板、指标样式、`primary_metric_id`、范围、时序绑定、窗口、采样/聚合或坐标轴配置修改才改变。
 - 后端历史能力未落地前，趋势图不进入“可用”状态。
 
-是否需要 ProjectStore `schema_version` 变化，应在实施时根据现有 JSON/PG 强校验共同确认；本设计不授权单边修改某一种存储。
+这些配置保存在既有 `I3D_Overlay.values.presentation` 与实例稀疏覆盖中，不增加 ProjectStore 顶层字段、`schema_version`、PostgreSQL 列或独立迁移脚本。JSON 继续保存嵌套对象，PostgreSQL 继续使用既有 JSONB。
 
 ---
 
@@ -524,11 +547,7 @@ DPI/分辨率换算只能应用一次，避免再次出现固定右侧或偏移�
 
 ## 15. 输入与互斥
 
-视觉升级不改变已经跑通的选择入口：
-
-- 近身视角：沿用 E 选择链路。
-- 上帝视角：沿用左键射线选择链路。
-- 场景已有的视角和漫游快捷键不因玻璃材质改变。
+选择入口、关闭恢复和 `selected/always` 生命周期沿用[3.7 PRD](OntoTwin%203.7%20顶部信息面板垂直链路%20%28PRD%29.md)；视频控件和媒体释放沿用[视频 URL PRD](OntoTwin%203.7.1%20视频%20URL%20面板垂直链路%20%28PRD%29.md)。本增量只增加以下玻璃层 Hit Test 约束：
 
 Hit Test 规则：
 
@@ -536,9 +555,7 @@ Hit Test 规则：
 - 普通文字面板不抢焦点。
 - 只有播放、暂停、静音、展开、关闭等真实控件拦截输入。
 - 控件点击不得冒泡为场景空白点击。
-- Esc、关闭和切换目标必须恢复此前鼠标、Input Mode 和 WASD/镜头控制。
-- 同一实例的 `selected` 与 `always` 严格互斥。
-- `always` 是最终 World 呈现：点击只命中/关联现有面板，不进入 selected Screen 生命周期，也不创建 Screen 副本；always 视频继续只显示封面。
+- 既有 Esc、关闭、切换目标、输入恢复及 `selected/always` 互斥行为不得因玻璃层改变。
 
 ---
 
@@ -571,8 +588,10 @@ Hit Test 规则：
 - 模板切换无幽灵槽位；空可选槽折叠间距。
 - 中文、英文、长标题、正文上限、空值、离线和 1–4 指标无越界。
 - `normal/info/warning/critical/offline/unknown` 均有颜色之外的语义。
-- Gauge 和 Trend 数据无效时可读回退，不崩溃、不伪造数据。
-- 视频封面、加载、播放、暂停、静音、展开、关闭、失败和切换目标完整。
+- Gauge 数据无效时可读回退；Trend 未接入真实历史提供者时保持禁用，不伪造数据。
+- 指标默认不强调；只有显式 `emphasized=true` 的指标进入主值层级。
+- 六级状态的显示文字、受控颜色 token 和非颜色语义均正确生效。
+- 视频纹理、封面和控件保持清晰，不进入背景模糊或折射层。
 
 ### 17.2 渲染
 
@@ -614,42 +633,7 @@ Hit Test 规则：
 
 ---
 
-## 18. 实施顺序
-
-以下阶段只是建议顺序，**不是改码授权**。A–E 每个阶段开始前都需要用户单独确认；未确认前保持当前 ProjectStore v5、现有前端路由和 UE 插件行为。
-
-### 阶段 A：Renderer Spike
-
-- 在 UE 5.6 验证宿主预留的 `SlatePostRT_N`、启用时机、共享 Blur Processor、DX12 Standalone/Shipping。
-- 测量 High/Balanced/Performance 基线。
-- 验证 World 伪玻璃、透明排序、遮挡和 Cook。
-
-### 阶段 B：共享组件与六种配方
-
-- 建立 Glass Theme、Screen/World Profile 和清晰内容层。
-- 将当前单体 Overlay Widget 的更新接口与组合布局解耦。
-- 一次覆盖六种模板和空值/离线状态。
-
-### 阶段 C：前端质量配置
-
-- 在现有 `/interaction` 增加三级请求质量和类型/实例继承。
-- 同步 API 校验、JSON/PG 保存和 revision 测试。
-- 此阶段涉及前后端与存储读写，开发前单独确认。
-
-### 阶段 D：Gauge 与 Trend
-
-- 先落 raw numeric/range，再落真实 series。
-- 后端无历史能力时只提供 Value/Gauge，不伪装 Trend 已完成。
-- UE 图表复用顶点/路径缓存，实时点更新不创建 Widget。
-
-### 阶段 E：全链路验收
-
-- 联调人物漫游选择、普通选择、always 互斥和视频生命周期。
-- 完成分辨率、打包、性能、泄漏和回退矩阵。
-
----
-
-## 19. 风险与处理
+## 18. 风险与处理
 
 | 风险 | 处理 |
 | --- | --- |
@@ -665,7 +649,7 @@ Hit Test 规则：
 
 ---
 
-## 20. 设计参考
+## 19. 设计参考
 
 - [Apple：Designing for visionOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-visionos)
 - [Apple：Materials](https://developer.apple.com/design/human-interface-guidelines/materials)
@@ -675,9 +659,3 @@ Hit Test 规则：
 - [Epic：Background Blur Widget](https://dev.epicgames.com/documentation/unreal-engine/using-the-background-blur-widget-in-unreal-engine)
 - [Epic：Widget Components（UE 5.6）](https://dev.epicgames.com/documentation/en-us/unreal-engine/widget-components-in-unreal-engine?application_version=5.6)
 - [Epic：URetainerBox](https://dev.epicgames.com/documentation/unreal-engine/API/Runtime/UMG/URetainerBox?application_version=5.6)
-
----
-
-## 21. 本轮交付边界
-
-本 PRD 和 `ontotwin-ue-glass-ui` skill 是本轮唯一产物。所有前端、后端、UE、路由和存储实现均保持原状。后续进入开发时，以本 PRD 的阶段 A Spike 开始，不直接批量改六种模板。

@@ -1,0 +1,112 @@
+{
+  "schema": "equipment_candidate_audit_v1",
+  "round_id": "w9_equipment_round1",
+  "dataset": {
+    "id": "ds_1785130727581",
+    "name": "SCC W19",
+    "object_type_count": 0,
+    "instance_count": 0,
+    "binding_status": "unbound"
+  },
+  "summary": {
+    "proposed_instance_count": 6,
+    "proposed_object_type_count": 6,
+    "explicit_source_actor_count": 19,
+    "datasmith_render_part_count": 15,
+    "blocked_duplicate_count": 1,
+    "building_actor_count_included": 0
+  },
+  "assemblies": [
+    {
+      "display_name": "1号自动上板机",
+      "object_type_name": "自动上板机_L460-SF-AGV",
+      "hierarchy_path": "生产区/ICT产线/产线_01/工位_01_自动上板",
+      "boundary_basis": "station label plus mesh names and bounds proximity",
+      "source_actors": [
+        {"label": "ShangBanJi_L460-SF-AGV-Xianti", "guid": "732C27F24870223EF5E79888CF2AF036"},
+        {"label": "对象020", "guid": "9BA8337B4CFF28F57196278F6B63DAA9", "needs_visual_confirmation": true}
+      ],
+      "status": "proposed"
+    },
+    {
+      "display_name": "2号机器人上下料单元",
+      "object_type_name": "机器人上下料单元_W9",
+      "hierarchy_path": "生产区/ICT产线/产线_01/工位_02_机器人上下料",
+      "boundary_basis": "station label plus mesh names and bounds proximity",
+      "source_actors": [
+        {"label": "SM_SheBei2", "guid": "B5634B3B4D1DAE18DC8F7F9AF958ABF1"},
+        {"label": "SM_JieBoTai2", "guid": "D969E94D4C056228440843B9FD4D316E"},
+        {"label": "SM_ZiDongShangXiaLiao2", "guid": "8A44A1B44541CF99A2FB50A991E7CE6D"},
+        {"label": "jixieb", "guid": "17C6207140433F27A11BA5992C09DDAE"}
+      ],
+      "status": "proposed"
+    },
+    {
+      "display_name": "3号ICT测试机",
+      "object_type_name": "ICT测试机_TR5001E",
+      "hierarchy_path": "生产区/ICT产线/产线_01/工位_03_ICT测试",
+      "boundary_basis": "station label plus mesh names and bounds proximity",
+      "source_actors": [
+        {"label": "ICT_TR5001E-Xianti", "guid": "77B91DE442A171746AD29EA1F0CA5996"},
+        {"label": "对象021", "guid": "9BFB8E944BCC698CCEF25E8400740CB8", "needs_visual_confirmation": true},
+        {"label": "SM_WeiLan2", "guid": "4AA836DB4910047749779993062F748D"},
+        {"label": "SM_JieBoTai002", "guid": "DEAAC224417004C134508A9F5B4A5BDF", "needs_visual_confirmation": true}
+      ],
+      "status": "proposed"
+    },
+    {
+      "display_name": "4号自动分板机",
+      "object_type_name": "在线分板机_ER-7000",
+      "hierarchy_path": "生产区/ICT产线/产线_01/工位_04_自动分板",
+      "boundary_basis": "station label plus mesh names and bounds proximity",
+      "source_actors": [
+        {"label": "001-在线分板机-002", "guid": "F7BB0CB94EE9129CE3546FBABD024D0F"},
+        {"label": "ZaiXianFenBan_ER-7000-Xianti", "guid": "3DE531C644FE4163C0FC2DAD8A55FE8E"}
+      ],
+      "status": "proposed"
+    },
+    {
+      "display_name": "5号机器人下料单元",
+      "object_type_name": "机器人下料单元_W9",
+      "hierarchy_path": "生产区/ICT产线/产线_01/工位_05_机器人下料",
+      "boundary_basis": "station label plus mesh names and bounds proximity",
+      "source_actors": [
+        {"label": "ZiDongChaJianJi", "guid": "22D90A4241F30B61007B45B51272A122"},
+        {"label": "ZiDongYiKuangJi", "guid": "663D2B5D44900F9251654788DE02278B"},
+        {"label": "SM_ZaiJu2", "guid": "F3EEFD5847AA6AF24EB9EEBF219C5514"},
+        {"label": "对象031", "guid": "67626B70476E269C819C5389F5628369", "needs_visual_confirmation": true},
+        {"label": "对象032", "guid": "B3AE11CE4DFE2968419F27815497E8A8", "needs_visual_confirmation": true},
+        {"label": "RoboticArm2", "guid": "3C0139F040C469AAD36898933E995ED2", "selected_duplicate": true}
+      ],
+      "status": "blocked_pending_duplicate_choice"
+    },
+    {
+      "display_name": "2号ICT整线装配",
+      "object_type_name": "ICT整线装配_SM_CIT",
+      "hierarchy_path": "生产区/ICT产线/产线_02/整线装配",
+      "boundary_basis": "existing DatasmithSceneActor mother actor",
+      "source_actors": [
+        {"label": "SM_CIT", "guid": "55DD159A434DCEE2B91ACE83EE64F145", "render_part_count": 15}
+      ],
+      "status": "proposed"
+    }
+  ],
+  "blocked_or_excluded": [
+    {
+      "label": "RoboticArm2",
+      "guid": "0D3B2DF7427B4EE8B5EDDC82A5FA4273",
+      "reason": "Exact asset, transform, materials and bounds duplicate of GUID 3C0139F040C469AAD36898933E995ED2. Exclude from migration until the user confirms which source actor is authoritative."
+    },
+    {
+      "scope": "building and light sublevels",
+      "reason": "User explicitly requested equipment only."
+    },
+    {
+      "scope": "BP_StationLabelActor and system Blueprints",
+      "reason": "Operational UI/system helpers are not historical device model instances."
+    }
+  ],
+  "gate_a_status": "awaiting_user_approval",
+  "database_write_performed": false,
+  "ue_assets_modified": false
+}

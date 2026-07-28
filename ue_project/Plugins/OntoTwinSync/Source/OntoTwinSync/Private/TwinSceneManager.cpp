@@ -14,6 +14,7 @@
 #include "OntoTwinRuntimeEditorPanel.h"
 #include "OntoTwinOverlayWidget.h"
 #include "OntoTwinRuntimeGizmo.h"
+#include "RuntimeEditor/TwinRuntimeEditorCameraPawn.h"
 #include "TwinInstance.h"
 #include "SceneInteraction/TwinInteractionManagerComponent.h"
 #include "IWebSocket.h"
@@ -38,6 +39,9 @@
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 #include "Misc/App.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "GenericPlatform/GenericPlatformHttp.h"
 #include "Containers/StringConv.h"
 #include "HAL/FileManager.h"
 #include "Misc/SecureHash.h"
@@ -160,8 +164,73 @@ ATwinSceneManager::ATwinSceneManager()
 
 void ATwinSceneManager::BeginPlay()
 {
+    // Customer releases can override serialized level defaults without rebuilding the map.
+    // Resolve the backend before Super::BeginPlay(), because that starts actor components and
+    // SceneInteractionManager immediately performs its first runtime projection request.
+    FString BackendBaseUrlOverride;
+    const bool bHasBackendBaseUrlOverride = FParse::Value(
+            FCommandLine::Get(),
+            TEXT("OntoTwinBackendBaseUrl="),
+            BackendBaseUrlOverride);
+    if (bHasBackendBaseUrlOverride)
+    {
+        BackendBaseUrlOverride.TrimStartAndEndInline();
+        BackendBaseUrlOverride.RemoveFromEnd(TEXT("/"));
+        if (!BackendBaseUrlOverride.IsEmpty())
+        {
+            BackendBaseUrl = BackendBaseUrlOverride;
+        }
+    }
+#if WITH_EDITOR
+    else if (BackendBaseUrl.Equals(TEXT("http://127.0.0.1:5000"), ESearchCase::IgnoreCase))
+    {
+        // Docker Desktop can leave an installed-release portproxy on IPv4 loopback.
+        // localhost prefers Docker's working IPv6 loopback during PIE.
+        BackendBaseUrl = TEXT("http://localhost:5000");
+    }
+#endif
+
     Super::BeginPlay();
     SetActorTickEnabled(true);
+
+    FString RealtimeEnabledOverride;
+    if (FParse::Value(
+            FCommandLine::Get(),
+            TEXT("OntoTwinRealtimeWebSocket="),
+            RealtimeEnabledOverride))
+    {
+        RealtimeEnabledOverride.TrimStartAndEndInline();
+        bEnableRealtimeWebSocket = RealtimeEnabledOverride.Equals(TEXT("true"), ESearchCase::IgnoreCase)
+            || RealtimeEnabledOverride == TEXT("1")
+            || RealtimeEnabledOverride.Equals(TEXT("yes"), ESearchCase::IgnoreCase);
+    }
+
+    FString RealtimeUrlOverride;
+    if (FParse::Value(
+            FCommandLine::Get(),
+            TEXT("OntoTwinRealtimeWebSocketUrl="),
+            RealtimeUrlOverride))
+    {
+        RealtimeWebSocketUrl = RealtimeUrlOverride;
+    }
+
+    float PollIntervalOverride = 0.0f;
+    if (FParse::Value(FCommandLine::Get(), TEXT("OntoTwinPollInterval="), PollIntervalOverride))
+    {
+        PollInterval = FMath::Clamp(PollIntervalOverride, 0.1f, 10.0f);
+    }
+
+    FString IncrementalSnapshotsOverride;
+    if (FParse::Value(
+            FCommandLine::Get(),
+            TEXT("OntoTwinIncrementalSnapshots="),
+            IncrementalSnapshotsOverride))
+    {
+        IncrementalSnapshotsOverride.TrimStartAndEndInline();
+        bEnableIncrementalSnapshots = IncrementalSnapshotsOverride.Equals(TEXT("true"), ESearchCase::IgnoreCase)
+            || IncrementalSnapshotsOverride == TEXT("1")
+            || IncrementalSnapshotsOverride.Equals(TEXT("yes"), ESearchCase::IgnoreCase);
+    }
 
     // 启动定时轮询（FR-4：孪生实例全部由数据库驱动动态 spawn，不再接管关卡预置 Actor）
     SetPollTimerInterval(PollInterval, 1.0f);
@@ -1317,6 +1386,28 @@ FString ATwinSceneManager::BuildSnapshotsUrl() const
     return Url;
 }
 
+FString ATwinSceneManager::BuildSnapshotChangesUrl() const
+{
+    FString Url = FString::Printf(TEXT("%s/api/v2/state/snapshot_changes"), *BackendBaseUrl);
+    FString Separator = TEXT("?");
+    if (!SceneId.IsEmpty())
+    {
+        Url += FString::Printf(
+            TEXT("%sscene=%s"),
+            *Separator,
+            *FGenericPlatformHttp::UrlEncode(SceneId));
+        Separator = TEXT("&");
+    }
+    if (!IncrementalSnapshotCursor.IsEmpty())
+    {
+        Url += FString::Printf(
+            TEXT("%scursor=%s"),
+            *Separator,
+            *FGenericPlatformHttp::UrlEncode(IncrementalSnapshotCursor));
+    }
+    return Url;
+}
+
 void ATwinSceneManager::AddUEProjectHeaders(TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest) const
 {
     HttpRequest->SetHeader(TEXT("X-OntoTwin-UE-Project-Id"), UEProjectId);
@@ -1388,21 +1479,33 @@ void ATwinSceneManager::PollBackend()
 {
     if (bRequestInFlight) return;
 
-    UE_LOG(LogTemp, Log,
-           TEXT("[孪生管理器] 轮询中... 场景=%s | 现有实例数=%d"),
-           SceneId.IsEmpty() ? TEXT("(跟随后端)") : *SceneId, InstanceRegistry.Num());
+    const bool bUseIncremental = bEnableIncrementalSnapshots && !bIncrementalSnapshotsFellBackToFull;
+    if (!bUseIncremental)
+    {
+        UE_LOG(LogTemp, Log,
+               TEXT("[孪生管理器] 全量轮询中... 场景=%s | 现有实例数=%d"),
+               SceneId.IsEmpty() ? TEXT("(跟随后端)") : *SceneId, InstanceRegistry.Num());
+    }
 
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest =
         FHttpModule::Get().CreateRequest();
 
-    FString Url = BuildSnapshotsUrl();
+    const FString Url = bUseIncremental ? BuildSnapshotChangesUrl() : BuildSnapshotsUrl();
     HttpRequest->SetURL(Url);
     HttpRequest->SetVerb(TEXT("GET"));
     HttpRequest->SetHeader(TEXT("Accept"), TEXT("application/json"));
     AddUEProjectHeaders(HttpRequest);
 
-    HttpRequest->OnProcessRequestComplete().BindUObject(
-        this, &ATwinSceneManager::OnPollResponse);
+    if (bUseIncremental)
+    {
+        HttpRequest->OnProcessRequestComplete().BindUObject(
+            this, &ATwinSceneManager::OnIncrementalPollResponse);
+    }
+    else
+    {
+        HttpRequest->OnProcessRequestComplete().BindUObject(
+            this, &ATwinSceneManager::OnPollResponse);
+    }
 
     bRequestInFlight = true;
     HttpRequest->ProcessRequest();
@@ -1478,6 +1581,164 @@ void ATwinSceneManager::OnPollResponse(
     for (const FString& Id : ToRemove)
     {
         DestroyTwinInstance(Id);
+    }
+}
+
+void ATwinSceneManager::FallBackToFullSnapshots(const FString& Reason)
+{
+    if (bIncrementalSnapshotsFellBackToFull)
+    {
+        return;
+    }
+    bIncrementalSnapshotsFellBackToFull = true;
+    IncrementalSnapshotCursor.Empty();
+    UE_LOG(LogTemp, Warning,
+           TEXT("[孪生管理器] 增量快照不可用，当前会话回退全量接口: %s"), *Reason);
+}
+
+void ATwinSceneManager::OnIncrementalPollResponse(
+    FHttpRequestPtr HttpRequest,
+    FHttpResponsePtr Response,
+    bool bWasSuccessful)
+{
+    bRequestInFlight = false;
+
+    const int32 ResponseCode = Response.IsValid() ? Response->GetResponseCode() : -1;
+    if (!bWasSuccessful || !Response.IsValid() || ResponseCode != 200)
+    {
+        if (Response.IsValid() && (ResponseCode == 400 || ResponseCode == 404 || ResponseCode == 501))
+        {
+            ConsecutiveFailures = 0;
+            FallBackToFullSnapshots(FString::Printf(TEXT("HTTP %d"), ResponseCode));
+            PollBackend();
+            return;
+        }
+
+        UE_LOG(LogTemp, Warning,
+               TEXT("[孪生管理器] 增量快照请求失败 | Code=%d | bSuccessful=%s"),
+               ResponseCode, bWasSuccessful ? TEXT("true") : TEXT("false"));
+        ConsecutiveFailures++;
+        return;
+    }
+
+    const FString Body = Response->GetContentAsString();
+    TSharedPtr<FJsonObject> Envelope;
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Body);
+    if (!FJsonSerializer::Deserialize(Reader, Envelope) || !Envelope.IsValid())
+    {
+        FallBackToFullSnapshots(TEXT("响应不是 JSON 对象"));
+        PollBackend();
+        return;
+    }
+
+    FString SchemaVersion;
+    FString Mode;
+    FString NewCursor;
+    const TArray<TSharedPtr<FJsonValue>>* Upserts = nullptr;
+    const TArray<TSharedPtr<FJsonValue>>* DeletedIds = nullptr;
+    const bool bEnvelopeValid =
+        Envelope->TryGetStringField(TEXT("schemaVersion"), SchemaVersion)
+        && SchemaVersion == TEXT("snapshot_delta_v1")
+        && Envelope->TryGetStringField(TEXT("mode"), Mode)
+        && (Mode == TEXT("reset") || Mode == TEXT("delta"))
+        && Envelope->TryGetStringField(TEXT("cursor"), NewCursor)
+        && !NewCursor.IsEmpty()
+        && Envelope->TryGetArrayField(TEXT("upserts"), Upserts)
+        && Envelope->TryGetArrayField(TEXT("deletedIds"), DeletedIds);
+    if (!bEnvelopeValid)
+    {
+        FallBackToFullSnapshots(TEXT("schemaVersion 或核心字段不兼容"));
+        PollBackend();
+        return;
+    }
+
+    ConsecutiveFailures = 0;
+    double RevisionNumber = 0.0;
+    Envelope->TryGetNumberField(TEXT("revision"), RevisionNumber);
+
+    if (Mode == TEXT("reset"))
+    {
+        TSet<FString> BackendInstanceIds;
+        bool bAllApplied = true;
+        for (const TSharedPtr<FJsonValue>& Value : *Upserts)
+        {
+            const TSharedPtr<FJsonObject>* Snapshot = nullptr;
+            FString InstanceId;
+            if (!Value.IsValid()
+                || !Value->TryGetObject(Snapshot)
+                || !Snapshot
+                || !Snapshot->IsValid()
+                || !(*Snapshot)->TryGetStringField(TEXT("instanceId"), InstanceId)
+                || InstanceId.IsEmpty())
+            {
+                bAllApplied = false;
+                continue;
+            }
+            BackendInstanceIds.Add(InstanceId);
+            bAllApplied = ProcessSnapshot(*Snapshot, false) && bAllApplied;
+        }
+
+        if (!bAllApplied)
+        {
+            IncrementalSnapshotCursor.Empty();
+            UE_LOG(LogTemp, Error, TEXT("[孪生管理器] reset 基线应用不完整，下轮重新请求基线"));
+            return;
+        }
+
+        TArray<FString> ToRemove;
+        for (const auto& Pair : InstanceRegistry)
+        {
+            if (!BackendInstanceIds.Contains(Pair.Key))
+            {
+                ToRemove.Add(Pair.Key);
+            }
+        }
+        for (const FString& InstanceId : ToRemove)
+        {
+            DestroyTwinInstance(InstanceId);
+        }
+
+        IncrementalSnapshotCursor = NewCursor;
+        UE_LOG(LogTemp, Log,
+               TEXT("[孪生管理器] 增量基线已恢复 | revision=%lld | instances=%d | removed=%d | bytes=%d"),
+               static_cast<int64>(RevisionNumber), Upserts->Num(), ToRemove.Num(), Response->GetContentLength());
+        return;
+    }
+
+    for (const TSharedPtr<FJsonValue>& Value : *DeletedIds)
+    {
+        FString InstanceId;
+        if (Value.IsValid() && Value->TryGetString(InstanceId) && !InstanceId.IsEmpty())
+        {
+            DestroyTwinInstance(InstanceId);
+        }
+    }
+
+    bool bAllApplied = true;
+    for (const TSharedPtr<FJsonValue>& Value : *Upserts)
+    {
+        const TSharedPtr<FJsonObject>* Snapshot = nullptr;
+        if (!Value.IsValid() || !Value->TryGetObject(Snapshot) || !Snapshot || !Snapshot->IsValid())
+        {
+            bAllApplied = false;
+            continue;
+        }
+        bAllApplied = ProcessSnapshot(*Snapshot, true) && bAllApplied;
+    }
+
+    if (!bAllApplied)
+    {
+        UE_LOG(LogTemp, Error,
+               TEXT("[孪生管理器] delta 应用不完整，保留旧 cursor 以便幂等重试"));
+        return;
+    }
+
+    IncrementalSnapshotCursor = NewCursor;
+    if (Upserts->Num() > 0 || DeletedIds->Num() > 0)
+    {
+        UE_LOG(LogTemp, Log,
+               TEXT("[孪生管理器] 增量已应用 | revision=%lld | upserts=%d | deleted=%d | bytes=%d"),
+               static_cast<int64>(RevisionNumber), Upserts->Num(), DeletedIds->Num(), Response->GetContentLength());
     }
 }
 
@@ -1720,17 +1981,26 @@ TSharedRef<FJsonObject> ATwinSceneManager::BuildRealtimeChannelHealth() const
 // 实例处理
 // ═══════════════════════════════════════════════════════════════════════════
 
-void ATwinSceneManager::ProcessSnapshot(const TSharedPtr<FJsonObject>& Snapshot)
+bool ATwinSceneManager::ProcessSnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool bIsDelta)
 {
+    if (!Snapshot.IsValid())
+    {
+        return false;
+    }
+
     FString InstanceId;
-    Snapshot->TryGetStringField(TEXT("instanceId"), InstanceId);
+    if (!Snapshot->TryGetStringField(TEXT("instanceId"), InstanceId) || InstanceId.IsEmpty())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[孪生管理器] 忽略缺少 instanceId 的快照"));
+        return false;
+    }
 
     // ── 已存在：更新状态 ─────────────────────────────────────────────────
     ATwinInstance** Found = InstanceRegistry.Find(InstanceId);
     if (Found && *Found && IsValid(*Found))
     {
-        (*Found)->ApplySnapshot(Snapshot);
-        return;
+        (*Found)->ApplySnapshot(Snapshot, bIsDelta);
+        return true;
     }
 
     // ── 不存在：创建新实例 ───────────────────────────────────────────────
@@ -1739,7 +2009,9 @@ void ATwinSceneManager::ProcessSnapshot(const TSharedPtr<FJsonObject>& Snapshot)
     {
         InstanceRegistry.Add(InstanceId, NewInst);
         UE_LOG(LogTemp, Log, TEXT("[孪生管理器] 新增实例: %s"), *InstanceId);
+        return true;
     }
+    return false;
 }
 
 ATwinInstance* ATwinSceneManager::SpawnTwinInstance(
@@ -1899,6 +2171,10 @@ void ATwinSceneManager::EnterRuntimeEditMode()
     if (PC)
     {
         bRuntimePreviousMouseCursor = PC->bShowMouseCursor;
+        if (bEnableRuntimeEditorFreeCamera && !StartRuntimeEditorCamera(PC))
+        {
+            RuntimeStatusMessage = TEXT("Runtime edit enabled; free camera unavailable");
+        }
         PC->bShowMouseCursor = true;
 
         FInputModeGameAndUI InputMode;
@@ -1944,6 +2220,7 @@ void ATwinSceneManager::ExitRuntimeEditMode()
     APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
     if (PC)
     {
+        StopRuntimeEditorCamera(PC);
         PC->bShowMouseCursor = bRuntimePreviousMouseCursor;
         FInputModeGameOnly InputMode;
         PC->SetInputMode(InputMode);
@@ -1995,6 +2272,8 @@ void ATwinSceneManager::TickRuntimeEditor(float DeltaTime)
 
     const bool bPointerOverRuntimePanel =
         RuntimeEditorPanel && IsValid(RuntimeEditorPanel) && RuntimeEditorPanel->IsPointerOverPanel();
+
+    TickRuntimeEditorCamera(PC, DeltaTime, bPointerOverRuntimePanel);
 
     RuntimeHoverPart = ERuntimeDragPart::None;
     if (!bRuntimeDragging && !bPointerOverRuntimePanel && RuntimeSelectedInstance && IsValid(RuntimeSelectedInstance))
@@ -2098,6 +2377,187 @@ void ATwinSceneManager::TickRuntimeEditor(float DeltaTime)
     }
 
     UpdateRuntimeEditorPanel();
+}
+
+bool ATwinSceneManager::StartRuntimeEditorCamera(APlayerController* PlayerController)
+{
+    if (!PlayerController || !GetWorld()) return false;
+    if (RuntimeEditorCameraPawn && IsValid(RuntimeEditorCameraPawn)) return true;
+
+    RuntimeEditorOriginalPawn = PlayerController->GetPawn();
+    const FTransform CameraTransform = BuildRuntimeEditorCameraTransform(PlayerController);
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Owner = this;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    RuntimeEditorCameraPawn = GetWorld()->SpawnActor<ATwinRuntimeEditorCameraPawn>(
+        ATwinRuntimeEditorCameraPawn::StaticClass(), CameraTransform, SpawnParams);
+    if (!RuntimeEditorCameraPawn)
+    {
+        RuntimeEditorOriginalPawn = nullptr;
+        UE_LOG(LogTemp, Error, TEXT("[RuntimeEditor] Failed to spawn free camera pawn"));
+        return false;
+    }
+
+    RuntimeEditorCameraPawn->Configure(
+        RuntimeEditorCameraMoveSpeedCmS,
+        RuntimeEditorCameraLookSensitivity);
+    PlayerController->Possess(RuntimeEditorCameraPawn);
+    PlayerController->SetControlRotation(CameraTransform.Rotator());
+
+    if (PlayerController->GetPawn() != RuntimeEditorCameraPawn)
+    {
+        RuntimeEditorCameraPawn->Destroy();
+        RuntimeEditorCameraPawn = nullptr;
+        RuntimeEditorOriginalPawn = nullptr;
+        UE_LOG(LogTemp, Error, TEXT("[RuntimeEditor] Failed to possess free camera pawn"));
+        return false;
+    }
+
+    const FVector Location = CameraTransform.GetLocation();
+    const FRotator Rotation = CameraTransform.Rotator();
+    UE_LOG(LogTemp, Log,
+        TEXT("[RuntimeEditor] Free camera ready at (%.0f, %.0f, %.0f), pitch=%.1f yaw=%.1f"),
+        Location.X, Location.Y, Location.Z, Rotation.Pitch, Rotation.Yaw);
+    return true;
+}
+
+void ATwinSceneManager::StopRuntimeEditorCamera(APlayerController* PlayerController)
+{
+    if (!PlayerController) return;
+    EndRuntimeEditorCameraLook(PlayerController);
+
+    ATwinRuntimeEditorCameraPawn* CameraPawn = RuntimeEditorCameraPawn;
+    if (CameraPawn && IsValid(CameraPawn) && PlayerController->GetPawn() == CameraPawn)
+    {
+        if (RuntimeEditorOriginalPawn && IsValid(RuntimeEditorOriginalPawn))
+        {
+            PlayerController->Possess(RuntimeEditorOriginalPawn);
+        }
+        else
+        {
+            PlayerController->UnPossess();
+        }
+    }
+
+    if (CameraPawn && IsValid(CameraPawn))
+    {
+        CameraPawn->Destroy();
+    }
+    RuntimeEditorCameraPawn = nullptr;
+    RuntimeEditorOriginalPawn = nullptr;
+}
+
+void ATwinSceneManager::TickRuntimeEditorCamera(
+    APlayerController* PlayerController,
+    float DeltaTime,
+    bool bPointerOverRuntimePanel)
+{
+    (void)DeltaTime;
+    if (!PlayerController || !RuntimeEditorCameraPawn || !IsValid(RuntimeEditorCameraPawn)
+        || PlayerController->GetPawn() != RuntimeEditorCameraPawn)
+    {
+        return;
+    }
+
+    if (bRuntimeDragging && bRuntimeCameraRotating)
+    {
+        EndRuntimeEditorCameraLook(PlayerController);
+    }
+    if (!bRuntimeDragging && !bRuntimeCameraRotating && !bPointerOverRuntimePanel
+        && PlayerController->WasInputKeyJustPressed(EKeys::RightMouseButton))
+    {
+        BeginRuntimeEditorCameraLook(PlayerController);
+    }
+    if (bRuntimeCameraRotating)
+    {
+        if (PlayerController->IsInputKeyDown(EKeys::RightMouseButton))
+        {
+            float MouseX = 0.0f;
+            float MouseY = 0.0f;
+            PlayerController->GetInputMouseDelta(MouseX, MouseY);
+            RuntimeEditorCameraPawn->Look(FVector2D(MouseX, MouseY));
+        }
+        else
+        {
+            EndRuntimeEditorCameraLook(PlayerController);
+        }
+    }
+
+    if (bRuntimeDragging) return;
+
+    FVector2D MoveInput(
+        (PlayerController->IsInputKeyDown(EKeys::D) ? 1.0f : 0.0f)
+            - (PlayerController->IsInputKeyDown(EKeys::A) ? 1.0f : 0.0f),
+        (PlayerController->IsInputKeyDown(EKeys::W) ? 1.0f : 0.0f)
+            - (PlayerController->IsInputKeyDown(EKeys::S) ? 1.0f : 0.0f));
+    MoveInput = MoveInput.GetClampedToMaxSize(1.0f);
+    if (!MoveInput.IsNearlyZero())
+    {
+        RuntimeEditorCameraPawn->MovePlanar(MoveInput);
+    }
+
+    const float VerticalInput =
+        (PlayerController->IsInputKeyDown(EKeys::E) ? 1.0f : 0.0f)
+        - (PlayerController->IsInputKeyDown(EKeys::Q) ? 1.0f : 0.0f);
+    if (!FMath::IsNearlyZero(VerticalInput))
+    {
+        RuntimeEditorCameraPawn->MoveVertical(VerticalInput);
+    }
+
+    RuntimeEditorCameraPawn->AdjustSpeed(
+        PlayerController->GetInputAnalogKeyState(EKeys::MouseWheelAxis));
+}
+
+void ATwinSceneManager::BeginRuntimeEditorCameraLook(APlayerController* PlayerController)
+{
+    if (!PlayerController || bRuntimeCameraRotating) return;
+    float MouseX = 0.0f;
+    float MouseY = 0.0f;
+    if (PlayerController->GetMousePosition(MouseX, MouseY))
+    {
+        RuntimeCameraCursorRestorePosition = FVector2D(MouseX, MouseY);
+    }
+    bRuntimeCameraRotating = true;
+    PlayerController->bShowMouseCursor = false;
+    PlayerController->SetInputMode(FInputModeGameOnly());
+}
+
+void ATwinSceneManager::EndRuntimeEditorCameraLook(APlayerController* PlayerController)
+{
+    if (!PlayerController || !bRuntimeCameraRotating) return;
+    bRuntimeCameraRotating = false;
+    PlayerController->bShowMouseCursor = true;
+
+    FInputModeGameAndUI InputMode;
+    InputMode.SetHideCursorDuringCapture(false);
+    InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+    PlayerController->SetInputMode(InputMode);
+    PlayerController->SetMouseLocation(
+        FMath::RoundToInt(RuntimeCameraCursorRestorePosition.X),
+        FMath::RoundToInt(RuntimeCameraCursorRestorePosition.Y));
+}
+
+FTransform ATwinSceneManager::BuildRuntimeEditorCameraTransform(
+    APlayerController* PlayerController) const
+{
+    FTransform GodViewTransform;
+    if (InteractionManager && InteractionManager->GetGodViewTransform(GodViewTransform))
+    {
+        return GodViewTransform;
+    }
+
+    FVector ViewLocation = FVector::ZeroVector;
+    FRotator ViewRotation = FRotator::ZeroRotator;
+    if (PlayerController)
+    {
+        PlayerController->GetPlayerViewPoint(ViewLocation, ViewRotation);
+        return FTransform(ViewRotation, ViewLocation);
+    }
+
+    return RuntimeEditorOriginalPawn && IsValid(RuntimeEditorOriginalPawn)
+        ? RuntimeEditorOriginalPawn->GetActorTransform()
+        : GetActorTransform();
 }
 
 void ATwinSceneManager::ShowRuntimeEditorPanel()

@@ -1,10 +1,11 @@
 # OntoTwin 3.7.1 视频 URL 面板垂直链路 (PRD)
 
-> 状态：开发完成，待 UE PIE/打包验收  
-> 主线：OntoTwin Nexus / `I3D_Overlay`  
-> 日期：2026-07-21  
-> 前置：3.7 顶部信息面板、4.0.1 人物漫游选择链路  
-> 数据结构：ProjectStore v4 -> v5
+> 文档性质：3.7.1 视频能力功能设计增量
+> 主线：OntoTwin Nexus / `I3D_Overlay`
+> 日期：2026-07-21
+> 前置：3.7 顶部信息面板、4.0.1 人物漫游选择链路
+> 数据结构：ProjectStore v4 → v5
+> 实施与验收：[OntoTwin 3.7.1 实施记录](../IMPLEMENTATION/3.7.1/OntoTwin%203.7.1%20实施记录.md)、[宿主接入与验收](../IMPLEMENTATION/3.7.1/OntoTwin%203.7.1%20宿主接入与验收.md)
 
 ---
 
@@ -410,27 +411,7 @@ POST /api/v2/overlays/media/resolve
 
 ---
 
-## 13. 发布与回滚
-
-### 13.1 发布步骤
-
-1. 为部署环境设置平台媒体白名单。
-2. 应用 PostgreSQL `media_policy` 加法列变更。
-3. 部署后端和无构建前端静态文件。
-4. 编译启用 `ElectraPlayer` 的 OntoTwinSync 插件。
-5. 使用 HTTPS MP4、HTTPS HLS、批准的内网 HTTP HLS 各验收一次。
-6. 验证关闭、切换、重试和日志脱敏。
-
-### 13.2 回滚
-
-- 前端可停止提供视频模板，不影响既有模板。
-- 后端可保留 v5 数据但不下发可播放媒体状态。
-- UE 可忽略未知 `media` 槽位，继续展示标题和正文。
-- `media_policy` 为加法字段，回滚业务代码时无需删除 PG 列。
-
----
-
-## 14. 后续迭代
+## 13. 后续迭代
 
 - 接入数据总线签名服务并填写 `expires_at`。
 - 为 HLS 引入可信 CDN 同源约束或清单代理审计能力。

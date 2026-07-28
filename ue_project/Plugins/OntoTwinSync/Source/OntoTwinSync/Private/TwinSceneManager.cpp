@@ -181,14 +181,12 @@ void ATwinSceneManager::BeginPlay()
             BackendBaseUrl = BackendBaseUrlOverride;
         }
     }
-#if WITH_EDITOR
     else if (BackendBaseUrl.Equals(TEXT("http://127.0.0.1:5000"), ESearchCase::IgnoreCase))
     {
         // Docker Desktop can leave an installed-release portproxy on IPv4 loopback.
-        // localhost prefers Docker's working IPv6 loopback during PIE.
+        // localhost prefers Docker's working IPv6 loopback in PIE and packaged builds.
         BackendBaseUrl = TEXT("http://localhost:5000");
     }
-#endif
 
     Super::BeginPlay();
     SetActorTickEnabled(true);

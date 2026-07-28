@@ -23,11 +23,11 @@ OntoTwin Nexus 的 UE5 数字孪生同步插件。把整个 `OntoTwinSync/` 文�
 
 ## 典型工作流（2.x，日常用这个）
 
-1. 启动 Flask 后端（默认 `http://127.0.0.1:5000`）
+1. 启动 Flask 后端（默认 `http://localhost:5000`）
 2. 在前端 ontology.html 给 ObjectType 绑定 `ue_asset_path`（UE 内容路径，如 `/Game/Meshes/SM_Forklift.SM_Forklift`）——**没绑的类型 UE 不会渲染**
 3. 在 coord_workbench.html 或 instance.html 创建实例
 4. UE 关卡中放置 `TwinSceneManager`，细节面板确认：
-   - 后端基础URL：`http://127.0.0.1:5000`
+   - 后端基础URL：`http://localhost:5000`
    - 场景ID：**留空** = 跟随后端当前激活的数据集（单工程常用）；填具体场景名 = 只拉该场景
    - 孪生体蓝图类：选你的 `BP_TwinInstance`（不选则用 C++ 基类）
 5. 点 Play：实例自动出现；前端改状态（位置/材质/动画），UE 0.5 秒内跟随

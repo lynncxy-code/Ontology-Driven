@@ -19,6 +19,7 @@ from dataset_activation import (
     activate_or_create_project,
     project_dataset_to_object_types,
 )
+from instance_model_binding.service import resolve_effective_model
 
 # ── App Setup ───────────────────────────────────────────────────
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
@@ -33,11 +34,11 @@ ARTSTUDIO_BASE_URL = os.environ.get(
 ARTSTUDIO_TIMEOUT = float(os.environ.get("ARTSTUDIO_TIMEOUT", "5"))
 ARTSTUDIO_TOKEN = os.environ.get("ARTSTUDIO_TOKEN") or None
 
-# 3.3：ArtStudio 运行时同步客户端（详情/版本缓存/下载代理/后端预取）
+# 3.3：ArtStudio 运行时同步客户端（详情/版本缓存/下载代理）
 import artstudio_client
 artstudio_client.configure(
     ARTSTUDIO_BASE_URL, ARTSTUDIO_TOKEN, ARTSTUDIO_TIMEOUT,
-    models_dir=os.environ.get("MODELS_DIR"),   # 预取落盘目录（容器 /models → UE 固定 Models）
+    models_dir=os.environ.get("MODELS_DIR"),   # 仅保留给旧部署；当前绑定链路由 UE 自行缓存
 )
 import artstudio_auth
 artstudio_auth.configure(
@@ -1559,12 +1560,9 @@ def _model_binding_summary(rid, ot):
         if inst.get("object_type_rid") != rid:
             continue
         cfg = instance_store.get_render_config(inst.get("id")) or {}
-        path = (
-            inst.get("source_asset_path")
-            or cfg.get("ue_asset_path")
-            or cfg.get("asset_id")
-            or ""
-        )
+        path = inst.get("source_asset_path") or ""
+        if not path and _is_assembly_render_config(cfg):
+            path = cfg.get("ue_asset_path") or cfg.get("asset_id") or ""
         path = str(path or "").strip()
         if not path:
             continue
@@ -2023,14 +2021,37 @@ def bind_asset():
 def download_artstudio_asset():
     """
     3.3：ArtStudio glb 下载代理。UE → Flask → S3 流式转发，隐藏 presigned/token。
-    入参 id=ArtStudio 资产数字 id；只转发 glb。
+    入参 id=ArtStudio 资产数字 id、version=绑定版本；只转发 glb。
     """
     from flask import Response, stream_with_context
     asset_id = request.args.get("id", "").strip()
     if not asset_id:
         return jsonify({"error": "缺少 id"}), 400
 
-    upstream, filename = artstudio_client.open_download_stream(asset_id)
+    binding_ok, binding_info = check_request_matches_active(project_store, request)
+    if not binding_ok:
+        return jsonify(binding_info), 403
+
+    version_text = request.args.get("version", "").strip()
+    expected_version = None
+    if version_text:
+        try:
+            expected_version = int(version_text)
+        except ValueError:
+            return jsonify({"error": "invalid_version", "message": "模型版本号无效。"}), 400
+        if expected_version < 1:
+            return jsonify({"error": "invalid_version", "message": "模型版本号无效。"}), 400
+
+        current_version = artstudio_client.get_version(asset_id)
+        if current_version is not None and current_version != expected_version:
+            return jsonify({
+                "error": "asset_version_changed",
+                "message": "ArtStudio 模型版本已更新，请重新选择该模型后再试。",
+                "expected_version": expected_version,
+                "current_version": current_version,
+            }), 409
+
+    upstream, filename = artstudio_client.open_download_stream(asset_id, expected_version)
     if upstream is None:
         return jsonify({"error": f"资产 {asset_id} 无 glb 文件或不可达"}), 404
 
@@ -2183,15 +2204,29 @@ def _is_assembly_render_config(config):
 
 
 def _resolve_instance_render_assets(raw, config, object_type, asset_catalog):
-    """Resolve model fields, giving assembly_v1 instance geometry precedence."""
+    """Resolve model fields using instance override, type default, then assembly."""
+    config = config if isinstance(config, dict) else {}
+    object_type = object_type if isinstance(object_type, dict) else {}
+    asset_catalog = asset_catalog if isinstance(asset_catalog, dict) else {}
+    override = config.get("model_override") if isinstance(config, dict) else None
+    if isinstance(override, dict) and (
+        override.get("ue_asset_path") or override.get("asset_id")
+    ):
+        asset_id = override.get("asset_id") or raw.get("asset_id", "")
+        return asset_id, override.get("ue_asset_path") or asset_id
+
+    asset_id = object_type.get("asset_id") or ""
+    asset_meta = asset_catalog.get(asset_id, {})
+    ue_asset_path = object_type.get("ue_asset_path") or asset_meta.get("ue_path") or asset_id
+    if asset_id or ue_asset_path:
+        return asset_id, ue_asset_path
+
     if _is_assembly_render_config(config):
         asset_id = config.get("asset_id") or raw.get("asset_id", "")
         return asset_id, config.get("ue_asset_path") or asset_id
 
-    asset_id = object_type.get("asset_id") or raw.get("asset_id", "")
-    asset_meta = asset_catalog.get(asset_id, {})
-    ue_asset_path = object_type.get("ue_asset_path") or asset_meta.get("ue_path") or asset_id
-    return asset_id, ue_asset_path
+    asset_id = config.get("asset_id") or raw.get("asset_id", "")
+    return asset_id, config.get("ue_asset_path") or asset_id
 
 
 def _build_representable_interface(ue_asset_path, asset_id, is_visible, config=None):
@@ -2230,34 +2265,34 @@ def _build_snapshot(instance_id):
         # 类型在当前激活数据集 → 用实时配置：绑定资产/换模型立即生效（不被 spawn 时的快照锁死）
         ot = _object_types[ot_rid]
         injected = ot.get("injected_interfaces", [])
-        # Migrated composites are an instance-level geometry override. A type
-        # default model must not collapse an assembly to a single asset.
-        asset_id, ue_asset_path = _resolve_instance_render_assets(
+        # 3.3.3: explicit instance override wins; otherwise the live type
+        # default wins; a migrated assembly is the preserved fallback.
+        effective_model = resolve_effective_model(
             raw,
             cfg,
             ot,
             MOCK_ASSETS,
         )
+        asset_id = effective_model["asset_id"]
+        ue_asset_path = effective_model["ue_asset_path"]
+        assembly_config = cfg if effective_model["mode"] == "original_assembly" else None
         ot_name = ot.get("name", ot_rid)
     elif cfg:
         # 类型已不在当前数据集（场景被切走/移植到别的后端）→ 回退实例冻结的配置
         injected = cfg.get("injected_interfaces", [])
-        asset_id = cfg.get("asset_id") or raw.get("asset_id", "")
-        ue_asset_path = cfg.get("ue_asset_path") or asset_id
+        effective_model = resolve_effective_model(raw, cfg, {}, MOCK_ASSETS)
+        asset_id = effective_model["asset_id"]
+        ue_asset_path = effective_model["ue_asset_path"]
+        assembly_config = cfg if effective_model["mode"] == "original_assembly" else None
         ot_name = cfg.get("object_type_name", ot_rid)
     else:
         # 无配置可用 → 隐藏，避免给 UE 推空接口
         return None
 
-    # 3.3：ArtStudio 资产 → 后端预取到本地 Models 目录，snapshot 下发本地文件名，
-    # UE 走已验证的本地加载路径（绕开 UE HTTP 的代理/并发/连接坑）。
-    # 版本同步：get_version(TTL缓存)取当前版本，版本变→新文件名→UE 热更换重载。
-    if isinstance(ue_asset_path, str) and ue_asset_path.startswith(artstudio_client.PREFIX):
-        aid, parsed_ver = artstudio_client.parse_stable_id(ue_asset_path)
-        ver = artstudio_client.get_version(aid) or parsed_ver or 1
-        local_name = artstudio_client.ensure_local_glb(aid, ver)
-        # 就绪→下发本地文件名(UE 本地加载)；未就绪→下发空(UE 占位 Cube，下个轮询再换)
-        ue_asset_path = local_name or ""
+    # ArtStudio bindings stay as stable identifiers in the snapshot.  PIE and
+    # packaged executables download through the backend proxy and keep their
+    # own project-local Saved/ModelCache; the backend is not tied to one UE
+    # project's Models directory.
 
     now = time.time()
     online = (now - inst_meta.get("last_seen", 0)) < 3.0
@@ -2269,7 +2304,7 @@ def _build_snapshot(instance_id):
             ue_asset_path,
             asset_id,
             raw.get("is_loaded", True),
-            cfg,
+            assembly_config,
         )
 
     if "I3D_Spatial" in injected:
@@ -4430,6 +4465,18 @@ overlay_service = register_overlay_routes(app, project_store, _refresh_object_ty
 
 from scene_interaction import register_scene_interaction_routes
 register_scene_interaction_routes(app, project_store)
+
+from zone_management import register_zone_management_routes
+register_zone_management_routes(app, project_store)
+
+from instance_model_binding import register_instance_model_binding_routes
+instance_model_binding_service = register_instance_model_binding_routes(
+    app,
+    project_store,
+    MOCK_ASSETS,
+    artstudio_client,
+    _refresh_object_types_after_overlay_save,
+)
 
 from spatial_assets import register_spatial_asset_routes
 register_spatial_asset_routes(app, project_store)

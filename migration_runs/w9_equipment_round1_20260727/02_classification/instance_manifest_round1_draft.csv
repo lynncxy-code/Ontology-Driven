@@ -1,7 +1,7 @@
-approval_status,display_name,object_type_name,hierarchy_path,source_actor_count,notes
-proposed,1号自动上板机,自动上板机_L460-SF-AGV,生产区/ICT产线/产线_01/工位_01_自动上板,2,对象020需视口确认
-proposed,2号机器人上下料单元,机器人上下料单元_W9,生产区/ICT产线/产线_01/工位_02_机器人上下料,4,
-proposed,3号ICT测试机,ICT测试机_TR5001E,生产区/ICT产线/产线_01/工位_03_ICT测试,4,对象021和SM_JieBoTai002需视口确认
-proposed,4号自动分板机,在线分板机_ER-7000,生产区/ICT产线/产线_01/工位_04_自动分板,2,
-blocked,5号机器人下料单元,机器人下料单元_W9,生产区/ICT产线/产线_01/工位_05_机器人下料,6,存在两台完全重叠RoboticArm2；草案保留meshes文件夹中的一台
-proposed,2号ICT整线装配,ICT整线装配_SM_CIT,生产区/ICT产线/产线_02/整线装配,1,母Actor下有15个渲染部件
+approval_status,display_name,object_type_name,zone_id,hierarchy_path,source_actor_count,notes
+proposed,1号自动上板机,自动上板机_L460-SF-AGV,scc_w19_1f_ict,生产区/1F/ICT产线/产线_01/工位_01_自动上板,2,对象020需视口确认
+proposed,2号机器人上下料单元,机器人上下料单元_W9,scc_w19_1f_ict,生产区/1F/ICT产线/产线_01/工位_02_机器人上下料,4,
+proposed,3号ICT测试机,ICT测试机_TR5001E,scc_w19_1f_ict,生产区/1F/ICT产线/产线_01/工位_03_ICT测试,4,对象021和SM_JieBoTai002需视口确认
+proposed,4号自动分板机,在线分板机_ER-7000,scc_w19_1f_ict,生产区/1F/ICT产线/产线_01/工位_04_自动分板,2,
+blocked,5号机器人下料单元,机器人下料单元_W9,scc_w19_1f_ict,生产区/1F/ICT产线/产线_01/工位_05_机器人下料,6,存在两台完全重叠RoboticArm2；草案保留meshes文件夹中的一台
+proposed,2号ICT整线装配,ICT整线装配_SM_CIT,scc_w19_1f_ict,生产区/1F/ICT产线/产线_02/整线装配,1,母Actor下有15个渲染部件

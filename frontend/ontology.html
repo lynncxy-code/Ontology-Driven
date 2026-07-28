@@ -258,6 +258,13 @@
                     </div>
 
                     <!-- Model Binding -->
+                    <div v-if="selected && !hasRepresentable" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
+                            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">三维模型绑定</span>
+                            <span class="text-[10px] text-gray-400">尚未启用</span>
+                        </div>
+                        <div class="p-5 text-sm text-gray-500">启用并保存三维表现能力后，即可配置类型默认模型。</div>
+                    </div>
                     <transition name="fade">
                         <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm" v-if="hasRepresentable">
                             <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
@@ -275,31 +282,33 @@
                                         <template v-if="defaultModel">
                                             <div class="text-sm font-medium text-gray-900 truncate">{{ defaultModel.label || defaultModel.path }}</div>
                                             <div class="mt-1 text-[11px] font-mono text-gray-500 break-all">{{ defaultModel.path }}</div>
-                                            <div class="mt-3 text-[11px] text-gray-500">后续新铸造实例默认使用这个模型；已迁移实例仍可使用自己的模型。</div>
+                                            <div class="mt-3 text-[11px] text-gray-500">所有未设置实例模型覆盖的同类型实例都会使用此模型；修改后会自动更新。</div>
+                                            <button type="button" @click="openClearTypeModel" :disabled="clearTypeModelSaving"
+                                                    class="mt-3 text-[11px] font-medium text-gray-700 underline underline-offset-4 hover:text-black disabled:opacity-40">清除类型默认模型</button>
                                         </template>
                                         <template v-else>
-                                            <div class="text-sm text-gray-500 leading-relaxed" v-if="migrationModels.length > 0">
-                                                这个类型还没有设置默认模型，但已有实例正在使用右侧列出的模型。新铸造实例仍会使用占位模型，除非先把某个实例模型设为类型默认。
+                                            <div class="text-sm text-gray-500 leading-relaxed" v-if="originalModels.length > 0">
+                                                这个类型还没有设置默认模型。未设置实例覆盖的实例会使用各自原始模型；没有原始模型时显示占位模型。
                                             </div>
                                             <div class="text-sm text-gray-500 leading-relaxed" v-else>
-                                                这个类型还没有设置默认模型。新铸造实例会使用占位模型，或由实例自身模型覆盖。
+                                                这个类型还没有设置默认模型。未设置实例覆盖的实例会显示占位模型。
                                             </div>
                                         </template>
                                     </div>
 
                                     <div class="border border-gray-200 rounded-lg p-4 bg-white">
                                         <div class="flex items-center justify-between mb-3">
-                                            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">实例已绑定模型</span>
-                                            <span class="text-[10px] text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded">{{ migrationModels.length }} 项</span>
+                                            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">实例原始模型分布</span>
+                                            <span class="text-[10px] text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded">{{ originalModels.length }} 种</span>
                                         </div>
-                                        <div v-if="migrationModels.length === 0" class="text-sm text-gray-500 leading-relaxed">暂无实例模型记录。</div>
+                                        <div v-if="originalModels.length === 0" class="text-sm text-gray-500 leading-relaxed">当前类型没有可识别的实例原始模型。</div>
                                         <div v-else class="space-y-2 max-h-44 overflow-y-auto pr-1">
-                                            <div v-for="model in migrationModels" :key="model.path" class="border border-gray-100 rounded-md p-2.5 bg-gray-50/60">
+                                            <div v-for="model in originalModels" :key="model.path" class="border border-gray-100 rounded-md p-2.5 bg-gray-50/60">
                                                 <div class="flex items-start gap-2">
                                                     <div class="flex-1 min-w-0">
                                                         <div class="text-xs font-medium text-gray-900 truncate">{{ model.label || model.path }}</div>
                                                         <div class="text-[10px] font-mono text-gray-500 break-all mt-0.5">{{ model.path }}</div>
-                                                        <div class="text-[10px] text-gray-500 mt-1">使用 {{ model.instance_count }} 个实例</div>
+                                                        <div class="text-[10px] text-gray-500 mt-1">{{ model.instance_count }} 个实例保留此原始模型</div>
                                                     </div>
                                                     <button @click="promoteModel(model)" :disabled="promotingModelPath === model.path"
                                                             class="text-[10px] px-2 py-1 border border-gray-200 rounded bg-white hover:bg-gray-100 text-gray-700 whitespace-nowrap disabled:opacity-50">
@@ -509,6 +518,25 @@
         </div>
     </div>
 
+    <!-- 清除类型默认模型确认 -->
+    <transition name="fade">
+        <div v-if="clearTypeModelOpen"
+             class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 px-4"
+             @click.self="closeClearTypeModel" @keydown.esc.stop="closeClearTypeModel">
+            <div ref="clearTypeModelDialog" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="clear-type-model-title"
+                 class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-2xl outline-none">
+                <h3 id="clear-type-model-title" class="text-base font-semibold text-gray-900">清除类型默认模型？</h3>
+                <p class="mt-2 text-xs leading-relaxed text-gray-500">未设置实例模型覆盖的同类型实例将回退到各自原始模型；没有原始模型的实例会显示占位模型。实例覆盖不会变化。</p>
+                <div class="mt-5 flex justify-end gap-2">
+                    <button type="button" @click="closeClearTypeModel" :disabled="clearTypeModelSaving"
+                            class="rounded-md border border-gray-300 bg-white px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-40">保留默认模型</button>
+                    <button type="button" @click="clearTypeDefaultModel" :disabled="clearTypeModelSaving"
+                            class="rounded-md border border-gray-900 bg-gray-900 px-4 py-2 text-xs font-medium text-white hover:bg-black disabled:opacity-40">{{ clearTypeModelSaving ? '正在清除…' : '清除默认模型' }}</button>
+                </div>
+            </div>
+        </div>
+    </transition>
+
     <!-- ArtStudio 账号连接 -->
     <transition name="fade">
         <div v-if="loginModalOpen"
@@ -631,6 +659,10 @@ createApp({
         const loginForm = ref({ username: '', password: '', captcha: '' });
         const bindingAsset  = ref(false);
         const promotingModelPath = ref('');
+        const clearTypeModelOpen = ref(false);
+        const clearTypeModelSaving = ref(false);
+        const clearTypeModelDialog = ref(null);
+        let clearTypeModelReturnFocus = null;
         const toasts        = ref([]);
         const assetPage     = ref(1);
         const assetCategory = ref("");          // 分类筛选，""=全部
@@ -682,7 +714,7 @@ createApp({
             return selected.value?.model_binding?.default_model || null;
         });
 
-        const migrationModels = computed(() => {
+        const originalModels = computed(() => {
             return selected.value?.model_binding?.migration_models || [];
         });
 
@@ -826,7 +858,7 @@ createApp({
                 ue: 'UE 资产',
                 local: '本地模型',
                 manual: '手动绑定',
-                ue_migration: '历史迁移',
+                ue_migration: '实例原始模型',
                 none: '未设置',
             };
             return map[source] || '模型';
@@ -863,6 +895,43 @@ createApp({
                 toast('err', e.response?.data?.error || '设置默认模型失败');
             } finally {
                 promotingModelPath.value = '';
+            }
+        }
+
+        async function openClearTypeModel() {
+            if (!defaultModel.value || clearTypeModelSaving.value) return;
+            clearTypeModelReturnFocus = document.activeElement;
+            clearTypeModelOpen.value = true;
+            await nextTick();
+            clearTypeModelDialog.value?.focus();
+        }
+
+        function closeClearTypeModel() {
+            if (clearTypeModelSaving.value) return;
+            clearTypeModelOpen.value = false;
+            nextTick(() => clearTypeModelReturnFocus?.focus?.());
+        }
+
+        async function clearTypeDefaultModel() {
+            if (!selected.value || clearTypeModelSaving.value) return;
+            const rid = selected.value.rid;
+            clearTypeModelSaving.value = true;
+            try {
+                const { data } = await axios.delete(
+                    `/api/v2/object-types/${encodeURIComponent(rid)}/model-binding`
+                );
+                selectedAssetFn.value = '';
+                selectedAssetUePath.value = '';
+                manualPath.value = '';
+                assetResult.value = null;
+                clearTypeModelOpen.value = false;
+                toast('ok', data.message || '已清除类型默认模型');
+                await loadTypes();
+                nextTick(() => clearTypeModelReturnFocus?.focus?.());
+            } catch (e) {
+                toast('err', e.response?.data?.message || '清除默认模型失败，请稍后重试。');
+            } finally {
+                clearTypeModelSaving.value = false;
             }
         }
 
@@ -1180,12 +1249,14 @@ createApp({
         return {
             objectTypes, sortedObjectTypes, allInterfaces, allAssets, assetTotal, assetSource, selected,
             parentInterfaces, childInterfaces, pendingInterfaces, pendingRemove, hasRepresentable,
-            defaultModel, migrationModels,
+            defaultModel, originalModels,
             editMode, saving, bindMode, selectedAssetFn, selectedAssetUePath, selectedAsset, manualPath, assetResult, assetLoadWarning, artstudioIdentity, identityLoading, identityError, bindingAsset, promotingModelPath, toasts,
+            clearTypeModelOpen, clearTypeModelSaving, clearTypeModelDialog,
             loginModalOpen, loginLoading, challengeLoading, captchaLoading, disconnecting, loginError, loginChallenge, loginUsernameInput, loginTrigger, loginForm,
             assetPage, assetTotalPages, pagedAssets, assetCategory, assetOwnerType, assetQuery, ASSET_CATEGORIES,
             isInjected, isChecked, toggleInterface, saveInterfaces, removeInterface, bindAsset, selectLibraryAsset, selectType,
             modelSourceLabel, assetSourceLabel, promoteModel,
+            openClearTypeModel, closeClearTypeModel, clearTypeDefaultModel,
             enterEditMode, cancelEditMode, saveEdit, loadAssets, loadArtstudioIdentity, refreshMyAssets, switchBindMode, onFilterChange,
             openArtstudioLogin, closeArtstudioLogin, submitArtstudioLogin, refreshLoginCaptcha, disconnectArtstudio,
             onCategoryChange, onSearch, onPageChange,

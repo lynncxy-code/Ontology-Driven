@@ -17,8 +17,12 @@
 #include "Engine/Engine.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Misc/Paths.h"
+#include "Misc/App.h"
+#include "Misc/ScopeLock.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/FileManager.h"
+#include "HAL/CriticalSection.h"
+#include "Containers/Ticker.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/FileHelper.h"
 #include "Serialization/JsonSerializer.h"
@@ -35,6 +39,30 @@
 
 namespace
 {
+FCriticalSection GArtStudioDownloadGuard;
+TSet<FString> GArtStudioDownloadsInFlight;
+TMap<FString, TArray<TWeakObjectPtr<ATwinInstance>>> GArtStudioDownloadWaiters;
+
+bool IsValidGlbPayload(const TArray<uint8>& Content)
+{
+    if (Content.Num() < 12)
+    {
+        return false;
+    }
+
+    const bool bHasMagic = Content[0] == 'g' && Content[1] == 'l'
+        && Content[2] == 'T' && Content[3] == 'F';
+    const uint32 Version = static_cast<uint32>(Content[4])
+        | (static_cast<uint32>(Content[5]) << 8)
+        | (static_cast<uint32>(Content[6]) << 16)
+        | (static_cast<uint32>(Content[7]) << 24);
+    const uint32 DeclaredLength = static_cast<uint32>(Content[8])
+        | (static_cast<uint32>(Content[9]) << 8)
+        | (static_cast<uint32>(Content[10]) << 16)
+        | (static_cast<uint32>(Content[11]) << 24);
+    return bHasMagic && Version == 2 && DeclaredLength == static_cast<uint32>(Content.Num());
+}
+
 bool TryParseCollisionEnabled(
     const TSharedPtr<FJsonObject>& PartObj,
     ECollisionEnabled::Type& OutCollisionEnabled)
@@ -396,7 +424,6 @@ void ATwinInstance::InitializeTwin(
         if (CubeMesh)
         {
             MeshComponent->SetStaticMesh(CubeMesh);
-            MeshComponent->SetWorldScale3D(FVector(0.5f));
         }
     }
     else
@@ -625,8 +652,6 @@ void ATwinInstance::ApplyRenderPartsFromSnapshot(
     }
 
     ClearRenderParts();
-    // 单资产占位逻辑可能改过根组件缩放；assembly 的所有相对变换都以单位基座为前提。
-    MeshComponent->SetRelativeScale3D(FVector::OneVector);
     MeshComponent->SetVisibility(true, false);
     MeshComponent->SetHiddenInGame(false, false);
     MeshComponent->SetStaticMesh(nullptr);
@@ -793,7 +818,6 @@ void ATwinInstance::ApplyRenderPartsFromSnapshot(
         // 不缓存失败签名：下一次快照轮询会重新加载。基座 Cube 明确提示该 assembly 不完整。
         CurrentAssemblySignature.Empty();
         SetPlaceholderCube();
-        MeshComponent->SetRelativeScale3D(FVector::OneVector);
         UE_LOG(LogTemp, Error,
             TEXT("[孪生体] assembly_v1 仅加载 %d/%d 个部件，保留 Cube fallback 并等待重试 (ID=%s)"),
             LoadedPartCount, RenderParts.Num(), *InstanceId);
@@ -1224,7 +1248,6 @@ bool ATwinInstance::LoadGltfFromFile(const FString& FilePath)
     }
 
     MeshComponent->SetStaticMesh(Mesh);
-    MeshComponent->SetWorldScale3D(FVector(1.0f));  // 清掉占位 Cube 可能留下的 0.5 缩放
     CacheOriginalMaterials();
 
     // ── 材质诊断（定位打包后灰白无贴图）─────────────────────────────
@@ -1253,7 +1276,6 @@ void ATwinInstance::SetPlaceholderCube()
     if (DefaultMesh)
     {
         MeshComponent->SetStaticMesh(DefaultMesh);
-        MeshComponent->SetWorldScale3D(FVector(0.5f));
     }
 }
 
@@ -1286,85 +1308,245 @@ void ATwinInstance::LoadRemoteGltf(const FString& StableId)
         VersionPart = TEXT("0");
     }
 
+    if (AssetIdPart.IsEmpty() || !AssetIdPart.IsNumeric()
+        || VersionPart.IsEmpty() || !VersionPart.IsNumeric())
+    {
+        UE_LOG(LogTemp, Error, TEXT("[孪生体] 非法 ArtStudio 标识: %s"), *StableId);
+        SetPlaceholderCube();
+        return;
+    }
+
+    if (RemoteRetryId != StableId)
+    {
+        RemoteRetryId = StableId;
+        RemoteRetryAttempt = 0;
+    }
+
     // 缓存文件：Saved/ModelCache/{id}_v{n}.glb —— 版本进文件名，升版自动失效重下
     const FString CacheDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ModelCache"));
     const FString CacheFile = FPaths::Combine(
         CacheDir, FString::Printf(TEXT("%s_v%s.glb"), *AssetIdPart, *VersionPart));
+    const FString DownloadKey = BackendBaseUrl + TEXT("|") + CacheFile;
 
     // ① 命中缓存 → 直接加载
     if (FPaths::FileExists(CacheFile))
     {
         UE_LOG(LogTemp, Log, TEXT("[孪生体] ArtStudio 缓存命中: %s"), *CacheFile);
-        if (!LoadGltfFromFile(CacheFile))
+        if (LoadGltfFromFile(CacheFile))
         {
-            SetPlaceholderCube();
+            PendingRemoteId.Empty();
+            RemoteRetryAttempt = 0;
+            return;
         }
-        return;
+
+        // 旧版本可能留下半截或不可解析文件；删除后走正常下载重试。
+        IFileManager::Get().Delete(*CacheFile, false, true);
+        UE_LOG(LogTemp, Warning, TEXT("[孪生体] 已删除损坏的 ArtStudio 缓存: %s"), *CacheFile);
     }
 
-    // ② 缓存缺失 → 占位 Cube + 异步下载
+    // ② 缓存缺失 → 占位 Cube + 工程进程内共享异步下载
     if (PendingRemoteId == StableId)
     {
-        return;  // 同一标识已在下载中，避免轮询重复发请求
+        return;
     }
     SetPlaceholderCube();
     PendingRemoteId = StableId;
 
     IFileManager::Get().MakeDirectory(*CacheDir, /*Tree=*/true);
 
+    bool bShouldStartDownload = false;
+    {
+        FScopeLock Lock(&GArtStudioDownloadGuard);
+        TArray<TWeakObjectPtr<ATwinInstance>>& Waiters = GArtStudioDownloadWaiters.FindOrAdd(DownloadKey);
+        const bool bAlreadyWaiting = Waiters.ContainsByPredicate(
+            [this](const TWeakObjectPtr<ATwinInstance>& Waiter)
+            {
+                return Waiter.Get() == this;
+            });
+        if (!bAlreadyWaiting)
+        {
+            Waiters.Add(TWeakObjectPtr<ATwinInstance>(this));
+        }
+        if (!GArtStudioDownloadsInFlight.Contains(DownloadKey))
+        {
+            GArtStudioDownloadsInFlight.Add(DownloadKey);
+            bShouldStartDownload = true;
+        }
+    }
+
+    if (!bShouldStartDownload)
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("[孪生体] 复用 ArtStudio 在途下载: %s"), *StableId);
+        return;
+    }
+
     const FString Url = FString::Printf(
-        TEXT("%s/api/v2/assets/download?id=%s"), *BackendBaseUrl, *AssetIdPart);
-    UE_LOG(LogTemp, Log, TEXT("[孪生体] ArtStudio 下载: %s"), *Url);
+        TEXT("%s/api/v2/assets/download?id=%s&version=%s"),
+        *BackendBaseUrl,
+        *AssetIdPart,
+        *VersionPart);
+    UE_LOG(LogTemp, Log, TEXT("[孪生体] ArtStudio 下载: %s | 缓存: %s"), *Url, *CacheFile);
 
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
     Request->SetURL(Url);
     Request->SetVerb(TEXT("GET"));
+    Request->SetTimeout(180.0f);
+    const FString UEProjectName = FApp::GetProjectName();
+    Request->SetHeader(
+        TEXT("X-OntoTwin-UE-Project-Id"),
+        FString::Printf(TEXT("ueproj_%s"), *UEProjectName));
+    Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Name"), UEProjectName);
 
-    // 弱引用保护：实例可能在回调前被销毁
-    TWeakObjectPtr<ATwinInstance> WeakThis(this);
     const FString ExpectId = StableId;
     const FString AssetIdForPurge = AssetIdPart;
+    const FString TempFile = CacheFile + TEXT(".part");
     Request->OnProcessRequestComplete().BindLambda(
-        [WeakThis, CacheFile, ExpectId, AssetIdForPurge](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bOk)
+        [DownloadKey, CacheFile, TempFile, ExpectId, AssetIdForPurge](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bOk)
         {
-            ATwinInstance* Self = WeakThis.Get();
-            if (!Self)
-            {
-                return;  // 实例已销毁
-            }
-            Self->PendingRemoteId.Empty();
+            bool bCacheReady = false;
+            FString FailureReason;
+            const int32 ResponseCode = Resp.IsValid() ? Resp->GetResponseCode() : -1;
 
-            // 期间资产又被改绑/升版 → 本次结果已过期，丢弃
-            if (Self->AssetPath != ExpectId)
+            if (!bOk || !Resp.IsValid() || ResponseCode != 200)
             {
-                UE_LOG(LogTemp, Log, TEXT("[孪生体] 下载结果已过期，丢弃: %s"), *ExpectId);
-                return;
+                FailureReason = FString::Printf(TEXT("HTTP %d"), ResponseCode);
             }
-
-            if (!bOk || !Resp.IsValid() || Resp->GetResponseCode() != 200)
+            else if (!IsValidGlbPayload(Resp->GetContent()))
             {
-                UE_LOG(LogTemp, Error, TEXT("[孪生体] ArtStudio 下载失败 (code=%d)，保持占位 Cube"),
-                       Resp.IsValid() ? Resp->GetResponseCode() : -1);
-                return;  // 占位 Cube 已在位
-            }
-
-            // 落盘缓存 → 加载
-            if (!FFileHelper::SaveArrayToFile(Resp->GetContent(), *CacheFile))
-            {
-                UE_LOG(LogTemp, Error, TEXT("[孪生体] 缓存写入失败: %s"), *CacheFile);
-                return;
-            }
-            if (!Self->LoadGltfFromFile(CacheFile))
-            {
-                Self->SetPlaceholderCube();
+                FailureReason = TEXT("GLB 校验失败");
             }
             else
             {
-                Self->PurgeOldCacheVersions(AssetIdForPurge, CacheFile);
+                IFileManager::Get().Delete(*TempFile, false, true);
+                if (!FFileHelper::SaveArrayToFile(Resp->GetContent(), *TempFile))
+                {
+                    FailureReason = TEXT("临时缓存写入失败");
+                }
+                else
+                {
+                    IFileManager::Get().Delete(*CacheFile, false, true);
+                    bCacheReady = IFileManager::Get().Move(
+                        *CacheFile,
+                        *TempFile,
+                        true,
+                        true);
+                    if (!bCacheReady)
+                    {
+                        FailureReason = TEXT("缓存原子替换失败");
+                        IFileManager::Get().Delete(*TempFile, false, true);
+                    }
+                }
+            }
+
+            TArray<TWeakObjectPtr<ATwinInstance>> Waiters;
+            {
+                FScopeLock Lock(&GArtStudioDownloadGuard);
+                if (TArray<TWeakObjectPtr<ATwinInstance>>* Found = GArtStudioDownloadWaiters.Find(DownloadKey))
+                {
+                    Waiters = MoveTemp(*Found);
+                }
+                GArtStudioDownloadWaiters.Remove(DownloadKey);
+                GArtStudioDownloadsInFlight.Remove(DownloadKey);
+            }
+
+            if (!bCacheReady)
+            {
+                UE_LOG(LogTemp, Error, TEXT("[孪生体] ArtStudio 下载失败: %s (%s)"), *ExpectId, *FailureReason);
+            }
+
+            for (const TWeakObjectPtr<ATwinInstance>& WeakWaiter : Waiters)
+            {
+                ATwinInstance* Waiter = WeakWaiter.Get();
+                if (!Waiter)
+                {
+                    continue;
+                }
+                if (Waiter->PendingRemoteId == ExpectId)
+                {
+                    Waiter->PendingRemoteId.Empty();
+                }
+                if (Waiter->AssetPath != ExpectId)
+                {
+                    continue;
+                }
+
+                if (bCacheReady && Waiter->LoadGltfFromFile(CacheFile))
+                {
+                    Waiter->RemoteRetryAttempt = 0;
+                    Waiter->PurgeOldCacheVersions(AssetIdForPurge, CacheFile);
+                }
+                else
+                {
+                    if (bCacheReady)
+                    {
+                        IFileManager::Get().Delete(*CacheFile, false, true);
+                    }
+                    Waiter->SetPlaceholderCube();
+                    Waiter->ScheduleRemoteGltfRetry(ExpectId);
+                }
             }
         });
 
-    Request->ProcessRequest();
+    if (!Request->ProcessRequest())
+    {
+        TArray<TWeakObjectPtr<ATwinInstance>> Waiters;
+        {
+            FScopeLock Lock(&GArtStudioDownloadGuard);
+            if (TArray<TWeakObjectPtr<ATwinInstance>>* Found = GArtStudioDownloadWaiters.Find(DownloadKey))
+            {
+                Waiters = MoveTemp(*Found);
+            }
+            GArtStudioDownloadWaiters.Remove(DownloadKey);
+            GArtStudioDownloadsInFlight.Remove(DownloadKey);
+        }
+        for (const TWeakObjectPtr<ATwinInstance>& WeakWaiter : Waiters)
+        {
+            if (ATwinInstance* Waiter = WeakWaiter.Get())
+            {
+                if (Waiter->PendingRemoteId == ExpectId)
+                {
+                    Waiter->PendingRemoteId.Empty();
+                }
+                if (Waiter->AssetPath == ExpectId)
+                {
+                    Waiter->ScheduleRemoteGltfRetry(ExpectId);
+                }
+            }
+        }
+    }
+}
+
+void ATwinInstance::ScheduleRemoteGltfRetry(const FString& StableId)
+{
+    if (AssetPath != StableId || RemoteRetryId != StableId)
+    {
+        return;
+    }
+
+    constexpr int32 MaxRetryAttempts = 3;
+    if (RemoteRetryAttempt >= MaxRetryAttempts)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[孪生体] ArtStudio 下载重试已达上限: %s"), *StableId);
+        return;
+    }
+
+    const float DelaySeconds = FMath::Pow(2.0f, static_cast<float>(RemoteRetryAttempt));
+    ++RemoteRetryAttempt;
+    TWeakObjectPtr<ATwinInstance> WeakThis(this);
+    FTSTicker::GetCoreTicker().AddTicker(
+        FTickerDelegate::CreateLambda(
+            [WeakThis, StableId](float)
+            {
+                ATwinInstance* Self = WeakThis.Get();
+                if (Self && Self->AssetPath == StableId)
+                {
+                    Self->PendingRemoteId.Empty();
+                    Self->LoadRemoteGltf(StableId);
+                }
+                return false;
+            }),
+        DelaySeconds);
+    UE_LOG(LogTemp, Warning, TEXT("[孪生体] %.0f 秒后重试 ArtStudio 下载: %s"), DelaySeconds, *StableId);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

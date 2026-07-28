@@ -338,7 +338,7 @@ class MigrationAssemblyTests(unittest.TestCase):
         self.assertNotIn("render_parts", legacy)
         self.assertNotIn("assembly_signature", legacy)
 
-    def test_assembly_instance_assets_override_type_default(self):
+    def test_type_default_overrides_assembly_instance_assets(self):
         resolve = APP_HELPERS["_resolve_instance_render_assets"]
         raw = {"asset_id": "/Game/Raw.Raw"}
         object_type = {
@@ -352,15 +352,43 @@ class MigrationAssemblyTests(unittest.TestCase):
         }
         self.assertEqual(
             resolve(raw, config, object_type, {}),
-            (
-                "/Game/AssemblyPrimary.AssemblyPrimary",
-                "/Game/AssemblyPrimary.AssemblyPrimary",
-            ),
+            ("type-model.glb", "/Game/TypeDefault.TypeDefault"),
         )
         self.assertEqual(
             resolve(raw, {"asset_id": "/Game/Old.Old"}, object_type, {}),
             ("type-model.glb", "/Game/TypeDefault.TypeDefault"),
         )
+
+        object_type["asset_id"] = ""
+        object_type["ue_asset_path"] = ""
+        self.assertEqual(
+            resolve(raw, config, object_type, {}),
+            (
+                "/Game/AssemblyPrimary.AssemblyPrimary",
+                "/Game/AssemblyPrimary.AssemblyPrimary",
+            ),
+        )
+
+    def test_instance_override_replaces_whole_assembly_payload(self):
+        resolve = APP_HELPERS["_resolve_instance_render_assets"]
+        config = {
+            "asset_id": "/Game/AssemblyPrimary.AssemblyPrimary",
+            "render_parts": [{"asset_path": "/Game/Part.Part"}],
+            "assembly_signature": "sig-a",
+            "model_override": {
+                "asset_id": "replacement.glb",
+                "ue_asset_path": "replacement.glb",
+            },
+        }
+        self.assertEqual(
+            resolve({}, config, {"asset_id": "type.glb"}, {}),
+            ("replacement.glb", "replacement.glb"),
+        )
+        payload = APP_HELPERS["_build_representable_interface"](
+            "replacement.glb", "replacement.glb", True, None
+        )
+        self.assertNotIn("render_parts", payload)
+        self.assertNotIn("assembly_signature", payload)
 
 
 if __name__ == "__main__":

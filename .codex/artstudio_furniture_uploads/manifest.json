@@ -1,0 +1,92 @@
+[
+  {
+    "code": "FUR-01",
+    "title": "浅灰模块沙发-端头A（FUR-01）",
+    "rid": "zhhz.furniture.model_00f6e344f4bc728d",
+    "file": "D:\\tmp\\digital_twin_aircraft\\.codex\\artstudio_furniture_uploads\\FUR-01.glb",
+    "parts": 148,
+    "bytes": 4561068,
+    "warnings": []
+  },
+  {
+    "code": "FUR-02",
+    "title": "黑边操作台-03（FUR-02）",
+    "rid": "zhhz.furniture.model_08b8830e0759ec98",
+    "file": "D:\\tmp\\digital_twin_aircraft\\.codex\\artstudio_furniture_uploads\\FUR-02.glb",
+    "parts": 12,
+    "bytes": 774180,
+    "warnings": []
+  },
+  {
+    "code": "FUR-03",
+    "title": "浅灰模块沙发-中间模块A（FUR-03）",
+    "rid": "zhhz.furniture.model_1e271d28426dbb11",
+    "file": "D:\\tmp\\digital_twin_aircraft\\.codex\\artstudio_furniture_uploads\\FUR-03.glb",
+    "parts": 148,
+    "bytes": 4560876,
+    "warnings": []
+  },
+  {
+    "code": "FUR-04",
+    "title": "黑边操作台-04（FUR-04）",
+    "rid": "zhhz.furniture.model_2c43c2099c60a0f1",
+    "file": "D:\\tmp\\digital_twin_aircraft\\.codex\\artstudio_furniture_uploads\\FUR-04.glb",
+    "parts": 12,
+    "bytes": 774200,
+    "warnings": []
+  },
+  {
+    "code": "FUR-05",
+    "title": "蓝色布面展示桌（FUR-05）",
+    "rid": "zhhz.furniture.model_475c912888eccf1b",
+    "file": "D:\\tmp\\digital_twin_aircraft\\.codex\\artstudio_furniture_uploads\\FUR-05.glb",
+    "parts": 16,
+    "bytes": 17612352,
+    "warnings": []
+  },
+  {
+    "code": "FUR-06",
+    "title": "浅灰模块沙发-端头B（FUR-06）",
+    "rid": "zhhz.furniture.model_61c27ee7c2b1fe3f",
+    "file": "D:\\tmp\\digital_twin_aircraft\\.codex\\artstudio_furniture_uploads\\FUR-06.glb",
+    "parts": 148,
+    "bytes": 4561044,
+    "warnings": []
+  },
+  {
+    "code": "FUR-07",
+    "title": "黑边操作台-01（FUR-07）",
+    "rid": "zhhz.furniture.model_76d7245c5c5eb6f3",
+    "file": "D:\\tmp\\digital_twin_aircraft\\.codex\\artstudio_furniture_uploads\\FUR-07.glb",
+    "parts": 12,
+    "bytes": 774140,
+    "warnings": []
+  },
+  {
+    "code": "FUR-08",
+    "title": "简式黑边操作台（FUR-08）",
+    "rid": "zhhz.furniture.model_8af3f2d41ac15d21",
+    "file": "D:\\tmp\\digital_twin_aircraft\\.codex\\artstudio_furniture_uploads\\FUR-08.glb",
+    "parts": 6,
+    "bytes": 133644,
+    "warnings": []
+  },
+  {
+    "code": "FUR-09",
+    "title": "黑边操作台-02（FUR-09）",
+    "rid": "zhhz.furniture.model_c1be81bd0e519f10",
+    "file": "D:\\tmp\\digital_twin_aircraft\\.codex\\artstudio_furniture_uploads\\FUR-09.glb",
+    "parts": 12,
+    "bytes": 774192,
+    "warnings": []
+  },
+  {
+    "code": "FUR-10",
+    "title": "浅灰模块沙发-中间模块B（FUR-10）",
+    "rid": "zhhz.furniture.model_c5aac92959d48644",
+    "file": "D:\\tmp\\digital_twin_aircraft\\.codex\\artstudio_furniture_uploads\\FUR-10.glb",
+    "parts": 148,
+    "bytes": 4561072,
+    "warnings": []
+  }
+]

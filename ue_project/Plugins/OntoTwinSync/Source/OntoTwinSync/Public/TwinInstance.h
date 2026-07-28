@@ -284,6 +284,9 @@ private:
     /** ArtStudio 远程加载：artstudio:{id}:v{n} → 命中缓存即时加载，否则占位 Cube + 异步下载（3.3） */
     void LoadRemoteGltf(const FString& StableId);
 
+    /** ArtStudio 下载失败后的有限指数退避重试。 */
+    void ScheduleRemoteGltfRetry(const FString& StableId);
+
     /** 设置占位立方体（加载失败/下载中） */
     void SetPlaceholderCube();
 
@@ -292,6 +295,10 @@ private:
 
     /** 正在下载的稳定标识，防重复请求；空=无下载在途 */
     FString PendingRemoteId;
+
+    /** 当前稳定标识的下载重试代次；模型改绑后自动清零。 */
+    FString RemoteRetryId;
+    int32 RemoteRetryAttempt = 0;
 
     /** 把当前的材质全部存下 */
     void CacheOriginalMaterials();

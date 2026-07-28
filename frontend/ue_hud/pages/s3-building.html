@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>OntoTwin · S3 厂房总览</title>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/transparent-root.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layouts.css">
+  <link rel="stylesheet" href="../assets/css/states.css">
+  <script defer src="../assets/js/ue-bridge.js"></script>
+  <script defer src="../assets/js/page-runtime.js"></script>
+  <script defer src="../assets/js/pages/s3-building.js"></script>
+</head>
+<body data-page="s3-building">
+  <div id="root">
+    <main id="app" class="hud-layout" aria-label="S3 厂房业务界面">
+      <header class="hud-topbar hud-surface hud-surface--strong" data-ue-interactive="context-bar">
+        <div class="hud-topbar__context">
+          <div class="hud-brand-mark" aria-hidden="true">OT</div>
+          <div class="hud-topbar__title">
+            <strong id="context-title">正在读取厂房</strong>
+            <span id="context-path">园区 / 厂房</span>
+          </div>
+        </div>
+        <div class="hud-topbar__meta">
+          <div class="hud-live-strip">
+            <span class="hud-muted">发布版本</span>
+            <span class="hud-live-strip__label" id="config-revision">未发布</span>
+          </div>
+          <div class="hud-live-strip">
+            <span class="hud-dot" id="status-dot" data-level="unknown" aria-hidden="true"></span>
+            <span class="hud-live-strip__label" id="status-label">未知</span>
+          </div>
+        </div>
+      </header>
+
+      <aside class="hud-panel hud-panel--left hud-surface hud-surface--strong" data-ue-interactive="building-overview" aria-label="厂房概况">
+        <div id="page-state" aria-live="polite">
+          <div class="hud-page-state">
+            <h2 class="hud-page-state__title">正在读取厂房数据</h2>
+          </div>
+        </div>
+
+        <div id="page-content" class="hud-panel__scroll" hidden>
+          <section class="hud-section">
+            <p class="hud-eyebrow"><span id="space-level">S3</span> 空间对象</p>
+            <h1 class="hud-heading" id="building-title">厂房概况</h1>
+            <p class="hud-copy" id="status-detail">暂无状态说明</p>
+          </section>
+
+          <div class="hud-divider"></div>
+
+          <section class="hud-section" aria-labelledby="metric-title">
+            <div class="hud-section__head">
+              <h2 class="hud-section__title" id="metric-title">核心指标</h2>
+              <span class="hud-muted">实时</span>
+            </div>
+            <div class="hud-metric-grid" id="metric-grid"></div>
+          </section>
+
+          <section class="hud-section" aria-labelledby="floor-title">
+            <div class="hud-section__head">
+              <h2 class="hud-section__title" id="floor-title">楼层观察</h2>
+            </div>
+            <div class="hud-segment" id="floor-segment" role="group" aria-label="选择楼层"></div>
+          </section>
+
+          <section class="hud-section" aria-labelledby="zone-title">
+            <div class="hud-section__head">
+              <h2 class="hud-section__title" id="zone-title">下级分区</h2>
+              <span class="hud-muted">进入 S4</span>
+            </div>
+            <ul class="hud-list" id="zone-list"></ul>
+          </section>
+        </div>
+      </aside>
+
+      <section class="hud-scene-clear-zone" aria-label="透明三维模型观察区域" data-ue-decoration></section>
+
+      <aside class="hud-panel hud-panel--right hud-surface" data-ue-interactive="business-detail" aria-label="厂房业务详情">
+        <div class="hud-panel__scroll">
+          <section class="hud-section" aria-labelledby="event-title">
+            <div class="hud-section__head">
+              <h2 class="hud-section__title" id="event-title">待处置事件</h2>
+              <button class="hud-button" type="button" data-ue-interactive="event-workbench" data-action="open-event-workbench">查看全部</button>
+            </div>
+            <ul class="hud-list" id="event-list"></ul>
+          </section>
+
+          <div class="hud-divider"></div>
+
+          <section class="hud-section" aria-labelledby="asset-title">
+            <div class="hud-section__head">
+              <h2 class="hud-section__title" id="asset-title">物理资产档案</h2>
+            </div>
+            <dl class="hud-definition-list">
+              <dt>空间编码</dt><dd id="space-id">—</dd>
+              <dt>资产编码</dt><dd id="asset-code">—</dd>
+              <dt>建筑类别</dt><dd id="asset-category">—</dd>
+              <dt>建筑面积</dt><dd id="asset-area">—</dd>
+              <dt>接入能力</dt><dd id="asset-capability">—</dd>
+            </dl>
+          </section>
+
+          <section class="hud-section" aria-labelledby="entry-title">
+            <div class="hud-section__head">
+              <h2 class="hud-section__title" id="entry-title">业务入口</h2>
+            </div>
+            <div class="hud-list">
+              <button class="hud-list-button" type="button" data-ue-interactive="energy" data-action="open-energy-overview">
+                <span><span class="hud-list-button__title">能源管控</span><span class="hud-list-button__meta">查看供能、设备与异常</span></span>
+                <span class="hud-count">进入</span>
+              </button>
+              <button class="hud-list-button" type="button" data-ue-interactive="instance-list" data-action="open-instance-list">
+                <span><span class="hud-list-button__title">站位与设备</span><span class="hud-list-button__meta">进入 S5 对象列表</span></span>
+                <span class="hud-count">进入</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      </aside>
+
+      <nav class="hud-actionbar hud-surface hud-surface--strong" data-ue-interactive="action-bar" aria-label="厂房操作">
+        <span class="hud-actionbar__context" id="action-context">当前厂房</span>
+        <button class="hud-button" type="button" data-ue-interactive="focus" data-action="focus-building">聚焦对象</button>
+        <button class="hud-button hud-button--primary" type="button" data-ue-interactive="enter" data-action="enter-building">进入厂房</button>
+      </nav>
+
+      <div class="hud-toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+    </main>
+  </div>
+</body>
+</html>

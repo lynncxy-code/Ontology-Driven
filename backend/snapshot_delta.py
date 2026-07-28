@@ -285,6 +285,7 @@ def _collect_instance_tokens(project_store, zone, object_types):
             raw_state = instance.get("raw_state") or {}
             render_config = instance.get("render_config") or {}
             render_parts = render_config.get("render_parts") or []
+            model_override = render_config.get("model_override") or {}
             override = (
                 (render_config.get("interface_overrides") or {}).get("I3D_Overlay") or {}
             )
@@ -308,12 +309,18 @@ def _collect_instance_tokens(project_store, zone, object_types):
                 instance.get("classification_key"),
                 instance.get("zone_id"),
                 id(render_config),
+                render_config.get("asset_id"),
+                render_config.get("ue_asset_path"),
                 render_config.get("assembly_signature"),
                 id(render_parts),
                 len(render_parts),
+                model_override.get("revision"),
+                model_override.get("asset_id"),
+                model_override.get("ue_asset_path"),
                 override.get("revision"),
                 id(object_type),
                 object_type.get("asset_id"),
+                object_type.get("ue_asset_path"),
                 tuple(object_type.get("injected_interfaces") or []),
                 type_overlay.get("revision"),
             )

@@ -1,0 +1,91 @@
+{
+  "config_revision": "building-demo-r1",
+  "space": {
+    "id": "SF.SB.M01",
+    "name": "M01 总装厂房",
+    "level": "S3",
+    "type": "building",
+    "path_label": "沈北园区 / M01 总装厂房"
+  },
+  "status": {
+    "display_value": "注意",
+    "detail_value": "当前有 7 个高告警需要关注",
+    "level": "warning",
+    "accent_token": "amber",
+    "state": "ok"
+  },
+  "metrics": [
+    {
+      "id": "managed_events",
+      "label": "在管事件",
+      "display_value": "22",
+      "state": "ok",
+      "numeric_value": 22,
+      "note": "全厂房未闭环"
+    },
+    {
+      "id": "high_alerts",
+      "label": "高告警",
+      "display_value": "7",
+      "state": "ok",
+      "numeric_value": 7,
+      "note": "需优先处置"
+    },
+    {
+      "id": "station_online",
+      "label": "站位在线率",
+      "display_value": "96%",
+      "state": "ok",
+      "numeric_value": 96,
+      "note": "24 / 25 在线"
+    },
+    {
+      "id": "readiness",
+      "label": "开工齐套率",
+      "display_value": "78%",
+      "state": "ok",
+      "numeric_value": 78,
+      "note": "1 个站位受阻"
+    }
+  ],
+  "floors": [
+    { "id": "hall", "name": "大厅" },
+    { "id": "corridor1F", "name": "环廊 1F" },
+    { "id": "corridor2F", "name": "环廊 2F" }
+  ],
+  "zones": [
+    { "id": "SF.SB.M01.ZA", "name": "A 区", "summary": "总装与调姿", "event_count": 6 },
+    { "id": "SF.SB.M01.ZB", "name": "B 区", "summary": "系统安装", "event_count": 8 },
+    { "id": "SF.SB.M01.ZC", "name": "C 区", "summary": "检测与交付", "event_count": 5 },
+    { "id": "SF.SB.M01.ZD", "name": "D 区", "summary": "辅助保障", "event_count": 3 }
+  ],
+  "events": [
+    {
+      "id": "EVT-M01-007",
+      "name": "装配站位温度接近上限",
+      "level": "warning",
+      "location": "A 区 / A区-01 站位",
+      "display_time": "2 分钟前"
+    },
+    {
+      "id": "EVT-M01-012",
+      "name": "动力支路压力异常",
+      "level": "critical",
+      "location": "B 区 / 环廊 2F",
+      "display_time": "8 分钟前"
+    },
+    {
+      "id": "EVT-M01-018",
+      "name": "视频设备短时离线",
+      "level": "info",
+      "location": "C 区 / 交付口",
+      "display_time": "16 分钟前"
+    }
+  ],
+  "asset": {
+    "code": "BLD-M01",
+    "category": "单层通高总装厂房",
+    "area_display": "86,400 m²",
+    "capability": "监测与控制"
+  }
+}

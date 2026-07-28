@@ -3,9 +3,13 @@ ArtStudio 资产库客户端（OntoTwin 3.3）。
 
 封装对 artstudio.digioasis.tech 的访问，供 bind / snapshot / 下载代理复用：
 - 详情查询：拿 files[].downloadUrl（S3 预签名直链）+ currentVersion
-- 版本 TTL 缓存：避免每次 snapshot 都打库
-- glb 校验：本期只支持 glb，fbx/usd 在 bind 处拦截
+- 版本查询：供显式重新绑定时生成缓存版本键
+- glb 校验：本期只支持单文件 glb，gltf/fbx/usd 在 bind 处拦截
 - 下载流式转发：UE → Flask → S3，隐藏 presigned/token
+
+ArtStudio 模型不再预取到后端 Models 目录。UE 在 PIE 或打包程序中
+通过下载代理获取模型，并保存到各自的 Saved/ModelCache。下方预取函数
+仅保留给旧部署兼容，不参与模型绑定与快照链路。
 
 与 app.py 解耦：启动时由 app.py 调 configure() 注入配置。
 """
@@ -20,12 +24,14 @@ _BASE_URL = "https://artstudio.digioasis.tech/api"
 _TOKEN = None
 _TENANT_ID = None
 _TIMEOUT = 5
-_MODELS_DIR = None   # 后端预取落盘目录（容器内 /models，映射到 UE 固定 Models 目录）
+_MODELS_DIR = None   # 旧部署兼容：后端预取目录；当前 ArtStudio 链路不再使用
 _credentials_guard = threading.Lock()
 
 # 预取去重：同一文件并发只下一次（后台线程）
 _downloading = set()
+_download_failures = {}
 _dl_guard = threading.Lock()
+_DOWNLOAD_RETRY_COOLDOWN = 30
 
 # ── 版本缓存：asset_id -> (version:int, expire_ts) ──────────────────
 _VERSION_TTL = 30  # 秒
@@ -192,11 +198,11 @@ def fetch_detail(asset_id):
 
 
 def pick_glb_file(detail):
-    """从详情里挑出 glb/gltf 文件；没有则 None。"""
+    """从详情里挑出可独立运行时加载的 GLB 文件；没有则 None。"""
     if not detail:
         return None
     for f in detail.get("files", []):
-        if f["ext"] in ("glb", "gltf"):
+        if f["ext"] == "glb":
             return f
     return None
 
@@ -269,13 +275,34 @@ def ensure_local_glb(asset_id, version):
     with _dl_guard:
         if filename in _downloading:
             return None
+        failed_at = _download_failures.get(filename)
+        if failed_at and (time.time() - failed_at) < _DOWNLOAD_RETRY_COOLDOWN:
+            return None
         _downloading.add(filename)
     threading.Thread(target=_download_worker, args=(asset_id, filename, path), daemon=True).start()
     return None
 
 
+def local_glb_status(asset_id, version):
+    """Return the non-blocking preparation state used by instance model binding."""
+    if not _MODELS_DIR:
+        return "failed"
+    filename = f"{asset_id}_v{version}.glb"
+    path = os.path.join(_MODELS_DIR, filename)
+    if os.path.exists(path) and os.path.getsize(path) > 0:
+        return "ready"
+    with _dl_guard:
+        if filename in _downloading:
+            return "preparing"
+        failed_at = _download_failures.get(filename)
+        if failed_at and (time.time() - failed_at) < _DOWNLOAD_RETRY_COOLDOWN:
+            return "failed"
+    return "preparing"
+
+
 def _download_worker(asset_id, filename, path):
     tmp = path + ".part"
+    succeeded = False
     try:
         for attempt in range(3):   # S3 链路不稳，重试 3 次
             upstream, _ = open_download_stream(asset_id)
@@ -289,6 +316,7 @@ def _download_worker(asset_id, filename, path):
                         if chunk:
                             f.write(chunk)
                 os.replace(tmp, path)   # 原子落盘，避免 UE 读到半截文件
+                succeeded = True
                 print(f"[ArtStudio预取] ✅ {filename} ({os.path.getsize(path)} bytes)", flush=True)
                 return
             except Exception as e:
@@ -303,15 +331,23 @@ def _download_worker(asset_id, filename, path):
     finally:
         with _dl_guard:
             _downloading.discard(filename)
+            if succeeded:
+                _download_failures.pop(filename, None)
+            else:
+                _download_failures[filename] = time.time()
 
 
-def open_download_stream(asset_id):
+def open_download_stream(asset_id, expected_version=None):
     """
     打开 glb 的流式下载（供代理转发）。
     返回 (requests.Response, filename) 或 (None, None)。
     调用方负责 iter_content 并最终 close。
     """
-    f = pick_glb_file(fetch_detail(asset_id))
+    detail = fetch_detail(asset_id)
+    if expected_version is not None and detail:
+        if int(detail.get("version") or 1) != int(expected_version):
+            return None, None
+    f = pick_glb_file(detail)
     if not f:
         return None, None
     try:

@@ -1,0 +1,48 @@
+:root {
+  color-scheme: dark;
+
+  --hud-ink: rgba(255, 255, 255, 0.96);
+  --hud-ink-2: rgba(255, 255, 255, 0.72);
+  --hud-ink-3: rgba(255, 255, 255, 0.5);
+  --hud-line: rgba(255, 255, 255, 0.18);
+  --hud-line-strong: rgba(255, 255, 255, 0.3);
+  --hud-surface: rgba(18, 18, 20, 0.72);
+  --hud-surface-strong: rgba(18, 18, 20, 0.86);
+  --hud-surface-hover: rgba(42, 42, 46, 0.82);
+  --hud-surface-pressed: rgba(58, 58, 62, 0.86);
+
+  --hud-ok: #68c89a;
+  --hud-info: #83b7d8;
+  --hud-warning: #e2b66f;
+  --hud-critical: #df7d76;
+  --hud-offline: #8a8a8f;
+
+  --hud-r-sm: 6px;
+  --hud-r-md: 8px;
+  --hud-r-lg: 12px;
+
+  --hud-s1: 4px;
+  --hud-s2: 8px;
+  --hud-s3: 12px;
+  --hud-s4: 16px;
+  --hud-s5: 20px;
+  --hud-s6: 24px;
+  --hud-s8: 32px;
+
+  --hud-t-xs: 11px;
+  --hud-t-sm: 12px;
+  --hud-t-base: 13px;
+  --hud-t-md: 14px;
+  --hud-t-lg: 16px;
+  --hud-t-xl: 20px;
+  --hud-t-value: clamp(24px, 1.8vw, 34px);
+
+  --hud-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+  --hud-font: Inter, "Noto Sans SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+
+  --hud-safe-x: clamp(16px, 1.25vw, 32px);
+  --hud-safe-y: clamp(16px, 1.4vh, 28px);
+  --hud-top-height: clamp(56px, 5.2vh, 68px);
+  --hud-left-width: clamp(304px, 19vw, 372px);
+  --hud-right-width: clamp(344px, 22vw, 448px);
+}

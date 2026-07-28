@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>实例运维与监控中心 | OntoTwin Nexus 2.3</title>
+    <title>实例运维与监控中心 | OntoTwin Nexus 3.3.3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/vendor/vue-3.3.4.global.prod.js" integrity="sha384-QLgwzsuau/sa8LhRgjRzkvQS0LyUzCM2B8FPwVoSu1KDel940/orifPaumNXp9hK" crossorigin="anonymous"></script>
     <script src="/vendor/axios-1.7.9.min.js" integrity="sha384-jLwhcmGu/RL8PSTUEl/559f8QVLL4QqM+HBvoZlt4F7XCdsdoDGAwW4nPFfoM7lU" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.3.2/bin/jsencrypt.min.js" integrity="sha384-FwzUI3CDdHbj2MEKbnjj0eCvB+gYurE3x3pW/udNFOVUbrCrl3REWMQ1FBTolvoj" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="/nexus_titlebar.css" />
     <style>
         .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
@@ -129,8 +130,12 @@
                 <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
                     <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">存活实例清单 <span class="text-gray-400 font-mono ml-1">({{ filteredInstances.length }})</span></span>
                     <div class="flex items-center gap-2">
+                        <button @click="openZoneManager" :disabled="instances.length === 0"
+                                class="text-[10px] font-medium text-gray-700 hover:text-gray-950 px-2 py-1 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-100 transition disabled:opacity-40">
+                            分区管理
+                        </button>
                         <button @click="openBatchDrawer" :disabled="instances.length === 0"
-                                class="text-[10px] font-medium text-indigo-600 hover:text-indigo-900 px-2 py-1 bg-indigo-50 border border-indigo-200 rounded shadow-sm hover:shadow transition disabled:opacity-40">
+                                class="text-[10px] font-medium text-gray-600 hover:text-gray-950 px-2 py-1 bg-white border border-gray-200 rounded shadow-sm hover:bg-gray-100 transition disabled:opacity-40">
                             批量部署
                         </button>
                         <button @click="loadInstances" class="text-[10px] font-medium text-gray-500 hover:text-gray-900 px-2 py-1 bg-white border border-gray-200 rounded shadow-sm hover:shadow transition">
@@ -138,13 +143,23 @@
                         </button>
                     </div>
                 </div>
-                <!-- Type filter for instance list -->
-                <div class="flex-shrink-0 px-4 py-2 border-b border-gray-100 bg-white flex items-center gap-2">
-                    <label class="text-[10px] font-medium text-gray-400 uppercase tracking-wide">筛选</label>
-                    <select v-model="instanceTypeFilter" class="flex-1 text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-gray-400 transition bg-white">
-                        <option value="">全部类型</option>
-                        <option v-for="ot in readyTypes" :key="ot.rid" :value="ot.name">{{ ot.name }}</option>
-                    </select>
+                <!-- Type and zone filters for instance list -->
+                <div class="flex-shrink-0 px-4 py-2 border-b border-gray-100 bg-white grid grid-cols-2 gap-2">
+                    <label class="space-y-1">
+                        <span class="block text-[10px] font-medium text-gray-400">设备类型</span>
+                        <select v-model="instanceTypeFilter" class="w-full text-xs border border-gray-300 rounded-md px-2 py-1.5 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100 transition bg-white">
+                            <option value="">全部类型</option>
+                            <option v-for="ot in readyTypes" :key="ot.rid" :value="ot.name">{{ ot.name }}</option>
+                        </select>
+                    </label>
+                    <label class="space-y-1">
+                        <span class="block text-[10px] font-medium text-gray-400">空间分区</span>
+                        <select v-model="instanceZoneFilter" class="w-full text-xs border border-gray-300 rounded-md px-2 py-1.5 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100 transition bg-white">
+                            <option value="">全部分区</option>
+                            <option value="__unassigned__">未分区</option>
+                            <option v-for="zone in availableZones" :key="zone.id" :value="zone.id">{{ zone.id }}（{{ zone.count }}）</option>
+                        </select>
+                    </label>
                 </div>
                 <div class="flex-1 overflow-y-auto p-4 space-y-2">
                     <div v-if="filteredInstances.length === 0" class="text-center text-sm text-gray-400 py-10">当前无实例在役</div>
@@ -166,6 +181,7 @@
                             <div class="flex-1 min-w-0">
                                 <div class="font-mono text-sm font-bold text-gray-900 truncate">{{ inst.display_name || inst.id }}</div>
                                 <div class="text-[11px] text-gray-500 mt-0.5 truncate">{{ inst.object_type_name }}</div>
+                                <div v-if="inst.hierarchy_path?.length" class="text-[10px] text-gray-400 mt-0.5 truncate">{{ inst.hierarchy_path.join(' / ') }}</div>
                             </div>
                             <div class="flex flex-col items-end gap-1.5 shrink-0">
                                 <span :class="[
@@ -199,7 +215,7 @@
                             type="button"
                             role="tab"
                             :aria-selected="activeMonitorTab === 'stream'"
-                            @click="activeMonitorTab = 'stream'"
+                            @click="switchMonitorTab('stream')"
                             :class="[
                                 'relative py-3 px-1 text-sm font-medium transition focus:outline-none focus-visible:bg-gray-100 focus-visible:text-gray-950',
                                 activeMonitorTab === 'stream' ? 'text-gray-950' : 'text-gray-500 hover:text-gray-900'
@@ -211,7 +227,7 @@
                             type="button"
                             role="tab"
                             :aria-selected="activeMonitorTab === 'control'"
-                            @click="activeMonitorTab = 'control'"
+                            @click="switchMonitorTab('control')"
                             :class="[
                                 'relative py-3 px-1 text-sm font-medium transition focus:outline-none focus-visible:bg-gray-100 focus-visible:text-gray-950',
                                 activeMonitorTab === 'control' ? 'text-gray-950' : 'text-gray-500 hover:text-gray-900'
@@ -219,11 +235,23 @@
                         实例控制
                         <span v-if="activeMonitorTab === 'control'" class="absolute inset-x-0 bottom-0 h-0.5 bg-gray-950"></span>
                     </button>
+                    <button id="instance-tab-model"
+                            type="button"
+                            role="tab"
+                            :aria-selected="activeMonitorTab === 'model'"
+                            @click="switchMonitorTab('model')"
+                            :class="[
+                                'relative py-3 px-1 text-sm font-medium transition focus:outline-none focus-visible:bg-gray-100 focus-visible:text-gray-950',
+                                activeMonitorTab === 'model' ? 'text-gray-950' : 'text-gray-500 hover:text-gray-900'
+                            ]">
+                        模型配置
+                        <span v-if="activeMonitorTab === 'model'" class="absolute inset-x-0 bottom-0 h-0.5 bg-gray-950"></span>
+                    </button>
                     <button id="instance-tab-json"
                             type="button"
                             role="tab"
                             :aria-selected="activeMonitorTab === 'json'"
-                            @click="activeMonitorTab = 'json'"
+                            @click="switchMonitorTab('json')"
                             :class="[
                                 'relative py-3 px-1 text-sm font-medium transition focus:outline-none focus-visible:bg-gray-100 focus-visible:text-gray-950',
                                 activeMonitorTab === 'json' ? 'text-gray-950' : 'text-gray-500 hover:text-gray-900'
@@ -352,6 +380,97 @@
                 <div class="flex-1 overflow-y-auto p-6">
 
                     <div class="mx-auto max-w-5xl">
+                        <!-- Instance model binding (3.3.3) -->
+                        <div v-show="activeMonitorTab === 'model'" class="space-y-4">
+                            <div v-if="modelBindingLoading" class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm" aria-live="polite">
+                                <div class="h-4 w-32 rounded bg-gray-200 animate-pulse"></div>
+                                <div class="mt-4 h-20 rounded-lg bg-gray-100 animate-pulse"></div>
+                                <div class="mt-3 h-10 rounded-lg bg-gray-100 animate-pulse"></div>
+                            </div>
+                            <div v-else-if="modelBindingError" class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                                <div class="text-sm font-semibold text-gray-900">模型配置暂时无法读取</div>
+                                <p class="mt-1 text-xs leading-relaxed text-gray-500">{{ modelBindingError }}</p>
+                                <button type="button" @click="loadModelBinding" class="mt-4 text-xs font-medium px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">重新读取</button>
+                            </div>
+                            <template v-else-if="modelBinding">
+                                <div v-if="!modelBinding.capability.enabled" class="bg-white border border-gray-300 rounded-xl p-5 shadow-sm">
+                                    <div class="text-sm font-semibold text-gray-900">当前类型尚未启用三维表现能力</div>
+                                    <p class="mt-1 text-xs leading-relaxed text-gray-500">已有覆盖数据会保留，但在启用 I3D_Representable 前不会渲染，也不能保存新的模型覆盖。</p>
+                                    <a :href="`/ontology?rid=${encodeURIComponent(modelBinding.object_type_rid)}`"
+                                       class="mt-3 inline-flex text-xs font-medium text-gray-900 underline underline-offset-4 hover:text-black">前往本体配置中心</a>
+                                </div>
+
+                                <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                                    <div class="px-5 py-4 border-b border-gray-200 bg-gray-50/50 flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <div class="text-sm font-semibold text-gray-900">当前生效模型</div>
+                                            <div class="mt-1 text-[11px] text-gray-500">生效优先级：实例覆盖 ＞ 类型默认 ＞ 实例原始模型 ＞ 占位模型。</div>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-[10px] px-2 py-1 rounded-md border border-gray-200 bg-white text-gray-600">{{ modelBinding.model_status.label }}</span>
+                                            <span class="text-[10px] px-2 py-1 rounded-md border border-gray-200 bg-white text-gray-600">{{ modelBinding.delivery_status.label }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="p-5">
+                                        <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                            <div class="flex flex-wrap items-start justify-between gap-4">
+                                                <div class="min-w-0">
+                                                    <div class="flex flex-wrap items-center gap-2">
+                                                        <span class="text-sm font-semibold text-gray-950 break-all">{{ modelBinding.effective_model.label }}</span>
+                                                        <span class="text-[10px] font-medium border border-gray-300 rounded px-1.5 py-0.5 bg-white text-gray-600">{{ modelModeLabel(modelBinding.effective_model.mode) }}</span>
+                                                    </div>
+                                                    <div class="mt-2 text-[11px] text-gray-500">来源：{{ modelSourceLabel(modelBinding.effective_model.source) }}</div>
+                                                    <div v-if="modelBinding.effective_model.ue_asset_path" class="mt-1 text-[11px] font-mono text-gray-500 break-all">{{ modelBinding.effective_model.ue_asset_path }}</div>
+                                                </div>
+                                                <div class="flex shrink-0 items-center gap-2">
+                                                    <button type="button" @click="openModelPicker" :disabled="!modelBinding.capability.enabled"
+                                                            class="text-xs font-medium px-4 py-2 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed">
+                                                        {{ modelBinding.instance_override ? '更换此实例模型' : '为此实例选择模型' }}
+                                                    </button>
+                                                    <button v-if="modelBinding.instance_override" type="button" @click="openModelRestoreConfirm"
+                                                            class="text-xs font-medium px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100">
+                                                        取消实例模型覆盖
+                                                    </button>
+                                                    <span v-else class="text-[11px] text-gray-500">当前未设置实例模型覆盖</span>
+                                                </div>
+                                            </div>
+                                            <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] text-gray-500">
+                                                <div class="rounded-md border border-gray-200 bg-white px-3 py-2">{{ modelBinding.model_status.message }}</div>
+                                                <div class="rounded-md border border-gray-200 bg-white px-3 py-2">{{ modelBinding.delivery_status.message }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                                        <div class="text-xs font-semibold text-gray-900">类型默认模型</div>
+                                        <template v-if="modelBinding.type_default.mode === 'type_default'">
+                                            <div class="mt-3 text-sm text-gray-800 break-all">{{ modelBinding.type_default.label }}</div>
+                                            <div v-if="modelBinding.type_default.ue_asset_path" class="mt-1 text-[11px] font-mono text-gray-500 break-all">{{ modelBinding.type_default.ue_asset_path }}</div>
+                                            <p class="mt-3 text-[11px] leading-relaxed text-gray-500">未设置实例模型覆盖时，实例会跟随这里的最新配置。</p>
+                                        </template>
+                                        <template v-else>
+                                            <div class="mt-3 text-sm text-gray-500">当前类型未设置默认模型</div>
+                                            <p class="mt-3 text-[11px] leading-relaxed text-gray-500">取消覆盖后，将继续使用实例原始模型；没有原始模型时显示占位模型。</p>
+                                        </template>
+                                    </div>
+                                    <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                                        <div class="text-xs font-semibold text-gray-900">实例原始模型</div>
+                                        <template v-if="modelBinding.original_assembly">
+                                            <div class="mt-3 text-sm text-gray-800">{{ modelBinding.original_assembly.label }}</div>
+                                            <div class="mt-1 text-[11px] text-gray-500">组合模型 · {{ modelBinding.original_assembly.part_count }} 个部件</div>
+                                            <p class="mt-3 text-[11px] leading-relaxed text-gray-500">仅当没有实例覆盖且类型未设置默认模型时，才会使用这些原始部件。</p>
+                                        </template>
+                                        <template v-else>
+                                            <div class="mt-3 text-sm text-gray-500">当前实例没有可恢复的原始模型</div>
+                                            <p class="mt-3 text-[11px] leading-relaxed text-gray-500">没有实例覆盖和类型默认模型时，将显示占位模型。</p>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
                         <!-- Interface Snapshot (JSON) -->
                         <div v-if="currentSnap" v-show="activeMonitorTab === 'json'" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                             <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
@@ -499,6 +618,112 @@
         </div>
     </div>
 
+    <!-- 实例分区批量管理 modal -->
+    <transition name="fade">
+        <div v-if="zoneManagerOpen"
+             class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+             @click.self="closeZoneManager"
+             @keydown.esc.stop="closeZoneManager">
+            <div ref="zoneDialogRef"
+                 role="dialog"
+                 aria-modal="true"
+                 aria-labelledby="zone-dialog-title"
+                 tabindex="-1"
+                 class="bg-white rounded-xl shadow-2xl w-[680px] max-w-[96vw] max-h-[88vh] flex flex-col overflow-hidden outline-none">
+                <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-start justify-between gap-4">
+                    <div>
+                        <h3 id="zone-dialog-title" class="text-base font-semibold text-gray-900">批量设置空间分区</h3>
+                        <p class="text-xs text-gray-500 mt-1">分区用于限定 UE 拉取的实例范围；可以随时移动或解除。</p>
+                    </div>
+                    <button type="button" @click="closeZoneManager" :disabled="zoneSaving"
+                            class="text-gray-400 hover:text-gray-900 rounded-md p-1 hover:bg-gray-200 transition disabled:opacity-40"
+                            aria-label="关闭分区管理">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <div class="px-6 py-4 border-b border-gray-100 grid grid-cols-2 gap-3 bg-white">
+                    <label class="space-y-1">
+                        <span class="block text-xs font-medium text-gray-600">当前分区</span>
+                        <select v-model="zoneSourceFilter" class="w-full text-xs border border-gray-300 rounded-md px-3 py-2 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100 bg-white">
+                            <option value="">全部分区</option>
+                            <option value="__unassigned__">未分区</option>
+                            <option v-for="zone in availableZones" :key="zone.id" :value="zone.id">{{ zone.id }}（{{ zone.count }}）</option>
+                        </select>
+                    </label>
+                    <label class="space-y-1">
+                        <span class="block text-xs font-medium text-gray-600">设备类型</span>
+                        <select v-model="zoneTypeFilter" class="w-full text-xs border border-gray-300 rounded-md px-3 py-2 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100 bg-white">
+                            <option value="">全部类型</option>
+                            <option v-for="ot in readyTypes" :key="ot.rid" :value="ot.name">{{ ot.name }}</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+                    <label v-if="zoneCandidates.length"
+                           class="flex items-center gap-3 px-3 py-2.5 border border-gray-200 rounded-lg bg-gray-50 cursor-pointer select-none">
+                        <input type="checkbox"
+                               :checked="zoneAllSelected"
+                               :indeterminate.prop="zoneSomeSelected && !zoneAllSelected"
+                               @change="toggleZoneSelectAll"
+                               class="accent-gray-900 w-4 h-4 cursor-pointer" />
+                        <span class="text-xs font-semibold text-gray-700">全选当前列表</span>
+                        <span class="ml-auto text-xs text-gray-500">已选 {{ zoneSelectedIds.length }} / {{ zoneCandidates.length }}</span>
+                    </label>
+                    <div v-if="!zoneCandidates.length" class="text-center text-sm text-gray-400 py-12">当前筛选条件下没有实例</div>
+                    <div v-else class="mt-3 border border-gray-200 rounded-lg divide-y divide-gray-100 overflow-hidden">
+                        <label v-for="inst in zoneCandidates" :key="inst.id"
+                               class="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50 transition select-none">
+                            <input type="checkbox" :value="inst.id" v-model="zoneSelectedIds"
+                                   class="accent-gray-900 w-4 h-4 cursor-pointer shrink-0" />
+                            <div class="min-w-0 flex-1">
+                                <div class="text-xs font-semibold text-gray-900 truncate">{{ inst.display_name || inst.id }}</div>
+                                <div class="text-[11px] text-gray-500 truncate">{{ inst.object_type_name }}</div>
+                            </div>
+                            <span class="text-[10px] font-mono text-gray-500 bg-gray-100 border border-gray-200 rounded-md px-2 py-1 shrink-0">
+                                {{ inst.zone_id || '未分区' }}
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 space-y-3">
+                    <label class="space-y-1.5 block">
+                        <span class="block text-xs font-medium text-gray-700">目标分区 ID</span>
+                        <input ref="zoneInputRef" v-model="zoneTarget" type="text" maxlength="128"
+                               placeholder="例如 ZHHZ/F02"
+                               class="w-full text-sm font-mono border border-gray-300 rounded-md px-3 py-2 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-200 bg-white" />
+                    </label>
+                    <div v-if="availableZones.length" class="flex flex-wrap gap-2 items-center">
+                        <span class="text-[11px] text-gray-500">已有分区</span>
+                        <button v-for="zone in availableZones" :key="zone.id" type="button" @click="zoneTarget = zone.id"
+                                class="text-[11px] font-mono text-gray-700 border border-gray-300 bg-white rounded-md px-2 py-1 hover:bg-gray-100 transition">
+                            {{ zone.id }}
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-gray-500">
+                        将处理 {{ zoneSelectedIds.length }} 个实例，其中 {{ zoneOverwriteCount }} 个已有分区会被移动。
+                    </p>
+                    <div class="flex justify-between gap-3 pt-1">
+                        <button type="button" @click="applyZoneAssignment(null)" :disabled="zoneSaving || !zoneSelectedIds.length"
+                                class="text-xs px-3 py-2 rounded-md border border-gray-300 text-gray-700 bg-white hover:bg-gray-100 transition disabled:opacity-40">
+                            {{ zoneSaving ? '保存中' : '解除分区' }}
+                        </button>
+                        <div class="flex gap-2">
+                            <button type="button" @click="closeZoneManager" :disabled="zoneSaving"
+                                    class="text-xs px-3 py-2 rounded-md border border-gray-300 text-gray-700 bg-white hover:bg-gray-100 transition disabled:opacity-40">取消</button>
+                            <button type="button" @click="applyZoneAssignment()" :disabled="zoneSaving || !zoneSelectedIds.length || !zoneTarget.trim()"
+                                    class="text-xs px-4 py-2 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black transition disabled:opacity-40">
+                                {{ zoneSaving ? '保存中' : '应用分区' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </transition>
+
     <!-- 3.2 位置编辑（多坐标联动）modal -->
     <transition name="fade">
         <div v-if="posOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="posOpen=false">
@@ -555,6 +780,187 @@
                     <button @click="posOpen=false" class="text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition">取消</button>
                     <button @click="savePos" :disabled="posSaving" class="text-xs px-3 py-1.5 rounded-md bg-gray-900 text-white hover:bg-black transition disabled:opacity-50">{{ posSaving ? '保存中…' : '保存' }}</button>
                 </div>
+            </div>
+        </div>
+    </transition>
+
+    <!-- 实例模型选择器 -->
+    <transition name="fade">
+        <div v-if="modelPickerOpen" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4"
+             @click.self="closeModelPicker" @keydown.esc.stop="closeModelPicker">
+            <div ref="modelPickerDialogRef" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="model-picker-title"
+                 class="w-full max-w-5xl max-h-[88vh] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl outline-none flex flex-col">
+                <div class="shrink-0 px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-start justify-between gap-4">
+                    <div>
+                        <h3 id="model-picker-title" class="text-base font-semibold text-gray-900">为此实例选择模型</h3>
+                        <p class="mt-1 text-xs text-gray-500">选择结果只覆盖实例 {{ selectedInst?.id }}，类型默认绑定保持不变。</p>
+                    </div>
+                    <button type="button" @click="closeModelPicker" :disabled="modelBindingSaving"
+                            class="rounded-md p-1.5 text-gray-400 hover:bg-gray-200 hover:text-gray-900 disabled:opacity-40" aria-label="关闭模型选择器">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+                    </button>
+                </div>
+
+                <div class="shrink-0 px-6 pt-4 border-b border-gray-100">
+                    <div class="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-1">
+                        <button type="button" @click="switchModelAssetMode('studio')" :class="['px-3 py-1.5 rounded-md text-xs font-medium transition', modelAssetMode === 'studio' ? 'bg-white text-gray-950 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-900']">ArtStudio 资产库</button>
+                        <button type="button" @click="switchModelAssetMode('mine')" :class="['px-3 py-1.5 rounded-md text-xs font-medium transition', modelAssetMode === 'mine' ? 'bg-white text-gray-950 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-900']">我的资产</button>
+                        <button type="button" @click="switchModelAssetMode('manual')" :class="['px-3 py-1.5 rounded-md text-xs font-medium transition', modelAssetMode === 'manual' ? 'bg-white text-gray-950 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-900']">路径直连</button>
+                    </div>
+                    <div v-if="modelAssetMode === 'mine'" class="py-3 text-[11px] leading-relaxed text-gray-600">
+                        <span v-if="artstudioIdentityLoading">正在确认 ArtStudio 登录状态…</span>
+                        <template v-else-if="artstudioIdentity?.authenticated">
+                            当前账号：<span class="font-medium text-gray-900">{{ artstudioIdentity.user?.display_name }}</span>
+                            <span v-if="artstudioIdentity.user?.username" class="font-mono text-gray-500">（{{ artstudioIdentity.user.username }}）</span>
+                            <button type="button" @click="refreshMyModelAssets" class="ml-2 underline underline-offset-2 hover:text-gray-900">刷新</button>
+                            <button type="button" @click="disconnectArtstudio" :disabled="artstudioDisconnecting" class="ml-2 underline underline-offset-2 hover:text-gray-900 disabled:opacity-40">{{ artstudioDisconnecting ? '正在断开…' : '断开连接' }}</button>
+                        </template>
+                        <template v-else>
+                            {{ artstudioIdentityError || '尚未连接 ArtStudio 账号。' }}
+                            <button ref="artstudioLoginTriggerRef" type="button" @click="openArtstudioLogin" class="ml-2 font-medium text-gray-900 underline underline-offset-2 hover:text-black">连接账号</button>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="flex-1 min-h-0 overflow-y-auto p-6">
+                    <template v-if="modelAssetMode !== 'manual' && (modelAssetMode !== 'mine' || artstudioIdentity?.authenticated)">
+                        <div class="mb-4 flex flex-wrap items-center gap-2">
+                            <select v-if="modelAssetMode === 'studio'" v-model="modelAssetOwner" @change="reloadModelAssets"
+                                    class="text-xs border border-gray-300 rounded-md px-2.5 py-2 bg-white outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100">
+                                <option value="">全部所有者</option><option value="1">组织资产</option><option value="2">个人资产</option>
+                            </select>
+                            <select v-if="modelAssetMode === 'studio'" v-model="modelAssetCategory" @change="reloadModelAssets"
+                                    class="text-xs border border-gray-300 rounded-md px-2.5 py-2 bg-white outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100">
+                                <option v-for="item in modelAssetCategories" :key="item.value" :value="item.value">{{ item.label }}</option>
+                            </select>
+                            <input ref="modelAssetSearchRef" v-model.trim="modelAssetQuery" @keyup.enter="reloadModelAssets" type="search" placeholder="搜索资产名称…"
+                                   class="min-w-[220px] flex-1 text-xs border border-gray-300 rounded-md px-3 py-2 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100" />
+                            <button type="button" @click="reloadModelAssets" class="text-xs px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">搜索</button>
+                        </div>
+
+                        <div v-if="modelAssetsLoading" class="grid grid-cols-2 md:grid-cols-3 gap-3" aria-live="polite">
+                            <div v-for="n in 6" :key="n" class="h-40 rounded-lg border border-gray-200 bg-gray-100 animate-pulse"></div>
+                        </div>
+                        <div v-else-if="modelAssetsError" class="rounded-lg border border-gray-200 bg-gray-50 p-5 text-center">
+                            <div class="text-sm font-medium text-gray-900">资产列表暂时无法读取</div>
+                            <div class="mt-1 text-xs text-gray-500">{{ modelAssetsError }}</div>
+                            <button type="button" @click="loadModelAssets" class="mt-3 text-xs font-medium underline underline-offset-4">重新读取</button>
+                        </div>
+                        <div v-else-if="!modelAssets.length" class="rounded-lg border border-dashed border-gray-300 py-12 text-center text-sm text-gray-400">没有符合条件的模型</div>
+                        <div v-else class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            <button v-for="asset in modelAssets" :key="asset.file_number" type="button"
+                                    @click="selectModelAsset(asset)" :disabled="asset.bindable === false"
+                                    :class="['text-left rounded-lg border p-3 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900', asset.bindable === false ? 'cursor-not-allowed border-gray-200 bg-gray-50 opacity-50' : (selectedModelAssetId === asset.file_number ? 'border-gray-900 bg-gray-50 ring-1 ring-gray-900' : 'border-gray-200 bg-white hover:border-gray-400')]">
+                                <img v-if="asset.cover_url" :src="asset.cover_url" :alt="asset.name" class="h-24 w-full rounded-md object-cover bg-gray-100" @error="asset.cover_url = ''" />
+                                <div v-else class="h-24 w-full rounded-md bg-gray-100 flex items-center justify-center text-gray-300">
+                                    <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 7l8-4 8 4-8 4-8-4zM4 7v10l8 4 8-4V7M12 11v10"></path></svg>
+                                </div>
+                                <div class="mt-3 text-xs font-semibold text-gray-900 truncate">{{ asset.name || asset.file_number }}</div>
+                                <div class="mt-1 text-[10px] font-mono text-gray-500 truncate">{{ asset.file_number }}</div>
+                                <div class="mt-2 flex items-center justify-between gap-2">
+                                    <span class="text-[9px] rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-gray-500">{{ asset.format?.toUpperCase() || 'MODEL' }}</span>
+                                    <span v-if="asset.bindable === false" class="text-[9px] text-gray-500">暂不支持</span>
+                                </div>
+                            </button>
+                        </div>
+
+                        <div v-if="modelAssets.length" class="mt-5 flex items-center justify-between border-t border-gray-100 pt-4">
+                            <button type="button" @click="changeModelAssetPage(-1)" :disabled="modelAssetPage <= 1" class="text-xs px-3 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40">上一页</button>
+                            <span class="text-xs text-gray-500">第 {{ modelAssetPage }} / {{ modelAssetTotalPages }} 页 · 共 {{ modelAssetTotal }} 个模型</span>
+                            <button type="button" @click="changeModelAssetPage(1)" :disabled="modelAssetPage >= modelAssetTotalPages" class="text-xs px-3 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40">下一页</button>
+                        </div>
+                    </template>
+
+                    <template v-if="modelAssetMode === 'manual'">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                <div class="text-xs font-semibold text-gray-900">运行时模型文件</div>
+                                <p class="mt-1 text-[11px] leading-relaxed text-gray-500">填写 Models 目录中的 GLB/GLTF 文件名，例如 SM_Forklift.glb。</p>
+                            </div>
+                            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                <div class="text-xs font-semibold text-gray-900">UE 已打包资产</div>
+                                <p class="mt-1 text-[11px] leading-relaxed text-gray-500">填写 /Game/... 或 /Engine/... 引用，并确认该资产已经加入 Cook。</p>
+                            </div>
+                        </div>
+                        <label class="mt-5 block">
+                            <span class="mb-1.5 block text-xs font-medium text-gray-700">模型文件名或 UE 资产路径</span>
+                            <input ref="modelManualPathRef" v-model.trim="modelManualPath" @keyup.enter="applyInstanceModel" type="text"
+                                   placeholder="SM_Forklift.glb 或 /Game/Models/SM_Forklift.SM_Forklift"
+                                   class="w-full text-sm font-mono border border-gray-300 rounded-md px-3 py-2.5 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100" />
+                        </label>
+                    </template>
+                </div>
+
+                <div class="shrink-0 border-t border-gray-200 bg-gray-50 px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+                    <div class="min-w-0">
+                        <div class="text-[10px] font-medium uppercase tracking-wide text-gray-500">待应用</div>
+                        <div class="mt-1 text-xs font-semibold text-gray-900 truncate">{{ selectedModelSummary }}</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" @click="closeModelPicker" :disabled="modelBindingSaving" class="text-xs px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-40">取消</button>
+                        <button type="button" @click="applyInstanceModel" :disabled="!modelApplyReady || modelBindingSaving" class="text-xs font-medium px-4 py-2 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-40">{{ modelBindingSaving ? '正在应用…' : '应用到此实例' }}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </transition>
+
+    <!-- 取消实例模型覆盖确认 -->
+    <transition name="fade">
+        <div v-if="modelRestoreOpen" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-4" @click.self="closeModelRestoreConfirm" @keydown.esc.stop="closeModelRestoreConfirm">
+            <div ref="modelRestoreDialogRef" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="model-restore-title" class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-2xl outline-none">
+                <h3 id="model-restore-title" class="text-base font-semibold text-gray-900">取消实例模型覆盖？</h3>
+                <p class="mt-2 text-xs leading-relaxed text-gray-500">将移除此实例的独立模型，{{ modelFallbackText(modelBinding?.inherited_model?.mode) }}。实例的其他配置不会变化。</p>
+                <div class="mt-5 flex justify-end gap-2">
+                    <button type="button" @click="closeModelRestoreConfirm" :disabled="modelBindingSaving" class="text-xs px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40">保留覆盖</button>
+                    <button type="button" @click="restoreInstanceModel" :disabled="modelBindingSaving" class="text-xs font-medium px-4 py-2 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black disabled:opacity-40">{{ modelBindingSaving ? '正在取消…' : '取消覆盖' }}</button>
+                </div>
+            </div>
+        </div>
+    </transition>
+
+    <!-- ArtStudio 账号连接 -->
+    <transition name="fade">
+        <div v-if="artstudioLoginOpen" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4"
+             role="dialog" aria-modal="true" aria-labelledby="instance-artstudio-login-title" tabindex="-1"
+             @click.self="closeArtstudioLogin" @keydown.esc.stop="closeArtstudioLogin">
+            <div class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-2xl">
+                <div class="mb-5 flex items-start justify-between gap-4">
+                    <div>
+                        <h3 id="instance-artstudio-login-title" class="text-base font-semibold text-gray-900">连接 ArtStudio</h3>
+                        <p class="mt-1 text-xs leading-relaxed text-gray-500">使用你的 ArtStudio 创作者账号登录。账号密码仅用于本次连接，不会保存。</p>
+                    </div>
+                    <button type="button" @click="closeArtstudioLogin" :disabled="artstudioLoginLoading" class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-40" aria-label="关闭登录窗口">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+                    </button>
+                </div>
+                <form @submit.prevent="submitArtstudioLogin" class="space-y-4">
+                    <label class="block">
+                        <span class="mb-1.5 block text-xs font-medium text-gray-700">用户名</span>
+                        <input ref="artstudioUsernameRef" v-model.trim="artstudioLoginForm.username" type="text" autocomplete="username" :disabled="artstudioLoginLoading" placeholder="请输入 ArtStudio 用户名" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100 disabled:bg-gray-50" />
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-xs font-medium text-gray-700">密码</span>
+                        <input v-model="artstudioLoginForm.password" type="password" autocomplete="current-password" :disabled="artstudioLoginLoading" placeholder="请输入密码" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100 disabled:bg-gray-50" />
+                    </label>
+                    <div v-if="artstudioChallengeLoading" class="text-xs text-gray-500">正在准备安全登录…</div>
+                    <div v-else-if="artstudioChallenge?.captcha_enabled">
+                        <span class="mb-1.5 block text-xs font-medium text-gray-700">验证码</span>
+                        <div class="flex items-stretch gap-2">
+                            <input v-model.trim="artstudioLoginForm.captcha" type="text" autocomplete="off" maxlength="6" :disabled="artstudioLoginLoading" placeholder="请输入验证码" class="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100 disabled:bg-gray-50" />
+                            <div class="flex h-10 min-w-[112px] items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-gray-50 px-2">
+                                <img v-if="artstudioChallenge.captcha?.image" :src="artstudioChallenge.captcha.image" alt="ArtStudio 验证码" class="max-h-9 max-w-[100px]" />
+                                <span v-else class="text-[11px] text-gray-400">加载中</span>
+                            </div>
+                            <button type="button" @click="refreshArtstudioCaptcha" :disabled="artstudioCaptchaLoading || artstudioLoginLoading" class="rounded-md border border-gray-200 bg-white px-2.5 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40">{{ artstudioCaptchaLoading ? '刷新中' : '换一张' }}</button>
+                        </div>
+                    </div>
+                    <div v-if="artstudioLoginError" class="border-l-2 border-red-300 pl-3 text-xs leading-relaxed text-red-700" role="alert">{{ artstudioLoginError }}</div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" @click="closeArtstudioLogin" :disabled="artstudioLoginLoading" class="rounded-md border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">取消</button>
+                        <button type="submit" :disabled="artstudioLoginLoading || artstudioChallengeLoading || !artstudioChallenge" class="rounded-md border border-gray-900 bg-gray-900 px-4 py-2 text-xs font-medium text-white hover:bg-black disabled:opacity-40">{{ artstudioLoginLoading ? '正在连接…' : '连接账号' }}</button>
+                    </div>
+                </form>
             </div>
         </div>
     </transition>
@@ -802,7 +1208,7 @@ const REALTIME_CHANNEL_TAGS = Object.freeze({
     }
 });
 
-const { createApp, ref, computed, onMounted, onUnmounted, watch } = Vue;
+const { createApp, ref, computed, onMounted, onUnmounted, watch, nextTick } = Vue;
 createApp({
     setup() {
         const instances = ref([]);
@@ -813,6 +1219,52 @@ createApp({
         const overriding = ref(false);
         const activeMonitorTab = ref('stream');
         const toasts = ref([]);
+        // 3.3.3：实例级模型覆盖
+        const modelBinding = ref(null);
+        const modelBindingLoading = ref(false);
+        const modelBindingError = ref('');
+        const modelBindingSaving = ref(false);
+        const modelPickerOpen = ref(false);
+        const modelPickerDialogRef = ref(null);
+        const modelRestoreOpen = ref(false);
+        const modelRestoreDialogRef = ref(null);
+        let modelReturnFocus = null;
+        const modelAssetMode = ref('studio');
+        const modelAssets = ref([]);
+        const modelAssetsLoading = ref(false);
+        const modelAssetsError = ref('');
+        const modelAssetPage = ref(1);
+        const modelAssetTotal = ref(0);
+        const modelAssetQuery = ref('');
+        const modelAssetCategory = ref('');
+        const modelAssetOwner = ref('');
+        const selectedModelAssetId = ref('');
+        const modelManualPath = ref('');
+        const modelAssetSearchRef = ref(null);
+        const modelManualPathRef = ref(null);
+        let modelAssetLoadSeq = 0;
+        const MODEL_ASSET_PAGE_SIZE = 9;
+        const modelAssetCategories = [
+            { value: '', label: '全部' },
+            { value: '1', label: '3D 模型' },
+            { value: '2', label: '材质贴图' },
+            { value: '3', label: '视频素材' },
+            { value: '4', label: '音频素材' },
+            { value: '5', label: '资产包' },
+        ];
+        const artstudioIdentity = ref(null);
+        const artstudioIdentityLoading = ref(false);
+        const artstudioIdentityError = ref('');
+        const artstudioDisconnecting = ref(false);
+        const artstudioLoginOpen = ref(false);
+        const artstudioLoginLoading = ref(false);
+        const artstudioChallengeLoading = ref(false);
+        const artstudioCaptchaLoading = ref(false);
+        const artstudioLoginError = ref('');
+        const artstudioChallenge = ref(null);
+        const artstudioLoginForm = ref({ username: '', password: '', captcha: '' });
+        const artstudioUsernameRef = ref(null);
+        const artstudioLoginTriggerRef = ref(null);
         let pollTimer = null;
         let instanceListTimer = null;
         const activeDataset = ref(null);
@@ -831,25 +1283,85 @@ createApp({
         const spawnForm = ref({ objectTypeRid: '', instanceId: '', x: 0, y: 0, z: 0 });
 
         // ── Instance list filter ─────────────────────────────────────────
+        const UNASSIGNED_ZONE_FILTER = '__unassigned__';
         const instanceTypeFilter = ref('');
+        const instanceZoneFilter = ref('');
+
+        const availableZones = computed(() => {
+            const counts = new Map();
+            for (const inst of instances.value) {
+                const zoneId = String(inst.zone_id || '').trim();
+                if (zoneId) counts.set(zoneId, (counts.get(zoneId) || 0) + 1);
+            }
+            return Array.from(counts.entries())
+                .map(([id, count]) => ({ id, count }))
+                .sort((a, b) => a.id.localeCompare(b.id, 'zh-Hans-CN'));
+        });
+
+        function matchesZone(inst, filterValue) {
+            if (!filterValue) return true;
+            const zoneId = String(inst.zone_id || '').trim();
+            if (filterValue === UNASSIGNED_ZONE_FILTER) return !zoneId;
+            return zoneId === filterValue;
+        }
 
         const filteredInstances = computed(() => {
-            if (!instanceTypeFilter.value) return instances.value;
-            return instances.value.filter(i => i.object_type_name === instanceTypeFilter.value);
+            return instances.value.filter(inst =>
+                (!instanceTypeFilter.value || inst.object_type_name === instanceTypeFilter.value) &&
+                matchesZone(inst, instanceZoneFilter.value)
+            );
         });
 
         const instanceTreeGroups = computed(() => {
             const map = new Map();
             for (const inst of filteredInstances.value) {
-                const path = Array.isArray(inst.hierarchy_path) && inst.hierarchy_path.length
-                    ? inst.hierarchy_path
-                    : [inst.object_type_name || '未分类'];
-                const cleanPath = path.map(p => String(p || '').trim()).filter(Boolean);
-                const label = cleanPath.length ? cleanPath.join(' / ') : '未分类';
-                if (!map.has(label)) map.set(label, { key: label, label, items: [] });
-                map.get(label).items.push(inst);
+                const zoneId = String(inst.zone_id || '').trim();
+                const key = zoneId || UNASSIGNED_ZONE_FILTER;
+                const label = zoneId || '未分区';
+                if (!map.has(key)) map.set(key, { key, label, items: [], unassigned: !zoneId });
+                map.get(key).items.push(inst);
             }
-            return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, 'zh-Hans-CN'));
+            const groups = Array.from(map.values());
+            for (const group of groups) {
+                group.items.sort((a, b) =>
+                    String(a.display_name || a.id).localeCompare(String(b.display_name || b.id), 'zh-Hans-CN')
+                );
+            }
+            return groups.sort((a, b) => {
+                if (a.unassigned !== b.unassigned) return a.unassigned ? 1 : -1;
+                return a.label.localeCompare(b.label, 'zh-Hans-CN');
+            });
+        });
+
+        // ── Zone batch assignment ────────────────────────────────────────
+        const zoneManagerOpen = ref(false);
+        const zoneSourceFilter = ref('');
+        const zoneTypeFilter = ref('');
+        const zoneSelectedIds = ref([]);
+        const zoneTarget = ref('');
+        const zoneSaving = ref(false);
+        const zoneInputRef = ref(null);
+        const zoneDialogRef = ref(null);
+        let zoneReturnFocus = null;
+
+        const zoneCandidates = computed(() => instances.value.filter(inst =>
+            matchesZone(inst, zoneSourceFilter.value) &&
+            (!zoneTypeFilter.value || inst.object_type_name === zoneTypeFilter.value)
+        ));
+        const zoneAllSelected = computed(() =>
+            zoneCandidates.value.length > 0 &&
+            zoneCandidates.value.every(inst => zoneSelectedIds.value.includes(inst.id))
+        );
+        const zoneSomeSelected = computed(() =>
+            zoneCandidates.value.some(inst => zoneSelectedIds.value.includes(inst.id))
+        );
+        const zoneOverwriteCount = computed(() => {
+            const target = zoneTarget.value.trim();
+            return instances.value.filter(inst =>
+                zoneSelectedIds.value.includes(inst.id) &&
+                Boolean(inst.zone_id) &&
+                inst.zone_id !== target
+            ).length;
         });
 
         // ── Batch deployment state ──────────────────────────────────────
@@ -920,6 +1432,21 @@ createApp({
             return activeDataset.value.name || activeDataset.value.project_name || activeDataset.value.id || '未命名数据集';
         });
 
+        const modelAssetTotalPages = computed(() => Math.max(1, Math.ceil(modelAssetTotal.value / MODEL_ASSET_PAGE_SIZE)));
+        const selectedModelAsset = computed(() => (
+            modelAssets.value.find(asset => asset.file_number === selectedModelAssetId.value && asset.bindable !== false) || null
+        ));
+        const modelApplyReady = computed(() => (
+            modelAssetMode.value === 'manual'
+                ? Boolean(modelManualPath.value.trim())
+                : Boolean(selectedModelAsset.value)
+        ));
+        const selectedModelSummary = computed(() => {
+            if (modelAssetMode.value === 'manual') return modelManualPath.value.trim() || '尚未填写模型路径';
+            const asset = selectedModelAsset.value;
+            return asset ? `${asset.name || '未命名资产'} · ${asset.file_number}` : '尚未选择资产';
+        });
+
         const runtimeStreamStatusLabel = computed(() => {
             if (runtimeStreamStatus.value === 'loading') return '正在加载';
             if (runtimeStreamStatus.value === 'loaded') return '已加载推流页面';
@@ -960,6 +1487,9 @@ createApp({
         async function refreshInstances() {
             const instRes = await axios.get('/api/v2/instances');
             applyInstanceList(instRes.data);
+            if (activeMonitorTab.value === 'model' && selectedInst.value) {
+                loadModelBinding(true).catch(() => {});
+            }
         }
 
         async function loadInstances() {
@@ -969,6 +1499,390 @@ createApp({
             ]);
             applyInstanceList(instRes.data);
             objectTypes.value = typeRes.data;
+        }
+
+        function modelModeLabel(mode) {
+            const labels = {
+                instance_override: '实例覆盖',
+                original_assembly: '原始组合模型',
+                type_default: '类型默认',
+                legacy_frozen: '迁移冻结配置',
+                placeholder: '占位模型',
+            };
+            return labels[mode] || '模型配置';
+        }
+
+        function modelSourceLabel(source) {
+            const labels = {
+                artstudio: 'ArtStudio',
+                artstudio_mine: 'ArtStudio · 我的资产',
+                mock: '历史本地资产',
+                local: '运行时模型文件',
+                ue_cooked: 'UE 已打包资产',
+                assembly: '实例原始组合',
+                none: '未配置',
+                manual: '手动路径',
+            };
+            return labels[source] || '模型';
+        }
+
+        function modelFallbackText(mode) {
+            const labels = {
+                type_default: '当前会改为使用类型默认模型',
+                original_assembly: '当前会恢复实例原始模型',
+                legacy_frozen: '当前会恢复实例原有模型',
+                placeholder: '当前会显示占位模型',
+            };
+            return labels[mode] || '当前会按默认规则重新选择模型';
+        }
+
+        async function switchMonitorTab(tab) {
+            activeMonitorTab.value = tab;
+            if (tab === 'model' && selectedInst.value) await loadModelBinding();
+        }
+
+        async function loadModelBinding(silent = false) {
+            if (!selectedInst.value) {
+                modelBinding.value = null;
+                return;
+            }
+            const instanceId = selectedInst.value.id;
+            if (!silent) modelBindingLoading.value = true;
+            modelBindingError.value = '';
+            try {
+                const { data } = await axios.get(`/api/v2/instances/${encodeURIComponent(instanceId)}/model-binding`);
+                if (selectedInst.value?.id !== instanceId) return;
+                modelBinding.value = data;
+            } catch (e) {
+                if (selectedInst.value?.id !== instanceId) return;
+                modelBinding.value = null;
+                modelBindingError.value = e.response?.data?.message || '请稍后重试。';
+            } finally {
+                if (!silent && selectedInst.value?.id === instanceId) modelBindingLoading.value = false;
+            }
+        }
+
+        async function openModelPicker() {
+            if (!modelBinding.value?.capability?.enabled) return;
+            modelReturnFocus = document.activeElement;
+            modelPickerOpen.value = true;
+            selectedModelAssetId.value = '';
+            modelManualPath.value = '';
+            modelAssetsError.value = '';
+            modelAssetPage.value = 1;
+            await nextTick();
+            modelPickerDialogRef.value?.focus();
+            if (modelAssetMode.value === 'mine') {
+                const authenticated = await loadArtstudioIdentity();
+                if (authenticated) await loadModelAssets();
+            } else if (modelAssetMode.value === 'studio') {
+                await loadModelAssets();
+            }
+        }
+
+        function closeModelPicker() {
+            if (modelBindingSaving.value) return;
+            ++modelAssetLoadSeq;
+            modelPickerOpen.value = false;
+            nextTick(() => modelReturnFocus?.focus?.());
+        }
+
+        async function switchModelAssetMode(mode) {
+            ++modelAssetLoadSeq;
+            modelAssetMode.value = mode;
+            modelAssetPage.value = 1;
+            modelAssets.value = [];
+            modelAssetTotal.value = 0;
+            modelAssetsError.value = '';
+            selectedModelAssetId.value = '';
+            if (mode === 'manual') {
+                await nextTick();
+                modelManualPathRef.value?.focus();
+                return;
+            }
+            if (mode === 'mine') {
+                const authenticated = await loadArtstudioIdentity();
+                if (modelAssetMode.value === 'mine' && authenticated) await loadModelAssets();
+                return;
+            }
+            await loadModelAssets();
+        }
+
+        async function loadModelAssets() {
+            const requestMode = modelAssetMode.value;
+            if (requestMode === 'manual') return;
+            if (requestMode === 'mine' && !artstudioIdentity.value?.authenticated) return;
+            const requestSeq = ++modelAssetLoadSeq;
+            modelAssetsLoading.value = true;
+            modelAssetsError.value = '';
+            const params = {
+                source: requestMode === 'mine' ? 'mine' : 'studio',
+                page: modelAssetPage.value,
+                size: MODEL_ASSET_PAGE_SIZE,
+            };
+            if (modelAssetQuery.value) params.q = modelAssetQuery.value;
+            if (requestMode === 'studio' && modelAssetOwner.value) params.ownerType = modelAssetOwner.value;
+            if (requestMode === 'studio' && modelAssetCategory.value) params.category = modelAssetCategory.value;
+            try {
+                const { data } = await axios.get('/api/v2/assets', { params });
+                if (requestSeq !== modelAssetLoadSeq || requestMode !== modelAssetMode.value) return;
+                modelAssets.value = data.items || [];
+                modelAssetTotal.value = data.total || 0;
+                modelAssetsError.value = (!modelAssets.value.length && data.warning) ? data.warning : '';
+                if (!modelAssets.value.some(asset => asset.file_number === selectedModelAssetId.value && asset.bindable !== false)) {
+                    selectedModelAssetId.value = '';
+                }
+            } catch (e) {
+                if (requestSeq !== modelAssetLoadSeq || requestMode !== modelAssetMode.value) return;
+                const data = e.response?.data || {};
+                modelAssets.value = [];
+                modelAssetTotal.value = 0;
+                modelAssetsError.value = data.warning || data.message || data.error || 'ArtStudio 资产库暂不可用。';
+                if (requestMode === 'mine' && data.authenticated === false) {
+                    artstudioIdentity.value = data;
+                    artstudioIdentityError.value = modelAssetsError.value;
+                }
+            } finally {
+                if (requestSeq === modelAssetLoadSeq) modelAssetsLoading.value = false;
+            }
+        }
+
+        function reloadModelAssets() {
+            modelAssetPage.value = 1;
+            loadModelAssets();
+        }
+
+        function changeModelAssetPage(delta) {
+            const next = modelAssetPage.value + delta;
+            if (next < 1 || next > modelAssetTotalPages.value) return;
+            modelAssetPage.value = next;
+            loadModelAssets();
+        }
+
+        function selectModelAsset(asset) {
+            if (!asset || asset.bindable === false) return;
+            selectedModelAssetId.value = asset.file_number;
+        }
+
+        async function applyInstanceModel() {
+            if (!selectedInst.value || !modelApplyReady.value || modelBindingSaving.value) return;
+            const instanceId = selectedInst.value.id;
+            const body = {
+                expected_project_id: modelBinding.value?.project_id || activeDataset.value?.project_id || activeDataset.value?.id || '',
+            };
+            if (modelAssetMode.value === 'manual') {
+                body.file_number = modelManualPath.value.trim();
+            } else {
+                body.file_number = selectedModelAsset.value.file_number;
+                body.source = modelAssetMode.value === 'mine' ? 'artstudio_mine' : 'artstudio';
+                if (selectedModelAsset.value.ue_path) body.ue_asset_path = selectedModelAsset.value.ue_path;
+            }
+            modelBindingSaving.value = true;
+            try {
+                const { data } = await axios.put(`/api/v2/instances/${encodeURIComponent(instanceId)}/model-binding`, body);
+                if (selectedInst.value?.id !== instanceId) return;
+                modelBinding.value = data;
+                ++modelAssetLoadSeq;
+                modelPickerOpen.value = false;
+                nextTick(() => modelReturnFocus?.focus?.());
+                toast('ok', data.message || '已应用到此实例');
+                fetchSnap();
+            } catch (e) {
+                const message = e.response?.data?.message || '模型应用失败，请稍后重试。';
+                modelAssetsError.value = message;
+                toast('err', message);
+                if (e.response?.status === 409) await loadModelBinding();
+            } finally {
+                modelBindingSaving.value = false;
+            }
+        }
+
+        async function openModelRestoreConfirm() {
+            modelReturnFocus = document.activeElement;
+            modelRestoreOpen.value = true;
+            await nextTick();
+            modelRestoreDialogRef.value?.focus();
+        }
+
+        function closeModelRestoreConfirm() {
+            if (modelBindingSaving.value) return;
+            modelRestoreOpen.value = false;
+            nextTick(() => modelReturnFocus?.focus?.());
+        }
+
+        async function restoreInstanceModel() {
+            if (!selectedInst.value || modelBindingSaving.value) return;
+            const instanceId = selectedInst.value.id;
+            modelBindingSaving.value = true;
+            try {
+                const { data } = await axios.delete(
+                    `/api/v2/instances/${encodeURIComponent(instanceId)}/model-binding`,
+                    { data: { expected_project_id: modelBinding.value?.project_id || '' } }
+                );
+                if (selectedInst.value?.id !== instanceId) return;
+                modelBinding.value = data;
+                modelRestoreOpen.value = false;
+                toast('ok', data.message || '已取消实例模型覆盖');
+                fetchSnap();
+            } catch (e) {
+                const message = e.response?.data?.message || '取消失败，请稍后重试。';
+                toast('err', message);
+                if (e.response?.status === 409) await loadModelBinding();
+            } finally {
+                modelBindingSaving.value = false;
+            }
+        }
+
+        async function loadArtstudioIdentity() {
+            artstudioIdentityLoading.value = true;
+            artstudioIdentityError.value = '';
+            try {
+                const { data } = await axios.get('/api/v2/assets/identity');
+                artstudioIdentity.value = data;
+                return data.authenticated === true;
+            } catch (e) {
+                const data = e.response?.data || {};
+                artstudioIdentity.value = {
+                    authenticated: false,
+                    configured: data.configured === true,
+                    code: data.code || 'artstudio_identity_unavailable',
+                };
+                artstudioIdentityError.value = data.message || '暂时无法确认 ArtStudio 登录状态，请稍后再试。';
+                return false;
+            } finally {
+                artstudioIdentityLoading.value = false;
+            }
+        }
+
+        async function refreshMyModelAssets() {
+            const authenticated = await loadArtstudioIdentity();
+            if (authenticated && modelAssetMode.value === 'mine') {
+                modelAssetPage.value = 1;
+                await loadModelAssets();
+            }
+        }
+
+        async function disconnectArtstudio() {
+            artstudioDisconnecting.value = true;
+            try {
+                await axios.post('/api/v2/assets/auth/logout');
+                artstudioIdentity.value = { authenticated: false, configured: false };
+                artstudioIdentityError.value = '尚未连接 ArtStudio 账号。';
+                modelAssets.value = [];
+                modelAssetTotal.value = 0;
+                selectedModelAssetId.value = '';
+                toast('ok', '已断开 ArtStudio 账号');
+            } catch (e) {
+                toast('err', e.response?.data?.message || '暂时无法断开账号，请稍后再试。');
+            } finally {
+                artstudioDisconnecting.value = false;
+            }
+        }
+
+        function artstudioPublicKeyPem(value) {
+            const key = String(value || '').replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
+            const lines = key.match(/.{1,64}/g) || [];
+            return `-----BEGIN PUBLIC KEY-----\n${lines.join('\n')}\n-----END PUBLIC KEY-----`;
+        }
+
+        async function loadArtstudioChallenge() {
+            artstudioChallengeLoading.value = true;
+            artstudioLoginError.value = '';
+            artstudioChallenge.value = null;
+            try {
+                const { data } = await axios.get('/api/v2/assets/auth/challenge');
+                artstudioChallenge.value = data;
+                artstudioLoginForm.value.captcha = '';
+            } catch (e) {
+                artstudioLoginError.value = e.response?.data?.message || '暂时无法准备 ArtStudio 登录，请稍后再试。';
+            } finally {
+                artstudioChallengeLoading.value = false;
+            }
+        }
+
+        async function refreshArtstudioCaptcha() {
+            artstudioCaptchaLoading.value = true;
+            artstudioLoginForm.value.captcha = '';
+            try {
+                const { data } = await axios.get('/api/v2/assets/auth/captcha');
+                if (!artstudioChallenge.value) artstudioChallenge.value = { captcha_enabled: true };
+                artstudioChallenge.value.captcha = data.captcha;
+                artstudioLoginError.value = '';
+            } catch (e) {
+                artstudioLoginError.value = e.response?.data?.message || '暂时无法刷新验证码，请稍后再试。';
+            } finally {
+                artstudioCaptchaLoading.value = false;
+            }
+        }
+
+        async function openArtstudioLogin() {
+            artstudioLoginOpen.value = true;
+            artstudioLoginError.value = '';
+            artstudioLoginForm.value.password = '';
+            artstudioLoginForm.value.captcha = '';
+            await nextTick();
+            artstudioUsernameRef.value?.focus();
+            await loadArtstudioChallenge();
+        }
+
+        function closeArtstudioLogin(force = false) {
+            if (artstudioLoginLoading.value && force !== true) return;
+            artstudioLoginOpen.value = false;
+            artstudioLoginForm.value.password = '';
+            artstudioLoginForm.value.captcha = '';
+            artstudioLoginError.value = '';
+            nextTick(() => artstudioLoginTriggerRef.value?.focus());
+        }
+
+        function encryptArtstudioPassword(password) {
+            if (!artstudioChallenge.value?.public_key) throw new Error('ArtStudio 安全登录信息尚未就绪。');
+            if (typeof window.JSEncrypt !== 'function') throw new Error('安全登录组件加载失败，请刷新页面后重试。');
+            const encryptor = new window.JSEncrypt();
+            encryptor.setPublicKey(artstudioPublicKeyPem(artstudioChallenge.value.public_key));
+            const encrypted = encryptor.encrypt(password);
+            if (!encrypted) throw new Error('密码安全处理失败，请重新输入。');
+            return encrypted;
+        }
+
+        async function submitArtstudioLogin() {
+            artstudioLoginError.value = '';
+            if (!artstudioLoginForm.value.username || !artstudioLoginForm.value.password) {
+                artstudioLoginError.value = '请输入用户名和密码。';
+                return;
+            }
+            if (!artstudioChallenge.value) {
+                artstudioLoginError.value = '安全登录信息尚未就绪，请稍后再试。';
+                return;
+            }
+            if (artstudioChallenge.value.captcha_enabled && !artstudioLoginForm.value.captcha) {
+                artstudioLoginError.value = '请输入验证码。';
+                return;
+            }
+            artstudioLoginLoading.value = true;
+            try {
+                const encryptedPassword = encryptArtstudioPassword(artstudioLoginForm.value.password);
+                artstudioLoginForm.value.password = '';
+                const { data } = await axios.post('/api/v2/assets/auth/login', {
+                    username: artstudioLoginForm.value.username,
+                    encrypted_password: encryptedPassword,
+                    captcha: artstudioLoginForm.value.captcha,
+                    uuid: artstudioChallenge.value.captcha?.uuid || '',
+                });
+                artstudioIdentity.value = { authenticated: true, configured: true, user: data.user || {} };
+                artstudioIdentityError.value = '';
+                closeArtstudioLogin(true);
+                toast('ok', 'ArtStudio 账号已连接');
+                if (modelAssetMode.value === 'mine') {
+                    modelAssetPage.value = 1;
+                    await loadModelAssets();
+                }
+            } catch (e) {
+                artstudioLoginForm.value.password = '';
+                artstudioLoginError.value = e.response?.data?.message || e.message || '登录失败，请检查账号信息后重试。';
+                if (artstudioChallenge.value?.captcha_enabled) await refreshArtstudioCaptcha();
+            } finally {
+                artstudioLoginLoading.value = false;
+            }
         }
 
         function realtimeChannelTag(channel) {
@@ -982,6 +1896,66 @@ createApp({
                 activeDataset.value = list.find(ds => ds.is_active) || null;
             } catch (_) {
                 activeDataset.value = null;
+            }
+        }
+
+        function openZoneManager() {
+            zoneReturnFocus = document.activeElement;
+            zoneSourceFilter.value = instanceZoneFilter.value;
+            zoneTypeFilter.value = instanceTypeFilter.value;
+            zoneSelectedIds.value = [];
+            zoneTarget.value = '';
+            zoneManagerOpen.value = true;
+            nextTick(() => {
+                if (zoneInputRef.value) zoneInputRef.value.focus();
+                else zoneDialogRef.value?.focus();
+            });
+        }
+
+        function closeZoneManager() {
+            if (zoneSaving.value) return;
+            zoneManagerOpen.value = false;
+            nextTick(() => zoneReturnFocus?.focus?.());
+        }
+
+        function toggleZoneSelectAll() {
+            const visibleIds = zoneCandidates.value.map(inst => inst.id);
+            if (zoneAllSelected.value) {
+                zoneSelectedIds.value = zoneSelectedIds.value.filter(id => !visibleIds.includes(id));
+                return;
+            }
+            zoneSelectedIds.value = Array.from(new Set([...zoneSelectedIds.value, ...visibleIds]));
+        }
+
+        async function applyZoneAssignment(requestedZone) {
+            if (!zoneSelectedIds.value.length || zoneSaving.value) return;
+            const zoneId = requestedZone === null ? null : zoneTarget.value.trim();
+            if (requestedZone !== null && !zoneId) {
+                toast('err', '请填写目标分区 ID');
+                zoneInputRef.value?.focus();
+                return;
+            }
+
+            zoneSaving.value = true;
+            try {
+                const expectedProjectId = activeDataset.value?.project_id || activeDataset.value?.id || '';
+                const res = await axios.put('/api/v2/zones/assignments', {
+                    instance_ids: zoneSelectedIds.value,
+                    zone_id: zoneId,
+                    expected_project_id: expectedProjectId,
+                });
+                const result = res.data || {};
+                await Promise.all([refreshInstances(), loadActiveDatasetContext()]);
+                const action = zoneId ? `已移入分区 ${zoneId}` : '已解除分区';
+                toast('ok', `${action}：${result.updated_count || 0} 个实例`);
+                if (result.missing_count) {
+                    toast('err', `${result.missing_count} 个实例已不存在，请刷新后重试`);
+                }
+                zoneSelectedIds.value = [];
+            } catch (e) {
+                toast('err', e.response?.data?.message || e.response?.data?.error || '分区保存失败');
+            } finally {
+                zoneSaving.value = false;
             }
         }
 
@@ -1250,7 +2224,12 @@ createApp({
             try {
                 await axios.post(`/api/v2/instances/${encodeURIComponent(id)}/delete`);
                 pendingDelete.value = null;
-                if (selectedInst.value?.id === id) { selectedInst.value = null; currentSnap.value = null; stopPoll(); }
+                if (selectedInst.value?.id === id) {
+                    selectedInst.value = null;
+                    currentSnap.value = null;
+                    modelBinding.value = null;
+                    stopPoll();
+                }
                 toast('ok', `已强制销毁实例: ${id}`);
                 await loadInstances();
             } catch (e) {
@@ -1260,9 +2239,12 @@ createApp({
 
         function selectInstance(inst) {
             selectedInst.value = inst;
+            modelBinding.value = null;
+            modelBindingError.value = '';
             stopPoll();
             fetchSnap();
             pollTimer = setInterval(fetchSnap, 500);
+            if (activeMonitorTab.value === 'model') loadModelBinding();
         }
 
         async function fetchSnap() {
@@ -1426,7 +2408,25 @@ createApp({
         return {
             instances, objectTypes, readyTypes, availableInstanceIds, selectedInst, currentSnap,
             spawnForm, spawning, overriding, overrideFields, overridePatch, toasts, pendingDelete,
-            activeMonitorTab,
+            activeMonitorTab, switchMonitorTab,
+            // 3.3.3 instance model binding
+            modelBinding, modelBindingLoading, modelBindingError, modelBindingSaving,
+            modelPickerOpen, modelPickerDialogRef, modelRestoreOpen, modelRestoreDialogRef,
+            modelAssetMode, modelAssets, modelAssetsLoading, modelAssetsError,
+            modelAssetPage, modelAssetTotal, modelAssetTotalPages, modelAssetQuery,
+            modelAssetCategory, modelAssetOwner, modelAssetCategories, selectedModelAssetId,
+            modelManualPath, modelAssetSearchRef, modelManualPathRef,
+            modelApplyReady, selectedModelSummary,
+            modelModeLabel, modelSourceLabel, modelFallbackText, loadModelBinding, openModelPicker, closeModelPicker,
+            switchModelAssetMode, loadModelAssets, reloadModelAssets, changeModelAssetPage,
+            selectModelAsset, applyInstanceModel, openModelRestoreConfirm,
+            closeModelRestoreConfirm, restoreInstanceModel,
+            artstudioIdentity, artstudioIdentityLoading, artstudioIdentityError, artstudioDisconnecting,
+            artstudioLoginOpen, artstudioLoginLoading, artstudioChallengeLoading,
+            artstudioCaptchaLoading, artstudioLoginError, artstudioChallenge,
+            artstudioLoginForm, artstudioUsernameRef, artstudioLoginTriggerRef,
+            loadArtstudioIdentity, refreshMyModelAssets, disconnectArtstudio,
+            openArtstudioLogin, closeArtstudioLogin, submitArtstudioLogin, refreshArtstudioCaptcha,
             activeDataset, activeDatasetLabel,
             runtimeStreamPanelRef, runtimeStreamUrl, runtimeStreamSrc, runtimeStreamStatus,
             runtimeStreamStatusLabel, runtimeStreamStatusDotClass, runtimeStreamError,
@@ -1438,7 +2438,11 @@ createApp({
             posOpen, posSaving, pos, posX, openPos, savePos, posEditCanonical, posEditUE, posEditFrame, posEditFloor,
             posSourceLabel, posSourceHint,
             // instance list filter
-            instanceTypeFilter, filteredInstances, instanceTreeGroups,
+            instanceTypeFilter, instanceZoneFilter, availableZones, filteredInstances, instanceTreeGroups,
+            // zone management
+            zoneManagerOpen, zoneSourceFilter, zoneTypeFilter, zoneSelectedIds, zoneTarget, zoneSaving,
+            zoneInputRef, zoneDialogRef, zoneCandidates, zoneAllSelected, zoneSomeSelected, zoneOverwriteCount,
+            openZoneManager, closeZoneManager, toggleZoneSelectAll, applyZoneAssignment,
             // batch
             showBatchDrawer, batchStep, batchTypeFilter, batchSelectedIds, batchCandidates,
             batchRows, batchDeploying, batchDone, batchProgress, batchRowResults,

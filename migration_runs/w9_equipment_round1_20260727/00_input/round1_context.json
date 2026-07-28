@@ -18,7 +18,12 @@
     "object_type_count": 0,
     "instance_count": 0
   },
-  "proposed_partition_root": "生产区/ICT产线",
+  "proposed_zone": {
+    "zone_id": "scc_w19_1f_ict",
+    "name": "SCC W19 1F ICT设备区",
+    "ue_level": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Main"
+  },
+  "proposed_partition_root": "生产区/1F/ICT产线",
   "proposed_object_type_policy": "Create six distinct ObjectTypes. Do not use hierarchy_path as ObjectType identity.",
   "gate_a_status": "awaiting_user_approval",
   "database_write_performed": false,

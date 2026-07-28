@@ -1,0 +1,209 @@
+.hud-layout {
+  --content-top: calc(var(--hud-safe-y) + var(--hud-top-height) + var(--hud-s4));
+}
+
+.hud-topbar {
+  position: absolute;
+  top: var(--hud-safe-y);
+  right: var(--hud-safe-x);
+  left: var(--hud-safe-x);
+  min-height: var(--hud-top-height);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--hud-s6);
+  padding: var(--hud-s3) var(--hud-s4);
+}
+
+.hud-topbar__context {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--hud-s4);
+}
+
+.hud-brand-mark {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--hud-line-strong);
+  border-radius: var(--hud-r-md);
+  color: var(--hud-ink);
+  font-size: var(--hud-t-xs);
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
+.hud-topbar__title {
+  min-width: 0;
+}
+
+.hud-topbar__title strong,
+.hud-topbar__title span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-topbar__title strong {
+  color: var(--hud-ink);
+  font-size: var(--hud-t-md);
+}
+
+.hud-topbar__title span {
+  margin-top: 2px;
+  color: var(--hud-ink-3);
+  font-size: var(--hud-t-xs);
+}
+
+.hud-topbar__meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--hud-s5);
+}
+
+.hud-panel {
+  position: absolute;
+  top: var(--content-top);
+  bottom: calc(var(--hud-safe-y) + 64px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--hud-s5);
+}
+
+.hud-panel--left {
+  left: var(--hud-safe-x);
+  width: var(--hud-left-width);
+}
+
+.hud-panel--right {
+  right: var(--hud-safe-x);
+  width: var(--hud-right-width);
+}
+
+.hud-panel__scroll {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: var(--hud-s1);
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  scrollbar-width: thin;
+}
+
+.hud-panel__scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.hud-panel__scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.hud-scene-clear-zone {
+  position: absolute;
+  top: var(--content-top);
+  right: calc(var(--hud-safe-x) + var(--hud-right-width) + var(--hud-s6));
+  bottom: calc(var(--hud-safe-y) + 72px);
+  left: calc(var(--hud-safe-x) + var(--hud-left-width) + var(--hud-s6));
+  background: transparent !important;
+  border: 0;
+  pointer-events: none;
+}
+
+.hud-actionbar {
+  position: absolute;
+  right: 50%;
+  bottom: var(--hud-safe-y);
+  display: flex;
+  align-items: center;
+  gap: var(--hud-s2);
+  max-width: min(720px, 46vw);
+  padding: var(--hud-s2);
+  transform: translateX(50%);
+}
+
+.hud-actionbar__context {
+  max-width: 260px;
+  padding: 0 var(--hud-s3);
+  overflow: hidden;
+  color: var(--hud-ink-3);
+  font-size: var(--hud-t-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 2400px) {
+  :root {
+    --hud-left-width: 392px;
+    --hud-right-width: 472px;
+  }
+
+  .hud-panel {
+    padding: var(--hud-s6);
+  }
+}
+
+@media (max-width: 1600px) {
+  :root {
+    --hud-safe-x: 16px;
+    --hud-left-width: 300px;
+    --hud-right-width: 344px;
+  }
+
+  .hud-panel {
+    padding: var(--hud-s4);
+  }
+
+  .hud-topbar__meta .hud-live-strip__label {
+    max-width: 180px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .hud-panel--right {
+    top: auto;
+    left: calc(var(--hud-safe-x) + var(--hud-left-width) + var(--hud-s4));
+    width: min(420px, calc(100vw - var(--hud-left-width) - 64px));
+    height: min(44vh, 420px);
+  }
+
+  .hud-scene-clear-zone {
+    right: var(--hud-safe-x);
+  }
+
+  .hud-topbar__meta .hud-live-strip:first-child {
+    display: none;
+  }
+}
+
+@media (max-height: 760px) {
+  :root {
+    --hud-safe-y: 12px;
+    --hud-top-height: 52px;
+  }
+
+  .hud-panel {
+    bottom: calc(var(--hud-safe-y) + 52px);
+    padding: var(--hud-s3);
+  }
+
+  .hud-metric {
+    min-height: 76px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

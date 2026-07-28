@@ -8,6 +8,12 @@
     "instance_count": 0,
     "binding_status": "unbound"
   },
+  "zone": {
+    "zone_id": "scc_w19_1f_ict",
+    "name": "SCC W19 1F ICT设备区",
+    "ue_level": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Main",
+    "applies_to_all_proposed_instances": true
+  },
   "summary": {
     "proposed_instance_count": 6,
     "proposed_object_type_count": 6,
@@ -20,7 +26,8 @@
     {
       "display_name": "1号自动上板机",
       "object_type_name": "自动上板机_L460-SF-AGV",
-      "hierarchy_path": "生产区/ICT产线/产线_01/工位_01_自动上板",
+      "zone_id": "scc_w19_1f_ict",
+      "hierarchy_path": "生产区/1F/ICT产线/产线_01/工位_01_自动上板",
       "boundary_basis": "station label plus mesh names and bounds proximity",
       "source_actors": [
         {"label": "ShangBanJi_L460-SF-AGV-Xianti", "guid": "732C27F24870223EF5E79888CF2AF036"},
@@ -31,7 +38,8 @@
     {
       "display_name": "2号机器人上下料单元",
       "object_type_name": "机器人上下料单元_W9",
-      "hierarchy_path": "生产区/ICT产线/产线_01/工位_02_机器人上下料",
+      "zone_id": "scc_w19_1f_ict",
+      "hierarchy_path": "生产区/1F/ICT产线/产线_01/工位_02_机器人上下料",
       "boundary_basis": "station label plus mesh names and bounds proximity",
       "source_actors": [
         {"label": "SM_SheBei2", "guid": "B5634B3B4D1DAE18DC8F7F9AF958ABF1"},
@@ -44,7 +52,8 @@
     {
       "display_name": "3号ICT测试机",
       "object_type_name": "ICT测试机_TR5001E",
-      "hierarchy_path": "生产区/ICT产线/产线_01/工位_03_ICT测试",
+      "zone_id": "scc_w19_1f_ict",
+      "hierarchy_path": "生产区/1F/ICT产线/产线_01/工位_03_ICT测试",
       "boundary_basis": "station label plus mesh names and bounds proximity",
       "source_actors": [
         {"label": "ICT_TR5001E-Xianti", "guid": "77B91DE442A171746AD29EA1F0CA5996"},
@@ -57,7 +66,8 @@
     {
       "display_name": "4号自动分板机",
       "object_type_name": "在线分板机_ER-7000",
-      "hierarchy_path": "生产区/ICT产线/产线_01/工位_04_自动分板",
+      "zone_id": "scc_w19_1f_ict",
+      "hierarchy_path": "生产区/1F/ICT产线/产线_01/工位_04_自动分板",
       "boundary_basis": "station label plus mesh names and bounds proximity",
       "source_actors": [
         {"label": "001-在线分板机-002", "guid": "F7BB0CB94EE9129CE3546FBABD024D0F"},
@@ -68,7 +78,8 @@
     {
       "display_name": "5号机器人下料单元",
       "object_type_name": "机器人下料单元_W9",
-      "hierarchy_path": "生产区/ICT产线/产线_01/工位_05_机器人下料",
+      "zone_id": "scc_w19_1f_ict",
+      "hierarchy_path": "生产区/1F/ICT产线/产线_01/工位_05_机器人下料",
       "boundary_basis": "station label plus mesh names and bounds proximity",
       "source_actors": [
         {"label": "ZiDongChaJianJi", "guid": "22D90A4241F30B61007B45B51272A122"},
@@ -83,7 +94,8 @@
     {
       "display_name": "2号ICT整线装配",
       "object_type_name": "ICT整线装配_SM_CIT",
-      "hierarchy_path": "生产区/ICT产线/产线_02/整线装配",
+      "zone_id": "scc_w19_1f_ict",
+      "hierarchy_path": "生产区/1F/ICT产线/产线_02/整线装配",
       "boundary_basis": "existing DatasmithSceneActor mother actor",
       "source_actors": [
         {"label": "SM_CIT", "guid": "55DD159A434DCEE2B91ACE83EE64F145", "render_part_count": 15}

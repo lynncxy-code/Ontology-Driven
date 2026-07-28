@@ -79,7 +79,7 @@ public:
     /** 后端 API 基础地址 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接",
               meta=(DisplayName="后端基础URL"))
-    FString BackendBaseUrl = TEXT("http://127.0.0.1:5000");
+    FString BackendBaseUrl = TEXT("http://localhost:5000");
 
     /** UE 工程稳定身份。默认使用 ueproj_<工程名>；后端用它强绑定数据集，防止工程串台。 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接",

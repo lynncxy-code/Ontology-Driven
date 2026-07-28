@@ -604,6 +604,47 @@ class ProjectStore:
                 return list(insts.keys())
             return [iid for iid, r in insts.items() if r.get("zone_id") == zone_id]
 
+    def assign_zone(self, instance_ids, zone_id):
+        """批量设置实例分区；zone_id=None 表示解除分区，一次持久化全部变更。"""
+        with self._lock:
+            if not self._current:
+                return {
+                    "project_id": None,
+                    "zone_id": zone_id,
+                    "updated": [],
+                    "unchanged": [],
+                    "missing": list(instance_ids or []),
+                }
+
+            updated = []
+            unchanged = []
+            missing = []
+            instances = self._inst()
+            for instance_id in instance_ids or []:
+                instance = instances.get(instance_id)
+                if instance is None:
+                    missing.append(instance_id)
+                    continue
+                current_zone = instance.get("zone_id") or None
+                if current_zone == zone_id:
+                    unchanged.append(instance_id)
+                    continue
+                if zone_id is None:
+                    instance.pop("zone_id", None)
+                else:
+                    instance["zone_id"] = zone_id
+                updated.append(instance_id)
+
+            if updated:
+                self._save_current()
+            return {
+                "project_id": self._active_id,
+                "zone_id": zone_id,
+                "updated": updated,
+                "unchanged": unchanged,
+                "missing": missing,
+            }
+
     def list_all(self):
         """实例元信息列表（含在线状态），仅当前项目。"""
         with self._lock:
@@ -614,6 +655,7 @@ class ProjectStore:
                     "id": iid,
                     "object_type_rid": inst["object_type_rid"],
                     "object_type_name": inst["object_type_name"],
+                    "zone_id": inst.get("zone_id") or None,
                     "display_name": inst.get("display_name") or iid,
                     "hierarchy_path": _clean_hierarchy_path(
                         inst.get("hierarchy_path"),

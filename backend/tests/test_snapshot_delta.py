@@ -8,7 +8,7 @@ BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 
-from snapshot_delta import SCHEMA_VERSION, SnapshotDeltaService
+from snapshot_delta import SCHEMA_VERSION, SnapshotDeltaService, _collect_instance_tokens
 
 
 def full_snapshot(instance_id, x=0.0, overlay="ready", render_parts=None):
@@ -168,6 +168,33 @@ class SnapshotDeltaServiceTestCase(unittest.TestCase):
         )
         self.assertEqual("reset", result["mode"])
         self.assertEqual("stream_mismatch", result["resetReason"])
+
+    def test_type_model_path_is_part_of_instance_change_token(self):
+        class Store:
+            _lock = None
+            _active_id = "project"
+            _current = {
+                "instances": {
+                    "one": {
+                        "object_type_rid": "type-a",
+                        "last_seen": 0,
+                        "raw_state": {},
+                        "render_config": {},
+                    }
+                }
+            }
+
+        object_types = {
+            "type-a": {
+                "asset_id": "same-id",
+                "ue_asset_path": "artstudio:123:v1",
+                "injected_interfaces": ["I3D_Representable"],
+            }
+        }
+        _, before = _collect_instance_tokens(Store(), None, object_types)
+        object_types["type-a"]["ue_asset_path"] = "artstudio:123:v2"
+        _, after = _collect_instance_tokens(Store(), None, object_types)
+        self.assertNotEqual(before["one"], after["one"])
 
 
 if __name__ == "__main__":

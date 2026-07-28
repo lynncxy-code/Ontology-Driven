@@ -1,0 +1,394 @@
+/**
+ * Lingjing Core - Presentation Animations
+ * 灵境核心 - 演示文稿动画效果
+ *
+ * @version 2.7.1
+ * @description 演示文稿场景专用 - 动画和过渡效果
+ */
+
+/* ============================================================================
+   Fade In Animation - 淡入动画
+   ========================================================================= */
+
+@keyframes presentation-fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.presentation-animate-fadeIn {
+  animation: presentation-fadeIn var(--animation-duration, 600ms) ease-out forwards;
+}
+
+/* ============================================================================
+   Slide In Up Animation - 上滑进入
+   ========================================================================= */
+
+@keyframes presentation-slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.presentation-animate-slideInUp {
+  animation: presentation-slideInUp var(--animation-duration, 600ms) ease-out forwards;
+}
+
+/* ============================================================================
+   Slide In Left Animation - 左滑进入
+   ========================================================================= */
+
+@keyframes presentation-slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.presentation-animate-slideInLeft {
+  animation: presentation-slideInLeft var(--animation-duration, 600ms) ease-out forwards;
+}
+
+/* ============================================================================
+   Slide In Right Animation - 右滑进入
+   ========================================================================= */
+
+@keyframes presentation-slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.presentation-animate-slideInRight {
+  animation: presentation-slideInRight var(--animation-duration, 600ms) ease-out forwards;
+}
+
+/* ============================================================================
+   Scale In Animation - 缩放进入
+   ========================================================================= */
+
+@keyframes presentation-scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.presentation-animate-scaleIn {
+  animation: presentation-scaleIn var(--animation-duration, 600ms) ease-out forwards;
+}
+
+/* ============================================================================
+   Bounce In Animation - 弹跳进入
+   ========================================================================= */
+
+@keyframes presentation-bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.presentation-animate-bounceIn {
+  animation: presentation-bounceIn var(--animation-duration, 800ms) ease-out forwards;
+}
+
+/* ============================================================================
+   Pulse Animation - 脉冲动画
+   ========================================================================= */
+
+@keyframes presentation-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.presentation-animate-pulse {
+  animation: presentation-pulse var(--animation-duration, 2000ms) ease-in-out infinite;
+}
+
+/* ============================================================================
+   Float Animation - 悬浮动画
+   ========================================================================= */
+
+@keyframes presentation-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.presentation-animate-float {
+  animation: presentation-float var(--animation-duration, 3000ms) ease-in-out infinite;
+}
+
+/* ============================================================================
+   Gradient Shift Animation - 渐变位移
+   ========================================================================= */
+
+@keyframes presentation-gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.presentation-animate-gradient {
+  background-size: 200% 200%;
+  animation: presentation-gradientShift var(--animation-duration, 5000ms) ease infinite;
+}
+
+/* ============================================================================
+   Stagger Animation - 交错动画类
+   ========================================================================= */
+
+.presentation-animate-stagger-1 {
+  animation-delay: 0ms;
+}
+
+.presentation-animate-stagger-2 {
+  animation-delay: 100ms;
+}
+
+.presentation-animate-stagger-3 {
+  animation-delay: 200ms;
+}
+
+.presentation-animate-stagger-4 {
+  animation-delay: 300ms;
+}
+
+.presentation-animate-stagger-5 {
+  animation-delay: 400ms;
+}
+
+.presentation-animate-stagger-6 {
+  animation-delay: 500ms;
+}
+
+/* ============================================================================
+   Slide Enter Animation - 幻灯片进入效果
+   ========================================================================= */
+
+.presentation-slide.active .presentation-animate-on-enter {
+  animation: presentation-slideInUp 600ms ease-out forwards;
+}
+
+.presentation-slide.active .presentation-animate-on-enter:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.presentation-slide.active .presentation-animate-on-enter:nth-child(2) {
+  animation-delay: 100ms;
+}
+
+.presentation-slide.active .presentation-animate-on-enter:nth-child(3) {
+  animation-delay: 200ms;
+}
+
+.presentation-slide.active .presentation-animate-on-enter:nth-child(4) {
+  animation-delay: 300ms;
+}
+
+.presentation-slide.active .presentation-animate-on-enter:nth-child(5) {
+  animation-delay: 400ms;
+}
+
+.presentation-slide.active .presentation-animate-on-enter:nth-child(6) {
+  animation-delay: 500ms;
+}
+
+/* ============================================================================
+   Background Particles - 背景粒子效果
+   ========================================================================= */
+
+.presentation-bg-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes presentation-particle-float {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translateY(-20px) translateX(10px);
+    opacity: 0.6;
+  }
+}
+
+.presentation-particle {
+  position: absolute;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
+  opacity: 0.1;
+  animation: presentation-particle-float 6s ease-in-out infinite;
+}
+
+.presentation-particle-1 {
+  width: 100px;
+  height: 100px;
+  top: 10%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.presentation-particle-2 {
+  width: 150px;
+  height: 150px;
+  top: 60%;
+  right: 10%;
+  animation-delay: 2s;
+}
+
+.presentation-particle-3 {
+  width: 80px;
+  height: 80px;
+  bottom: 20%;
+  left: 30%;
+  animation-delay: 4s;
+}
+
+/* ============================================================================
+   Glow Effect - 发光效果
+   ========================================================================= */
+
+@keyframes presentation-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(0, 102, 204, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(0, 102, 204, 0.6);
+  }
+}
+
+.presentation-animate-glow {
+  animation: presentation-glow var(--animation-duration, 2000ms) ease-in-out infinite;
+}
+
+/* ============================================================================
+   Typing Effect - 打字效果
+   ========================================================================= */
+
+@keyframes presentation-typing {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes presentation-blink {
+  50% {
+    border-color: transparent;
+  }
+}
+
+.presentation-typing {
+  overflow: hidden;
+  white-space: nowrap;
+  border-right: 3px solid var(--theme-primary);
+  animation: presentation-typing 2s steps(40, end),
+             presentation-blink 0.75s step-end infinite;
+}
+
+/* ============================================================================
+   Transition Classes - 过渡类
+   ========================================================================= */
+
+.presentation-transition-all {
+  transition: all var(--transition-duration, 300ms) ease;
+}
+
+.presentation-transition-transform {
+  transition: transform var(--transition-duration, 300ms) ease;
+}
+
+.presentation-transition-opacity {
+  transition: opacity var(--transition-duration, 300ms) ease;
+}
+
+.presentation-transition-colors {
+  transition: background-color var(--transition-duration, 300ms) ease,
+              color var(--transition-duration, 300ms) ease,
+              border-color var(--transition-duration, 300ms) ease;
+}
+
+/* ============================================================================
+   Hover Effects - 悬浮效果
+   ========================================================================= */
+
+.presentation-hover-lift {
+  transition: transform var(--transition-duration, 300ms) ease,
+              box-shadow var(--transition-duration, 300ms) ease;
+}
+
+.presentation-hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.presentation-hover-scale {
+  transition: transform var(--transition-duration, 300ms) ease;
+}
+
+.presentation-hover-scale:hover {
+  transform: scale(1.02);
+}
+
+.presentation-hover-glow {
+  transition: box-shadow var(--transition-duration, 300ms) ease;
+}
+
+.presentation-hover-glow:hover {
+  box-shadow: 0 0 30px rgba(0, 102, 204, 0.4);
+}

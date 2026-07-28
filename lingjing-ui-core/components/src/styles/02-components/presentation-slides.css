@@ -1,0 +1,1032 @@
+/**
+ * Lingjing Core - Presentation Slides
+ * 灵境核心 - 演示文稿幻灯片样式
+ *
+ * @version 2.7.1
+ * @description 演示文稿场景专用 - 幻灯片容器和页面类型样式
+ * @design 完全复用variables.css设计令牌，遵循实施方案v2.0
+ */
+
+/* ============================================================================
+   Root Variables for Presentation (仅基于现有变量扩展)
+   ========================================================================= */
+
+:root {
+  --ppt-font-size-h1-cover: 4rem;
+  --ppt-font-size-h1: 2.625rem;
+  --ppt-font-size-h2: 2.25rem;
+  --ppt-font-size-h3: 1.875rem;
+  --ppt-font-size-body: var(--font-size-lg);
+  --ppt-font-size-small: var(--font-size-base);
+  
+  --ppt-slide-padding: var(--spacing-xl);
+  --ppt-section-gap: var(--spacing-xl);
+  
+  --ppt-radius-card: var(--radius-xl);
+  --ppt-radius-lg: var(--radius-2xl);
+}
+
+/* ============================================================================
+   Presentation Container - 演示文稿容器
+   ========================================================================= */
+
+.presentation-container {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ============================================================================
+   Background Flow Animation - 背景流动动画
+   ========================================================================= */
+
+.presentation-container {
+  background: linear-gradient(135deg, var(--neutral-50) 0%, var(--neutral-200) 50%, var(--neutral-300) 100%);
+  background-attachment: fixed;
+  background-size: 200% 200%;
+  animation: presentationBackgroundFlow 20s ease infinite;
+}
+
+[data-theme="dark"] .presentation-container {
+  background: #000000;
+}
+
+[data-theme="dark"] .presentation-glass-card,
+[data-theme="dark"] .presentation-glass-card-grid,
+[data-theme="dark"] .presentation-glass-card-large {
+  background: linear-gradient(135deg, rgba(0, 132, 255, 0.12) 0%, rgba(0, 212, 255, 0.08) 100%);
+  border: 1px solid rgba(0, 132, 255, 0.2);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+@keyframes presentationBackgroundFlow {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ============================================================================
+   Floating Shapes - 悬浮形状
+   ========================================================================= */
+
+.presentation-floating-shapes {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.presentation-shape {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.25;
+  animation: presentationShapeFloat 20s ease-in-out infinite;
+}
+
+.presentation-shape-1 {
+  width: 600px;
+  height: 600px;
+  background: var(--theme-primary);
+  top: -200px;
+  right: -200px;
+  animation-delay: 0s;
+}
+
+.presentation-shape-2 {
+  width: 400px;
+  height: 400px;
+  background: var(--theme-secondary);
+  bottom: -100px;
+  left: -100px;
+  animation-delay: -5s;
+}
+
+.presentation-shape-3 {
+  width: 300px;
+  height: 300px;
+  background: var(--theme-accent);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation-delay: -10s;
+  animation: presentationShapeFloat 25s ease-in-out infinite;
+}
+
+.presentation-particles {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.presentation-particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: rgba(0, 132, 255, 0.6);
+  border-radius: 50%;
+  animation: presentationParticleFloat 20s infinite;
+}
+
+@keyframes presentationParticleFloat {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100vh) translateX(50px);
+    opacity: 0;
+  }
+}
+
+/* ============================================================================
+   Helper Classes - 标准化辅助类
+   ========================================================================= */
+
+.text-center {
+  text-align: center !important;
+}
+
+.text-left {
+  text-align: left !important;
+}
+
+.width-full {
+  width: 100% !important;
+}
+
+.mt-lg {
+  margin-top: var(--spacing-lg) !important;
+}
+
+.mt-xl {
+  margin-top: var(--spacing-lg) !important;
+}
+
+.mt-2xl {
+  margin-top: var(--spacing-2xl) !important;
+}
+
+.mb-md {
+  margin-bottom: var(--spacing-md) !important;
+}
+
+.mb-lg {
+  margin-bottom: var(--spacing-lg) !important;
+}
+
+.gap-lg {
+  gap: var(--spacing-lg) !important;
+}
+
+.gap-xl {
+  gap: var(--spacing-xl) !important;
+}
+
+.gap-2xl {
+  gap: var(--spacing-2xl) !important;
+}
+
+.flex {
+  display: flex !important;
+}
+
+.flex-wrap {
+  flex-wrap: wrap !important;
+}
+
+.justify-center {
+  justify-content: center !important;
+}
+
+.grid-2-cols {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: var(--spacing-lg) !important;
+}
+
+.grid-3-cols {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: var(--spacing-lg) !important;
+}
+
+.presentation-glass-card-centered {
+  max-width: 900px !important;
+  width: 100% !important;
+  text-align: center !important;
+}
+
+.presentation-glass-card-large {
+  max-width: 900px !important;
+  width: 100% !important;
+  text-align: center !important;
+}
+
+.presentation-glass-card-medium {
+  max-width: 800px !important;
+  width: 100% !important;
+  text-align: center !important;
+}
+
+.badge-container {
+  display: flex !important;
+  justify-content: center !important;
+  gap: var(--spacing-md) !important;
+  margin-bottom: var(--spacing-xl) !important;
+  flex-wrap: wrap !important;
+}
+
+@keyframes presentationShapeFloat {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(30px, -30px) rotate(90deg); }
+  50% { transform: translate(-20px, 20px) rotate(180deg); }
+  75% { transform: translate(20px, 10px) rotate(270deg); }
+}
+
+/* ============================================================================
+   Slide Base - 幻灯片基础
+   ========================================================================= */
+
+.presentation-slide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: var(--ppt-slide-padding);
+  opacity: 0;
+  transform: translateY(40px) scale(0.98);
+  transition: opacity 0.8s var(--anim-ease-in-out), 
+              transform 0.8s var(--anim-ease-in-out);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.presentation-slide.active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+  z-index: 10;
+}
+
+/* ============================================================================
+   Slide Content - 幻灯片内容容器
+   ========================================================================= */
+
+.slide-content {
+  max-width: 1400px;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+  padding: var(--spacing-xl) var(--spacing-xl) 0;
+}
+
+/* ============================================================================
+   Glass Card - 玻璃卡片（复用现有效果）
+   ========================================================================= */
+
+.presentation-glass-card {
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: var(--glass-border);
+  border-radius: var(--ppt-radius-lg);
+  box-shadow: var(--glass-shadow);
+  transition: all var(--anim-duration-normal) var(--anim-ease-in-out);
+  position: relative;
+  overflow: hidden;
+  padding: var(--spacing-xl);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.presentation-glass-card-grid {
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: var(--glass-border);
+  border-radius: var(--ppt-radius-lg);
+  box-shadow: var(--glass-shadow);
+  transition: all var(--anim-duration-normal) var(--anim-ease-in-out);
+  position: relative;
+  overflow: hidden;
+  padding: var(--spacing-xl);
+  box-sizing: border-box;
+  width: 100%;
+  text-align: center;
+}
+
+.presentation-glass-card h1,
+.presentation-glass-card h2,
+.presentation-glass-card h3,
+.presentation-glass-card h4,
+.presentation-glass-card h5,
+.presentation-glass-card h6 {
+  margin-top: 0;
+}
+
+.presentation-glass-card-grid h1,
+.presentation-glass-card-grid h2,
+.presentation-glass-card-grid h3,
+.presentation-glass-card-grid h4,
+.presentation-glass-card-grid h5,
+.presentation-glass-card-grid h6 {
+  margin-top: 0;
+}
+
+@media (min-width: 1920px) {
+  .presentation-glass-card {
+    padding: 48px !important;
+  }
+  .presentation-glass-card-grid {
+    padding: 48px !important;
+  }
+}
+
+@media (min-width: 2560px) {
+  .presentation-slide {
+    padding: 80px !important;
+  }
+  
+  .slide-header {
+    margin-bottom: var(--spacing-2xl);
+  }
+  
+  .slide-title {
+    font-size: 3rem;
+  }
+  
+  .slide-subtitle {
+    font-size: var(--font-size-xl);
+  }
+}
+
+.presentation-glass-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, 
+      transparent, 
+      rgba(255, 255, 255, 0.4), 
+      transparent);
+  pointer-events: none;
+}
+
+.presentation-glass-card:hover {
+  box-shadow: var(--glow-primary);
+  border-color: var(--theme-secondary);
+  transform: translateY(-4px);
+}
+
+/* ============================================================================
+   Cover Slide - 封面页
+   ========================================================================= */
+
+.slide-cover {
+  text-align: center;
+}
+
+.slide-cover .slide-content {
+  justify-content: center;
+  align-items: center;
+  padding-top: 0;
+  min-height: calc(100vh - 120px);
+}
+
+.slide-cover-title {
+  font-size: var(--ppt-font-size-h1-cover);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--spacing-lg);
+  letter-spacing: -1px;
+  line-height: 1.1;
+  background: linear-gradient(135deg, 
+      var(--theme-primary) 0%, 
+      var(--theme-secondary) 50%, 
+      var(--theme-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  background-size: 200% 200%;
+  animation: presentationGradientShift 8s ease infinite;
+}
+
+@keyframes presentationGradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.slide-cover-subtitle {
+  font-size: var(--font-size-xl);
+  color: var(--theme-text-secondary);
+  margin-bottom: var(--spacing-3xl);
+  font-weight: var(--font-weight-normal);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.slide-cover-meta {
+  display: flex;
+  gap: var(--spacing-2xl);
+  flex-wrap: wrap;
+  justify-content: center;
+  color: var(--theme-text-secondary);
+  font-size: var(--font-size-base);
+}
+
+.slide-cover-meta-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+/* ============================================================================
+   Table of Contents Slide - 目录页
+   ========================================================================= */
+
+.slide-toc {
+  text-align: left;
+}
+
+.slide-toc-title {
+  font-size: var(--ppt-font-size-h1);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--spacing-xl);
+  letter-spacing: -0.5px;
+  color: var(--theme-text-primary);
+}
+
+.slide-toc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.slide-toc-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xl);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  margin-bottom: var(--spacing-md);
+  border-left: 4px solid var(--theme-primary);
+  background: linear-gradient(90deg, 
+      rgba(0, 102, 204, 0.08), 
+      transparent);
+  border-radius: var(--radius-lg);
+  transition: all var(--anim-duration-normal);
+}
+
+.slide-toc-item:hover {
+  background: linear-gradient(90deg, 
+      rgba(0, 102, 204, 0.12), 
+      transparent);
+  transform: translateX(8px);
+}
+
+.slide-toc-number {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, 
+      var(--theme-primary), 
+      var(--theme-secondary));
+  color: white;
+  border-radius: var(--radius-lg);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-xl);
+  flex-shrink: 0;
+  box-shadow: var(--glow-primary);
+}
+
+.slide-toc-text {
+  flex: 1;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--theme-text-primary);
+}
+
+/* ============================================================================
+   Content Slide - 内容页
+   ========================================================================= */
+
+.slide-header {
+  margin-bottom: var(--spacing-md);
+  text-align: center;
+}
+
+.slide-title {
+  font-size: var(--ppt-font-size-h1);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--spacing-sm);
+  margin-top: 0;
+  color: var(--theme-text-primary);
+  letter-spacing: -0.5px;
+}
+
+.slide-subtitle {
+  font-size: var(--font-size-xl);
+  color: var(--theme-text-secondary);
+  font-weight: var(--font-weight-normal);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.slide-body {
+  font-size: var(--ppt-font-size-body);
+  line-height: 1.9;
+  color: var(--theme-text-secondary);
+  font-weight: var(--font-weight-normal);
+}
+
+.slide-body p {
+  margin-bottom: var(--spacing-sm);
+}
+
+.slide-body ul,
+.slide-body ol {
+  padding-left: var(--spacing-xl);
+  margin-bottom: var(--spacing-md);
+}
+
+.slide-body li {
+  margin-bottom: var(--spacing-sm);
+}
+
+/* ============================================================================
+   Highlight Box - 高亮框
+   ========================================================================= */
+
+.presentation-highlight-box {
+  padding: var(--spacing-lg);
+  margin: 0 0 var(--spacing-lg) 0;
+  border-left: 5px solid var(--theme-primary);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: all var(--anim-duration-normal);
+}
+
+[data-theme="light"] .presentation-highlight-box {
+  background: linear-gradient(135deg, 
+      rgba(0, 102, 204, 0.15), 
+      rgba(0, 153, 170, 0.1));
+  border: 1px solid rgba(0, 102, 204, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 102, 204, 0.1);
+}
+
+[data-theme="dark"] .presentation-highlight-box {
+  background: linear-gradient(135deg, 
+      rgba(0, 132, 255, 0.1), 
+      rgba(0, 229, 255, 0.05));
+  border: 1px solid rgba(0, 132, 255, 0.1);
+}
+
+/* ============================================================================
+   Section Slide - 章节标题页
+   ========================================================================= */
+
+.slide-section {
+  text-align: center;
+}
+
+.slide-section .slide-content {
+  justify-content: center;
+}
+
+.slide-section-number {
+  font-size: 7.5rem;
+  font-weight: var(--font-weight-bold);
+  background: linear-gradient(135deg, 
+      var(--theme-primary), 
+      var(--theme-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+  margin-bottom: var(--spacing-lg);
+  opacity: 0.3;
+}
+
+.slide-section-title {
+  font-size: var(--ppt-font-size-h1);
+  font-weight: var(--font-weight-bold);
+  color: var(--theme-text-primary);
+  letter-spacing: -0.5px;
+}
+
+/* ============================================================================
+   Transition Slide - 过渡页
+   ========================================================================= */
+
+.slide-transition {
+  text-align: center;
+}
+
+.slide-transition .slide-content {
+  justify-content: center;
+}
+
+.slide-transition-text {
+  font-size: var(--ppt-font-size-h2);
+  color: var(--theme-text-secondary);
+  font-style: italic;
+}
+
+/* ============================================================================
+   Closing Slide - 结束页
+   ========================================================================= */
+
+.slide-closing {
+  text-align: center;
+}
+
+.slide-closing .slide-content {
+  justify-content: center;
+  align-items: center;
+  padding-top: 0;
+  min-height: calc(100vh - 120px);
+}
+
+.slide-closing-title {
+  font-size: var(--ppt-font-size-h1-cover);
+  font-weight: var(--font-weight-bold);
+  background: linear-gradient(135deg, 
+      var(--theme-primary) 0%, 
+      var(--theme-secondary) 50%, 
+      var(--theme-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  background-size: 200% 200%;
+  animation: presentationGradientShift 8s ease infinite;
+  margin-bottom: var(--spacing-lg);
+  letter-spacing: -1px;
+  line-height: 1.1;
+}
+
+.slide-closing-subtitle {
+  font-size: var(--font-size-xl);
+  color: var(--theme-text-secondary);
+  margin-bottom: var(--spacing-3xl);
+}
+
+.slide-closing-contact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  color: var(--theme-text-secondary);
+  font-size: var(--font-size-lg);
+}
+
+/* ============================================================================
+   Theme Toggle - 主题切换
+   ========================================================================= */
+
+.presentation-theme-toggle {
+  position: fixed;
+  top: var(--spacing-2xl);
+  right: var(--spacing-2xl);
+  z-index: 1000;
+}
+
+.presentation-theme-btn {
+  padding: var(--spacing-md) var(--spacing-xl);
+  background: var(--bg-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: var(--glass-border);
+  border-radius: var(--radius-full);
+  color: var(--theme-text-primary);
+  cursor: pointer;
+  transition: all var(--anim-duration-normal) var(--anim-ease-in-out);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: var(--glass-shadow);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.presentation-theme-btn:hover {
+  box-shadow: var(--glow-secondary);
+  border-color: var(--theme-secondary);
+  transform: translateY(-2px);
+}
+
+/* ============================================================================
+   Progress Bar - 进度条
+   ========================================================================= */
+
+.presentation-progress-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, 
+      var(--theme-primary), 
+      var(--theme-secondary), 
+      var(--theme-accent));
+  transition: width 0.4s var(--anim-ease-in-out);
+  z-index: 1000;
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.5);
+}
+
+/* ============================================================================
+   Presentation Navigation - 演示文稿导航
+   ========================================================================= */
+
+.presentation-nav {
+  position: fixed;
+  bottom: var(--spacing-2xl);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xl);
+  z-index: 1000;
+}
+
+.presentation-nav-buttons {
+  position: fixed;
+  bottom: var(--spacing-2xl);
+  right: var(--spacing-2xl);
+  display: flex;
+  gap: var(--spacing-lg);
+  z-index: 1000;
+}
+
+.presentation-nav-btn {
+  padding: var(--spacing-md);
+  background: var(--bg-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: var(--glass-border);
+  border-radius: 50%;
+  color: var(--theme-text-primary);
+  cursor: pointer;
+  transition: all var(--anim-duration-normal) var(--anim-ease-in-out);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: var(--glass-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+}
+
+.presentation-nav-btn i {
+  font-size: 20px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.presentation-nav-btn span {
+  display: none;
+}
+
+.presentation-nav-btn:hover:not(:disabled) {
+  box-shadow: var(--glow-secondary);
+  border-color: var(--theme-secondary);
+  transform: translateY(-2px);
+}
+
+[data-theme="dark"] .presentation-theme-btn,
+[data-theme="dark"] .presentation-nav-btn {
+  background: linear-gradient(135deg, rgba(0, 132, 255, 0.15) 0%, rgba(0, 212, 255, 0.15) 100%);
+  border: 1px solid rgba(0, 132, 255, 0.3);
+  color: var(--theme-text-primary);
+}
+
+[data-theme="dark"] .presentation-theme-btn:hover,
+[data-theme="dark"] .presentation-nav-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(0, 132, 255, 0.25) 0%, rgba(0, 212, 255, 0.25) 100%);
+  border: 1px solid rgba(0, 132, 255, 0.5);
+  transform: translateY(-2px);
+}
+
+[data-theme="dark"] .presentation-slide-indicator {
+  background: rgba(0, 132, 255, 0.15);
+  border-color: rgba(0, 132, 255, 0.3);
+}
+
+[data-theme="dark"] .presentation-slide-indicator.active {
+  background: var(--theme-primary);
+  border-color: var(--theme-primary);
+}
+
+.presentation-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.presentation-nav-btn:disabled:hover {
+  box-shadow: var(--glass-shadow);
+  border-color: var(--glass-border);
+}
+
+/* ============================================================================
+   Slide Indicators - 页码指示器
+   ========================================================================= */
+
+.presentation-slide-indicators {
+  position: fixed;
+  bottom: var(--spacing-2xl);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: var(--spacing-lg);
+  z-index: 1000;
+}
+
+.presentation-slide-indicator {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(0, 102, 204, 0.15);
+  cursor: pointer;
+  transition: all var(--anim-duration-normal);
+  border: 2px solid transparent;
+}
+
+.presentation-slide-indicator:hover {
+  background: var(--theme-primary);
+  transform: scale(1.2);
+}
+
+.presentation-slide-indicator.active {
+  background: var(--theme-primary);
+  box-shadow: var(--glow-primary);
+  border-color: var(--theme-secondary);
+  transform: scale(1.3);
+}
+
+/* ============================================================================
+   Responsive - 响应式
+   ========================================================================= */
+
+@media (max-width: 1400px) {
+  .presentation-slide {
+    padding: var(--spacing-2xl);
+  }
+  
+  .slide-content {
+    max-width: 100%;
+    padding-left: var(--spacing-xl);
+    padding-right: var(--spacing-xl);
+  }
+  
+  .slide-cover-title,
+  .slide-closing-title {
+    font-size: 3.25rem;
+  }
+  
+  .slide-title,
+  .slide-section-title,
+  .slide-toc-title {
+    font-size: 2.25rem;
+  }
+  
+  .presentation-glass-card {
+    padding: 48px !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .presentation-slide {
+    padding: var(--spacing-xl);
+  }
+  
+  .slide-content {
+    padding-left: var(--spacing-lg);
+    padding-right: var(--spacing-lg);
+  }
+  
+  .slide-cover-title,
+  .slide-closing-title {
+    font-size: 2.625rem;
+  }
+  
+  .slide-subtitle {
+    font-size: var(--font-size-lg);
+  }
+  
+  .slide-title,
+  .slide-section-title,
+  .slide-toc-title {
+    font-size: 2rem;
+  }
+  
+  .slide-body {
+    font-size: var(--font-size-base);
+  }
+  
+  .presentation-glass-card {
+    padding: 32px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .presentation-slide {
+    padding: var(--spacing-lg);
+  }
+  
+  .slide-content {
+    padding-left: var(--spacing-md);
+    padding-right: var(--spacing-md);
+  }
+  
+  .slide-cover-title,
+  .slide-closing-title {
+    font-size: 2rem;
+  }
+  
+  .slide-subtitle {
+    font-size: var(--font-size-base);
+  }
+  
+  .slide-title,
+  .slide-section-title,
+  .slide-toc-title {
+    font-size: 1.5rem;
+  }
+  
+  .slide-body {
+    font-size: var(--font-size-sm);
+  }
+  
+  .presentation-glass-card {
+    padding: 24px !important;
+  }
+  
+  .presentation-theme-toggle {
+    top: var(--spacing-lg);
+    right: var(--spacing-lg);
+  }
+  
+  .presentation-theme-btn span {
+    display: none;
+  }
+  
+  .presentation-nav-buttons {
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    right: auto;
+    gap: var(--spacing-md);
+  }
+  
+  .presentation-nav-btn span {
+    font-size: 0;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+  
+  .presentation-nav-btn i {
+    font-size: var(--font-size-lg);
+  }
+  
+  .presentation-slide-indicators {
+    bottom: var(--spacing-lg);
+    gap: var(--spacing-md);
+  }
+  
+  .presentation-card-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

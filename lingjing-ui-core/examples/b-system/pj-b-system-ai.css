@@ -1,0 +1,313 @@
+/*
+  B 端 AI 工作台（b-system-ai-assistant.html）项目级扩展样式
+  ──────────────────────────────────────────────────────────────────
+  本文件仅由 b-system-ai-assistant.html 引用，遵循 §2.6 / §3.0.c。
+  所有规则均使用 CSS token（var(--theme-*)），无硬编码颜色。
+  ──────────────────────────────────────────────────────────────────
+  分类说明：
+    • B 类（pj-b-ai-*）：页面独有布局决策，不跨项目复用
+    • A 类（candidate）：已登记 class_registry.json，允许跨场景引用，
+      设计待完善，禁止直接复制到其他项目（§2.7 晋升条件）
+  ──────────────────────────────────────────────────────────────────
+*/
+
+/* ================================================================
+   ai-workspace 双栏 Grid 覆写（B 类：特定页面布局）
+   ================================================================ */
+.ai-workspace {
+  display: grid;
+  grid-template-columns: 440px 1fr;
+  height: 100%;
+  min-height: 0;
+}
+
+/* 左侧对话侧边栏：flex 列，内容可滚动 */
+.assistant-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* chat-messages：填满剩余高度；覆写库的 --spacing-xl(32px) → 16px */
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 16px;
+  gap: 12px;
+}
+
+/* chat-input-area：覆写库的 padding:32px → 12px */
+.chat-input-area {
+  padding: 12px 16px;
+}
+
+/* AI 气泡：白色/卡片背景 */
+.message-bubble-ai .message-text {
+  background: #fff;
+  border: 1px solid var(--theme-border-light);
+  color: var(--theme-text-primary);
+}
+[data-theme="dark"] .message-bubble-ai .message-text {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.13);
+  backdrop-filter: none;
+}
+
+/* 发送按钮：btn-primary 的尺寸覆写 → 36×36 正方形 */
+.pj-b-ai-send-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+/* ================================================================
+   左侧对话头部（B 类：pj-b-ai-chat-header）
+   ================================================================ */
+.pj-b-ai-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--theme-border-light);
+  flex-shrink: 0;
+}
+.pj-b-ai-chat-header-title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--theme-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pj-b-ai-chat-header-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: rgba(var(--brand-primary-rgb, 0,102,255), 0.15);
+  color: var(--theme-primary);
+  font-weight: var(--font-weight-medium);
+}
+.pj-b-ai-chat-header-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--font-size-xs);
+  color: var(--theme-text-secondary);
+}
+
+/* 表格卡片内容区域（去除 padding，让 data-table-container 贴边） */
+.pj-b-ai-card-body {
+  padding: 0;
+}
+
+/* ================================================================
+   A 类 candidate：AI 解决方案步骤（ai-solution-steps）
+   ================================================================ */
+.ai-solution-steps {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ai-solution-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+.ai-step-num {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(var(--brand-primary-rgb, 0,102,255), 0.15);
+  color: var(--theme-primary);
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+/* Stat 卡片次要说明（B 类：特定布局） */
+.pj-b-ai-stat-meta {
+  font-size: var(--font-size-xs);
+  color: var(--theme-text-secondary);
+}
+
+/* ================================================================
+   B 类：右侧问题监控区布局（pj-b-ai-workspace-main）
+   ================================================================ */
+.pj-b-ai-workspace-main {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.pj-b-ai-monitor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pj-b-ai-monitor-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--theme-text-primary);
+}
+.pj-b-ai-monitor-subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--theme-text-secondary);
+  margin-top: 2px;
+}
+.pj-b-ai-monitor-refresh {
+  font-size: var(--font-size-xs);
+  color: var(--theme-text-secondary);
+}
+
+/* 图表卡片行（2 列）*/
+.pj-b-ai-monitor-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* ================================================================
+   A 类 candidate：设备状态矩阵（device-matrix / device-card）
+   ================================================================ */
+.device-matrix {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 7px;
+}
+.device-card {
+  background: var(--theme-bg-secondary);
+  border: 1px solid var(--theme-border-light);
+  border-radius: var(--border-radius-md);
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.device-card:hover { border-color: var(--theme-primary); }
+.device-card--error   { border-color: var(--error-base, #ef4444);   background: rgba(239,68,68,0.04); }
+.device-card--warning { border-color: var(--warning-base, #f59e0b); background: rgba(245,158,11,0.04); }
+.device-card--offline { opacity: 0.45; }
+.device-row   { display: flex; align-items: center; justify-content: space-between; }
+.device-name  {
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--theme-text-primary);
+}
+.device-metric           { font-size: 10px; color: var(--theme-text-secondary); margin-top: 3px; }
+.device-metric--error    { color: var(--error-base, #ef4444); }
+.device-metric--warning  { color: var(--warning-base, #f59e0b); }
+
+/* ================================================================
+   A 类 candidate：迷你趋势图（stat-sparkline / stat-spark）
+   ================================================================ */
+.stat-sparkline {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 22px;
+  margin-top: 8px;
+}
+.stat-spark {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+.stat-spark:last-child   { opacity: 1; }
+.stat-spark--base        { background: var(--theme-border-light); }
+.stat-spark--error       { background: var(--error-base, #ef4444); }
+.stat-spark--warning     { background: var(--warning-base, #f59e0b); }
+.stat-spark--success     { background: var(--success-base, #10b981); }
+.stat-spark--primary     { background: var(--theme-primary); }
+
+/* ================================================================
+   B 类：问题列表操作按钮（pj-b-ai-ask-btn）
+   ================================================================ */
+.pj-b-ai-ask-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--theme-primary);
+  background: rgba(var(--brand-primary-rgb, 0,102,255), 0.08);
+  color: var(--theme-primary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.pj-b-ai-ask-btn:hover { background: rgba(var(--brand-primary-rgb, 0,102,255), 0.18); }
+.pj-b-ai-ask-btn.sent {
+  border-color: var(--success-base, #10b981);
+  color: var(--success-base, #10b981);
+  background: rgba(16, 185, 129, 0.08);
+  cursor: default;
+}
+
+.pj-b-ai-resolved-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--success-base, #10b981);
+}
+
+.pj-b-ai-issue-desc {
+  font-size: var(--font-size-sm);
+  color: var(--theme-text-primary);
+  line-height: 1.4;
+}
+.pj-b-ai-issue-desc-sub {
+  font-size: var(--font-size-xs);
+  color: var(--theme-text-secondary);
+  margin-top: 2px;
+}
+
+/* ================================================================
+   A 类 candidate：问题行色标、工时标签、超限进度条
+   ================================================================ */
+.issue-row--critical td:first-child { border-left: 2px solid var(--error-base, #ef4444); }
+.issue-row--warning  td:first-child { border-left: 2px solid var(--warning-base, #f59e0b); }
+
+.duration-tag {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: monospace;
+  background: var(--theme-bg-tertiary);
+  color: var(--theme-text-secondary);
+}
+.duration-tag--long {
+  background: rgba(239,68,68,0.1);
+  color: var(--error-base, #ef4444);
+}
+
+.overrun-bar   { display: flex; align-items: center; gap: 5px; margin-top: 3px; }
+.overrun-track {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--theme-bg-tertiary);
+  overflow: hidden;
+}
+.overrun-fill          { height: 100%; border-radius: 2px; }
+.overrun-fill--error   { background: var(--error-base, #ef4444); }
+.overrun-fill--warning { background: var(--warning-base, #f59e0b); }
+.overrun-pct           { font-size: 10px; color: var(--theme-text-secondary); white-space: nowrap; }

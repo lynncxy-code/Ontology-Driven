@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UE5 Overlay · 航空总装协同视图（Mode 3 壳过轻反例）</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-ue5-overlay.css">
+  <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+  <main class="ue5-overlay-root">
+    <div class="ue5-overlay-background"></div>
+    <div class="ue5-overlay-viewport">
+      <img class="ue5-overlay-scene-image" src="../../assets/ue5-bg-scene.png" alt="航空制造三维背景场景">
+    </div>
+    <div class="ue5-overlay-grid"></div>
+    <div class="ue5-overlay-center-guard"></div>
+
+    <header class="ue5-overlay-system-bar">
+      <div class="ue5-overlay-system-bar__brand">
+        <span class="ue5-overlay-system-bar__brand-mark" aria-hidden="true"></span>
+        <div class="ue5-overlay-system-bar__brand-copy">
+          <span class="ue5-overlay-system-bar__brand-name">C919 总装协同总览（壳过轻反例）</span>
+          <span class="ue5-overlay-system-bar__brand-subtitle">错误示例：被误判为 Mode 3，但实际上只包含 HUD + 单侧信息面板。</span>
+        </div>
+      </div>
+      <nav class="ue5-overlay-system-bar__nav" aria-label="场景导航">
+        <span class="ue5-overlay-system-bar__nav-item is-active">总览视图</span>
+        <span class="ue5-overlay-system-bar__nav-item">质量追踪</span>
+        <span class="ue5-overlay-system-bar__nav-item">工艺联动</span>
+      </nav>
+      <div class="ue5-overlay-system-bar__meta">
+        <span class="ue5-overlay-system-bar__meta-item"><span class="ue5-overlay-system-bar__meta-dot" aria-hidden="true"></span>示例用途 · 请勿作为业务模板</span>
+        <span class="ue5-overlay-system-bar__meta-item">2026/03/23 · 11:52</span>
+      </div>
+    </header>
+
+    <section class="ue5-overlay-safe-area" aria-label="Mode 3 壳过轻反例">
+      <!--
+        反例说明：
+          · 文件名包含 ue5_overlay_dashboard → layout_mode = 3；
+          · 但页面结构只有 HUD + 图层开关面板，没有 alert-center 告警中心；
+          · skill-audit.js 应将其识别为 Mode 3 壳过轻并给出 ERROR。
+      -->
+      <div class="topbar-hud topbar-hud--with-sidepanel ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--hud">
+        <div class="topbar-hud__headline">
+          <h1 class="topbar-hud__title">C919 总装协同总览（错误示例）</h1>
+          <p class="topbar-hud__subtitle">本示例仅用于测试 Mode 3 壳过轻 Guard，不应作为业务交付模板。</p>
+        </div>
+        <div class="topbar-hud__summary">
+          <div class="topbar-hud__stat topbar-hud__stat--warning">
+            <span class="topbar-hud__stat-label">示例字段</span>
+            <span class="topbar-hud__stat-value">10<span>min</span></span>
+            <span class="topbar-hud__stat-meta">这里只是为了保留 HUD 典型结构。</span>
+          </div>
+          <div class="topbar-hud__stat topbar-hud__stat--success">
+            <span class="topbar-hud__stat-label">整线节拍</span>
+            <span class="topbar-hud__stat-value">98.4<span>%</span></span>
+            <span class="topbar-hud__stat-meta">示例说明：Mode 3 应该额外有告警中心面板。</span>
+          </div>
+        </div>
+        <div class="topbar-hud__actions">
+          <span class="topbar-hud__status"><span class="topbar-hud__status-dot" aria-hidden="true"></span>当前焦点：错误示例</span>
+        </div>
+      </div>
+
+      <aside class="layer-switcher ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--hud" aria-label="图层控制">
+        <div class="layer-switcher__header">
+          <h2 class="layer-switcher__title">场景图层（仅 HUD 配置）</h2>
+          <span class="layer-switcher__status">无告警中心，仅用于反例</span>
+        </div>
+        <div class="layer-switcher__list">
+          <div class="layer-switcher__item is-on">
+            <div class="layer-switcher__item-copy">
+              <span class="layer-switcher__item-title">工位标记</span>
+              <span class="layer-switcher__item-meta">仅显示关键工位</span>
+            </div>
+            <button class="layer-switcher__toggle" type="button" aria-label="切换工位标记"></button>
+          </div>
+          <div class="layer-switcher__item is-on">
+            <div class="layer-switcher__item-copy">
+              <span class="layer-switcher__item-title">风险热区</span>
+              <span class="layer-switcher__item-meta">只保留预警与告警</span>
+            </div>
+            <button class="layer-switcher__toggle" type="button" aria-label="切换风险热区"></button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- 注意：本反例刻意不包含 alert-center 壳结构，用于触发 Mode 3 壳过轻 Guard -->
+    </section>
+  </main>
+
+  <script>
+    if (window.lucide && window.lucide.createIcons) {
+      window.lucide.createIcons();
+    }
+  </script>
+</body>
+</html>

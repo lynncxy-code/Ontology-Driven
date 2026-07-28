@@ -1,0 +1,728 @@
+{
+  "schema_version": "zhhz_semantic_rename_v1",
+  "dataset_id": "ds_1784694647848",
+  "scope": {
+    "type_count": 43,
+    "instance_count": 66,
+    "categories": [
+      "展陈装置",
+      "显示与媒体设备",
+      "触控与操作终端"
+    ],
+    "non_goals": [
+      "RID",
+      "model asset",
+      "transform",
+      "instance-type membership"
+    ]
+  },
+  "type_names": {
+    "zhhz.display_media_device.model_007904e7e325c5ae": "数据展示LED屏-01（DMD-01）",
+    "zhhz.display_media_device.model_00c7287cd8769399": "数据展示LED屏-02（DMD-02）",
+    "zhhz.display_media_device.model_291322bd2b0460c3": "组合媒体展示屏-056（DMD-03）",
+    "zhhz.display_media_device.model_2ee1fc469690eb4b": "独立媒体展示屏-058（DMD-04）",
+    "zhhz.display_media_device.model_3ab88f8bc986d303": "数据展示LED屏-04（DMD-05）",
+    "zhhz.display_media_device.model_4e7bb02b7b4f1e87": "紧凑型数据展示LED屏（DMD-06）",
+    "zhhz.display_media_device.model_620acb0b59b3c48a": "长方形LED屏（DMD-07）",
+    "zhhz.display_media_device.model_8a8df6309530810f": "数据展示LED屏-03（DMD-08）",
+    "zhhz.display_media_device.model_ef3dfa4e2519dec9": "数据展示LED屏-05（DMD-09）",
+    "zhhz.display_media_device.model_f517c63c5bc5163b": "组合媒体展示屏-060（DMD-10）",
+    "zhhz.exhibit_fixture.model_054920a28ec53d60": "白色倒角展台-A（EF-01）",
+    "zhhz.exhibit_fixture.model_0b4ccec734c275fb": "灰黑组合展台-A（EF-02）",
+    "zhhz.exhibit_fixture.model_0c479112746dcc7e": "白灰模块展台（EF-03）",
+    "zhhz.exhibit_fixture.model_11faae0c2e1ae337": "大型复合展陈装置（EF-04）",
+    "zhhz.exhibit_fixture.model_1738f547ab972655": "图文组合展台（EF-05）",
+    "zhhz.exhibit_fixture.model_3b5a403c5180d3d0": "黑白组合展台（EF-06）",
+    "zhhz.exhibit_fixture.model_41d52d8fe3054627": "大型复合展陈装置（EF-07）",
+    "zhhz.exhibit_fixture.model_4c6958ddf91d4a68": "大型复合展陈装置（EF-08）",
+    "zhhz.exhibit_fixture.model_4e207aa4d2609660": "紫色星形展陈装置（EF-09）",
+    "zhhz.exhibit_fixture.model_516560622e254031": "白色倒角展台-B（EF-10）",
+    "zhhz.exhibit_fixture.model_52b4ef67231b1f24": "大型复合展陈装置（EF-11）",
+    "zhhz.exhibit_fixture.model_546b466c8fa0689f": "大型复合展陈装置（EF-12）",
+    "zhhz.exhibit_fixture.model_598eb999fc37ba56": "通航综合展陈装置（EF-13）",
+    "zhhz.exhibit_fixture.model_59b82b91f1cd460e": "灰黑组合展台-B（EF-14）",
+    "zhhz.exhibit_fixture.model_59c9f5a990a7b7bb": "双星发光展台-A（EF-15）",
+    "zhhz.exhibit_fixture.model_5d26575f9efc156d": "小型白色展台（EF-16）",
+    "zhhz.exhibit_fixture.model_628abc0c7e6e42b9": "灰白组合展台（EF-17）",
+    "zhhz.exhibit_fixture.model_68df85f64af653f3": "蓝白组合展台（EF-18）",
+    "zhhz.exhibit_fixture.model_6f12aaee9e552936": "海蓝发光信息牌（EF-19）",
+    "zhhz.exhibit_fixture.model_726121c8e520f34f": "大型复合展陈装置（EF-20）",
+    "zhhz.exhibit_fixture.model_838ad322811e2f63": "八组件白色展台-A（EF-21）",
+    "zhhz.exhibit_fixture.model_8ed7fb5b004bd585": "大型复合展陈装置（EF-22）",
+    "zhhz.exhibit_fixture.model_9a4f0499c9482fdf": "黑白简式展台（EF-23）",
+    "zhhz.exhibit_fixture.model_ad28cfe223b46602": "大型复合展陈装置（EF-24）",
+    "zhhz.exhibit_fixture.model_b21555c5a7d704ae": "大型复合展陈装置（EF-25）",
+    "zhhz.exhibit_fixture.model_b5ef33db2120c9bf": "大型复合展陈装置（EF-26）",
+    "zhhz.exhibit_fixture.model_c2a2d47995ebc347": "红字白色展板（EF-27）",
+    "zhhz.exhibit_fixture.model_c728139672c62f2e": "白色倒角展台-C（EF-28）",
+    "zhhz.exhibit_fixture.model_cf1793fb61cb3c4e": "双星发光展台-B（EF-29）",
+    "zhhz.exhibit_fixture.model_d4d40631a397d955": "八组件白色展台-B（EF-30）",
+    "zhhz.exhibit_fixture.model_d907bfd5c5272a6a": "大型复合展陈装置（EF-31）",
+    "zhhz.exhibit_fixture.model_fc28a7d285b69bba": "大型复合展陈装置（EF-32）",
+    "zhhz.display_control_terminal": "触控与操作终端"
+  },
+  "instance_names": {
+    "ue_016D4212-4909-B1EE-9C6A-DCB6B10F9821": "数据展示LED屏-01（DMD-01）",
+    "ue_7F35BDCC-44FD-6ECE-AC03-6B8A42B763BF": "数据展示LED屏-02（DMD-02）",
+    "ue_00B5D6A7-4CAD-DFCA-97EE-B1A03E6AF5BD": "组合媒体展示屏-056（DMD-03）",
+    "ue_71A5B913-4B37-6AA2-1334-C0978B48BDDF": "独立媒体展示屏-058（DMD-04）",
+    "ue_8F869965-482E-7BF6-07A1-9690662E32F3": "数据展示LED屏-04（DMD-05）",
+    "ue_2F589D3F-4178-E012-C6E2-7395C641EB97": "紧凑型数据展示LED屏（DMD-06）-01",
+    "ue_4120A1C3-442C-7CDD-5B59-2EB9D1F7887B": "紧凑型数据展示LED屏（DMD-06）-02",
+    "ue_8C3200AA-48E1-2F0C-C581-75BB2AB4282E": "紧凑型数据展示LED屏（DMD-06）-03",
+    "ue_364FCA07-4020-05CC-E2C8-219E3CF65E46": "长方形LED屏（DMD-07）",
+    "ue_A1EF06B8-4AFB-8C19-0CF4-3BBAC1E901DD": "数据展示LED屏-03（DMD-08）",
+    "ue_9841D537-4D02-279F-E5D6-D382E8BB7DF6": "数据展示LED屏-05（DMD-09）",
+    "ue_EC559B0F-4016-FC33-6CBC-9C9917140D8C": "组合媒体展示屏-060（DMD-10）",
+    "ue_602DFC55-4306-7CED-012D-4F9A84D3A630": "白色倒角展台-A（EF-01）",
+    "ue_9AE17552-4767-E7C9-23A0-8CB7DBE7E78B": "灰黑组合展台-A（EF-02）",
+    "ue_8B5FD818-4B92-5315-B123-DD88B61C7255": "白灰模块展台（EF-03）",
+    "ue_8804F264-4E22-4B12-8AD1-6EBE9D059540": "大型复合展陈装置（EF-04）",
+    "ue_51F4BA04-44CD-C632-F708-A9AF284F85AA": "图文组合展台（EF-05）",
+    "ue_40AE97B4-4488-F52F-B6DC-58A53E0410FE": "黑白组合展台（EF-06）-01",
+    "ue_0D6E4768-4D66-C591-F7E3-24B2BFB7534A": "黑白组合展台（EF-06）-02",
+    "ue_56DAB9F0-4D67-3C99-58B5-6E939F05441E": "大型复合展陈装置（EF-07）",
+    "ue_A88402B9-4781-4D9E-14F5-20B60364CC17": "大型复合展陈装置（EF-08）",
+    "ue_936A88F6-4AD1-8DFB-79E1-2FBE7F036E3C": "紫色星形展陈装置（EF-09）",
+    "ue_36D30ED8-4A75-D66A-D60D-BA96F124F3D1": "白色倒角展台-B（EF-10）",
+    "ue_D3029684-42E6-D63A-4541-F0B1256E9861": "大型复合展陈装置（EF-11）",
+    "ue_3994501D-4F60-1936-2581-A398775ED252": "大型复合展陈装置（EF-12）",
+    "ue_035E0DC7-4228-0E2F-D759-A8B24266E831": "通航综合展陈装置（EF-13）",
+    "ue_B0D4E34F-42C2-68C7-2BF4-168373E4EDD3": "灰黑组合展台-B（EF-14）",
+    "ue_2B9EEE09-4E4E-EF68-2A73-C28FBF4B5EF1": "双星发光展台-A（EF-15）",
+    "ue_E65242D1-438F-6DF7-C748-EFA4CB130134": "小型白色展台（EF-16）",
+    "ue_1441A82E-4944-E14E-EBA4-5FB69DD38E75": "灰白组合展台（EF-17）",
+    "ue_1FC104A5-4F41-C1EA-C93A-6EBAAC30A9F4": "蓝白组合展台（EF-18）",
+    "ue_F0E1E9EA-4848-4DE7-A662-9CBDA671D1FC": "海蓝发光信息牌（EF-19）",
+    "ue_53DF8D8E-4B44-569A-8154-3395D3A79453": "大型复合展陈装置（EF-20）",
+    "ue_196FBEC8-4BCD-BF6A-2070-C4A8CB5022C4": "八组件白色展台-A（EF-21）",
+    "ue_58C0B4EE-49CC-A0FA-AFE4-DE9E54A2981A": "大型复合展陈装置（EF-22）-01",
+    "ue_DEBD6089-4CA8-4E5F-C37F-84980B34743A": "大型复合展陈装置（EF-22）-02",
+    "ue_7003D1BE-427F-2981-3A6F-B4ABC919C935": "大型复合展陈装置（EF-22）-03",
+    "ue_9A06FF31-49BA-0663-808C-F99EEC587492": "大型复合展陈装置（EF-22）-04",
+    "ue_F5865011-43A5-4860-4FBD-7CB906C52B1B": "黑白简式展台（EF-23）",
+    "ue_9A480AEB-47F8-8193-A4AA-F1A9BBE43F81": "大型复合展陈装置（EF-24）",
+    "ue_7DFE8258-4498-C674-07B1-DCBB74CCA78F": "大型复合展陈装置（EF-25）",
+    "ue_9B9092F7-481C-A423-A396-29BFE772BFAB": "大型复合展陈装置（EF-26）",
+    "ue_CE2D9285-4A97-DA77-A7AA-7E8FEDD93197": "红字白色展板（EF-27）",
+    "ue_5007E780-4FF7-A40B-B1E8-82A0056E2BF9": "白色倒角展台-C（EF-28）",
+    "ue_A246D78D-4D22-BC80-7300-7E92B841DFC5": "双星发光展台-B（EF-29）-01",
+    "ue_75A1DED0-4B5E-5683-604B-83BD6728EED8": "双星发光展台-B（EF-29）-02",
+    "ue_EEABE5A2-45F1-A874-F75F-ED9559256FC1": "八组件白色展台-B（EF-30）",
+    "ue_BDC5F681-4073-E558-29AD-A881E867F99B": "大型复合展陈装置（EF-31）",
+    "ue_A4916B0F-4A43-F582-2220-12A5EC38F7E2": "大型复合展陈装置（EF-32）-01",
+    "ue_51F5BDAE-4B4E-E8E8-8B7B-6CAE8A5FA939": "大型复合展陈装置（EF-32）-02",
+    "ue_CDF6D740-418B-348E-B1D5-61941818E1F9": "操作系统终端-01",
+    "ue_559E8E84-436F-62B8-7220-5D9FB877753F": "操作系统终端-02",
+    "ue_C7D1CAEA-451F-C3CA-3CB6-E48C454F9B98": "触控显示终端-02",
+    "ue_095548B9-4161-6DEE-58E6-E69D53975F99": "触控显示终端-03",
+    "ue_AFF1FE8A-4C4D-4107-7447-B8B43936ED51": "触控显示终端-04",
+    "ue_DB4DFBE6-44E4-F8C8-F31A-E39ECDC75FCA": "触控显示终端-05",
+    "ue_8ACDDB3B-410D-C494-18D9-DD8C52EE01A9": "触控显示终端-06",
+    "ue_3BD70343-4EEE-C9E5-8EB1-C999AE0690D7": "触控显示终端-07",
+    "ue_BECCA447-41FA-EB4F-34E1-E588E731B7EB": "触控显示终端-08",
+    "ue_9C5728D7-4ED7-3717-5937-F59BA0BEE124": "触控显示终端-09",
+    "ue_A0EF502E-430D-FC88-C894-2FB410E948A7": "触控显示终端-01",
+    "ue_1748D102-43AE-DEB5-157C-E6A80E890B65": "触控显示终端-10",
+    "ue_C5C51850-4668-BD33-7FBE-35834CEE7743": "触控显示终端-11",
+    "ue_FE3D68D8-46EB-A6CD-269A-B9845977163B": "触控显示终端-12",
+    "ue_FD881E29-44A4-92F3-4437-B3BDD5723D67": "触控显示终端-13",
+    "ue_86EA11E4-418B-235C-7783-4B8BD3753236": "触控显示终端-14"
+  },
+  "instance_hierarchy_paths": {
+    "ue_CDF6D740-418B-348E-B1D5-61941818E1F9": [
+      "航空展馆",
+      "触控与操作终端"
+    ],
+    "ue_559E8E84-436F-62B8-7220-5D9FB877753F": [
+      "航空展馆",
+      "触控与操作终端"
+    ],
+    "ue_C7D1CAEA-451F-C3CA-3CB6-E48C454F9B98": [
+      "航空展馆",
+      "触控与操作终端"
+    ],
+    "ue_095548B9-4161-6DEE-58E6-E69D53975F99": [
+      "航空展馆",
+      "触控与操作终端"
+    ],
+    "ue_AFF1FE8A-4C4D-4107-7447-B8B43936ED51": [
+      "航空展馆",
+      "触控与操作终端"
+    ],
+    "ue_DB4DFBE6-44E4-F8C8-F31A-E39ECDC75FCA": [
+      "航空展馆",
+      "触控与操作终端"
+    ],
+    "ue_8ACDDB3B-410D-C494-18D9-DD8C52EE01A9": [
+      "航空展馆",
+      "触控与操作终端"
+    ],
+    "ue_3BD70343-4EEE-C9E5-8EB1-C999AE0690D7": [
+      "航空展馆",
+      "触控与操作终端"
+    ],
+    "ue_BECCA447-41FA-EB4F-34E1-E588E731B7EB": [
+      "航空展馆",
+      "触控与操作终端"
+    ],
+    "ue_9C5728D7-4ED7-3717-5937-F59BA0BEE124": [
+      "航空展馆",
+      "触控与操作终端"
+    ],
+    "ue_A0EF502E-430D-FC88-C894-2FB410E948A7": [
+      "航空展馆",
+      "触控与操作终端"
+    ],
+    "ue_1748D102-43AE-DEB5-157C-E6A80E890B65": [
+      "航空展馆",
+      "触控与操作终端"
+    ],
+    "ue_C5C51850-4668-BD33-7FBE-35834CEE7743": [
+      "航空展馆",
+      "触控与操作终端"
+    ],
+    "ue_FE3D68D8-46EB-A6CD-269A-B9845977163B": [
+      "航空展馆",
+      "触控与操作终端"
+    ],
+    "ue_FD881E29-44A4-92F3-4437-B3BDD5723D67": [
+      "航空展馆",
+      "触控与操作终端"
+    ],
+    "ue_86EA11E4-418B-235C-7783-4B8BD3753236": [
+      "航空展馆",
+      "触控与操作终端"
+    ]
+  },
+  "instance_details": [
+    {
+      "instance_id": "ue_00B5D6A7-4CAD-DFCA-97EE-B1A03E6AF5BD",
+      "original_actor_label": "Group2136669588",
+      "model_code": "DMD-03",
+      "object_type_rid": "zhhz.display_media_device.model_291322bd2b0460c3",
+      "new_display_name": "组合媒体展示屏-056（DMD-03）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_016D4212-4909-B1EE-9C6A-DCB6B10F9821",
+      "original_actor_label": "Group2136669717",
+      "model_code": "DMD-01",
+      "object_type_rid": "zhhz.display_media_device.model_007904e7e325c5ae",
+      "new_display_name": "数据展示LED屏-01（DMD-01）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_035E0DC7-4228-0E2F-D759-A8B24266E831",
+      "original_actor_label": "通航综合",
+      "model_code": "EF-13",
+      "object_type_rid": "zhhz.exhibit_fixture.model_598eb999fc37ba56",
+      "new_display_name": "通航综合展陈装置（EF-13）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_095548B9-4161-6DEE-58E6-E69D53975F99",
+      "original_actor_label": "触控显示屏003",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "触控显示终端-03",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    },
+    {
+      "instance_id": "ue_0D6E4768-4D66-C591-F7E3-24B2BFB7534A",
+      "original_actor_label": "Group2136670339",
+      "model_code": "EF-06",
+      "object_type_rid": "zhhz.exhibit_fixture.model_3b5a403c5180d3d0",
+      "new_display_name": "黑白组合展台（EF-06）-02",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_1441A82E-4944-E14E-EBA4-5FB69DD38E75",
+      "original_actor_label": "Group2136668560",
+      "model_code": "EF-17",
+      "object_type_rid": "zhhz.exhibit_fixture.model_628abc0c7e6e42b9",
+      "new_display_name": "灰白组合展台（EF-17）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_1748D102-43AE-DEB5-157C-E6A80E890B65",
+      "original_actor_label": "触控显示屏010",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "触控显示终端-10",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    },
+    {
+      "instance_id": "ue_196FBEC8-4BCD-BF6A-2070-C4A8CB5022C4",
+      "original_actor_label": "Group2136669647",
+      "model_code": "EF-21",
+      "object_type_rid": "zhhz.exhibit_fixture.model_838ad322811e2f63",
+      "new_display_name": "八组件白色展台-A（EF-21）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_1FC104A5-4F41-C1EA-C93A-6EBAAC30A9F4",
+      "original_actor_label": "Group2136669614",
+      "model_code": "EF-18",
+      "object_type_rid": "zhhz.exhibit_fixture.model_68df85f64af653f3",
+      "new_display_name": "蓝白组合展台（EF-18）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_2B9EEE09-4E4E-EF68-2A73-C28FBF4B5EF1",
+      "original_actor_label": "Group2136670501",
+      "model_code": "EF-15",
+      "object_type_rid": "zhhz.exhibit_fixture.model_59c9f5a990a7b7bb",
+      "new_display_name": "双星发光展台-A（EF-15）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_2F589D3F-4178-E012-C6E2-7395C641EB97",
+      "original_actor_label": "100-020",
+      "model_code": "DMD-06",
+      "object_type_rid": "zhhz.display_media_device.model_4e7bb02b7b4f1e87",
+      "new_display_name": "紧凑型数据展示LED屏（DMD-06）-01",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_364FCA07-4020-05CC-E2C8-219E3CF65E46",
+      "original_actor_label": "组2142381026",
+      "model_code": "DMD-07",
+      "object_type_rid": "zhhz.display_media_device.model_620acb0b59b3c48a",
+      "new_display_name": "长方形LED屏（DMD-07）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_36D30ED8-4A75-D66A-D60D-BA96F124F3D1",
+      "original_actor_label": "Group2136670040",
+      "model_code": "EF-10",
+      "object_type_rid": "zhhz.exhibit_fixture.model_516560622e254031",
+      "new_display_name": "白色倒角展台-B（EF-10）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_3994501D-4F60-1936-2581-A398775ED252",
+      "original_actor_label": "Group-402577-656",
+      "model_code": "EF-12",
+      "object_type_rid": "zhhz.exhibit_fixture.model_546b466c8fa0689f",
+      "new_display_name": "大型复合展陈装置（EF-12）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_3BD70343-4EEE-C9E5-8EB1-C999AE0690D7",
+      "original_actor_label": "触控显示屏007",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "触控显示终端-07",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    },
+    {
+      "instance_id": "ue_40AE97B4-4488-F52F-B6DC-58A53E0410FE",
+      "original_actor_label": "Group2136669599",
+      "model_code": "EF-06",
+      "object_type_rid": "zhhz.exhibit_fixture.model_3b5a403c5180d3d0",
+      "new_display_name": "黑白组合展台（EF-06）-01",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_4120A1C3-442C-7CDD-5B59-2EB9D1F7887B",
+      "original_actor_label": "100-021",
+      "model_code": "DMD-06",
+      "object_type_rid": "zhhz.display_media_device.model_4e7bb02b7b4f1e87",
+      "new_display_name": "紧凑型数据展示LED屏（DMD-06）-02",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_5007E780-4FF7-A40B-B1E8-82A0056E2BF9",
+      "original_actor_label": "Group2136670043",
+      "model_code": "EF-28",
+      "object_type_rid": "zhhz.exhibit_fixture.model_c728139672c62f2e",
+      "new_display_name": "白色倒角展台-C（EF-28）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_51F4BA04-44CD-C632-F708-A9AF284F85AA",
+      "original_actor_label": "Group2136669995",
+      "model_code": "EF-05",
+      "object_type_rid": "zhhz.exhibit_fixture.model_1738f547ab972655",
+      "new_display_name": "图文组合展台（EF-05）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_51F5BDAE-4B4E-E8E8-8B7B-6CAE8A5FA939",
+      "original_actor_label": "Group-402577-667",
+      "model_code": "EF-32",
+      "object_type_rid": "zhhz.exhibit_fixture.model_fc28a7d285b69bba",
+      "new_display_name": "大型复合展陈装置（EF-32）-02",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_53DF8D8E-4B44-569A-8154-3395D3A79453",
+      "original_actor_label": "Group-402577-658",
+      "model_code": "EF-20",
+      "object_type_rid": "zhhz.exhibit_fixture.model_726121c8e520f34f",
+      "new_display_name": "大型复合展陈装置（EF-20）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_559E8E84-436F-62B8-7220-5D9FB877753F",
+      "original_actor_label": "操作系统001",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "操作系统终端-02",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    },
+    {
+      "instance_id": "ue_56DAB9F0-4D67-3C99-58B5-6E939F05441E",
+      "original_actor_label": "Group-402577-664",
+      "model_code": "EF-07",
+      "object_type_rid": "zhhz.exhibit_fixture.model_41d52d8fe3054627",
+      "new_display_name": "大型复合展陈装置（EF-07）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_58C0B4EE-49CC-A0FA-AFE4-DE9E54A2981A",
+      "original_actor_label": "Group-402577-646",
+      "model_code": "EF-22",
+      "object_type_rid": "zhhz.exhibit_fixture.model_8ed7fb5b004bd585",
+      "new_display_name": "大型复合展陈装置（EF-22）-01",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_602DFC55-4306-7CED-012D-4F9A84D3A630",
+      "original_actor_label": "Group2136670041",
+      "model_code": "EF-01",
+      "object_type_rid": "zhhz.exhibit_fixture.model_054920a28ec53d60",
+      "new_display_name": "白色倒角展台-A（EF-01）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_7003D1BE-427F-2981-3A6F-B4ABC919C935",
+      "original_actor_label": "Group-402577-648",
+      "model_code": "EF-22",
+      "object_type_rid": "zhhz.exhibit_fixture.model_8ed7fb5b004bd585",
+      "new_display_name": "大型复合展陈装置（EF-22）-03",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_71A5B913-4B37-6AA2-1334-C0978B48BDDF",
+      "original_actor_label": "SMP-056",
+      "model_code": "DMD-04",
+      "object_type_rid": "zhhz.display_media_device.model_2ee1fc469690eb4b",
+      "new_display_name": "独立媒体展示屏-058（DMD-04）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_75A1DED0-4B5E-5683-604B-83BD6728EED8",
+      "original_actor_label": "Group2136670503",
+      "model_code": "EF-29",
+      "object_type_rid": "zhhz.exhibit_fixture.model_cf1793fb61cb3c4e",
+      "new_display_name": "双星发光展台-B（EF-29）-02",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_7DFE8258-4498-C674-07B1-DCBB74CCA78F",
+      "original_actor_label": "Group-402577-659",
+      "model_code": "EF-25",
+      "object_type_rid": "zhhz.exhibit_fixture.model_b21555c5a7d704ae",
+      "new_display_name": "大型复合展陈装置（EF-25）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_7F35BDCC-44FD-6ECE-AC03-6B8A42B763BF",
+      "original_actor_label": "Group2136669715",
+      "model_code": "DMD-02",
+      "object_type_rid": "zhhz.display_media_device.model_00c7287cd8769399",
+      "new_display_name": "数据展示LED屏-02（DMD-02）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_86EA11E4-418B-235C-7783-4B8BD3753236",
+      "original_actor_label": "触控显示屏014",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "触控显示终端-14",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    },
+    {
+      "instance_id": "ue_8804F264-4E22-4B12-8AD1-6EBE9D059540",
+      "original_actor_label": "Group-402577-666",
+      "model_code": "EF-04",
+      "object_type_rid": "zhhz.exhibit_fixture.model_11faae0c2e1ae337",
+      "new_display_name": "大型复合展陈装置（EF-04）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_8ACDDB3B-410D-C494-18D9-DD8C52EE01A9",
+      "original_actor_label": "触控显示屏006",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "触控显示终端-06",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    },
+    {
+      "instance_id": "ue_8B5FD818-4B92-5315-B123-DD88B61C7255",
+      "original_actor_label": "Group2136670046",
+      "model_code": "EF-03",
+      "object_type_rid": "zhhz.exhibit_fixture.model_0c479112746dcc7e",
+      "new_display_name": "白灰模块展台（EF-03）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_8C3200AA-48E1-2F0C-C581-75BB2AB4282E",
+      "original_actor_label": "100-022",
+      "model_code": "DMD-06",
+      "object_type_rid": "zhhz.display_media_device.model_4e7bb02b7b4f1e87",
+      "new_display_name": "紧凑型数据展示LED屏（DMD-06）-03",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_8F869965-482E-7BF6-07A1-9690662E32F3",
+      "original_actor_label": "Group2136669994",
+      "model_code": "DMD-05",
+      "object_type_rid": "zhhz.display_media_device.model_3ab88f8bc986d303",
+      "new_display_name": "数据展示LED屏-04（DMD-05）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_936A88F6-4AD1-8DFB-79E1-2FBE7F036E3C",
+      "original_actor_label": "Group2136670452",
+      "model_code": "EF-09",
+      "object_type_rid": "zhhz.exhibit_fixture.model_4e207aa4d2609660",
+      "new_display_name": "紫色星形展陈装置（EF-09）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_9841D537-4D02-279F-E5D6-D382E8BB7DF6",
+      "original_actor_label": "Group2136669708",
+      "model_code": "DMD-09",
+      "object_type_rid": "zhhz.display_media_device.model_ef3dfa4e2519dec9",
+      "new_display_name": "数据展示LED屏-05（DMD-09）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_9A06FF31-49BA-0663-808C-F99EEC587492",
+      "original_actor_label": "Group-402577-650",
+      "model_code": "EF-22",
+      "object_type_rid": "zhhz.exhibit_fixture.model_8ed7fb5b004bd585",
+      "new_display_name": "大型复合展陈装置（EF-22）-04",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_9A480AEB-47F8-8193-A4AA-F1A9BBE43F81",
+      "original_actor_label": "Group-402577-660",
+      "model_code": "EF-24",
+      "object_type_rid": "zhhz.exhibit_fixture.model_ad28cfe223b46602",
+      "new_display_name": "大型复合展陈装置（EF-24）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_9AE17552-4767-E7C9-23A0-8CB7DBE7E78B",
+      "original_actor_label": "Group2136670507",
+      "model_code": "EF-02",
+      "object_type_rid": "zhhz.exhibit_fixture.model_0b4ccec734c275fb",
+      "new_display_name": "灰黑组合展台-A（EF-02）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_9B9092F7-481C-A423-A396-29BFE772BFAB",
+      "original_actor_label": "Group-402577-661",
+      "model_code": "EF-26",
+      "object_type_rid": "zhhz.exhibit_fixture.model_b5ef33db2120c9bf",
+      "new_display_name": "大型复合展陈装置（EF-26）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_9C5728D7-4ED7-3717-5937-F59BA0BEE124",
+      "original_actor_label": "触控显示屏009",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "触控显示终端-09",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    },
+    {
+      "instance_id": "ue_A0EF502E-430D-FC88-C894-2FB410E948A7",
+      "original_actor_label": "触控显示屏01",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "触控显示终端-01",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    },
+    {
+      "instance_id": "ue_A1EF06B8-4AFB-8C19-0CF4-3BBAC1E901DD",
+      "original_actor_label": "Group2136669713",
+      "model_code": "DMD-08",
+      "object_type_rid": "zhhz.display_media_device.model_8a8df6309530810f",
+      "new_display_name": "数据展示LED屏-03（DMD-08）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_A246D78D-4D22-BC80-7300-7E92B841DFC5",
+      "original_actor_label": "Group2136670500",
+      "model_code": "EF-29",
+      "object_type_rid": "zhhz.exhibit_fixture.model_cf1793fb61cb3c4e",
+      "new_display_name": "双星发光展台-B（EF-29）-01",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_A4916B0F-4A43-F582-2220-12A5EC38F7E2",
+      "original_actor_label": "Group-402577-663",
+      "model_code": "EF-32",
+      "object_type_rid": "zhhz.exhibit_fixture.model_fc28a7d285b69bba",
+      "new_display_name": "大型复合展陈装置（EF-32）-01",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_A88402B9-4781-4D9E-14F5-20B60364CC17",
+      "original_actor_label": "Group-402577-668",
+      "model_code": "EF-08",
+      "object_type_rid": "zhhz.exhibit_fixture.model_4c6958ddf91d4a68",
+      "new_display_name": "大型复合展陈装置（EF-08）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_AFF1FE8A-4C4D-4107-7447-B8B43936ED51",
+      "original_actor_label": "触控显示屏004",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "触控显示终端-04",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    },
+    {
+      "instance_id": "ue_B0D4E34F-42C2-68C7-2BF4-168373E4EDD3",
+      "original_actor_label": "Group2136670512",
+      "model_code": "EF-14",
+      "object_type_rid": "zhhz.exhibit_fixture.model_59b82b91f1cd460e",
+      "new_display_name": "灰黑组合展台-B（EF-14）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_BDC5F681-4073-E558-29AD-A881E867F99B",
+      "original_actor_label": "Group-402577-662",
+      "model_code": "EF-31",
+      "object_type_rid": "zhhz.exhibit_fixture.model_d907bfd5c5272a6a",
+      "new_display_name": "大型复合展陈装置（EF-31）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_BECCA447-41FA-EB4F-34E1-E588E731B7EB",
+      "original_actor_label": "触控显示屏008",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "触控显示终端-08",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    },
+    {
+      "instance_id": "ue_C5C51850-4668-BD33-7FBE-35834CEE7743",
+      "original_actor_label": "触控显示屏011",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "触控显示终端-11",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    },
+    {
+      "instance_id": "ue_C7D1CAEA-451F-C3CA-3CB6-E48C454F9B98",
+      "original_actor_label": "触控显示屏002",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "触控显示终端-02",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    },
+    {
+      "instance_id": "ue_CDF6D740-418B-348E-B1D5-61941818E1F9",
+      "original_actor_label": "操作系统",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "操作系统终端-01",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    },
+    {
+      "instance_id": "ue_CE2D9285-4A97-DA77-A7AA-7E8FEDD93197",
+      "original_actor_label": "Group2136669008",
+      "model_code": "EF-27",
+      "object_type_rid": "zhhz.exhibit_fixture.model_c2a2d47995ebc347",
+      "new_display_name": "红字白色展板（EF-27）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_D3029684-42E6-D63A-4541-F0B1256E9861",
+      "original_actor_label": "Group-402577-657",
+      "model_code": "EF-11",
+      "object_type_rid": "zhhz.exhibit_fixture.model_52b4ef67231b1f24",
+      "new_display_name": "大型复合展陈装置（EF-11）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_DB4DFBE6-44E4-F8C8-F31A-E39ECDC75FCA",
+      "original_actor_label": "触控显示屏005",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "触控显示终端-05",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    },
+    {
+      "instance_id": "ue_DEBD6089-4CA8-4E5F-C37F-84980B34743A",
+      "original_actor_label": "Group-402577-647",
+      "model_code": "EF-22",
+      "object_type_rid": "zhhz.exhibit_fixture.model_8ed7fb5b004bd585",
+      "new_display_name": "大型复合展陈装置（EF-22）-02",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_E65242D1-438F-6DF7-C748-EFA4CB130134",
+      "original_actor_label": "Group2136668563",
+      "model_code": "EF-16",
+      "object_type_rid": "zhhz.exhibit_fixture.model_5d26575f9efc156d",
+      "new_display_name": "小型白色展台（EF-16）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_EC559B0F-4016-FC33-6CBC-9C9917140D8C",
+      "original_actor_label": "Group2136669596",
+      "model_code": "DMD-10",
+      "object_type_rid": "zhhz.display_media_device.model_f517c63c5bc5163b",
+      "new_display_name": "组合媒体展示屏-060（DMD-10）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_EEABE5A2-45F1-A874-F75F-ED9559256FC1",
+      "original_actor_label": "Group2136670004",
+      "model_code": "EF-30",
+      "object_type_rid": "zhhz.exhibit_fixture.model_d4d40631a397d955",
+      "new_display_name": "八组件白色展台-B（EF-30）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_F0E1E9EA-4848-4DE7-A662-9CBDA671D1FC",
+      "original_actor_label": "Group007",
+      "model_code": "EF-19",
+      "object_type_rid": "zhhz.exhibit_fixture.model_6f12aaee9e552936",
+      "new_display_name": "海蓝发光信息牌（EF-19）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_F5865011-43A5-4860-4FBD-7CB906C52B1B",
+      "original_actor_label": "Group2136670020",
+      "model_code": "EF-23",
+      "object_type_rid": "zhhz.exhibit_fixture.model_9a4f0499c9482fdf",
+      "new_display_name": "黑白简式展台（EF-23）",
+      "evidence": "Datasmith geometry signature, render-part structure and material semantics"
+    },
+    {
+      "instance_id": "ue_FD881E29-44A4-92F3-4437-B3BDD5723D67",
+      "original_actor_label": "触控显示屏013",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "触控显示终端-13",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    },
+    {
+      "instance_id": "ue_FE3D68D8-46EB-A6CD-269A-B9845977163B",
+      "original_actor_label": "触控显示屏012",
+      "model_code": "DCT",
+      "object_type_rid": "zhhz.display_control_terminal",
+      "new_display_name": "触控显示终端-12",
+      "evidence": "Existing reviewed actor label normalized to a stable terminal sequence"
+    }
+  ]
+}

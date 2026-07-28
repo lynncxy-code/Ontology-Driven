@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 采购协同助手工作台</title>
+  <link rel="stylesheet" href="../../../components/dist/lingjing-core-b-system.css">
+  <script src="../../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+  <div class="b-layout-sidebar">
+    <aside class="b-sidebar">
+      <div class="b-sidebar-header">
+        <div class="b-sidebar-logo">
+          <img src="../../../assets/logo-flat.png" alt="灵境" height="32">
+        </div>
+        <span class="b-sidebar-brand">灵境采购中心</span>
+      </div>
+      <nav class="b-sidebar-nav">
+        <a href="#" class="b-sidebar-nav-link">供应商总览</a>
+        <a href="#" class="b-sidebar-nav-link is-active">AI 协同助手</a>
+        <a href="#" class="b-sidebar-nav-link">合同执行</a>
+        <a href="#" class="b-sidebar-nav-link">到货跟踪</a>
+      </nav>
+    </aside>
+
+    <main class="b-main">
+      <header class="b-header">
+        <div class="b-header-left">
+          <nav class="b-breadcrumb">
+            <div class="b-breadcrumb-item">
+              <a href="#" class="b-breadcrumb-link">采购中心</a>
+              <span class="b-breadcrumb-separator">/</span>
+            </div>
+            <div class="b-breadcrumb-item">
+              <span class="b-breadcrumb-current">AI 协同助手</span>
+            </div>
+          </nav>
+        </div>
+        <div class="b-header-right">
+          <button class="btn-outline" type="button">查看会话日志</button>
+          <button class="btn-primary" type="button">发起协同任务</button>
+        </div>
+      </header>
+
+      <div class="b-content">
+        <div class="ai-workspace">
+          <aside class="assistant-sidebar" aria-label="AI 对话区">
+            <div class="card-header">
+              <h2 class="card-title">AI 对话编排</h2>
+              <div class="action-buttons">
+                <button class="btn-outline" type="button">重置上下文</button>
+              </div>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+              <div class="message-bubble message-bubble-ai">
+                <div class="message-avatar message-avatar-ai">
+                  <i data-lucide="bot"></i>
+                </div>
+                <div class="message-content">
+                  <div class="message-text">
+                    已收到你的任务：在不影响总装节拍的前提下，协调 3 家供应商完成高优先级航电件补货。我会按“澄清 → 规划 → 执行 → 复核”链路推进。
+                  </div>
+                </div>
+              </div>
+
+              <div class="message-bubble message-bubble-user">
+                <div class="message-avatar message-avatar-user">
+                  <i data-lucide="user"></i>
+                </div>
+                <div class="message-content">
+                  <div class="message-text">
+                    先判断哪一家会拖慢周三总装窗口，再给出催交与替代方案。
+                  </div>
+                </div>
+              </div>
+
+              <div class="tool-call-card">
+                <span>工具调用：读取供应商交付承诺与到货波动记录</span>
+              </div>
+              <div class="tool-call-card">
+                <span>工具调用：比对周三总装窗口所需齐套清单</span>
+              </div>
+
+              <div class="message-bubble message-bubble-ai">
+                <div class="message-avatar message-avatar-ai">
+                  <i data-lucide="sparkles"></i>
+                </div>
+                <div class="message-content">
+                  <div class="message-text">
+                    风险最高的是华东电子。其连接器批次周转时间已连续两次偏离承诺，若不加速，周三 09:00 的总装窗口会先受影响。建议立即触发双路径：一是催交并锁定夜间专车，二是让备选供应商先补 40% 安全库存。
+                  </div>
+                </div>
+              </div>
+
+              <div class="task-status-card">
+                <div class="card-header">
+                  <h3 class="card-title">当前执行状态</h3>
+                  <span class="badge">处理中</span>
+                </div>
+                <div class="data-table-container">
+                  <table class="data-table">
+                    <tbody>
+                      <tr>
+                        <td>风险识别</td>
+                        <td>已完成</td>
+                      </tr>
+                      <tr>
+                        <td>催交方案</td>
+                        <td>已生成</td>
+                      </tr>
+                      <tr>
+                        <td>替代库存确认</td>
+                        <td>待审批</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="chat-input-area">
+              <div class="chat-input-wrapper">
+                <textarea class="chat-input" rows="3" placeholder="继续追问：例如‘把替代方案拆成责任人与时间点’"></textarea>
+                <div class="chat-input-actions">
+                  <button class="btn-outline" type="button">插入上下文</button>
+                  <button class="btn-primary" type="button">发送给 AI</button>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <section aria-label="AI 执行看板">
+            <div class="stats-grid">
+              <article class="b-stat-card">
+                <span class="b-stat-label">高风险供应商</span>
+                <strong class="b-stat-value">01</strong>
+                <span class="b-stat-change neutral">华东电子</span>
+              </article>
+              <article class="b-stat-card">
+                <span class="b-stat-label">需补齐零件</span>
+                <strong class="b-stat-value">24</strong>
+                <span class="b-stat-change neutral">周三窗口</span>
+              </article>
+              <article class="b-stat-card">
+                <span class="b-stat-label">替代库存覆盖</span>
+                <strong class="b-stat-value">40%</strong>
+                <span class="b-stat-change neutral">可当天调拨</span>
+              </article>
+            </div>
+
+            <section class="content-card">
+              <div class="card-header">
+                <h2 class="card-title">AI 生成的执行清单</h2>
+                <div class="action-buttons">
+                  <button class="btn-outline" type="button">导出纪要</button>
+                  <button class="btn-primary" type="button">提交审批</button>
+                </div>
+              </div>
+              <div class="data-table-container">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>步骤</th>
+                      <th>责任人</th>
+                      <th>计划时间</th>
+                      <th>状态</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>锁定华东电子出库时间与司机信息</td>
+                      <td>采购经理</td>
+                      <td>今天 18:00 前</td>
+                      <td><span class="badge">进行中</span></td>
+                    </tr>
+                    <tr>
+                      <td>确认备选供应商可释放 40% 安全库存</td>
+                      <td>供应协调员</td>
+                      <td>今天 19:30 前</td>
+                      <td><span class="badge">待确认</span></td>
+                    </tr>
+                    <tr>
+                      <td>更新周三总装齐套风险并回写工单</td>
+                      <td>计划专员</td>
+                      <td>今天 20:00 前</td>
+                      <td><span class="badge">待执行</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+  </script>
+</body>
+</html>

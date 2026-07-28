@@ -1,0 +1,449 @@
+/**
+ * Lingjing Core - Aviation Components
+ *
+ * @version 3.1.0
+ * @description 航空专属组件（任务、航段、状态与告警）
+ */
+
+/* ============================================================================
+   Base Helpers - 通用布局
+   ========================================================================= */
+
+.aviation-section {
+}
+
+.aviation-grid {
+  display: grid;
+  gap: var(--spacing-lg);
+}
+
+.aviation-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.aviation-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1024px) {
+  .aviation-grid-2,
+  .aviation-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================================
+   Flight Metric Card - 航空指标卡
+   ========================================================================= */
+
+.flight-metric-card {
+  background: var(--bg-card-heavy);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.flight-metric-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.flight-metric-title {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.flight-metric-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.flight-metric-value {
+  font-size: var(--font-size-2xl);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.flight-metric-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.flight-metric-trend {
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: var(--font-size-xs);
+}
+
+.flight-metric-trend.up {
+  color: var(--success-base);
+  background: rgba(0, 163, 131, 0.12);
+}
+
+.flight-metric-trend.warning {
+  color: var(--warning-base);
+  background: rgba(217, 119, 6, 0.12);
+}
+
+.flight-metric-trend.down {
+  color: var(--error-base);
+  background: rgba(220, 38, 38, 0.12);
+}
+
+/* ============================================================================
+   Route Leg Card - 航段卡片
+   ========================================================================= */
+
+.route-leg-card {
+  background: var(--bg-card-heavy);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+}
+
+.route-leg-location {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.route-leg-code {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.route-leg-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.route-leg-divider {
+  flex: 1;
+  height: 1px;
+  background: var(--glass-border-light);
+}
+
+.route-leg-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--spacing-xs);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.route-leg-badge {
+  padding: 2px 10px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: var(--font-size-xs);
+}
+
+.route-leg-badge.on-time {
+  color: var(--success-base);
+  background: rgba(0, 163, 131, 0.12);
+}
+
+.route-leg-badge.delay {
+  color: var(--warning-base);
+  background: rgba(217, 119, 6, 0.12);
+}
+
+.route-leg-badge.critical {
+  color: var(--error-base);
+  background: rgba(220, 38, 38, 0.12);
+}
+
+@media (max-width: 768px) {
+  .route-leg-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .route-leg-status {
+    align-items: flex-start;
+  }
+}
+
+/* ============================================================================
+   Mission Status Board - 任务状态板
+   ========================================================================= */
+
+.mission-status-board {
+  background: var(--bg-card-heavy);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.mission-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.mission-status-title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.mission-status-meta {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.mission-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.mission-status-item {
+  display: flex;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: var(--glass-border-light);
+}
+
+.mission-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 6px;
+  background: var(--info-base);
+}
+
+.mission-status-dot.success {
+  background: var(--success-base);
+}
+
+.mission-status-dot.warning {
+  background: var(--warning-base);
+}
+
+.mission-status-content {
+  flex: 1;
+}
+
+.mission-status-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.mission-status-desc {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+/* ============================================================================
+   Alert Center Panel - 告警中心
+   ========================================================================= */
+
+.alert-center-panel {
+  background: var(--bg-card-heavy);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.alert-center-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.alert-center-title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.alert-center-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.alert-center-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding-bottom: var(--spacing-md);
+  border-bottom: var(--glass-border-light);
+}
+
+.alert-center-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.alert-severity {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 6px;
+  background: var(--warning-base);
+}
+
+.alert-severity.critical {
+  background: var(--error-base);
+}
+
+.alert-severity.info {
+  background: var(--info-base);
+}
+
+.alert-content {
+  flex: 1;
+}
+
+.alert-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.alert-meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+/* ============================================================================
+   Telemetry Strip - 监控条
+   ========================================================================= */
+
+.telemetry-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  background: var(--bg-card-heavy);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+}
+
+.telemetry-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.telemetry-label {
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.telemetry-value {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ============================================================================
+   Safety Score Card - 安全评分卡
+   ========================================================================= */
+
+.safety-score-card {
+  background: var(--bg-card-heavy);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+}
+
+.safety-score-main {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.safety-score-ring {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: conic-gradient(var(--success-base) 0deg 260deg, rgba(0, 0, 0, 0.12) 260deg 360deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.safety-score-ring::after {
+  content: "";
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--bg-card-heavy);
+}
+
+.safety-score-value {
+  position: absolute;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.safety-score-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.safety-score-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.safety-score-title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.safety-score-meta {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}

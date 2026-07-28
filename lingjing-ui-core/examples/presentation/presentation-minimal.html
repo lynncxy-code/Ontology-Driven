@@ -1,0 +1,183 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>极简通用模板 - 灵境品牌</title>
+    <link rel="stylesheet" href="../../components/dist/lingjing-core-presentation.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="presentation-container">
+        <div class="presentation-particles" id="particles"></div>
+        <div class="presentation-floating-shapes">
+            <div class="presentation-shape presentation-shape-1"></div>
+            <div class="presentation-shape presentation-shape-2"></div>
+        </div>
+
+        <div class="presentation-slide slide-cover active" data-slide="1">
+            <div class="slide-content">
+                <div class="presentation-glass-card presentation-glass-card-medium">
+                    <h1 class="slide-cover-title">演示文稿标题</h1>
+                    <p class="slide-cover-subtitle">Presentation Subtitle</p>
+                    <div class="slide-cover-meta">
+                        <div class="slide-cover-meta-item">
+                            <i data-lucide="user"></i>
+                            <span>汇报人</span>
+                        </div>
+                        <div class="slide-cover-meta-item">
+                            <i data-lucide="calendar"></i>
+                            <span>2026年</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="presentation-slide slide-toc" data-slide="2">
+            <div class="slide-content">
+                <h2 class="slide-title">目录</h2>
+                <p class="slide-subtitle">Table of Contents</p>
+                <div class="presentation-glass-card width-full">
+                    <ul class="slide-toc-list">
+                        <li class="slide-toc-item">
+                            <div class="slide-toc-number">01</div>
+                            <div class="slide-toc-text">第一部分内容</div>
+                        </li>
+                        <li class="slide-toc-item">
+                            <div class="slide-toc-number">02</div>
+                            <div class="slide-toc-text">第二部分内容</div>
+                        </li>
+                        <li class="slide-toc-item">
+                            <div class="slide-toc-number">03</div>
+                            <div class="slide-toc-text">第三部分内容</div>
+                        </li>
+                        <li class="slide-toc-item">
+                            <div class="slide-toc-number">04</div>
+                            <div class="slide-toc-text">总结与展望</div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="presentation-slide" data-slide="3">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="slide-title">第一部分内容</h2>
+                    <p class="slide-subtitle">Section One</p>
+                </div>
+                <div class="presentation-glass-card width-full">
+                    <div class="slide-body">
+                        <p>这是第一部分的内容。您可以在这里放置文字、图片、列表等各种内容。</p>
+                        <ul>
+                            <li>要点一：这里是第一个要点的描述</li>
+                            <li>要点二：这里是第二个要点的描述</li>
+                            <li>要点三：这里是第三个要点的描述</li>
+                        </ul>
+                        <p>极简模板的设计理念是让内容成为主角，减少视觉干扰，让观众专注于您要传达的信息。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="presentation-slide" data-slide="4">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="slide-title">第二部分内容</h2>
+                    <p class="slide-subtitle">Section Two</p>
+                </div>
+                <div class="grid-2-cols width-full">
+                    <div class="presentation-glass-card-grid">
+                        <div class="presentation-card-grid-icon">
+                            <i data-lucide="star"></i>
+                        </div>
+                        <div class="presentation-card-grid-title">模块标题 A</div>
+                        <div class="slide-body">
+                            <p>这里是对模块A的简要说明文字</p>
+                        </div>
+                    </div>
+                    <div class="presentation-glass-card-grid">
+                        <div class="presentation-card-grid-icon">
+                            <i data-lucide="award"></i>
+                        </div>
+                        <div class="presentation-card-grid-title">模块标题 B</div>
+                        <div class="slide-body">
+                            <p>这里是对模块B的简要说明文字</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="presentation-slide" data-slide="5">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="slide-title">第三部分内容</h2>
+                    <p class="slide-subtitle">Section Three</p>
+                </div>
+                <div class="presentation-glass-card width-full">
+                    <div class="presentation-highlight-box">
+                        <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-bold); color: var(--theme-text-primary); margin-bottom: var(--spacing-lg);">核心观点</h3>
+                        <div class="slide-body">
+                            <p>这是您想要强调的核心内容。高亮框可以帮助观众快速抓住重点。</p>
+                        </div>
+                    </div>
+                    <div class="mt-xl flex gap-lg flex-wrap">
+                        <span class="presentation-badge primary">标签一</span>
+                        <span class="presentation-badge success">标签二</span>
+                        <span class="presentation-badge warning">标签三</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="presentation-slide slide-closing" data-slide="6">
+            <div class="slide-content">
+                <div class="presentation-glass-card presentation-glass-card-centered">
+                    <h1 class="slide-closing-title">谢谢观看</h1>
+                    <p class="slide-closing-subtitle">Thank You</p>
+                    <div class="slide-closing-contact mt-2xl">
+                        <span><i data-lucide="mail"></i> your-email@example.com</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="presentation-theme-toggle">
+        <button class="presentation-theme-btn" id="themeToggle">
+            <i data-lucide="sun" class="icon-light"></i>
+            <i data-lucide="moon" class="icon-dark" style="display: none;"></i>
+            <span>切换主题</span>
+        </button>
+    </div>
+
+    <div class="presentation-nav-buttons">
+        <button class="presentation-nav-btn" id="prevBtn" disabled>
+            <i data-lucide="chevron-left"></i>
+        </button>
+        <button class="presentation-nav-btn" id="nextBtn">
+            <i data-lucide="chevron-right"></i>
+        </button>
+    </div>
+
+    <div class="presentation-slide-indicators" id="slideIndicators"></div>
+    <div class="presentation-progress-bar" id="progressBar"></div>
+
+    <div id="presentation-modal" class="presentation-modal">
+        <div class="presentation-modal-content">
+            <div class="presentation-modal-header">
+                <span class="presentation-modal-title">预览</span>
+                <button class="presentation-modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="presentation-modal-body" id="presentation-modal-body"></div>
+        </div>
+    </div>
+
+    <script src="../../scripts/presentation-template.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

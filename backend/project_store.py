@@ -23,10 +23,131 @@ import json
 import os
 import time
 import threading
+import copy
 
 _DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 _PROJECTS_DIR = os.path.join(_DATA_DIR, "projects")
 _ACTIVE_FILE = os.path.join(_DATA_DIR, "active.json")
+
+CURRENT_SCHEMA_VERSION = 5
+
+
+def _default_media_policy():
+    """Project media policy inherits the deployment allowlist until explicitly restricted."""
+    return {
+        "revision": 0,
+        "mode": "inherit_platform",
+        "allowed_hosts": [],
+        "http_exceptions": [],
+    }
+
+
+def _as_graph_dataset(project_id, project_name, project_created_at, dataset):
+    """Return a detached graph dataset catalog entry, or None for project-only metadata."""
+    if not isinstance(dataset, dict) or not isinstance(dataset.get("graph_data"), dict):
+        return None
+
+    normalized = copy.deepcopy(dataset)
+    normalized["id"] = normalized.get("id") or project_id
+    if not normalized["id"]:
+        return None
+    normalized["name"] = normalized.get("name") or project_name or normalized["id"]
+    normalized["created_at"] = (
+        normalized.get("created_at")
+        or (str(project_created_at) if project_created_at is not None else "")
+    )
+
+    graph = normalized["graph_data"]
+    nodes = graph.get("nodes")
+    links = graph.get("links")
+    if normalized.get("node_count") is None:
+        normalized["node_count"] = len(nodes) if isinstance(nodes, list) else 0
+    if normalized.get("link_count") is None:
+        normalized["link_count"] = len(links) if isinstance(links, list) else 0
+    return normalized
+
+
+class UnsupportedProjectSchemaError(RuntimeError):
+    pass
+
+
+def migrate_project_schema(proj):
+    """Upgrade an in-memory project to the current schema. Returns True when changed."""
+    if not isinstance(proj, dict):
+        raise ValueError("project must be an object")
+
+    raw_version = proj.get("schema_version", 1)
+    if isinstance(raw_version, bool):
+        raise ValueError("schema_version must be an integer")
+    try:
+        version = int(raw_version)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("schema_version must be an integer") from exc
+
+    if version > CURRENT_SCHEMA_VERSION:
+        raise UnsupportedProjectSchemaError(
+            f"project schema v{version} is newer than supported v{CURRENT_SCHEMA_VERSION}"
+        )
+    if version < 1:
+        raise ValueError(f"unsupported project schema version: {version}")
+
+    changed = False
+    if version == 1:
+        # v2 formally versions the project and adds optional interface config containers.
+        # Existing types and instances remain untouched until a capability is configured.
+        proj["schema_version"] = 2
+        version = 2
+        changed = True
+
+    if version == 2:
+        # v3 introduces project-level scene interaction configuration. Migration never
+        # enables roaming or invents project asset ids.
+        proj.setdefault("scene_interactions", _default_scene_interactions())
+        proj["schema_version"] = 3
+        version = 3
+        changed = True
+
+    if version == 3:
+        # v4 persists project-scoped image frames and authored roaming routes.
+        # Migration only adds disabled/empty containers. It never invents an image,
+        # UE ground reference or route point for an existing project.
+        scene = proj.get("scene_interactions")
+        if not isinstance(scene, dict):
+            scene = _default_scene_interactions()
+            proj["scene_interactions"] = scene
+        scene.setdefault("routes", [])
+        profile = proj.get("spatial_profile")
+        if not isinstance(profile, dict):
+            profile = _default_spatial_profile()
+            proj["spatial_profile"] = profile
+        floors = profile.get("floor_table")
+        if not isinstance(floors, list) or not floors:
+            floors = _default_spatial_profile()["floor_table"]
+            profile["floor_table"] = floors
+        for floor in floors:
+            if not isinstance(floor, dict):
+                continue
+            floor_number = floor.get("floor", 1)
+            floor.setdefault("floor_id", f"floor-{floor_number}")
+            floor.setdefault("ue_ground_z_cm", None)
+        proj.setdefault("frames", [])
+        proj["schema_version"] = 4
+        version = 4
+        changed = True
+
+    if version == 4:
+        # v5 adds project-scoped media restrictions. Existing projects inherit the
+        # deployment policy and remain unable to play media until an Overlay video
+        # template is explicitly configured.
+        proj.setdefault("media_policy", _default_media_policy())
+        proj["schema_version"] = 5
+        version = 5
+        changed = True
+
+    if proj.get("schema_version") != CURRENT_SCHEMA_VERSION:
+        proj["schema_version"] = CURRENT_SCHEMA_VERSION
+        changed = True
+    return changed
 
 
 def _safe_id(pid):
@@ -107,8 +228,27 @@ def _default_spatial_profile():
             "scale_to_cm": 0.1,
         },
         "floor_table": [
-            {"floor": 1, "z_base_mm": 0.0, "ue_level": "", "map_codes": []}
+            {
+                "floor": 1,
+                "floor_id": "floor-1",
+                "z_base_mm": 0.0,
+                "ue_ground_z_cm": None,
+                "ue_level": "",
+                "map_codes": [],
+            }
         ],
+    }
+
+
+def _default_scene_interactions():
+    """Project-level scene interaction container; disabled after migration."""
+    return {
+        "revision": 0,
+        "roaming": {
+            "enabled": False,
+            "auto_enter": False,
+        },
+        "routes": [],
     }
 
 
@@ -139,6 +279,8 @@ class ProjectStore:
         if proj is not None:
             proj.setdefault("components", {})
             proj.setdefault("instance_roster", [])
+            proj.setdefault("scene_interactions", _default_scene_interactions())
+            proj.setdefault("media_policy", _default_media_policy())
         return proj
 
     def _read_project(self, pid):
@@ -147,7 +289,12 @@ class ProjectStore:
             return None
         try:
             with open(path, "r", encoding="utf-8") as f:
-                return self._ensure_collections(json.load(f))
+                proj = json.load(f)
+            migrate_project_schema(proj)
+            proj = self._ensure_collections(proj)
+            return proj
+        except UnsupportedProjectSchemaError:
+            raise
         except Exception:
             return None
 
@@ -190,6 +337,7 @@ class ProjectStore:
                     "id": p.get("id"),
                     "name": p.get("name"),
                     "created_at": p.get("created_at"),
+                    "schema_version": p.get("schema_version", 1),
                     "type_count": len(p.get("object_types") or {}),
                     "instance_count": len(insts),
                     "zone_count": len(zones),
@@ -209,6 +357,7 @@ class ProjectStore:
         with self._lock:
             pid = project_id or f"p_{int(time.time() * 1000)}"
             proj = {
+                "schema_version": CURRENT_SCHEMA_VERSION,
                 "id": pid,
                 "name": name,
                 "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -220,6 +369,8 @@ class ProjectStore:
                 "calibration": calibration,
                 "spatial_profile": _default_spatial_profile(),  # 3.1：空间剖面
                 "frames": [],              # 3.1：通用帧注册表（CAD 帧标定后写入）
+                "scene_interactions": _default_scene_interactions(),  # 4.0：场景交互能力
+                "media_policy": _default_media_policy(),  # 3.7.x：视频来源安全策略
             }
             self._write_json(self._path(pid), proj)
             self._current = proj
@@ -246,8 +397,11 @@ class ProjectStore:
             try:
                 with open(os.path.join(self._projects_dir, fn), "r", encoding="utf-8") as f:
                     p = json.load(f)
-                if p.get("dataset"):
-                    out.append(p["dataset"])
+                dataset = _as_graph_dataset(
+                    p.get("id"), p.get("name"), p.get("created_at"), p.get("dataset")
+                )
+                if dataset:
+                    out.append(dataset)
             except Exception:
                 pass
         return out
@@ -289,6 +443,27 @@ class ProjectStore:
         with self._lock:
             return self._current
 
+    def get_active_copy(self):
+        """Return a detached project snapshot for feature services and API responses."""
+        with self._lock:
+            return copy.deepcopy(self._current) if self._current else None
+
+    def transact_active(self, updater):
+        """Apply one low-frequency project update atomically and persist it once."""
+        with self._lock:
+            if not self._current:
+                raise RuntimeError("no active project")
+            previous = self._current
+            working = copy.deepcopy(previous)
+            result = updater(working)
+            self._current = working
+            try:
+                self._save_current()
+            except Exception:
+                self._current = previous
+                raise
+            return result
+
     def get_active_id(self):
         with self._lock:
             return self._active_id
@@ -313,6 +488,46 @@ class ProjectStore:
         with self._lock:
             if self._current:
                 self._current["calibration"] = calibration
+                self._save_current()
+
+    # ── 场景交互（4.0：项目级低频配置） ────────────────────────
+    def get_scene_interactions(self):
+        with self._lock:
+            if not self._current:
+                return _default_scene_interactions()
+            value = self._current.get("scene_interactions")
+            if not isinstance(value, dict):
+                value = _default_scene_interactions()
+                self._current["scene_interactions"] = value
+                self._save_current()
+            return copy.deepcopy(value)
+
+    def set_scene_interactions(self, scene_interactions):
+        with self._lock:
+            if self._current:
+                self._current["scene_interactions"] = copy.deepcopy(
+                    scene_interactions or _default_scene_interactions()
+                )
+                self._save_current()
+
+    # ── 媒体策略（3.7.x：项目级低频安全配置） ───────────────────
+    def get_media_policy(self):
+        with self._lock:
+            if not self._current:
+                return _default_media_policy()
+            value = self._current.get("media_policy")
+            if not isinstance(value, dict):
+                value = _default_media_policy()
+                self._current["media_policy"] = value
+                self._save_current()
+            return copy.deepcopy(value)
+
+    def set_media_policy(self, media_policy):
+        with self._lock:
+            if self._current:
+                self._current["media_policy"] = copy.deepcopy(
+                    media_policy or _default_media_policy()
+                )
                 self._save_current()
 
     # ── 实例（当前项目） ────────────────────────────────────

@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lingjing-Core 图标库 Icon Library - 灵境核心</title>
+    <link rel="stylesheet" href="../../components/dist/lingjing-core-website.css">
+    <!-- 使用本地化 Lucide Icons (精简版 500个图标) -->
+    <script src="../../scripts/lucide-umd-500.js"></script>
+    <style>
+        /* ============================================
+           自定义样式 - 调用技能包变量
+           ============================================ */
+        body {
+            background: var(--lj-bg-page, linear-gradient(180deg, var(--lj-gray-50, #f8fafc) 0%, var(--lj-gray-100, #f1f5f9) 50%, var(--lj-gray-200, #e2e8f0) 100%));
+            min-height: 100vh;
+            color: var(--lj-text-secondary, var(--lj-gray-600, #475569));
+            transition: background var(--lj-duration-normal, 300ms) var(--lj-ease, cubic-bezier(0.4, 0, 0.2, 1));
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--lj-space-3xl, 48px) var(--lj-space-xl, 24px);
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: var(--lj-space-3xl, 48px);
+        }
+
+        .header h1 {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: var(--lj-space-md, 12px);
+            color: var(--lj-text-primary, var(--lj-gray-900, #0f172a));
+            letter-spacing: -0.5px;
+        }
+
+        .header p {
+            font-size: 18px;
+            color: var(--lj-text-secondary, var(--lj-gray-600, #475569));
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* Theme Toggle Button */
+        .theme-toggle {
+            position: fixed;
+            top: var(--lj-space-xl, 24px);
+            right: var(--lj-space-xl, 24px);
+            width: 48px;
+            height: 48px;
+            border-radius: var(--lj-radius-lg, 16px);
+            background: var(--lj-bg-card, #ffffff);
+            border: none;
+            box-shadow: var(--lj-shadow-md, 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.05));
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--lj-text-secondary, var(--lj-gray-600, #475569));
+            transition: all var(--lj-duration-fast, 180ms);
+            z-index: 100;
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.05);
+            box-shadow: var(--lj-shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05));
+            color: var(--lj-primary, #0066cc);
+        }
+
+        .theme-toggle i {
+            width: 24px;
+            height: 24px;
+        }
+
+        /* Search Section */
+        .search-wrapper {
+            background: var(--lj-bg-card, #ffffff);
+            border-radius: var(--lj-radius-lg, 16px);
+            padding: var(--lj-space-2xl, 32px);
+            box-shadow: var(--lj-shadow-xl, 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.04));
+            margin-bottom: var(--lj-space-2xl, 32px);
+            transition: background var(--lj-duration-normal, 300ms);
+        }
+
+        .search-box {
+            position: relative;
+            max-width: 600px;
+            margin: 0 auto var(--lj-space-lg, 16px);
+        }
+
+        .search-input {
+            width: 100%;
+            padding: var(--lj-space-lg, 16px) 20px var(--lj-space-lg, 16px) 52px;
+            border: 2px solid var(--lj-gray-200, #e2e8f0);
+            border-radius: var(--lj-radius-lg, 16px);
+            font-size: 16px;
+            transition: all var(--lj-duration-fast, 180ms);
+            background: var(--lj-bg-input, var(--lj-gray-50, #f8fafc));
+            color: var(--lj-text-primary, var(--lj-gray-900, #0f172a));
+            font-weight: 500;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--lj-primary, #0066cc);
+            background: var(--lj-bg-card, #ffffff);
+            box-shadow: var(--lj-shadow-colored, 0 4px 14px 0 rgba(0, 102, 204, 0.15)), 0 0 0 4px rgba(0, 102, 204, 0.1);
+        }
+
+        .search-input::placeholder {
+            color: var(--lj-text-muted, var(--lj-gray-500, #64748b));
+            font-weight: 400;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--lj-gray-400, #94a3b8);
+            width: 20px;
+            height: 20px;
+        }
+
+        .search-clear {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0;
+            visibility: hidden;
+            cursor: pointer;
+            padding: var(--lj-space-xs, 4px);
+            border-radius: var(--lj-radius-sm, 6px);
+            transition: all var(--lj-duration-fast, 180ms);
+            color: var(--lj-text-muted, var(--lj-gray-500, #64748b));
+        }
+
+        .search-clear.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .search-clear:hover {
+            background: var(--lj-bg-hover, var(--lj-gray-50, #f8fafc));
+            color: var(--lj-text-primary, var(--lj-gray-900, #0f172a));
+        }
+
+        /* Category Tabs */
+        .category-tabs {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .category-tab {
+            padding: 10px 20px;
+            border-radius: 100px;
+            background: var(--lj-gray-100, #f1f5f9);
+            border: none;
+            color: var(--lj-text-secondary, var(--lj-gray-600, #475569));
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--lj-duration-fast, 180ms);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .category-tab:hover {
+            background: var(--lj-gray-200, #e2e8f0);
+            transform: translateY(-1px);
+        }
+
+        .category-tab.active {
+            background: var(--lj-primary, #0066cc);
+            color: white;
+            box-shadow: var(--lj-shadow-colored-lg, 0 10px 25px -5px rgba(0, 102, 204, 0.2));
+        }
+
+        .category-tab i {
+            width: 16px;
+            height: 16px;
+        }
+
+        .tab-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 22px;
+            padding: 0 7px;
+            font-size: 11px;
+            font-weight: 700;
+            background: rgba(0, 0, 0, 0.06);
+            border-radius: 999px;
+        }
+
+        [data-theme="dark"] .tab-badge {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .category-tab.active .tab-badge {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--lj-space-lg, 16px);
+            margin-bottom: var(--lj-space-2xl, 32px);
+        }
+
+        .stat-card {
+            background: var(--lj-bg-card, #ffffff);
+            border-radius: var(--lj-radius-lg, 16px);
+            padding: var(--lj-space-xl, 24px);
+            box-shadow: var(--lj-shadow-md, 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.05));
+            display: flex;
+            align-items: center;
+            gap: var(--lj-space-lg, 16px);
+            transition: transform var(--lj-duration-fast, 180ms), background var(--lj-duration-normal, 300ms);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--lj-shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05));
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--lj-radius, 8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--lj-primary, #0066cc), var(--lj-primary-dark, #0052a3));
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .stat-icon svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .stat-info h3 {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--lj-text-primary, var(--lj-gray-900, #0f172a));
+            margin-bottom: 4px;
+            letter-spacing: -0.5px;
+        }
+
+        .stat-info p {
+            font-size: 14px;
+            color: var(--lj-text-secondary, var(--lj-gray-600, #475569));
+            font-weight: 500;
+        }
+
+        /* Icon Grid */
+        .icon-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: var(--lj-space-lg, 16px);
+        }
+
+        .icon-item {
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: var(--lj-space-lg, 16px);
+            border-radius: var(--lj-radius-md, 12px);
+            background: var(--lj-bg-card, #ffffff);
+            border: none;
+            cursor: pointer;
+            transition: all var(--lj-duration-fast, 180ms);
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--lj-shadow-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 1px 1px 0 rgba(0, 0, 0, 0.02));
+        }
+
+        .icon-item:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--lj-shadow-md, 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.05));
+            background: var(--lj-bg-hover, var(--lj-gray-50, #f8fafc));
+        }
+
+        .icon-item.copied {
+            background: var(--lj-success, #00a383);
+            border-color: var(--lj-success, #00a383);
+            animation: pulse var(--lj-duration-normal, 300ms) var(--lj-ease, cubic-bezier(0.4, 0, 0.2, 1));
+        }
+
+        .icon-item.copied .icon-svg,
+        .icon-item.copied .icon-name {
+            color: white;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .icon-svg {
+            width: 28px;
+            height: 28px;
+            color: var(--lj-text-secondary, var(--lj-gray-600, #475569));
+            transition: all var(--lj-duration-fast, 180ms);
+            z-index: 1;
+        }
+
+        .icon-item:hover .icon-svg {
+            color: var(--lj-primary, #0066cc);
+            transform: scale(1.15);
+        }
+
+        .icon-name {
+            font-size: 11px;
+            color: var(--lj-text-muted, var(--lj-gray-500, #64748b));
+            text-align: center;
+            word-break: break-all;
+            font-family: "SF Mono", Monaco, monospace;
+            z-index: 1;
+            transition: color var(--lj-duration-fast, 180ms);
+        }
+
+        .icon-copy {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 16px;
+            height: 16px;
+            color: white;
+            opacity: 0;
+            transition: opacity var(--lj-duration-fast, 180ms);
+            z-index: 1;
+        }
+
+        .icon-item.copied .icon-copy {
+            opacity: 1;
+        }
+
+        /* Empty State */
+        .empty-state {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: var(--lj-space-3xl, 48px) var(--lj-space-xl, 24px);
+            text-align: center;
+            color: var(--lj-text-muted, var(--lj-gray-500, #64748b));
+        }
+
+        .empty-state svg {
+            width: 100px;
+            height: 100px;
+            color: var(--lj-text-muted, var(--lj-gray-500, #64748b));
+            margin-bottom: var(--lj-space-lg, 16px);
+            opacity: 0.4;
+        }
+
+        .empty-state h3 {
+            font-size: 21px;
+            font-weight: 700;
+            margin-bottom: var(--lj-space-sm, 8px);
+            color: var(--lj-text-secondary, var(--lj-gray-600, #475569));
+        }
+
+        .empty-state p {
+            font-size: 16px;
+            max-width: 420px;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: var(--lj-space-3xl, 48px);
+            color: var(--lj-text-muted, var(--lj-gray-500, #64748b));
+            font-size: 16px;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: var(--lj-space-2xl, 32px);
+            right: var(--lj-space-2xl, 32px);
+            display: flex;
+            align-items: center;
+            gap: var(--lj-space-md, 12px);
+            padding: var(--lj-space-md, 12px) var(--lj-space-lg, 16px);
+            background: var(--lj-bg-card, #ffffff);
+            border: 1.5px solid var(--lj-accent, #00a383);
+            border-radius: var(--lj-radius-md, 12px);
+            box-shadow: var(--lj-shadow-colored-lg, 0 10px 25px -5px rgba(0, 102, 204, 0.2));
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            transform: translateY(120px) translateX(20px);
+            opacity: 0;
+            transition: all var(--lj-duration-slow, 450ms) var(--lj-ease, cubic-bezier(0.4, 0, 0.2, 1));
+            z-index: 9999;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            transform: translateY(0) translateX(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .toast-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, var(--lj-primary, #0066cc), var(--lj-accent, #00a383));
+            border-radius: var(--lj-radius, 8px);
+            color: white;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(0, 163, 131, 0.2);
+        }
+
+        .toast-content {
+            flex: 1;
+        }
+
+        .toast-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--lj-text-primary, var(--lj-gray-900, #0f172a));
+            margin-bottom: 2px;
+        }
+
+        .toast-message {
+            font-size: 13px;
+            color: var(--lj-text-secondary, var(--lj-gray-600, #475569));
+            font-family: "SF Mono", Monaco, monospace;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: var(--lj-space-xl, 24px) var(--lj-space-md, 12px);
+            }
+
+            .header h1 {
+                font-size: 32px;
+            }
+
+            .header p {
+                font-size: 16px;
+            }
+
+            .theme-toggle {
+                top: var(--lj-space-md, 12px);
+                right: var(--lj-space-md, 12px);
+                width: 40px;
+                height: 40px;
+            }
+
+            .search-wrapper {
+                padding: var(--lj-space-lg, 16px);
+            }
+
+            .category-tabs {
+                gap: 8px;
+            }
+
+            .category-tab {
+                padding: 8px 16px;
+                font-size: 13px;
+            }
+
+            .stats-bar {
+                grid-template-columns: 1fr;
+                gap: var(--lj-space-md, 12px);
+            }
+
+            .icon-grid {
+                grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+                gap: var(--lj-space-md, 12px);
+            }
+
+            .icon-item {
+                padding: var(--lj-space-md, 12px);
+            }
+
+            .icon-svg {
+                width: 24px;
+                height: 24px;
+            }
+
+            .icon-name {
+                font-size: 10px;
+            }
+
+            .toast {
+                left: var(--lj-space-md, 12px);
+                right: var(--lj-space-md, 12px);
+                bottom: var(--lj-space-md, 12px);
+            }
+        }
+
+        /* ============================================
+           Dark Theme Styles
+           ============================================ */
+        [data-theme="dark"] body {
+            background: var(--lj-bg-page, linear-gradient(180deg, var(--lj-gray-900, #0f172a) 0%, var(--lj-gray-950, #020617) 50%, #000 100%));
+            color: var(--lj-text-secondary, var(--lj-gray-400, #94a3b8));
+        }
+
+        [data-theme="dark"] .header h1 {
+            color: var(--lj-text-primary, #f1f5f9);
+        }
+
+        [data-theme="dark"] .theme-toggle {
+            background: var(--lj-bg-card, var(--lj-gray-800, #1e293b));
+            color: var(--lj-text-secondary, var(--lj-gray-400, #94a3b8));
+        }
+
+        [data-theme="dark"] .theme-toggle:hover {
+            color: var(--lj-primary, #60a5fa);
+        }
+
+        [data-theme="dark"] .search-input {
+            background: var(--lj-bg-input, var(--lj-gray-800, #1e293b));
+            border-color: var(--lj-gray-700, #334155) !important;
+            color: var(--lj-text-primary, #f1f5f9);
+        }
+
+        [data-theme="dark"] .search-input:focus {
+            background: var(--lj-bg-card, var(--lj-gray-900, #0f172a));
+            border-color: var(--lj-primary, #3b82f6) !important;
+        }
+
+        [data-theme="dark"] .search-input::placeholder {
+            color: var(--lj-text-secondary, var(--lj-gray-500, #64748b));
+        }
+
+        [data-theme="dark"] .search-wrapper {
+            background: var(--lj-bg-card, var(--lj-gray-800, #1e293b));
+        }
+
+        [data-theme="dark"] .category-tab {
+            background: var(--lj-bg-card, var(--lj-gray-800, #1e293b));
+            color: var(--lj-text-secondary, var(--lj-gray-400, #94a3b8));
+            border-color: var(--lj-border, var(--lj-gray-700, #334155));
+        }
+
+        [data-theme="dark"] .category-tab:hover {
+            background: var(--lj-gray-700, #334155);
+        }
+
+        [data-theme="dark"] .category-tab.active {
+            background: linear-gradient(135deg, #3b82f6, #10b981);
+            color: white !important;
+        }
+
+        [data-theme="dark"] .stat-card {
+            background: var(--lj-bg-card, var(--lj-gray-800, #1e293b));
+        }
+
+        [data-theme="dark"] .stat-label {
+            color: var(--lj-text-secondary, var(--lj-gray-400, #94a3b8));
+        }
+
+        [data-theme="dark"] .stat-value {
+            color: var(--lj-text-primary, #f1f5f9);
+        }
+
+        [data-theme="dark"] .stat-info h3 {
+            color: var(--lj-text-primary, #f1f5f9);
+        }
+
+        [data-theme="dark"] .stat-info p {
+            color: var(--lj-text-secondary, var(--lj-gray-400, #94a3b8));
+        }
+
+        [data-theme="dark"] .icon-item {
+            background: var(--lj-bg-card, var(--lj-gray-800, #1e293b));
+            border-color: var(--lj-border, var(--lj-gray-700, #334155));
+        }
+
+        [data-theme="dark"] .icon-item:hover {
+            background: var(--lj-gray-700, #334155);
+            transform: translateY(-2px);
+        }
+
+        [data-theme="dark"] .icon-name {
+            color: var(--lj-text-secondary, var(--lj-gray-400, #94a3b8));
+        }
+
+        [data-theme="dark"] .icon-copy {
+            color: var(--lj-text-secondary, var(--lj-gray-500, #64748b));
+        }
+
+        [data-theme="dark"] .icon-copy:hover {
+            color: var(--lj-primary, #60a5fa);
+        }
+
+        [data-theme="dark"] .toast {
+            background: var(--lj-bg-card, var(--lj-gray-800, #1e293b));
+            border-color: var(--lj-border, var(--lj-gray-700, #334155));
+        }
+
+        [data-theme="dark"] .toast-title {
+            color: var(--lj-text-primary, #f1f5f9);
+        }
+
+        [data-theme="dark"] .toast-message {
+            color: var(--lj-text-secondary, var(--lj-gray-400, #94a3b8));
+        }
+
+        [data-theme="dark"] .loading {
+            color: var(--lj-text-secondary, var(--lj-gray-400, #94a3b8));
+        }
+
+        [data-theme="dark"] .empty-state h3 {
+            color: var(--lj-text-primary, #f1f5f9);
+        }
+
+        [data-theme="dark"] .empty-state p {
+            color: var(--lj-text-secondary, var(--lj-gray-400, #94a3b8));
+        }
+
+        [data-theme="dark"] .search-icon,
+        [data-theme="dark"] .search-clear {
+            color: var(--lj-text-secondary, var(--lj-gray-500, #64748b));
+        }
+
+        [data-theme="dark"] .search-clear:hover {
+            color: var(--lj-text-primary, #f1f5f9);
+        }
+
+        [data-theme="dark"] .icon-svg {
+            color: var(--lj-text-primary, #f1f5f9);
+        }
+
+        [data-theme="dark"] .icon-svg svg {
+            fill: currentColor;
+        }
+
+        /* Performance */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 主题切换按钮 -->
+    <button class="theme-toggle" id="themeToggle">
+        <i data-lucide="moon" width="24" height="24"></i>
+    </button>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Lingjing-Core 图标库</h1>
+        </header>
+
+        <!-- Search Section -->
+        <div class="search-wrapper">
+            <div class="search-box">
+                <i class="search-icon" data-lucide="search" width="20" height="20"></i>
+                <input type="text" id="searchInput" class="search-input" placeholder="搜索图标名称..." autocomplete="off">
+                <i class="search-clear" id="searchClear" data-lucide="x" width="16" height="16"></i>
+            </div>
+            <!-- Category Tabs -->
+            <div class="category-tabs" id="categoryTabs">
+                <button class="category-tab active" data-category="all">
+                    全部
+                    <span class="tab-badge" id="allCount">0</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i data-lucide="grid" width="24" height="24"></i>
+                </div>
+                <div class="stat-info">
+                    <h3 id="totalIcons">0</h3>
+                    <p>图标总数</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i data-lucide="layers" width="24" height="24"></i>
+                </div>
+                <div class="stat-info">
+                    <h3 id="totalCategories">0</h3>
+                    <p>分类数量</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i data-lucide="mouse-pointer-click" width="24" height="24"></i>
+                </div>
+                <div class="stat-info">
+                    <h3 id="clickCount">0</h3>
+                    <p>复制次数</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Icon Grid -->
+        <div class="icon-grid" id="iconGrid">
+            <div class="loading" id="loading">正在加载图标...</div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <div class="toast-icon">
+            <i data-lucide="check" width="18" height="18"></i>
+        </div>
+        <div class="toast-content">
+            <div class="toast-title">复制成功</div>
+            <div class="toast-message" id="toastMessage">代码已复制到剪贴板</div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            // 图标分类数据
+            var iconCategories = [
+                { category: 'aviation', name: '航空', keywords: [
+                    // 飞行器
+                    'plane', 'helicopter', 'rocket', 'tickets-plane', 'drone',
+                    // 导航定位
+                    'radar', 'compass', 'globe', 'navigation', 'map', 'satellite', 'crosshair', 'target', 'milestone', 'route',
+                    // 气象
+                    'cloud', 'thermometer', 'mountain', 'sunrise', 'sunset',
+                    // 通信信号
+                    'antenna', 'signal',
+                    // 仪表
+                    'gauge'
+                ] },
+                { category: 'navigation', name: '导航', keywords: ['arrow', 'chevron', 'up', 'down', 'left', 'right', 'move', 'expand', 'minimize', 'maximize', 'corner', 'compass', 'globe', 'map', 'locate', 'radar', 'route', 'waypoint', 'north', 'south', 'east', 'west', 'navigate'] },
+                { category: 'media', name: '媒体', keywords: ['play', 'pause', 'stop', 'rewind', 'fast', 'skip', 'repeat', 'shuffle', 'airplay', 'volume', 'mic', 'music', 'headphone', 'speaker', 'camera', 'video', 'film', 'tv', 'monitor', 'radio', 'cast', 'audio'] },
+                { category: 'device', name: '设备', keywords: ['smartphone', 'tablet', 'laptop', 'desktop', 'monitor', 'keyboard', 'mouse', 'touchpad', 'printer', 'scanner', 'phone', 'watch', 'glass', 'usb', 'bluetooth', 'wifi', 'battery', 'plug', 'cable', 'hard', 'drive', 'device'] },
+                { category: 'communication', name: '通讯', keywords: ['mail', 'message', 'phone', 'call', 'video', 'send', 'paperplane', 'at', 'hash', 'rss', 'signal', 'voicemail'] },
+                { category: 'social', name: '社交', keywords: ['heart', 'thumb', 'smile', 'frown', 'meh', 'laugh', 'sad', 'angry', 'annoyed', 'confused', 'grin', 'kiss', 'tongue', 'wink', 'zap', 'sparkles', 'like', 'love'] },
+                { category: 'file', name: '文件', keywords: ['file', 'folder', 'copy', 'clipboard', 'archive', 'package', 'box', 'lock', 'key', 'document', 'page', 'paper'] },
+                { category: 'ui', name: '界面', keywords: ['layout', 'align', 'menu', 'list', 'grid', 'filter', 'check', 'x', 'plus', 'minus', 'edit', 'trash', 'save', 'refresh', 'rotate', 'zoom', 'more', 'dots', 'settings', 'sliders', 'panel', 'sidebar', 'interface'] },
+                { category: 'user', name: '用户', keywords: ['user', 'people', 'avatar', 'profile', 'account', 'login', 'logout', 'lock', 'unlock', 'key', 'shield', 'verified', 'person'] },
+                { category: 'business', name: '商务', keywords: ['briefcase', 'building', 'chart', 'graph', 'trending', 'target', 'award', 'trophy', 'star', 'shopping', 'cart', 'bag', 'tag', 'wallet', 'bank', 'money', 'dollar', 'credit', 'card', 'business'] },
+                { category: 'tech', name: '技术', keywords: ['cpu', 'chip', 'code', 'terminal', 'bug', 'database', 'server', 'cloud', 'wifi', 'bluetooth', 'api', 'git', 'branch', 'commit', 'merge', 'fork', 'pull', 'push', 'technology'] },
+                { category: 'time', name: '时间', keywords: ['calendar', 'clock', 'timer', 'alarm', 'hourglass', 'watch', 'sun', 'moon', 'sunrise', 'sunset', 'date'] },
+                { category: 'nature', name: '自然', keywords: ['tree', 'leaf', 'flower', 'sun', 'moon', 'star', 'cloud', 'rain', 'snow', 'wind', 'fire', 'flame', 'water', 'mountain', 'nature'] },
+                { category: 'animal', name: '动物', keywords: ['animal', 'dog', 'cat', 'bird', 'fish', 'bug', 'insect', 'turtle', 'rabbit', 'paw', 'bone', 'beast', 'pet'] },
+                { category: 'transport', name: '交通', keywords: ['car', 'truck', 'bus', 'train', 'bike', 'scooter', 'boat', 'ship', 'taxi', 'wheel', 'engine', 'fuel', 'road', 'traffic', 'transport', 'vehicle'] },
+                { category: 'health', name: '健康', keywords: ['heart', 'pulse', 'activity', 'medical', 'stethoscope', 'pill', 'syringe', 'bandage', 'crutch', 'wheelchair', 'thermometer', 'virus', 'bacteria', 'health'] },
+                { category: 'edit', name: '编辑', keywords: ['edit', 'pen', 'pencil', 'scissors', 'highlight', 'type', 'text', 'cursor', 'write'] },
+                { category: 'home', name: '家居', keywords: ['home', 'house', 'building', 'chair', 'couch', 'bed', 'lamp', 'door', 'window', 'furniture'] },
+                { category: 'math', name: '数学', keywords: ['equal', 'divide', 'minus', 'plus', 'percent', 'calculator', 'sigma', 'mathematics'] },
+                { category: 'shape', name: '形状', keywords: ['circle', 'square', 'triangle', 'hexagon', 'diamond', 'polygon', 'rounded', 'box', 'shape'] }
+            ];
+
+            // 全局变量
+            var allIcons = [];
+            var categorizedIcons = {};
+            var currentCategory = 'all';
+            var searchTerm = '';
+            var toastTimeout = null;
+            var clickCount = 0;
+
+            // 从 lucide-umd.js 中提取所有图标名称
+            function extractAllIcons() {
+                var icons = [];
+
+                // 从 Lucide 提取图标
+                if (typeof window.lucide !== 'undefined' && window.lucide.icons) {
+                    icons = Object.keys(window.lucide.icons);
+                }
+
+                return icons;
+            }
+
+            // 初始化图标
+            function initIcons() {
+                allIcons = extractAllIcons();
+
+                if (allIcons.length === 0) {
+                    // 如果无法从 lucide 对象提取，使用预设列表
+                    allIcons = [
+                        'arrow-up', 'arrow-down', 'arrow-left', 'arrow-right',
+                        'check', 'x', 'plus', 'minus', 'search', 'menu', 'grid', 'list',
+                        'home', 'user', 'heart', 'star', 'lock', 'unlock', 'bell', 'settings',
+                        'camera', 'image', 'video', 'music', 'mic', 'headphones',
+                        'smartphone', 'laptop', 'tablet', 'monitor', 'keyboard', 'mouse',
+                        'sun', 'moon', 'cloud', 'wind', 'rain', 'snow',
+                        'calendar', 'clock', 'timer', 'alarm-clock',
+                        'mail', 'message-circle', 'phone', 'send',
+                        'download', 'upload', 'share', 'copy', 'edit', 'trash',
+                        'play', 'pause', 'stop', 'skip-forward', 'skip-back',
+                        'volume', 'volume-2', 'volume-x',
+                        'chevron-up', 'chevron-down', 'chevron-left', 'chevron-right',
+                        'circle', 'square', 'triangle', 'hexagon'
+                    ];
+                }
+
+                // 去重并排序
+                allIcons = [...new Set(allIcons)].sort();
+
+                // 检测实际的航空图标名称（支持 PascalCase，优先显示）
+                var aviationIcons = [
+                    // ── 飞行器 Aircraft ──────────────────────────
+                    'Plane', 'PlaneTakeoff', 'PlaneLanding', 'PlaneOff',
+                    'Helicopter', 'Rocket', 'TicketsPlane', 'Send',
+                    'plane', 'plane-takeoff', 'plane-landing', 'plane-off',
+                    'helicopter', 'rocket', 'tickets-plane', 'send',
+                    // ── 导航定位 Navigation ──────────────────────
+                    'Radar', 'Compass', 'DraftingCompass',
+                    'Navigation', 'Navigation2', 'NavigationOff',
+                    'Globe', 'Globe2',
+                    'Map', 'MapPin', 'MapPinned', 'MapPlus',
+                    'Route', 'RouteOff', 'Target', 'Crosshair', 'Milestone',
+                    'Satellite', 'SatelliteDish',
+                    'radar', 'compass', 'drafting-compass',
+                    'navigation', 'navigation-2', 'navigation-off',
+                    'globe', 'globe-2',
+                    'map', 'map-pin', 'map-pinned', 'map-plus',
+                    'route', 'route-off', 'target', 'crosshair', 'milestone',
+                    'satellite', 'satellite-dish',
+                    // ── 气象环境 Weather ─────────────────────────
+                    'Wind', 'WindArrowDown',
+                    'Cloud', 'CloudSun', 'CloudRain', 'CloudRainWind',
+                    'CloudLightning', 'CloudFog', 'CloudSnow', 'Cloudy',
+                    'Sun', 'SunDim', 'Sunrise', 'Sunset', 'SunMoon',
+                    'Moon', 'MoonStar',
+                    'Thermometer', 'ThermometerSun', 'ThermometerSnowflake',
+                    'Mountain', 'MountainSnow',
+                    'wind', 'wind-arrow-down',
+                    'cloud', 'cloud-sun', 'cloud-rain', 'cloud-rain-wind',
+                    'cloud-lightning', 'cloud-fog', 'cloud-snow', 'cloudy',
+                    'sun', 'sun-dim', 'sunrise', 'sunset', 'sun-moon',
+                    'moon', 'moon-star',
+                    'thermometer', 'thermometer-sun', 'thermometer-snowflake',
+                    'mountain', 'mountain-snow',
+                    // ── 通信信号 Communications ──────────────────
+                    'Antenna', 'Radio', 'RadioTower', 'RadioReceiver',
+                    'Signal', 'SignalHigh', 'SignalMedium', 'SignalLow', 'SignalZero',
+                    'antenna', 'radio', 'radio-tower', 'radio-receiver',
+                    'signal', 'signal-high', 'signal-medium', 'signal-low', 'signal-zero',
+                    // ── 仪表监控 Instruments ─────────────────────
+                    'Gauge', 'CircleGauge',
+                    'Activity', 'Eye', 'Scan', 'ScanEye',
+                    'Fuel', 'Shield', 'ShieldCheck', 'ShieldAlert',
+                    'gauge', 'circle-gauge',
+                    'activity', 'eye', 'scan', 'scan-eye',
+                    'fuel', 'shield', 'shield-check', 'shield-alert'
+                ];
+
+                // 查找实际存在的航空图标
+                var foundAviationIcons = [];
+                aviationIcons.forEach(function(avIcon) {
+                    var idx = allIcons.indexOf(avIcon);
+                    if (idx !== -1) {
+                        foundAviationIcons.push(avIcon);
+                        allIcons.splice(idx, 1);
+                    }
+                });
+
+                // 构建优先级列表：航空图标优先
+                var prioritizedIcons = [];
+                foundAviationIcons.forEach(function(icon) {
+                    prioritizedIcons.push(icon);
+                });
+
+                // 再添加其他图标
+                allIcons.forEach(function(icon) {
+                    prioritizedIcons.push(icon);
+                });
+
+                allIcons = prioritizedIcons;
+
+                // 限制最多 500 个图标
+                if (allIcons.length > 500) {
+                    allIcons = allIcons.slice(0, 500);
+                }
+
+                // 更新总数
+                document.getElementById('totalIcons').textContent = allIcons.length;
+                document.getElementById('allCount').textContent = allIcons.length;
+
+                // 隐藏加载提示
+                var loading = document.getElementById('loading');
+                if (loading) {
+                    loading.style.display = 'none';
+                }
+
+                // 分类图标
+                categorizeIcons();
+
+                // 渲染图标网格
+                render();
+            }
+
+            // 根据关键词分类图标
+            function categorizeIcons() {
+                // 初始化分类
+                iconCategories.forEach(function(cat) {
+                    categorizedIcons[cat.category] = [];
+                });
+
+                // 为每个图标分配分类
+                allIcons.forEach(function(iconName) {
+                    var name = iconName.toLowerCase();
+                    var assigned = false;
+
+                    for (var i = 0; i < iconCategories.length; i++) {
+                        var cat = iconCategories[i];
+                        for (var j = 0; j < cat.keywords.length; j++) {
+                            if (name.includes(cat.keywords[j].toLowerCase())) {
+                                categorizedIcons[cat.category].push(iconName);
+                                assigned = true;
+                                break;
+                            }
+                        }
+                        if (assigned) break;
+                    }
+
+                    // 未分类的归入"全部"
+                    if (!assigned) {
+                        if (!categorizedIcons['other']) {
+                            categorizedIcons['other'] = [];
+                        }
+                        categorizedIcons['other'].push(iconName);
+                    }
+                });
+
+                // 更新分类数量
+                var activeCategories = 0;
+                iconCategories.forEach(function(cat) {
+                    if (categorizedIcons[cat.category] && categorizedIcons[cat.category].length > 0) {
+                        activeCategories++;
+                    }
+                });
+                document.getElementById('totalCategories').textContent = activeCategories;
+
+                // 渲染分类标签
+                renderCategoryTabs();
+            }
+
+            // 渲染分类按钮
+            function renderCategoryTabs() {
+                var container = document.getElementById('categoryTabs');
+                container.innerHTML = '';
+
+                // 全部按钮
+                var allBtn = document.createElement('button');
+                allBtn.className = 'category-tab active';
+                allBtn.dataset.category = 'all';
+                allBtn.innerHTML = '全部<span class="tab-badge">' + allIcons.length + '</span>';
+                allBtn.onclick = function() { setCategory('all'); };
+                container.appendChild(allBtn);
+
+                // 分类按钮（按 iconCategories 数组顺序渲染）
+                iconCategories.forEach(function(cat) {
+                    var icons = categorizedIcons[cat.category] || [];
+                    if (icons.length > 0) {
+                        var btn = document.createElement('button');
+                        btn.className = 'category-tab';
+                        btn.dataset.category = cat.category;
+                        btn.innerHTML = cat.name + '<span class="tab-badge">' + icons.length + '</span>';
+                        btn.onclick = function() { setCategory(cat.category); };
+                        container.appendChild(btn);
+                    }
+                });
+
+                // 其他分类
+                if (categorizedIcons['other'] && categorizedIcons['other'].length > 0) {
+                    var otherBtn = document.createElement('button');
+                    otherBtn.className = 'category-tab';
+                    otherBtn.dataset.category = 'other';
+                    otherBtn.innerHTML = '其他<span class="tab-badge">' + categorizedIcons['other'].length + '</span>';
+                    otherBtn.onclick = function() { setCategory('other'); };
+                    container.appendChild(otherBtn);
+                }
+            }
+
+            // 设置当前分类
+            function setCategory(cat) {
+                currentCategory = cat;
+                document.querySelectorAll('.category-tab').forEach(function(p) {
+                    p.classList.remove('active');
+                    if (p.dataset.category === cat) {
+                        p.classList.add('active');
+                    }
+                });
+                render();
+            }
+
+            // 渲染图标网格
+            function render() {
+                var grid = document.getElementById('iconGrid');
+                var icons = [];
+
+                // 获取当前分类的图标
+                if (currentCategory === 'all') {
+                    icons = allIcons;
+                } else {
+                    icons = categorizedIcons[currentCategory] || [];
+                }
+
+                // 搜索过滤
+                if (searchTerm) {
+                    icons = icons.filter(function(name) {
+                        return name.toLowerCase().includes(searchTerm.toLowerCase());
+                    });
+                }
+
+                // 清空网格
+                grid.innerHTML = '';
+
+                // 显示空状态
+                if (icons.length === 0) {
+                    grid.innerHTML = `
+                        <div class="empty-state">
+                            <i data-lucide="search-x" width="100" height="100"></i>
+                            <h3>未找到匹配的图标</h3>
+                            <p>尝试使用不同的关键词或选择其他分类</p>
+                        </div>
+                    `;
+                    setTimeout(function() {
+                        if (typeof window.lucide !== 'undefined' && window.lucide.createIcons) {
+                            window.lucide.createIcons();
+                        }
+                    }, 0);
+                    return;
+                }
+
+                // 分批渲染以提升性能
+                renderIconsBatch(icons, grid, 0, 100);
+            }
+
+            // 分批渲染图标
+            function renderIconsBatch(icons, grid, startIndex, batchSize) {
+                var endIndex = Math.min(startIndex + batchSize, icons.length);
+
+                for (var i = startIndex; i < endIndex; i++) {
+                    var name = icons[i];
+                    var item = document.createElement('div');
+                    item.className = 'icon-item';
+                    // 修复闭包问题：使用立即执行函数捕获正确的图标名
+                    item.onclick = (function(iconName) {
+                        return function() { copyIcon(iconName); };
+                    })(name);
+
+                    // 使用 Lucide 图标
+                    item.innerHTML = `
+                        <i class="icon-svg" data-lucide="${name}"></i>
+                        <span class="icon-name">${name}</span>
+                        <i class="icon-copy" data-lucide="copy" width="16" height="16"></i>
+                    `;
+
+                    grid.appendChild(item);
+                }
+
+                // 继续渲染下一批
+                if (endIndex < icons.length) {
+                    requestAnimationFrame(function() {
+                        renderIconsBatch(icons, grid, endIndex, batchSize);
+                    });
+                } else {
+                    // 所有批次渲染完成后，统一初始化图标
+                    if (typeof window.lucide !== 'undefined' && window.lucide.createIcons) {
+                        window.lucide.createIcons({
+                            root: grid,
+                            nameAttr: 'data-lucide'
+                        });
+                    }
+                }
+            }
+
+            // 复制图标代码
+            function copyIcon(name) {
+                var code = '<i data-lucide="' + name + '"></i>';
+
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(code).then(function() {
+                        showToast(name);
+                        clickCount++;
+                        document.getElementById('clickCount').textContent = clickCount;
+                    }).catch(function() {
+                        fallbackCopy(code, name);
+                    });
+                } else {
+                    fallbackCopy(code, name);
+                }
+            }
+
+            // 备用复制方案
+            function fallbackCopy(text, iconName) {
+                var textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                textarea.style.pointerEvents = 'none';
+                document.body.appendChild(textarea);
+                textarea.select();
+
+                try {
+                    var successful = document.execCommand('copy');
+                    if (successful) {
+                        showToast(iconName);
+                        clickCount++;
+                        document.getElementById('clickCount').textContent = clickCount;
+                    } else {
+                        alert('复制失败，请手动复制');
+                    }
+                } catch (err) {
+                    alert('复制功能不支持，请手动复制');
+                }
+
+                document.body.removeChild(textarea);
+            }
+
+            // 显示 Toast 通知
+            function showToast(iconName) {
+                var toast = document.getElementById('toast');
+                var message = document.getElementById('toastMessage');
+
+                message.textContent = '<i data-lucide="' + iconName + '"></i>';
+                toast.classList.add('show');
+
+                if (toastTimeout) {
+                    clearTimeout(toastTimeout);
+                }
+
+                toastTimeout = setTimeout(function() {
+                    toast.classList.remove('show');
+                }, 2000);
+            }
+
+            // 搜索输入事件
+            document.getElementById('searchInput').addEventListener('input', function(e) {
+                searchTerm = e.target.value;
+                var clearBtn = document.getElementById('searchClear');
+
+                if (searchTerm) {
+                    clearBtn.classList.add('visible');
+                } else {
+                    clearBtn.classList.remove('visible');
+                }
+
+                render();
+            });
+
+            // 清除搜索
+            document.getElementById('searchClear').addEventListener('click', function() {
+                document.getElementById('searchInput').value = '';
+                searchTerm = '';
+                this.classList.remove('visible');
+                render();
+            });
+
+            // 主题切换
+            document.getElementById('themeToggle').addEventListener('click', function() {
+                var html = document.documentElement;
+                var current = html.getAttribute('data-theme');
+                var next = current === 'dark' ? 'light' : 'dark';
+                html.setAttribute('data-theme', next);
+
+                var icon = this.querySelector('i');
+                icon.setAttribute('data-lucide', next === 'dark' ? 'sun' : 'moon');
+
+                if (typeof window.lucide !== 'undefined' && window.lucide.createIcons) {
+                    window.lucide.createIcons();
+                }
+            });
+
+            // 键盘快捷键
+            document.addEventListener('keydown', function(e) {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                    e.preventDefault();
+                    document.getElementById('searchInput').focus();
+                }
+
+                if (e.key === 'Escape' && searchTerm) {
+                    document.getElementById('searchInput').value = '';
+                    searchTerm = '';
+                    document.getElementById('searchClear').classList.remove('visible');
+                    render();
+                }
+            });
+
+            // 页面加载完成
+            window.addEventListener('load', function() {
+                var retries = 0;
+                var maxRetries = 10;
+
+                function tryInit() {
+                    if (typeof window.lucide !== 'undefined' || retries >= maxRetries) {
+                        initIcons();
+                        if (typeof window.lucide !== 'undefined' && window.lucide.createIcons) {
+                            window.lucide.createIcons();
+                        }
+                    } else {
+                        retries++;
+                        setTimeout(tryInit, 100);
+                    }
+                }
+
+                setTimeout(tryInit, 100);
+            });
+        })();
+    </script>
+</body>
+</html>

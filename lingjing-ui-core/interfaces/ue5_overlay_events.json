@@ -1,0 +1,85 @@
+{
+  "version": "0.1.0",
+  "updated": "2026-03-23",
+  "bridge_source": "../lingjing-ux-core/interfaces/ue5_web_bridge.json",
+  "dom_mappings": {
+    "overlay_root": ".ue5-overlay-root",
+    "topbar_hud": ".topbar-hud",
+    "world_marker": ".world-marker",
+    "detail_panel": ".detail-panel",
+    "alert_center": ".alert-center",
+    "layer_switcher": ".layer-switcher",
+    "critical_banner": ".ue5-critical-banner"
+  },
+  "subscriptions": {
+    "scene.ready": {
+      "targets": ["topbar_hud", "overlay_root"],
+      "effects": ["set-ready-state", "render-runtime-mode"]
+    },
+    "scene.degraded": {
+      "targets": ["topbar_hud", "detail_panel", "critical_banner"],
+      "effects": ["set-degraded-state", "show-banner"]
+    },
+    "object.selected": {
+      "targets": ["world_marker", "detail_panel", "topbar_hud"],
+      "effects": ["select-marker", "hydrate-detail", "lock-context"]
+    },
+    "object.updated": {
+      "targets": ["world_marker", "detail_panel"],
+      "effects": ["patch-metrics", "sync-risk-level"]
+    },
+    "alert.raised": {
+      "targets": ["alert_center", "world_marker", "detail_panel", "topbar_hud", "critical_banner"],
+      "effects": ["prepend-alert", "promote-marker", "show-critical-if-needed", "update-hud-severity"]
+    },
+    "alert.cleared": {
+      "targets": ["alert_center", "world_marker", "detail_panel"],
+      "effects": ["mark-alert-resolved", "downgrade-marker"]
+    },
+    "layer.visibility.changed": {
+      "targets": ["layer_switcher", "topbar_hud"],
+      "effects": ["sync-layer-state", "sync-layer-count"]
+    }
+  },
+  "publications": {
+    "ui.focus_object": {
+      "source": ".world-marker__action[data-action='focus']",
+      "payload": ["object_id", "focus_mode"]
+    },
+    "ui.open_detail": {
+      "source": ".world-marker__action[data-action='detail']",
+      "payload": ["object_id", "panel_mode"]
+    },
+    "ui.toggle_layer": {
+      "source": ".layer-switcher__toggle",
+      "payload": ["layer_id", "visibility"]
+    },
+    "ui.change_view": {
+      "source": ".topbar-hud__button[data-view]",
+      "payload": ["view_id", "camera_preset"]
+    },
+    "ui.ack_alert": {
+      "source": ".alert-center__action[data-action='ack']",
+      "payload": ["alert_id", "operator"]
+    },
+    "ui.navigate_business_page": {
+      "source": ".detail-panel__footer-action[data-action='business']",
+      "payload": ["target_page", "object_id"]
+    }
+  },
+  "mock_payloads": {
+    "scene.ready": {
+      "runtime_mode": "development_mock",
+      "scene_state": "ready",
+      "camera": { "preset": "global" }
+    },
+    "object.selected": {
+      "object": { "object_id": "station-a3-main-spindle", "object_name": "A3 主轴单元", "risk_level": "warning" },
+      "detail": { "last_updated_at": "2026-03-23T10:00:00Z", "stale": false }
+    },
+    "alert.raised": {
+      "alert": { "alert_id": "alert-a3-001", "severity": "critical", "alert_status": "raised" },
+      "object": { "object_id": "station-a3-axis-z", "object_name": "A3 Z 轴伺服" }
+    }
+  }
+}

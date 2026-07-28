@@ -1,0 +1,277 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UE5 Overlay · 航空总装协同视图</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-ue5-overlay.css">
+  <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+  <main class="ue5-overlay-root">
+    <div class="ue5-overlay-background"></div>
+    <div class="ue5-overlay-viewport">
+      <img class="ue5-overlay-scene-image" src="../../assets/ue5-bg-scene.png" alt="航空制造三维背景场景">
+    </div>
+    <div class="ue5-overlay-grid"></div>
+    <div class="ue5-overlay-center-guard"></div>
+
+    <header class="ue5-overlay-system-bar">
+      <div class="ue5-overlay-system-bar__brand">
+        <span class="ue5-overlay-system-bar__brand-mark" aria-hidden="true"></span>
+        <div class="ue5-overlay-system-bar__brand-copy">
+          <span class="ue5-overlay-system-bar__brand-name">C919 总装协同总览</span>
+          <span class="ue5-overlay-system-bar__brand-subtitle">实时监控总装线各工位状态，协同处理突发异常</span>
+        </div>
+      </div>
+      <nav class="ue5-overlay-system-bar__nav" aria-label="场景导航">
+        <span class="ue5-overlay-system-bar__nav-item is-active">全局总览</span>
+        <span class="ue5-overlay-system-bar__nav-item">质量追踪</span>
+        <span class="ue5-overlay-system-bar__nav-item">工艺联动</span>
+      </nav>
+      <div class="ue5-overlay-system-bar__meta">
+        <span class="ue5-overlay-system-bar__meta-item"><span class="ue5-overlay-system-bar__meta-dot" aria-hidden="true"></span>双向同步已连接</span>
+        <span class="ue5-overlay-system-bar__meta-item">阴天 · 6℃</span>
+        <span class="ue5-overlay-system-bar__meta-item">2026/03/23 · 11:52</span>
+      </div>
+    </header>
+
+    <section class="ue5-overlay-safe-area">
+      <div class="topbar-hud topbar-hud--with-sidepanel ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--hud">
+        <div class="topbar-hud__headline">
+          <h1 class="topbar-hud__title">C919 总装协同总览</h1>
+          <p class="topbar-hud__subtitle">当前视图已聚焦于 C919 总装线核心工位，实时同步工艺参数与生产节拍。</p>
+        </div>
+        <div class="topbar-hud__summary">
+          <div class="topbar-hud__stat topbar-hud__stat--warning">
+            <span class="topbar-hud__stat-label">处置时限</span>
+            <span class="topbar-hud__stat-value">10<span>min</span></span>
+            <span class="topbar-hud__stat-meta">建议 10 分钟内完成复核并释放下一工序</span>
+          </div>
+          <div class="topbar-hud__stat topbar-hud__stat--success">
+            <span class="topbar-hud__stat-label">整线节拍</span>
+            <span class="topbar-hud__stat-value">98.4<span>%</span></span>
+            <span class="topbar-hud__stat-meta">当前异常已聚焦，不影响其余工位稳定运行</span>
+          </div>
+        </div>
+        <div class="topbar-hud__actions">
+          <span class="topbar-hud__status"><span class="topbar-hud__status-dot" aria-hidden="true"></span>当前焦点：S4 翼身对接</span>
+        </div>
+      </div>
+
+      <aside class="layer-switcher ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--hud" aria-label="图层控制">
+        <div class="layer-switcher__header">
+          <h2 class="layer-switcher__title">场景图层</h2>
+          <span class="layer-switcher__status">关键标记已收敛</span>
+        </div>
+        <div class="layer-switcher__list">
+          <div class="layer-switcher__item is-on">
+            <div class="layer-switcher__item-copy">
+              <span class="layer-switcher__item-title">工位标记</span>
+              <span class="layer-switcher__item-meta">仅显示关键工位</span>
+            </div>
+            <button class="layer-switcher__toggle" type="button" aria-label="切换工位标记"></button>
+          </div>
+          <div class="layer-switcher__item is-on is-syncing">
+            <div class="layer-switcher__item-copy">
+              <span class="layer-switcher__item-title">风险热区</span>
+              <span class="layer-switcher__item-meta">只保留预警与告警</span>
+            </div>
+            <button class="layer-switcher__toggle" type="button" aria-label="切换风险热区"></button>
+          </div>
+          <div class="layer-switcher__item is-on">
+            <div class="layer-switcher__item-copy">
+              <span class="layer-switcher__item-title">AGV 动线</span>
+              <span class="layer-switcher__item-meta">运输信息弱化显示</span>
+            </div>
+            <button class="layer-switcher__toggle" type="button" aria-label="切换AGV动线"></button>
+          </div>
+        </div>
+      </aside>
+
+      <aside class="alert-center ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--detail" aria-label="事件与处置">
+        <div class="alert-center__header">
+          <div class="alert-center__heading">
+            <h2 class="alert-center__title">事件与处置</h2>
+            <p class="alert-center__summary">默认只展开最高优先级任务，其余事件按时间折叠，避免抢占注意力。</p>
+          </div>
+          <span class="alert-center__badge"><i data-lucide="bell-ring"></i><span class="alert-center__badge-label">待处理</span><span class="alert-center__badge-value">04</span></span>
+        </div>
+        <div class="alert-center__list">
+          <details class="alert-center__drawer alert-center__drawer--critical" open>
+            <summary class="alert-center__drawer-summary">
+              <span class="alert-center__severity alert-center__severity--critical" aria-hidden="true"></span>
+              <div class="alert-center__drawer-headline">
+                <strong class="alert-center__item-title">右翼对接扭矩复核超窗</strong>
+                <div class="alert-center__item-meta">
+                  <span>S4 工位</span>
+                  <span>持续 06 分钟</span>
+                  <span>责任班组 T2</span>
+                </div>
+              </div>
+              <span class="alert-center__drawer-state">展开</span>
+            </summary>
+            <div class="alert-center__drawer-content">
+              <p class="alert-center__item-copy">当前镜头、工艺卡与质量门禁已联动锁定，建议优先完成人工复核，再释放下一工序。</p>
+              <div class="alert-center__actions">
+                <button class="alert-center__action alert-center__action--danger" type="button">立即复核</button>
+                <button class="alert-center__action" type="button">通知班组到位</button>
+              </div>
+            </div>
+          </details>
+
+          <details class="alert-center__drawer alert-center__drawer--warning">
+            <summary class="alert-center__drawer-summary">
+              <span class="alert-center__severity alert-center__severity--warning" aria-hidden="true"></span>
+              <div class="alert-center__drawer-headline">
+                <strong class="alert-center__item-title">密封胶固化窗口剩余 12 分钟</strong>
+                <div class="alert-center__item-meta">
+                  <span>左前舱段</span>
+                  <span>11:48</span>
+                </div>
+              </div>
+              <span class="alert-center__drawer-state">折叠</span>
+            </summary>
+            <div class="alert-center__drawer-content">
+              <p class="alert-center__item-copy">质检已订阅该事件，若 P1 任务闭环延后，需同步调整复测窗口。</p>
+            </div>
+          </details>
+
+          <details class="alert-center__drawer alert-center__drawer--info">
+            <summary class="alert-center__drawer-summary">
+              <span class="alert-center__severity alert-center__severity--info" aria-hidden="true"></span>
+              <div class="alert-center__drawer-headline">
+                <strong class="alert-center__item-title">AGV-07 路径重算完成</strong>
+                <div class="alert-center__item-meta">
+                  <span>南侧通道</span>
+                  <span>11:51</span>
+                </div>
+              </div>
+              <span class="alert-center__drawer-state">折叠</span>
+            </summary>
+            <div class="alert-center__drawer-content">
+              <p class="alert-center__item-copy">运输路径已让空，维持弱提示即可，无需打断当前复核流程。</p>
+            </div>
+          </details>
+        </div>
+        <div class="alert-center__footer">
+          <div class="alert-center__summary-card alert-center__summary-card--critical">
+            <span class="alert-center__summary-label">P1 告警</span>
+            <span class="alert-center__summary-value">01</span>
+          </div>
+          <div class="alert-center__summary-card alert-center__summary-card--info">
+            <span class="alert-center__summary-label">已联动处置</span>
+            <span class="alert-center__summary-value">12</span>
+          </div>
+        </div>
+      </aside>
+
+      <aside class="detail-panel detail-panel--pinned ue5-overlay-panel ue5-overlay-layer ue5-overlay-layer--detail" aria-label="工位核心指标卡">
+        <div class="detail-panel__header">
+          <div class="detail-panel__title-group">
+            <h2 class="detail-panel__title">S4 翼身对接工位</h2>
+            <div class="detail-panel__meta">
+              <span>批次 24A</span>
+              <span>编号 SN-LJ-C919-08</span>
+              <span>11:51:42 刷新</span>
+            </div>
+          </div>
+          <span class="detail-panel__status">核心指标</span>
+
+        </div>
+
+        <div class="detail-panel__body">
+          <section class="detail-panel__section">
+            <h3 class="detail-panel__section-title">工位核心指标</h3>
+            <div class="detail-panel__metrics">
+              <div class="detail-panel__metric detail-panel__metric--critical">
+                <div class="detail-panel__metric-copy">
+                  <span class="detail-panel__metric-label">待复核项</span>
+                  <span class="detail-panel__metric-meta">质量门禁未释放</span>
+                </div>
+                <span class="detail-panel__metric-value">01<span>项</span></span>
+              </div>
+              <div class="detail-panel__metric detail-panel__metric--warning">
+                <div class="detail-panel__metric-copy">
+                  <span class="detail-panel__metric-label">对接间隙</span>
+                  <span class="detail-panel__metric-meta">距离上限 0.04 mm</span>
+                </div>
+                <span class="detail-panel__metric-value">0.36<span>mm</span></span>
+              </div>
+              <div class="detail-panel__metric detail-panel__metric--brand">
+                <div class="detail-panel__metric-copy">
+                  <span class="detail-panel__metric-label">节拍达成</span>
+                  <span class="detail-panel__metric-meta">当前班次稳定</span>
+                </div>
+                <span class="detail-panel__metric-value">98.4<span>%</span></span>
+              </div>
+            </div>
+            <p class="detail-panel__assist">当前界面仅保留影响决策的 3 项指标，其余信息折叠至低频入口。</p>
+          </section>
+
+          <section class="detail-panel__section">
+            <h3 class="detail-panel__section-title">协同摘要</h3>
+            <div class="detail-panel__list">
+              <div class="detail-panel__list-row">
+                <span class="detail-panel__list-label">责任班组</span>
+                <span class="detail-panel__list-value">T2 · 机翼对接班</span>
+              </div>
+              <div class="detail-panel__list-row">
+                <span class="detail-panel__list-label">下一节点</span>
+                <span class="detail-panel__list-value">翼身缝隙复测 / 11:58</span>
+              </div>
+              <div class="detail-panel__list-row">
+                <span class="detail-panel__list-label">联动状态</span>
+                <span class="detail-panel__list-value">主镜头锁定 · 工艺卡同步</span>
+              </div>
+            </div>
+          </section>
+
+          <details class="detail-panel__fold">
+            <summary class="detail-panel__fold-summary">低频操作入口</summary>
+            <div class="detail-panel__fold-body">
+              <div class="detail-panel__footer">
+                <button class="detail-panel__footer-action detail-panel__footer-action--primary" type="button">查看工艺卡</button>
+                <button class="detail-panel__footer-action" type="button">查看联动策略</button>
+              </div>
+            </div>
+          </details>
+        </div>
+      </aside>
+
+      <div class="ue5-overlay-layer ue5-overlay-layer--marker" aria-label="三维对象标注">
+        <article class="world-marker world-marker--critical world-marker--selected">
+          <div class="world-marker__label">
+            <div class="world-marker__label-top">
+              <span class="world-marker__icon" aria-hidden="true"><i data-lucide="triangle-alert"></i></span>
+              <span class="world-marker__title">S4 对接工位</span>
+              <span class="world-marker__status">P1</span>
+            </div>
+            <div class="world-marker__label-bottom">扭矩复核超窗，待人工复核。</div>
+          </div>
+          <span class="world-marker__line" aria-hidden="true"></span>
+          <span class="world-marker__anchor" aria-hidden="true"></span>
+        </article>
+        <article class="world-marker world-marker--warning world-marker--collapsed">
+          <div class="world-marker__label">
+            <div class="world-marker__label-top">
+              <span class="world-marker__icon" aria-hidden="true"><i data-lucide="clock-3"></i></span>
+              <span class="world-marker__title">胶固化窗</span>
+              <span class="world-marker__status">P2</span>
+            </div>
+          </div>
+          <span class="world-marker__line" aria-hidden="true"></span>
+          <span class="world-marker__anchor" aria-hidden="true"></span>
+        </article>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    if (window.lucide) {
+      window.lucide.createIcons();
+    }
+  </script>
+</body>
+</html>

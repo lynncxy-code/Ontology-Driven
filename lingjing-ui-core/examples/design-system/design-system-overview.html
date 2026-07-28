@@ -1,0 +1,1630 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>灵境设计体系 — Design System Overview</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+  <style>
+    /* ── 页面骨架 ──────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--theme-bg-base);
+      color: var(--theme-text-primary);
+      font-family: var(--font-family-base, 'Inter', 'PingFang SC', system-ui, sans-serif);
+      transition: background 0.25s, color 0.25s;
+    }
+
+    /* ── 顶部 Header ───────────────────────────────────────────── */
+    .ds-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      height: 60px;
+      border-bottom: 1px solid var(--theme-border-light);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--theme-bg-base);
+      backdrop-filter: blur(12px);
+    }
+    .ds-header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .ds-logo {
+      width: 32px;
+      height: 32px;
+    }
+    .ds-brand-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--theme-text-primary);
+      letter-spacing: -0.01em;
+    }
+    .ds-version-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: rgba(var(--brand-primary-rgb, 0,102,255), 0.12);
+      color: var(--theme-primary);
+      border: 1px solid rgba(var(--brand-primary-rgb, 0,102,255), 0.25);
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+    .ds-theme-toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--theme-text-secondary);
+    }
+    .ds-toggle-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      cursor: pointer;
+    }
+    .ds-toggle-switch input { display: none; }
+    .ds-toggle-track {
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      background: var(--theme-border-base, rgba(128,128,128,0.3));
+      transition: background 0.2s;
+    }
+    .ds-toggle-switch input:checked + .ds-toggle-track {
+      background: var(--theme-primary);
+    }
+    .ds-toggle-thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+    .ds-toggle-switch input:checked + .ds-toggle-track + .ds-toggle-thumb {
+      transform: translateX(20px);
+    }
+
+    /* ── 主体布局 ──────────────────────────────────────────────── */
+    .ds-main {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 48px 40px 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 64px;
+    }
+
+    /* ── Section 标题 ─────────────────────────────────────────── */
+    .ds-section-header {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 24px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--theme-border-light);
+    }
+    .ds-section-num {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--theme-primary);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.7;
+    }
+    .ds-section-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--theme-text-primary);
+      margin: 0;
+    }
+    .ds-section-subtitle {
+      font-size: 13px;
+      color: var(--theme-text-secondary);
+      margin-left: auto;
+    }
+
+    /* ── 卡片容器 ─────────────────────────────────────────────── */
+    .ds-card {
+      background: var(--bg-card-solid);
+      border: 1px solid var(--theme-border-light);
+      border-radius: 12px;
+      padding: 20px 24px;
+    }
+    .ds-card-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--theme-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 16px;
+    }
+
+    /* ── 01 色彩系统 ──────────────────────────────────────────── */
+    .ds-color-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+    }
+    .ds-color-swatch {
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--theme-border-light);
+      transition: transform 0.15s;
+      cursor: default;
+    }
+    .ds-color-swatch:hover { transform: translateY(-2px); }
+    .ds-swatch-block {
+      height: 72px;
+      width: 100%;
+    }
+    .ds-swatch-info {
+      padding: 10px 12px;
+      background: var(--bg-card-solid);
+    }
+    .ds-swatch-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--theme-text-primary);
+      margin-bottom: 2px;
+    }
+    .ds-swatch-en {
+      font-size: 10px;
+      color: var(--theme-text-secondary);
+      margin-bottom: 6px;
+    }
+    .ds-swatch-hex {
+      font-size: 10px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      color: var(--theme-text-secondary);
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .ds-hex-chip {
+      background: var(--theme-bg-base);
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-size: 10px;
+    }
+    .ds-swatch-role {
+      font-size: 10px;
+      color: var(--theme-text-secondary);
+      margin-top: 4px;
+      opacity: 0.7;
+    }
+
+    /* ── 02 字体排印 ──────────────────────────────────────────── */
+    .ds-type-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .ds-type-row {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      align-items: baseline;
+      gap: 24px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--theme-border-light);
+    }
+    .ds-type-row:last-child { border-bottom: none; }
+    .ds-type-meta {
+      font-size: 11px;
+      color: var(--theme-text-secondary);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .ds-type-token {
+      color: var(--theme-primary);
+      font-size: 10px;
+    }
+    .ds-type-sample { line-height: 1.3; }
+
+    /* ── 03 间距 & 圆角 ───────────────────────────────────────── */
+    .ds-token-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 8px;
+    }
+    .ds-token-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 10px;
+      background: var(--bg-card-solid);
+      border: 1px solid var(--theme-border-light);
+      border-radius: 8px;
+      text-align: center;
+    }
+    .ds-token-vis {
+      background: var(--theme-primary);
+      border-radius: 2px;
+      opacity: 0.6;
+    }
+    .ds-token-name {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 10px;
+      color: var(--theme-primary);
+    }
+    .ds-token-value {
+      font-size: 11px;
+      color: var(--theme-text-secondary);
+    }
+    .ds-radius-vis {
+      width: 40px;
+      height: 40px;
+      background: var(--theme-primary);
+      opacity: 0.5;
+    }
+
+    /* ── 04 核心组件 ──────────────────────────────────────────── */
+    .ds-comp-section {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+    .ds-comp-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    /* Badge 展示行 */
+    .ds-badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    /* Status dot 行 */
+    .ds-status-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+    }
+    .ds-status-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--theme-text-secondary);
+    }
+    /* Progress */
+    .ds-progress-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ds-progress-item {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .ds-progress-head {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--theme-text-secondary);
+    }
+
+    /* ── 05 阴影 & 光晕 ───────────────────────────────────────── */
+    .ds-shadow-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 16px;
+    }
+    .ds-shadow-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 24px 16px;
+      border-radius: 10px;
+      background: var(--bg-card-solid);
+      border: 1px solid var(--theme-border-light);
+    }
+    .ds-shadow-box {
+      width: 64px;
+      height: 64px;
+      border-radius: 10px;
+      background: var(--theme-bg-base);
+    }
+    .ds-shadow-label {
+      font-size: 11px;
+      color: var(--theme-text-secondary);
+      text-align: center;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    /* ── 06 图标 ──────────────────────────────────────────────── */
+    .ds-icon-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 8px;
+    }
+    .ds-icon-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 14px 8px 10px;
+      border-radius: 8px;
+      background: var(--bg-card-solid);
+      border: 1px solid var(--theme-border-light);
+      transition: border-color 0.15s, background 0.15s;
+      cursor: default;
+    }
+    .ds-icon-item:hover {
+      border-color: var(--theme-primary);
+      background: rgba(var(--brand-primary-rgb,0,102,255), 0.06);
+    }
+    .ds-icon-name {
+      font-size: 10px;
+      color: var(--theme-text-secondary);
+      text-align: center;
+      line-height: 1.3;
+      word-break: break-all;
+    }
+
+    /* ── 分栏辅助 ─────────────────────────────────────────────── */
+    .ds-two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .ds-three-col {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    /* ── 按钮（库未收录 b-button 变体，页面级补全）──────────────── */
+    .b-button {
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 6px; padding: 7px 16px;
+      border-radius: var(--border-radius-md, 8px);
+      font-size: var(--font-size-sm, 14px); font-weight: 500;
+      cursor: pointer; border: 1px solid transparent;
+      transition: all 0.15s; white-space: nowrap; min-height: 34px;
+      text-decoration: none; line-height: 1;
+    }
+    .b-button-primary {
+      background: var(--theme-primary); color: #fff; border-color: var(--theme-primary);
+    }
+    .b-button-primary:hover { filter: brightness(1.1); }
+    .b-button-secondary {
+      background: transparent; color: var(--theme-primary); border-color: var(--theme-primary);
+    }
+    .b-button-secondary:hover { background: rgba(var(--brand-primary-rgb,0,102,255), 0.08); }
+    .b-button-ghost {
+      background: var(--theme-bg-base); color: var(--theme-text-secondary);
+      border-color: var(--theme-border-base, rgba(128,128,128,0.25));
+    }
+    .b-button-ghost:hover { color: var(--theme-text-primary); border-color: var(--theme-border-base); }
+    .b-button-danger {
+      background: transparent; color: var(--error-base, #DC2626); border-color: var(--error-base, #DC2626);
+    }
+    .b-button-danger:hover { background: rgba(220,38,38,0.08); }
+    .b-button-sm { min-height: 28px; padding: 4px 10px; font-size: 12px; }
+    .b-button-lg { min-height: 40px; padding: 9px 20px; font-size: 15px; }
+    .b-button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── 首屏 Hero ───────────────────────────────────────────── */
+    .ds-hero {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 20px 40px 24px;
+      min-height: calc(100vh - 60px);
+      box-sizing: border-box;
+    }
+    /* 顶部品牌横幅 */
+    .ds-hero-banner {
+      background: var(--bg-card-solid);
+      border: 1px solid var(--theme-border-light);
+      border-radius: 12px;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-shrink: 0;
+    }
+    .ds-hero-banner-main {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+    .ds-hero-banner-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--theme-text-primary);
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+    }
+    .ds-hero-banner-title span {
+      color: var(--theme-primary);
+    }
+    .ds-hero-banner-sub {
+      font-size: 13px;
+      color: var(--theme-text-secondary);
+      letter-spacing: 0.01em;
+    }
+    .ds-hero-banner-stats {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .ds-hero-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .ds-hero-stat-val {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--theme-primary);
+      line-height: 1;
+    }
+    .ds-hero-stat-label {
+      font-size: 11px;
+      color: var(--theme-text-secondary);
+      white-space: nowrap;
+    }
+    .ds-hero-stat-divider {
+      width: 1px;
+      height: 36px;
+      background: var(--theme-border-light);
+    }
+    /* 三栏网格 */
+    .ds-hero-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      flex: 1;
+      min-height: 0;
+    }
+    .ds-hero-col {
+      background: var(--bg-card-solid);
+      border: 1px solid var(--theme-border-light);
+      border-radius: 12px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: hidden;
+    }
+    .ds-hero-col-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--theme-text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--theme-border-light);
+      flex-shrink: 0;
+    }
+    .ds-hero-col-title .ds-section-num {
+      font-size: 10px;
+      opacity: 0.6;
+    }
+    /* hero 色彩分组标签 */
+    .ds-hero-color-group-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--theme-text-secondary);
+      margin-top: 2px;
+    }
+    /* hero 色彩格子：默认2列，3列变体 */
+    .ds-hero-color-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .ds-hero-color-grid--3col {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .ds-hero-swatch {
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--theme-border-light);
+    }
+    .ds-hero-swatch-block { height: 56px; }
+    .ds-hero-swatch-info { padding: 8px 10px; }
+    .ds-hero-swatch-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--theme-text-primary);
+    }
+    .ds-hero-swatch-sub {
+      font-size: 10px;
+      color: var(--theme-text-secondary);
+      margin-top: 1px;
+    }
+    .ds-hero-swatch-hex {
+      display: flex;
+      gap: 4px;
+      margin-top: 5px;
+      flex-wrap: wrap;
+    }
+    .ds-hero-hex {
+      font-size: 9px;
+      font-family: 'SF Mono', monospace;
+      background: var(--theme-bg-base);
+      border-radius: 3px;
+      padding: 1px 4px;
+      color: var(--theme-text-secondary);
+    }
+    /* hero 字体行 */
+    .ds-hero-type-row {
+      display: grid;
+      grid-template-columns: 90px 1fr;
+      align-items: baseline;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--theme-border-light);
+    }
+    .ds-hero-type-row:last-child { border-bottom: none; }
+    .ds-hero-type-meta {
+      font-size: 10px;
+      font-family: 'SF Mono', monospace;
+      color: var(--theme-text-secondary);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .ds-hero-type-token { color: var(--theme-primary); font-size: 9px; }
+    /* hero 组件 */
+    .ds-hero-comp-block {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ds-hero-comp-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--theme-text-secondary);
+    }
+    .ds-hero-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ds-hero-bar-label {
+      font-size: 11px;
+      color: var(--theme-text-secondary);
+      width: 64px;
+      flex-shrink: 0;
+    }
+    .ds-hero-bar-track {
+      flex: 1;
+      height: 5px;
+      border-radius: 3px;
+      background: var(--theme-bg-base);
+      overflow: hidden;
+    }
+    .ds-hero-bar-fill { height: 100%; border-radius: 3px; }
+    .ds-hero-bar-pct {
+      font-size: 11px;
+      color: var(--theme-text-secondary);
+      width: 30px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    /* hero 按钮组 */
+    .ds-hero-btn-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* ── 状态点 (Status Dots) ─────────────────────────────────── */
+    .b-status-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .b-status-dot--online  { background: var(--color-signal-green, #00A383); box-shadow: 0 0 6px rgba(0,163,131,0.6); }
+    .b-status-dot--warning { background: var(--warning-base, #D97706); box-shadow: 0 0 6px rgba(217,119,6,0.5); }
+    .b-status-dot--error   { background: var(--error-base, #DC2626); box-shadow: 0 0 6px rgba(220,38,38,0.5); }
+    .b-status-dot--offline { background: var(--theme-text-secondary); opacity: 0.5; }
+
+    /* ── 进度条 (Progress Bar) ────────────────────────────────── */
+    .b-progress {
+      height: 6px;
+      border-radius: 3px;
+      background: var(--theme-bg-base);
+      overflow: hidden;
+      width: 100%;
+    }
+    .b-progress-bar {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+    .b-progress-bar--primary { background: var(--theme-primary, #0066CC); }
+    .b-progress-bar--success { background: var(--color-signal-green, #00A383); }
+    .b-progress-bar--warning { background: var(--warning-base, #D97706); }
+    .b-progress-bar--danger  { background: var(--error-base, #DC2626); }
+
+    @media (max-width: 900px) {
+      .ds-two-col, .ds-three-col, .ds-hero-grid { grid-template-columns: 1fr; }
+      .ds-main { padding: 24px 20px 60px; }
+      .ds-hero { padding: 16px 20px; min-height: auto; }
+      .ds-hero-banner { flex-direction: column; align-items: flex-start; gap: 16px; }
+      .ds-hero-banner-stats { gap: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────── -->
+<header class="ds-header">
+  <div class="ds-header-brand">
+    <img class="ds-logo" src="../../assets/logo-flat.png" alt="灵境"
+         onerror="this.style.display='none'">
+    <span class="ds-brand-name">LingJing Design 灵境设计</span>
+    <span class="ds-version-badge">V1.1.0</span>
+  </div>
+  <div class="ds-theme-toggle">
+    <span>主题模式 (Theme Mode)</span>
+    <label class="ds-toggle-switch">
+      <input type="checkbox" id="themeCheck" onchange="toggleTheme(this)">
+      <span class="ds-toggle-track"></span>
+      <span class="ds-toggle-thumb"></span>
+    </label>
+  </div>
+</header>
+
+<!-- ── 首屏 Hero：品牌横幅 + 三栏总览，截图友好 ─────────────── -->
+<div class="ds-hero">
+
+  <!-- 品牌横幅 -->
+  <div class="ds-hero-banner">
+    <div class="ds-hero-banner-main">
+      <div class="ds-hero-banner-title">LingJing Design System <span>灵境设计体系</span></div>
+      <div class="ds-hero-banner-sub">洁净 · 智能 · 空灵 &nbsp;|&nbsp; Clean · Smart · Ethereal &nbsp;|&nbsp; 面向航空智能 AI 场景 · For Aviation AI Agents</div>
+    </div>
+    <div class="ds-hero-banner-stats">
+      <div class="ds-hero-stat-divider"></div>
+      <div class="ds-hero-stat"><span class="ds-hero-stat-val">24</span><span class="ds-hero-stat-label">组件 Components</span></div>
+      <div class="ds-hero-stat-divider"></div>
+      <div class="ds-hero-stat"><span class="ds-hero-stat-val">5</span><span class="ds-hero-stat-label">场景 Scenes</span></div>
+      <div class="ds-hero-stat-divider"></div>
+      <div class="ds-hero-stat"><span class="ds-hero-stat-val">500+</span><span class="ds-hero-stat-label">图标 Icons</span></div>
+      <div class="ds-hero-stat-divider"></div>
+      <div class="ds-hero-stat"><span class="ds-hero-stat-val">2</span><span class="ds-hero-stat-label">主题 Themes</span></div>
+    </div>
+  </div>
+
+  <!-- 三栏总览网格 -->
+  <div class="ds-hero-grid">
+
+  <!-- 左栏：色彩系统 -->
+  <div class="ds-hero-col">
+    <div class="ds-hero-col-title">
+      <span class="ds-section-num">01</span>
+      色彩系统 (Color System)
+    </div>
+
+    <!-- 品牌色 -->
+    <div class="ds-hero-color-group-label">品牌色 Brand Colors</div>
+    <div class="ds-hero-color-grid ds-hero-color-grid--3col">
+      <div class="ds-hero-swatch">
+        <div class="ds-hero-swatch-block" style="background:var(--color-aero-blue,#0066CC);height:52px;"></div>
+        <div class="ds-hero-swatch-info" style="padding:6px 8px;">
+          <div class="ds-hero-swatch-name" style="font-size:11px;">灵航蓝</div>
+          <div class="ds-hero-swatch-sub" style="font-family:monospace;font-size:9px;">#0066CC</div>
+        </div>
+      </div>
+      <div class="ds-hero-swatch">
+        <div class="ds-hero-swatch-block" style="background:var(--color-pulse-cyan,#0099AA);height:52px;"></div>
+        <div class="ds-hero-swatch-info" style="padding:6px 8px;">
+          <div class="ds-hero-swatch-name" style="font-size:11px;">脉冲青</div>
+          <div class="ds-hero-swatch-sub" style="font-family:monospace;font-size:9px;">#0099AA</div>
+        </div>
+      </div>
+      <div class="ds-hero-swatch">
+        <div class="ds-hero-swatch-block" style="background:var(--color-signal-green,#00A383);height:52px;"></div>
+        <div class="ds-hero-swatch-info" style="padding:6px 8px;">
+          <div class="ds-hero-swatch-name" style="font-size:11px;">信标绿</div>
+          <div class="ds-hero-swatch-sub" style="font-family:monospace;font-size:9px;">#00A383</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 语义色 -->
+    <div class="ds-hero-color-group-label">语义色 Semantic Colors</div>
+    <div class="ds-hero-color-grid ds-hero-color-grid--3col">
+      <div class="ds-hero-swatch">
+        <div class="ds-hero-swatch-block" style="background:var(--warning-base,#D97706);height:44px;"></div>
+        <div class="ds-hero-swatch-info" style="padding:6px 8px;">
+          <div class="ds-hero-swatch-name" style="font-size:11px;">警示琥珀</div>
+          <div class="ds-hero-swatch-sub" style="font-family:monospace;font-size:9px;">#D97706</div>
+        </div>
+      </div>
+      <div class="ds-hero-swatch">
+        <div class="ds-hero-swatch-block" style="background:var(--error-base,#DC2626);height:44px;"></div>
+        <div class="ds-hero-swatch-info" style="padding:6px 8px;">
+          <div class="ds-hero-swatch-name" style="font-size:11px;">告警红</div>
+          <div class="ds-hero-swatch-sub" style="font-family:monospace;font-size:9px;">#DC2626</div>
+        </div>
+      </div>
+      <div class="ds-hero-swatch">
+        <div class="ds-hero-swatch-block" style="background:linear-gradient(135deg,rgba(0,102,255,0.2),rgba(0,229,255,0.12));height:44px;border-bottom:1px solid var(--theme-border-light);"></div>
+        <div class="ds-hero-swatch-info" style="padding:6px 8px;">
+          <div class="ds-hero-swatch-name" style="font-size:11px;">氛围光晕</div>
+          <div class="ds-hero-swatch-sub" style="font-family:monospace;font-size:9px;">Glass Glow</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 中性色 -->
+    <div class="ds-hero-color-group-label">中性色 Neutral Colors</div>
+    <div style="display:flex;flex-direction:column;gap:5px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:28px;height:28px;border-radius:6px;background:var(--theme-bg-base);border:1px solid var(--theme-border-light);flex-shrink:0;"></div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--theme-text-primary);">页面背景</div>
+          <div style="font-size:9px;font-family:monospace;color:var(--theme-text-secondary);">--theme-bg-base · 灵航白/深空黑</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:28px;height:28px;border-radius:6px;background:var(--bg-card-solid);border:1px solid var(--theme-border-light);flex-shrink:0;"></div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--theme-text-primary);">卡片背景</div>
+          <div style="font-size:9px;font-family:monospace;color:var(--theme-text-secondary);">--bg-card-solid · #fff / Dark Navy</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:28px;height:28px;border-radius:6px;background:var(--theme-text-primary);flex-shrink:0;"></div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--theme-text-primary);">主要文字</div>
+          <div style="font-size:9px;font-family:monospace;color:var(--theme-text-secondary);">--theme-text-primary · #1E293B / #F1F5F9</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:28px;height:28px;border-radius:6px;background:var(--theme-text-secondary);flex-shrink:0;"></div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--theme-text-primary);">次要文字</div>
+          <div style="font-size:9px;font-family:monospace;color:var(--theme-text-secondary);">--theme-text-secondary · Muted</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:28px;height:28px;border-radius:6px;background:var(--theme-border-base,rgba(128,128,128,0.3));flex-shrink:0;"></div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--theme-text-primary);">边框色</div>
+          <div style="font-size:9px;font-family:monospace;color:var(--theme-text-secondary);">--theme-border-base · Adaptive</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 中栏：字体排印 -->
+  <div class="ds-hero-col">
+    <div class="ds-hero-col-title">
+      <span class="ds-section-num">02</span>
+      字体排印 (Typography)
+    </div>
+
+    <!-- 字号比例可视化 -->
+    <div style="display:flex;flex-direction:column;gap:0;">
+      <div style="display:flex;align-items:baseline;gap:10px;padding:10px 0;border-bottom:1px solid var(--theme-border-light);">
+        <div style="width:80px;flex-shrink:0;">
+          <div style="font-size:9px;font-family:monospace;color:var(--theme-primary);">Display</div>
+          <div style="font-size:9px;color:var(--theme-text-secondary);">700 · 28px</div>
+        </div>
+        <div style="font-size:28px;font-weight:700;color:var(--theme-text-primary);line-height:1.1;">灵境智能</div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:10px;padding:10px 0;border-bottom:1px solid var(--theme-border-light);">
+        <div style="width:80px;flex-shrink:0;">
+          <div style="font-size:9px;font-family:monospace;color:var(--theme-primary);">Heading</div>
+          <div style="font-size:9px;color:var(--theme-text-secondary);">600 · 20px</div>
+        </div>
+        <div style="font-size:20px;font-weight:600;color:var(--theme-text-primary);line-height:1.2;">模块标准</div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:10px;padding:10px 0;border-bottom:1px solid var(--theme-border-light);">
+        <div style="width:80px;flex-shrink:0;">
+          <div style="font-size:9px;font-family:monospace;color:var(--theme-primary);">Subheading</div>
+          <div style="font-size:9px;color:var(--theme-text-secondary);">500 · 16px</div>
+        </div>
+        <div style="font-size:16px;font-weight:500;color:var(--theme-text-primary);line-height:1.3;">视觉规范</div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:10px;padding:10px 0;border-bottom:1px solid var(--theme-border-light);">
+        <div style="width:80px;flex-shrink:0;">
+          <div style="font-size:9px;font-family:monospace;color:var(--theme-primary);">Body</div>
+          <div style="font-size:9px;color:var(--theme-text-secondary);">400 · 14px</div>
+        </div>
+        <div style="font-size:14px;color:var(--theme-text-secondary);line-height:1.5;">基础正文内容，洁净空灵</div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:10px;padding:10px 0;border-bottom:1px solid var(--theme-border-light);">
+        <div style="width:80px;flex-shrink:0;">
+          <div style="font-size:9px;font-family:monospace;color:var(--theme-primary);">Caption</div>
+          <div style="font-size:9px;color:var(--theme-text-secondary);">400 · 12px</div>
+        </div>
+        <div style="font-size:12px;color:var(--theme-text-secondary);line-height:1.5;">辅助说明 &amp; 标注信息</div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:10px;padding:10px 0;">
+        <div style="width:80px;flex-shrink:0;">
+          <div style="font-size:9px;font-family:monospace;color:var(--theme-primary);">Code/Mono</div>
+          <div style="font-size:9px;color:var(--theme-text-secondary);">400 · 12px</div>
+        </div>
+        <code class="code-inline" style="font-size:11px;padding:3px 8px;">--spacing-md: 16px</code>
+      </div>
+    </div>
+
+    <!-- 字重对比 -->
+    <div style="padding-top:4px;">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--theme-text-secondary);margin-bottom:8px;">字重 Font Weight</div>
+      <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;">
+        <span style="font-size:14px;font-weight:400;color:var(--theme-text-secondary);">Regular 400</span>
+        <span style="font-size:14px;font-weight:500;color:var(--theme-text-primary);">Medium 500</span>
+        <span style="font-size:14px;font-weight:600;color:var(--theme-text-primary);">SemiBold 600</span>
+        <span style="font-size:14px;font-weight:700;color:var(--theme-primary);">Bold 700</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右栏：核心组件 -->
+  <div class="ds-hero-col">
+    <div class="ds-hero-col-title">
+      <span class="ds-section-num">03</span>
+      核心组件 (Components)
+    </div>
+
+    <!-- 按钮 + 标签 + 状态 合并面板 -->
+    <div class="ds-hero-comp-block">
+      <div class="ds-hero-comp-label">按钮 Buttons</div>
+      <div class="ds-hero-btn-row">
+        <button class="b-button b-button-primary" style="flex:1;">主要操作</button>
+        <button class="b-button b-button-secondary" style="flex:1;">次要操作</button>
+      </div>
+      <div class="ds-hero-btn-row" style="margin-top:6px;">
+        <button class="b-button b-button-ghost b-button-sm" style="flex:1;">Ghost</button>
+        <button class="b-button b-button-danger b-button-sm" style="flex:1;">危险操作</button>
+        <button class="b-button b-button-primary b-button-sm" style="flex:1;" disabled>禁用</button>
+      </div>
+    </div>
+
+    <div style="height:1px;background:var(--theme-border-light);"></div>
+
+    <!-- 标签 -->
+    <div class="ds-hero-comp-block">
+      <div class="ds-hero-comp-label">标签 &amp; 状态 Badges &amp; Status</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        <span class="badge badge-primary">进行中</span>
+        <span class="badge badge-success">已完成</span>
+        <span class="badge badge-warning">待审核</span>
+        <span class="badge badge-danger">P1故障</span>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;">
+        <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--theme-text-secondary);">
+          <span class="b-status-dot b-status-dot--online"></span>在线
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--theme-text-secondary);">
+          <span class="b-status-dot b-status-dot--warning"></span>警告
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--theme-text-secondary);">
+          <span class="b-status-dot b-status-dot--error"></span>故障
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--theme-text-secondary);">
+          <span class="b-status-dot b-status-dot--offline"></span>离线
+        </div>
+      </div>
+    </div>
+
+    <div style="height:1px;background:var(--theme-border-light);"></div>
+
+    <!-- 进度 & 光谱 -->
+    <div class="ds-hero-comp-block">
+      <div class="ds-hero-comp-label">进度 &amp; 数据 Progress &amp; Data</div>
+      <div style="display:flex;flex-direction:column;gap:9px;">
+        <div class="ds-hero-bar-row">
+          <span class="ds-hero-bar-label">整机装配</span>
+          <div class="ds-hero-bar-track"><div class="ds-hero-bar-fill" style="width:85%;background:var(--color-aero-blue,#0066CC);"></div></div>
+          <span class="ds-hero-bar-pct">85%</span>
+        </div>
+        <div class="ds-hero-bar-row">
+          <span class="ds-hero-bar-label">质量检验</span>
+          <div class="ds-hero-bar-track"><div class="ds-hero-bar-fill" style="width:91%;background:var(--color-signal-green,#00A383);"></div></div>
+          <span class="ds-hero-bar-pct">91%</span>
+        </div>
+        <div class="ds-hero-bar-row">
+          <span class="ds-hero-bar-label">零件到货</span>
+          <div class="ds-hero-bar-track"><div class="ds-hero-bar-fill" style="width:38%;background:var(--warning-base,#D97706);"></div></div>
+          <span class="ds-hero-bar-pct" style="color:var(--warning-base);">38%</span>
+        </div>
+        <div class="ds-hero-bar-row">
+          <span class="ds-hero-bar-label">缺陷关闭</span>
+          <div class="ds-hero-bar-track"><div class="ds-hero-bar-fill" style="width:12%;background:var(--error-base,#DC2626);"></div></div>
+          <span class="ds-hero-bar-pct" style="color:var(--error-base);">12%</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:1px;background:var(--theme-border-light);"></div>
+
+    <!-- 数据卡片 mini -->
+    <div class="ds-hero-comp-block">
+      <div class="ds-hero-comp-label">统计卡片 Stat Cards</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+        <div style="background:var(--theme-bg-base);border:1px solid var(--theme-border-light);border-radius:8px;padding:10px 8px;text-align:center;">
+          <div style="font-size:18px;font-weight:700;color:var(--theme-primary);line-height:1.1;">1,247</div>
+          <div style="font-size:10px;color:var(--theme-text-secondary);margin-top:3px;">在制工单</div>
+          <div style="font-size:10px;color:var(--color-signal-green,#00A383);margin-top:2px;">↑ 12%</div>
+        </div>
+        <div style="background:var(--theme-bg-base);border:1px solid var(--theme-border-light);border-radius:8px;padding:10px 8px;text-align:center;">
+          <div style="font-size:18px;font-weight:700;color:var(--color-signal-green,#00A383);line-height:1.1;">98.3%</div>
+          <div style="font-size:10px;color:var(--theme-text-secondary);margin-top:3px;">设备OEE</div>
+          <div style="font-size:10px;color:var(--theme-text-secondary);margin-top:2px;">本月均值</div>
+        </div>
+        <div style="background:var(--theme-bg-base);border:1px solid var(--theme-border-light);border-radius:8px;padding:10px 8px;text-align:center;">
+          <div style="font-size:18px;font-weight:700;color:var(--warning-base,#D97706);line-height:1.1;">7</div>
+          <div style="font-size:10px;color:var(--theme-text-secondary);margin-top:3px;">待处理告警</div>
+          <div style="font-size:10px;color:var(--error-base,#DC2626);margin-top:2px;">↑ 3 紧急</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /ds-hero-grid -->
+
+</div><!-- /ds-hero -->
+
+<!-- ── 详细说明（可滚动）────────────────────────────────────── -->
+<main class="ds-main">
+
+  <!-- ══════════════════════════════════════════════════════
+       01. 色彩系统
+       ══════════════════════════════════════════════════════ -->
+  <section>
+    <div class="ds-section-header">
+      <span class="ds-section-num">01</span>
+      <h2 class="ds-section-title">色彩系统 (Color System)</h2>
+      <span class="ds-section-subtitle">双主题 · Light / Dark 自适应</span>
+    </div>
+
+    <!-- 品牌色 -->
+    <div class="ds-card-label">品牌色 Brand Colors</div>
+    <div class="ds-color-grid" style="margin-bottom:16px;">
+      <div class="ds-color-swatch">
+        <div class="ds-swatch-block" style="background:var(--color-aero-blue, #0066CC);"></div>
+        <div class="ds-swatch-info">
+          <div class="ds-swatch-name">灵航蓝</div>
+          <div class="ds-swatch-en">Aero Blue</div>
+          <div class="ds-swatch-hex">
+            <span class="ds-hex-chip">#0066CC</span>
+            <span class="ds-hex-chip">#0084FF</span>
+          </div>
+          <div class="ds-swatch-role">核心品牌色 · Core Identity</div>
+        </div>
+      </div>
+      <div class="ds-color-swatch">
+        <div class="ds-swatch-block" style="background:var(--color-pulse-cyan, #0099AA);"></div>
+        <div class="ds-swatch-info">
+          <div class="ds-swatch-name">脉冲青</div>
+          <div class="ds-swatch-en">Pulse Cyan</div>
+          <div class="ds-swatch-hex">
+            <span class="ds-hex-chip">#0099AA</span>
+            <span class="ds-hex-chip">#00E5FF</span>
+          </div>
+          <div class="ds-swatch-role">高亮 &amp; 能量 · Highlight &amp; Energy</div>
+        </div>
+      </div>
+      <div class="ds-color-swatch">
+        <div class="ds-swatch-block" style="background:var(--color-signal-green, #00A383);"></div>
+        <div class="ds-swatch-info">
+          <div class="ds-swatch-name">信标绿</div>
+          <div class="ds-swatch-en">Signal Green</div>
+          <div class="ds-swatch-hex">
+            <span class="ds-hex-chip">#00A383</span>
+            <span class="ds-hex-chip">#00FFC8</span>
+          </div>
+          <div class="ds-swatch-role">状态 &amp; 安全 · Status &amp; Safety</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 语义色 -->
+    <div class="ds-card-label">语义色 Semantic Colors</div>
+    <div class="ds-color-grid" style="margin-bottom:16px;">
+      <div class="ds-color-swatch">
+        <div class="ds-swatch-block" style="background:var(--success-base,#00A383);"></div>
+        <div class="ds-swatch-info">
+          <div class="ds-swatch-name">成功</div>
+          <div class="ds-swatch-en">Success</div>
+          <div class="ds-swatch-hex"><span class="ds-hex-chip">--success-base</span></div>
+          <div class="ds-swatch-role">通过 / 完成 / 在线</div>
+        </div>
+      </div>
+      <div class="ds-color-swatch">
+        <div class="ds-swatch-block" style="background:var(--warning-base,#D97706);"></div>
+        <div class="ds-swatch-info">
+          <div class="ds-swatch-name">警告</div>
+          <div class="ds-swatch-en">Warning</div>
+          <div class="ds-swatch-hex"><span class="ds-hex-chip">--warning-base</span></div>
+          <div class="ds-swatch-role">待处理 / 超时预警</div>
+        </div>
+      </div>
+      <div class="ds-color-swatch">
+        <div class="ds-swatch-block" style="background:var(--error-base,#DC2626);"></div>
+        <div class="ds-swatch-info">
+          <div class="ds-swatch-name">错误</div>
+          <div class="ds-swatch-en">Error / Danger</div>
+          <div class="ds-swatch-hex"><span class="ds-hex-chip">--error-base</span></div>
+          <div class="ds-swatch-role">故障 / 紧急 / 失败</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 中性色 -->
+    <div class="ds-card-label">中性色 Neutral / Background</div>
+    <div class="ds-color-grid">
+      <div class="ds-color-swatch">
+        <div class="ds-swatch-block" style="background:var(--theme-bg-base);border-bottom:1px solid var(--theme-border-light);"></div>
+        <div class="ds-swatch-info">
+          <div class="ds-swatch-name">页面背景</div>
+          <div class="ds-swatch-en">Page Background</div>
+          <div class="ds-swatch-hex"><span class="ds-hex-chip">--theme-bg-base</span></div>
+        </div>
+      </div>
+      <div class="ds-color-swatch">
+        <div class="ds-swatch-block" style="background:var(--theme-bg-secondary);border-bottom:1px solid var(--theme-border-light);"></div>
+        <div class="ds-swatch-info">
+          <div class="ds-swatch-name">卡片背景</div>
+          <div class="ds-swatch-en">Card / Secondary</div>
+          <div class="ds-swatch-hex"><span class="ds-hex-chip">--theme-bg-secondary</span></div>
+        </div>
+      </div>
+      <div class="ds-color-swatch">
+        <div class="ds-swatch-block" style="background:var(--theme-text-primary);"></div>
+        <div class="ds-swatch-info">
+          <div class="ds-swatch-name">主要文字</div>
+          <div class="ds-swatch-en">Text Primary</div>
+          <div class="ds-swatch-hex"><span class="ds-hex-chip">--theme-text-primary</span></div>
+        </div>
+      </div>
+      <div class="ds-color-swatch">
+        <div class="ds-swatch-block" style="background:var(--theme-text-secondary);"></div>
+        <div class="ds-swatch-info">
+          <div class="ds-swatch-name">次要文字</div>
+          <div class="ds-swatch-en">Text Secondary</div>
+          <div class="ds-swatch-hex"><span class="ds-hex-chip">--theme-text-secondary</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════
+       02. 字体排印
+       ══════════════════════════════════════════════════════ -->
+  <section>
+    <div class="ds-section-header">
+      <span class="ds-section-num">02</span>
+      <h2 class="ds-section-title">字体排印 (Typography)</h2>
+      <span class="ds-section-subtitle">字号阶梯 · 字重 · 行高</span>
+    </div>
+
+    <div class="ds-card">
+      <div class="ds-type-rows">
+        <div class="ds-type-row">
+          <div class="ds-type-meta">
+            <span>--font-size-3xl</span>
+            <span class="ds-type-token">40px · Bold</span>
+          </div>
+          <div class="ds-type-sample" style="font-size:var(--font-size-3xl,40px);font-weight:700;line-height:1.2;">
+            灵境智能系统
+          </div>
+        </div>
+        <div class="ds-type-row">
+          <div class="ds-type-meta">
+            <span>--font-size-2xl</span>
+            <span class="ds-type-token">32px · Semibold</span>
+          </div>
+          <div class="ds-type-sample" style="font-size:var(--font-size-2xl,32px);font-weight:600;line-height:1.25;">
+            模块化视觉标准
+          </div>
+        </div>
+        <div class="ds-type-row">
+          <div class="ds-type-meta">
+            <span>--font-size-xl</span>
+            <span class="ds-type-token">24px · Semibold</span>
+          </div>
+          <div class="ds-type-sample" style="font-size:var(--font-size-xl,24px);font-weight:600;">
+            品牌标题 Brand Headings
+          </div>
+        </div>
+        <div class="ds-type-row">
+          <div class="ds-type-meta">
+            <span>--font-size-lg</span>
+            <span class="ds-type-token">20px · Medium</span>
+          </div>
+          <div class="ds-type-sample" style="font-size:var(--font-size-lg,20px);font-weight:500;">
+            数据 &amp; 副标题 Data &amp; Subtitles
+          </div>
+        </div>
+        <div class="ds-type-row">
+          <div class="ds-type-meta">
+            <span>--font-size-base</span>
+            <span class="ds-type-token">16px · Regular</span>
+          </div>
+          <div class="ds-type-sample" style="font-size:var(--font-size-base,16px);line-height:1.6;color:var(--theme-text-secondary);">
+            基于灵境 AI 标准。优先考虑洁净、智能和空灵的美学，而非重工业效果。<br>
+            Based on Lingjing AI standards. Prioritizing clean, smart, and ethereal aesthetics.
+          </div>
+        </div>
+        <div class="ds-type-row">
+          <div class="ds-type-meta">
+            <span>--font-size-sm</span>
+            <span class="ds-type-token">14px · Regular</span>
+          </div>
+          <div class="ds-type-sample" style="font-size:var(--font-size-sm,14px);color:var(--theme-text-secondary);">
+            辅助说明文字 · Secondary description text · 表格单元格内容
+          </div>
+        </div>
+        <div class="ds-type-row">
+          <div class="ds-type-meta">
+            <span>--font-size-xs</span>
+            <span class="ds-type-token">12px · Regular</span>
+          </div>
+          <div class="ds-type-sample" style="font-size:var(--font-size-xs,12px);color:var(--theme-text-secondary);">
+            标注 · 时间戳 · 标签 · Annotations &amp; Labels
+          </div>
+        </div>
+        <div class="ds-type-row">
+          <div class="ds-type-meta">
+            <span>Code / Mono</span>
+            <span class="ds-type-token">14px · Mono</span>
+          </div>
+          <div class="ds-type-sample">
+            <code class="code-inline" style="font-size:13px;">
+              import &#123; LingJingToken &#125; from '@lingjing/core';
+            </code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════
+       03. 间距 & 圆角
+       ══════════════════════════════════════════════════════ -->
+  <section>
+    <div class="ds-section-header">
+      <span class="ds-section-num">03</span>
+      <h2 class="ds-section-title">间距 &amp; 圆角 (Spacing &amp; Radius)</h2>
+    </div>
+
+    <div class="ds-two-col">
+      <!-- 间距 -->
+      <div class="ds-card">
+        <div class="ds-card-label">间距阶梯 Spacing Scale</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;align-items:center;gap:12px;" title="--spacing-xs: 4px">
+            <div style="width:4px;height:18px;background:var(--theme-primary);border-radius:2px;opacity:0.6;flex-shrink:0;"></div>
+            <code style="font-size:11px;color:var(--theme-primary);width:110px;flex-shrink:0;">--spacing-xs</code>
+            <span style="font-size:12px;color:var(--theme-text-secondary);">4px</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:8px;height:18px;background:var(--theme-primary);border-radius:2px;opacity:0.6;flex-shrink:0;"></div>
+            <code style="font-size:11px;color:var(--theme-primary);width:110px;flex-shrink:0;">--spacing-sm</code>
+            <span style="font-size:12px;color:var(--theme-text-secondary);">8px</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:16px;height:18px;background:var(--theme-primary);border-radius:2px;opacity:0.6;flex-shrink:0;"></div>
+            <code style="font-size:11px;color:var(--theme-primary);width:110px;flex-shrink:0;">--spacing-md</code>
+            <span style="font-size:12px;color:var(--theme-text-secondary);">16px</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:24px;height:18px;background:var(--theme-primary);border-radius:2px;opacity:0.6;flex-shrink:0;"></div>
+            <code style="font-size:11px;color:var(--theme-primary);width:110px;flex-shrink:0;">--spacing-lg</code>
+            <span style="font-size:12px;color:var(--theme-text-secondary);">24px</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:32px;height:18px;background:var(--theme-primary);border-radius:2px;opacity:0.6;flex-shrink:0;"></div>
+            <code style="font-size:11px;color:var(--theme-primary);width:110px;flex-shrink:0;">--spacing-xl</code>
+            <span style="font-size:12px;color:var(--theme-text-secondary);">32px</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:40px;height:18px;background:var(--theme-primary);border-radius:2px;opacity:0.6;flex-shrink:0;"></div>
+            <code style="font-size:11px;color:var(--theme-primary);width:110px;flex-shrink:0;">--spacing-2xl</code>
+            <span style="font-size:12px;color:var(--theme-text-secondary);">40px</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:48px;height:18px;background:var(--theme-primary);border-radius:2px;opacity:0.6;flex-shrink:0;"></div>
+            <code style="font-size:11px;color:var(--theme-primary);width:110px;flex-shrink:0;">--spacing-3xl</code>
+            <span style="font-size:12px;color:var(--theme-text-secondary);">48px</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 圆角 -->
+      <div class="ds-card">
+        <div class="ds-card-label">圆角阶梯 Border Radius</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+            <div style="width:48px;height:48px;background:var(--theme-primary);opacity:0.5;border-radius:4px;"></div>
+            <code style="font-size:10px;color:var(--theme-primary);">--radius-xs</code>
+            <span style="font-size:11px;color:var(--theme-text-secondary);">4px</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+            <div style="width:48px;height:48px;background:var(--theme-primary);opacity:0.5;border-radius:6px;"></div>
+            <code style="font-size:10px;color:var(--theme-primary);">--radius-sm</code>
+            <span style="font-size:11px;color:var(--theme-text-secondary);">6px</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+            <div style="width:48px;height:48px;background:var(--theme-primary);opacity:0.5;border-radius:8px;"></div>
+            <code style="font-size:10px;color:var(--theme-primary);">--radius-md</code>
+            <span style="font-size:11px;color:var(--theme-text-secondary);">8px</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+            <div style="width:48px;height:48px;background:var(--theme-primary);opacity:0.5;border-radius:12px;"></div>
+            <code style="font-size:10px;color:var(--theme-primary);">--radius-lg</code>
+            <span style="font-size:11px;color:var(--theme-text-secondary);">12px</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+            <div style="width:48px;height:48px;background:var(--theme-primary);opacity:0.5;border-radius:16px;"></div>
+            <code style="font-size:10px;color:var(--theme-primary);">--radius-xl</code>
+            <span style="font-size:11px;color:var(--theme-text-secondary);">16px</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+            <div style="width:48px;height:48px;background:var(--theme-primary);opacity:0.5;border-radius:9999px;"></div>
+            <code style="font-size:10px;color:var(--theme-primary);">--radius-full</code>
+            <span style="font-size:11px;color:var(--theme-text-secondary);">9999px</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════
+       04. 核心组件
+       ══════════════════════════════════════════════════════ -->
+  <section>
+    <div class="ds-section-header">
+      <span class="ds-section-num">04</span>
+      <h2 class="ds-section-title">核心组件 (Core Components)</h2>
+    </div>
+
+    <div class="ds-three-col">
+
+      <!-- 按钮 -->
+      <div class="ds-card">
+        <div class="ds-card-label">按钮 Buttons</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="b-button b-button-primary">主要操作</button>
+            <button class="b-button b-button-secondary">次要操作</button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="b-button b-button-ghost">Ghost</button>
+            <button class="b-button b-button-danger">删除</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button class="b-button b-button-primary b-button-sm">Small</button>
+            <button class="b-button b-button-primary">Default</button>
+            <button class="b-button b-button-primary b-button-lg">Large</button>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="b-button b-button-primary" disabled>禁用</button>
+            <button class="b-button b-button-secondary" style="display:flex;align-items:center;gap:6px;">
+              <i data-lucide="plus" style="width:14px;height:14px;"></i>新建
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 徽章 & 标签 -->
+      <div class="ds-card">
+        <div class="ds-card-label">徽章 &amp; 标签 Badges</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div class="ds-badge-row">
+            <span class="badge badge-primary">主要</span>
+            <span class="badge badge-success">成功</span>
+            <span class="badge badge-warning">警告</span>
+            <span class="badge badge-danger">危险</span>
+          </div>
+          <div class="ds-badge-row">
+            <span class="badge badge-info">信息</span>
+            <span class="badge">默认</span>
+          </div>
+          <div class="ds-badge-row" style="margin-top:4px;">
+            <span class="tag">标签</span>
+            <span class="tag tag-primary">主题标签</span>
+            <span class="tag tag-success">已完成</span>
+            <span class="tag tag-warning">待审核</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 状态指示 -->
+      <div class="ds-card">
+        <div class="ds-card-label">状态指示 Status</div>
+        <div class="ds-status-row" style="margin-bottom:12px;">
+          <div class="ds-status-item">
+            <span class="b-status-dot b-status-dot--online"></span>在线
+          </div>
+          <div class="ds-status-item">
+            <span class="b-status-dot b-status-dot--warning"></span>警告
+          </div>
+          <div class="ds-status-item">
+            <span class="b-status-dot b-status-dot--error"></span>故障
+          </div>
+          <div class="ds-status-item">
+            <span class="b-status-dot b-status-dot--offline"></span>离线
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <i data-lucide="check-circle" style="width:15px;height:15px;color:var(--success-base,#00A383);"></i>
+            <span style="font-size:13px;">航电系统运行正常</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <i data-lucide="alert-triangle" style="width:15px;height:15px;color:var(--warning-base,#D97706);"></i>
+            <span style="font-size:13px;">液压系统压力偏低</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <i data-lucide="x-circle" style="width:15px;height:15px;color:var(--error-base,#DC2626);"></i>
+            <span style="font-size:13px;">发动机传感器故障</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 进度条 -->
+      <div class="ds-card">
+        <div class="ds-card-label">进度条 Progress</div>
+        <div class="ds-progress-list">
+          <div class="ds-progress-item">
+            <div class="ds-progress-head">
+              <span>整机装配进度</span><span>64%</span>
+            </div>
+            <div class="b-progress">
+              <div class="b-progress-bar b-progress-bar--primary" style="width:64%;"></div>
+            </div>
+          </div>
+          <div class="ds-progress-item">
+            <div class="ds-progress-head">
+              <span>质量检验通过率</span><span>91%</span>
+            </div>
+            <div class="b-progress">
+              <div class="b-progress-bar b-progress-bar--success" style="width:91%;"></div>
+            </div>
+          </div>
+          <div class="ds-progress-item">
+            <div class="ds-progress-head">
+              <span>零件到货率</span><span style="color:var(--warning-base);">38%</span>
+            </div>
+            <div class="b-progress">
+              <div class="b-progress-bar b-progress-bar--warning" style="width:38%;"></div>
+            </div>
+          </div>
+          <div class="ds-progress-item">
+            <div class="ds-progress-head">
+              <span>缺陷关闭率</span><span style="color:var(--error-base);">12%</span>
+            </div>
+            <div class="b-progress">
+              <div class="b-progress-bar b-progress-bar--danger" style="width:12%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 数据卡片 -->
+      <div class="ds-card">
+        <div class="ds-card-label">统计卡片 Stat Cards</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div class="stat-card">
+            <div class="stat-value" style="color:var(--theme-primary);">1,247</div>
+            <div class="stat-label">在制工单</div>
+            <div class="stat-meta" style="color:var(--success-base);">↑ 12%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" style="color:var(--success-base);">98.3%</div>
+            <div class="stat-label">设备OEE</div>
+            <div class="stat-meta">本月均值</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" style="color:var(--warning-base);">7</div>
+            <div class="stat-label">待处理告警</div>
+            <div class="stat-meta" style="color:var(--error-base);">↑ 3 紧急</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">64%</div>
+            <div class="stat-label">整机进度</div>
+            <div class="stat-meta">计划完工 06-15</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 光谱图表 -->
+      <div class="ds-card">
+        <div class="ds-card-label">智能光谱图表 Intelligent Spectrum</div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:12px;color:var(--theme-text-secondary);width:80px;flex-shrink:0;">灵航蓝</span>
+            <div style="flex:1;height:6px;border-radius:3px;background:var(--theme-bg-base);overflow:hidden;">
+              <div style="width:85%;height:100%;background:var(--color-aero-blue,#0066CC);border-radius:3px;"></div>
+            </div>
+            <span style="font-size:12px;color:var(--theme-text-secondary);width:32px;text-align:right;">85%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:12px;color:var(--theme-text-secondary);width:80px;flex-shrink:0;">脉冲青</span>
+            <div style="flex:1;height:6px;border-radius:3px;background:var(--theme-bg-base);overflow:hidden;">
+              <div style="width:62%;height:100%;background:var(--color-pulse-cyan,#0099AA);border-radius:3px;"></div>
+            </div>
+            <span style="font-size:12px;color:var(--theme-text-secondary);width:32px;text-align:right;">62%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:12px;color:var(--theme-text-secondary);width:80px;flex-shrink:0;">信标绿</span>
+            <div style="flex:1;height:6px;border-radius:3px;background:var(--theme-bg-base);overflow:hidden;">
+              <div style="width:45%;height:100%;background:var(--color-signal-green,#00A383);border-radius:3px;"></div>
+            </div>
+            <span style="font-size:12px;color:var(--theme-text-secondary);width:32px;text-align:right;">45%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:12px;color:var(--theme-text-secondary);width:80px;flex-shrink:0;">警告琥珀</span>
+            <div style="flex:1;height:6px;border-radius:3px;background:var(--theme-bg-base);overflow:hidden;">
+              <div style="width:28%;height:100%;background:var(--warning-base,#D97706);border-radius:3px;"></div>
+            </div>
+            <span style="font-size:12px;color:var(--theme-text-secondary);width:32px;text-align:right;">28%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:12px;color:var(--theme-text-secondary);width:80px;flex-shrink:0;">错误红</span>
+            <div style="flex:1;height:6px;border-radius:3px;background:var(--theme-bg-base);overflow:hidden;">
+              <div style="width:12%;height:100%;background:var(--error-base,#DC2626);border-radius:3px;"></div>
+            </div>
+            <span style="font-size:12px;color:var(--theme-text-secondary);width:32px;text-align:right;">12%</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════
+       05. 表单组件
+       ══════════════════════════════════════════════════════ -->
+  <section>
+    <div class="ds-section-header">
+      <span class="ds-section-num">05</span>
+      <h2 class="ds-section-title">表单组件 (Form Elements)</h2>
+    </div>
+
+    <div class="ds-two-col">
+      <div class="ds-card">
+        <div class="ds-card-label">输入框 Input Fields</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="form-group">
+            <label class="form-label">工单编号</label>
+            <input class="form-input" type="text" placeholder="请输入工单编号…">
+          </div>
+          <div class="form-group">
+            <label class="form-label">工序类型</label>
+            <select class="form-select">
+              <option>总装集成</option>
+              <option>航电安装</option>
+              <option>液压调试</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">备注</label>
+            <textarea class="form-textarea" rows="2" placeholder="可选备注…"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="ds-card">
+        <div class="ds-card-label">搜索 &amp; 筛选 Search &amp; Filter</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="search-bar">
+            <i data-lucide="search" style="width:14px;height:14px;opacity:0.5;flex-shrink:0;"></i>
+            <input class="search-input" type="text" placeholder="搜索工单、设备、人员…">
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="filter-chip filter-chip--active">全部</button>
+            <button class="filter-chip">进行中</button>
+            <button class="filter-chip">待处理</button>
+            <button class="filter-chip">已完成</button>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <span class="tag tag-primary" style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+              总装车间 <i data-lucide="x" style="width:10px;height:10px;"></i>
+            </span>
+            <span class="tag tag-primary" style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+              P1告警 <i data-lucide="x" style="width:10px;height:10px;"></i>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════
+       06. 图标集 (Lucide)
+       ══════════════════════════════════════════════════════ -->
+  <section>
+    <div class="ds-section-header">
+      <span class="ds-section-num">06</span>
+      <h2 class="ds-section-title">图标集 (Icons · Lucide)</h2>
+      <span class="ds-section-subtitle">统一使用 Lucide Icons，尺寸建议 14–20px</span>
+    </div>
+
+    <div class="ds-icon-grid">
+      <div class="ds-icon-item"><i data-lucide="cpu" style="width:20px;height:20px;color:var(--theme-primary);"></i><span class="ds-icon-name">cpu</span></div>
+      <div class="ds-icon-item"><i data-lucide="activity" style="width:20px;height:20px;color:var(--theme-primary);"></i><span class="ds-icon-name">activity</span></div>
+      <div class="ds-icon-item"><i data-lucide="alert-triangle" style="width:20px;height:20px;color:var(--warning-base);"></i><span class="ds-icon-name">alert-triangle</span></div>
+      <div class="ds-icon-item"><i data-lucide="check-circle" style="width:20px;height:20px;color:var(--success-base);"></i><span class="ds-icon-name">check-circle</span></div>
+      <div class="ds-icon-item"><i data-lucide="x-circle" style="width:20px;height:20px;color:var(--error-base);"></i><span class="ds-icon-name">x-circle</span></div>
+      <div class="ds-icon-item"><i data-lucide="settings" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">settings</span></div>
+      <div class="ds-icon-item"><i data-lucide="layers" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">layers</span></div>
+      <div class="ds-icon-item"><i data-lucide="bar-chart-2" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">bar-chart-2</span></div>
+      <div class="ds-icon-item"><i data-lucide="calendar" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">calendar</span></div>
+      <div class="ds-icon-item"><i data-lucide="users" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">users</span></div>
+      <div class="ds-icon-item"><i data-lucide="wrench" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">wrench</span></div>
+      <div class="ds-icon-item"><i data-lucide="database" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">database</span></div>
+      <div class="ds-icon-item"><i data-lucide="refresh-cw" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">refresh-cw</span></div>
+      <div class="ds-icon-item"><i data-lucide="download" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">download</span></div>
+      <div class="ds-icon-item"><i data-lucide="upload" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">upload</span></div>
+      <div class="ds-icon-item"><i data-lucide="filter" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">filter</span></div>
+      <div class="ds-icon-item"><i data-lucide="search" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">search</span></div>
+      <div class="ds-icon-item"><i data-lucide="plus" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">plus</span></div>
+      <div class="ds-icon-item"><i data-lucide="edit-2" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">edit-2</span></div>
+      <div class="ds-icon-item"><i data-lucide="trash-2" style="width:20px;height:20px;color:var(--error-base);"></i><span class="ds-icon-name">trash-2</span></div>
+      <div class="ds-icon-item"><i data-lucide="eye" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">eye</span></div>
+      <div class="ds-icon-item"><i data-lucide="link" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">link</span></div>
+      <div class="ds-icon-item"><i data-lucide="map-pin" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">map-pin</span></div>
+      <div class="ds-icon-item"><i data-lucide="clock" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">clock</span></div>
+      <div class="ds-icon-item"><i data-lucide="zap" style="width:20px;height:20px;color:var(--warning-base);"></i><span class="ds-icon-name">zap</span></div>
+      <div class="ds-icon-item"><i data-lucide="shield" style="width:20px;height:20px;color:var(--theme-primary);"></i><span class="ds-icon-name">shield</span></div>
+      <div class="ds-icon-item"><i data-lucide="target" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">target</span></div>
+      <div class="ds-icon-item"><i data-lucide="trending-up" style="width:20px;height:20px;color:var(--success-base);"></i><span class="ds-icon-name">trending-up</span></div>
+      <div class="ds-icon-item"><i data-lucide="trending-down" style="width:20px;height:20px;color:var(--error-base);"></i><span class="ds-icon-name">trending-down</span></div>
+      <div class="ds-icon-item"><i data-lucide="box" style="width:20px;height:20px;color:var(--theme-text-secondary);"></i><span class="ds-icon-name">box</span></div>
+    </div>
+  </section>
+
+</main>
+
+<script src="../../scripts/lucide-umd-500.js"></script>
+<script>
+  /* 初始化图标 */
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+
+  /* 主题切换：toggle switch → data-theme on <html> */
+  function toggleTheme(checkbox) {
+    var isDark = !checkbox.checked;
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  }
+
+  /* 初始化 toggle 状态与当前主题一致 */
+  (function() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var chk = document.getElementById('themeCheck');
+    if (chk) chk.checked = !isDark; /* checked = light mode */
+  })();
+</script>
+</body>
+</html>

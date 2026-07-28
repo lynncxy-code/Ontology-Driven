@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/vendor/vue-3.3.4.global.prod.js" integrity="sha384-QLgwzsuau/sa8LhRgjRzkvQS0LyUzCM2B8FPwVoSu1KDel940/orifPaumNXp9hK" crossorigin="anonymous"></script>
     <script src="/vendor/axios-1.7.9.min.js" integrity="sha384-jLwhcmGu/RL8PSTUEl/559f8QVLL4QqM+HBvoZlt4F7XCdsdoDGAwW4nPFfoM7lU" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="/nexus_titlebar.css" />
     <style>
         .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
@@ -62,15 +63,12 @@
 <body class="bg-gray-50 text-gray-900 h-screen overflow-hidden flex flex-col font-sans antialiased">
 <div id="app" class="flex flex-col flex-1 min-h-0">
     <!-- Header -->
-    <header class="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0 flex items-center justify-between">
-        <div>
-            <div class="flex items-center gap-3">
-                <h1 class="text-lg font-bold">实例运维与监控中心</h1>
-                <span class="text-[10px] font-mono bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full border border-gray-200">MODULE 2 · PART A</span>
-            </div>
-            <p class="text-xs text-gray-500 mt-1">管理数字孪生实例生命周期，提供实时监控与手动 Override 干预</p>
+    <header class="nexus-titlebar">
+        <div class="nexus-titlebar__main">
+            <h1 class="nexus-titlebar__title">实例运维与监控中心</h1>
+            <p class="nexus-titlebar__subtitle">管理数字孪生实例生命周期，提供实时监控与手动 Override 干预</p>
         </div>
-        <div>
+        <div class="nexus-titlebar__actions">
             <a href="/ontology" class="text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md transition border border-transparent hover:border-gray-300">
                 &larr; 返回 本体注入中心
             </a>
@@ -173,7 +171,13 @@
                                 <span :class="[
                                     'text-[9px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wider',
                                     inst.status === 'online' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
-                                ]">{{ inst.status === 'online' ? '在线' : '失联' }}</span>
+                                ]" title="OntoTwin 实例状态">{{ inst.status === 'online' ? '在线' : '失联' }}</span>
+                                <span v-if="inst.realtime_channel"
+                                      :class="['text-[9px] font-medium px-1.5 py-0.5 rounded border flex items-center gap-1', realtimeChannelTag(inst.realtime_channel).classes]"
+                                      :title="realtimeChannelTag(inst.realtime_channel).title">
+                                    <span :class="['w-1.5 h-1.5 rounded-full', realtimeChannelTag(inst.realtime_channel).dot]"></span>
+                                    {{ realtimeChannelTag(inst.realtime_channel).label }}
+                                </span>
                                 
                                 <div v-if="pendingDelete === inst.id" class="flex items-center gap-1.5">
                                     <button @click.stop="deleteInstance(inst.id)" class="text-[10px] px-2 py-0.5 rounded bg-red-600 text-white font-medium hover:bg-red-700 transition">销毁</button>
@@ -189,8 +193,53 @@
 
         <!-- Right: Monitor Panel -->
         <div class="flex-1 flex flex-col min-h-0 bg-gray-50">
+            <nav class="shrink-0 bg-white border-b border-gray-200 px-6" role="tablist" aria-label="实例运维工作区">
+                <div class="flex items-end gap-7">
+                    <button id="instance-tab-stream"
+                            type="button"
+                            role="tab"
+                            :aria-selected="activeMonitorTab === 'stream'"
+                            @click="activeMonitorTab = 'stream'"
+                            :class="[
+                                'relative py-3 px-1 text-sm font-medium transition focus:outline-none focus-visible:bg-gray-100 focus-visible:text-gray-950',
+                                activeMonitorTab === 'stream' ? 'text-gray-950' : 'text-gray-500 hover:text-gray-900'
+                            ]">
+                        实时推流
+                        <span v-if="activeMonitorTab === 'stream'" class="absolute inset-x-0 bottom-0 h-0.5 bg-gray-950"></span>
+                    </button>
+                    <button id="instance-tab-control"
+                            type="button"
+                            role="tab"
+                            :aria-selected="activeMonitorTab === 'control'"
+                            @click="activeMonitorTab = 'control'"
+                            :class="[
+                                'relative py-3 px-1 text-sm font-medium transition focus:outline-none focus-visible:bg-gray-100 focus-visible:text-gray-950',
+                                activeMonitorTab === 'control' ? 'text-gray-950' : 'text-gray-500 hover:text-gray-900'
+                            ]">
+                        实例控制
+                        <span v-if="activeMonitorTab === 'control'" class="absolute inset-x-0 bottom-0 h-0.5 bg-gray-950"></span>
+                    </button>
+                    <button id="instance-tab-json"
+                            type="button"
+                            role="tab"
+                            :aria-selected="activeMonitorTab === 'json'"
+                            @click="activeMonitorTab = 'json'"
+                            :class="[
+                                'relative py-3 px-1 text-sm font-medium transition focus:outline-none focus-visible:bg-gray-100 focus-visible:text-gray-950',
+                                activeMonitorTab === 'json' ? 'text-gray-950' : 'text-gray-500 hover:text-gray-900'
+                            ]">
+                        端点 JSON
+                        <span v-if="activeMonitorTab === 'json'" class="absolute inset-x-0 bottom-0 h-0.5 bg-gray-950"></span>
+                    </button>
+                </div>
+            </nav>
+
             <!-- Runtime Stream Panel (3.6 Pixel Streaming spike) -->
-            <section ref="runtimeStreamPanelRef" class="runtime-stream-panel bg-white border-b border-gray-200 shrink-0">
+            <section v-show="activeMonitorTab === 'stream'"
+                     ref="runtimeStreamPanelRef"
+                     role="tabpanel"
+                     aria-labelledby="instance-tab-stream"
+                     class="runtime-stream-panel flex-1 min-h-0 overflow-y-auto bg-white">
                 <div class="px-6 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
@@ -252,6 +301,10 @@
                 </div>
             </section>
 
+            <div v-show="activeMonitorTab !== 'stream'"
+                 role="tabpanel"
+                 :aria-labelledby="`instance-tab-${activeMonitorTab}`"
+                 class="flex-1 flex flex-col min-h-0">
             <div v-if="!selectedInst" class="flex-1 flex flex-col items-center justify-center text-gray-400 space-y-3">
                 <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path></svg>
                 <span class="text-sm font-medium">从左侧清单选中一个实例进行实时监视</span>
@@ -260,18 +313,29 @@
             <template v-else>
                 <!-- Monitor Header -->
                 <div class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0 shadow-sm z-10">
-                    <div class="flex items-center gap-4">
+                    <div class="flex flex-wrap items-center gap-3">
                         <span class="text-xl font-bold font-mono text-gray-900">{{ selectedInst.id }}</span>
                         <span :class="[
                             'text-xs font-bold px-2.5 py-1 rounded-md border flex items-center gap-1.5',
                             currentSnap?.online ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
-                        ]">
+                        ]" title="OntoTwin 实例状态">
                             <svg v-if="currentSnap?.online" class="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
                             <svg v-else class="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
-                            {{ currentSnap?.online ? '实时通讯中' : '心跳异常' }}
+                            {{ currentSnap?.online ? 'OntoTwin 在线' : 'OntoTwin 失联' }}
+                        </span>
+                        <span v-if="selectedInst.realtime_channel"
+                              :class="['text-xs font-semibold px-2.5 py-1 rounded-md border flex items-center gap-1.5', realtimeChannelTag(selectedInst.realtime_channel).classes]"
+                              :title="realtimeChannelTag(selectedInst.realtime_channel).title">
+                            <span :class="['w-2 h-2 rounded-full', realtimeChannelTag(selectedInst.realtime_channel).dot]"></span>
+                            {{ realtimeChannelTag(selectedInst.realtime_channel).label }}
                         </span>
                     </div>
                     <div class="flex items-center gap-4 text-xs">
+                        <a :href="`/interaction?target=instance&instance_id=${encodeURIComponent(selectedInst.id)}&from=instance`"
+                           class="text-xs font-medium px-2.5 py-1 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black transition inline-flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M8 9h8M8 13h5"></path></svg>
+                            配置信息面板
+                        </a>
                         <button @click="openPos" class="text-xs font-medium px-2.5 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition">微调位置</button>
                         <span class="text-gray-500 font-medium">源类型: <span class="text-gray-800">{{ currentSnap?.objectTypeName }}</span></span>
                         <div class="w-px h-4 bg-gray-300"></div>
@@ -285,26 +349,30 @@
                     </div>
                 </div>
 
-                <div class="flex-1 overflow-y-auto p-6 space-y-6">
-                    
-                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                <div class="flex-1 overflow-y-auto p-6">
+
+                    <div class="mx-auto max-w-5xl">
                         <!-- Interface Snapshot (JSON) -->
-                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm" v-if="currentSnap">
+                        <div v-if="currentSnap" v-show="activeMonitorTab === 'json'" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                             <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
-                                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">3D 引擎通信帧序列</span>
-                                <span class="text-[9px] font-mono bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded tracking-widest">READ ONLY</span>
+                                <div>
+                                    <div class="text-xs font-semibold text-gray-700">端点响应</div>
+                                    <div class="mt-1 text-[11px] font-mono text-gray-500">GET /api/v2/state/snapshot?id={{ selectedInst.id }}</div>
+                                </div>
+                                <span class="text-[9px] font-mono bg-gray-100 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded tracking-widest">READ ONLY</span>
                             </div>
                             <div class="p-0 bg-gray-900 overflow-x-auto text-gray-300">
-                                <pre class="p-5 text-xs font-mono leading-relaxed">{{ JSON.stringify(currentSnap.interfaces, null, 2) }}</pre>
+                                <pre class="p-5 text-xs font-mono leading-relaxed">{{ JSON.stringify(currentSnap, null, 2) }}</pre>
                             </div>
                         </div>
 
                         <!-- Manual Override Panel -->
-                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm" v-if="currentSnap">
+                        <div v-if="currentSnap" v-show="activeMonitorTab === 'control'" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                             <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
                                 <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">热干预终端 (Override)</span>
-                                <span class="text-[9px] font-mono bg-purple-50 text-purple-600 border border-purple-200 px-1.5 py-0.5 rounded tracking-widest">DEBUG CONTROL</span>
+                                <span class="text-[9px] font-mono bg-gray-100 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded tracking-widest">DEBUG CONTROL</span>
                             </div>
+                            <div class="p-5 space-y-6">
                                 <!-- Representable Overlay -->
                                 <div v-if="currentSnap.injected_interfaces.includes('I3D_Representable') || currentSnap.interfaces.I3D_Representable" class="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
                                     <h4 class="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -422,10 +490,12 @@
                                     </button>
                                 </div>
                             </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </template>
+            </div>
         </div>
     </div>
 
@@ -705,6 +775,32 @@ function _r2(v) { return Math.round((Number(v)||0) * 100) / 100; }
 const RUNTIME_STREAM_STORAGE_KEY = 'ontotwin.pixelStreaming.url';
 const RUNTIME_STREAM_OLD_DEFAULT_URL = 'http://127.0.0.1:80/';
 const RUNTIME_STREAM_DEFAULT_URL = 'http://127.0.0.1:8888/';
+const REALTIME_CHANNEL_TAGS = Object.freeze({
+    realtime: {
+        label: 'WS 实时',
+        classes: 'bg-gray-900 text-white border-gray-900',
+        dot: 'bg-white',
+        title: 'WebSocket 状态帧新鲜，且当前目标已应用到 UE 实例'
+    },
+    http_fallback: {
+        label: 'HTTP 接管',
+        classes: 'bg-amber-50 text-amber-800 border-amber-200',
+        dot: 'bg-amber-500',
+        title: 'WebSocket 未生效，UE 当前由 HTTP 快照接管'
+    },
+    target_lost: {
+        label: 'WS 无目标',
+        classes: 'bg-red-50 text-red-700 border-red-200',
+        dot: 'bg-red-500',
+        title: 'WebSocket 通道有新帧，但当前实例没有可应用的目标'
+    },
+    unknown: {
+        label: '通道未知',
+        classes: 'bg-gray-50 text-gray-500 border-gray-200',
+        dot: 'bg-gray-300',
+        title: '尚未收到有效的 UE WebSocket 健康回报'
+    }
+});
 
 const { createApp, ref, computed, onMounted, onUnmounted, watch } = Vue;
 createApp({
@@ -715,8 +811,10 @@ createApp({
         const currentSnap = ref(null);
         const spawning = ref(false);
         const overriding = ref(false);
+        const activeMonitorTab = ref('stream');
         const toasts = ref([]);
         let pollTimer = null;
+        let instanceListTimer = null;
         const activeDataset = ref(null);
         const runtimeStreamPanelRef = ref(null);
         const runtimeStreamUrl = ref(RUNTIME_STREAM_DEFAULT_URL);
@@ -851,13 +949,30 @@ createApp({
             overridePatch.value = patch;
         }, { deep: false });
 
+        function applyInstanceList(nextInstances) {
+            const selectedId = selectedInst.value?.id;
+            instances.value = Array.isArray(nextInstances) ? nextInstances : [];
+            if (selectedId) {
+                selectedInst.value = instances.value.find(item => item.id === selectedId) || null;
+            }
+        }
+
+        async function refreshInstances() {
+            const instRes = await axios.get('/api/v2/instances');
+            applyInstanceList(instRes.data);
+        }
+
         async function loadInstances() {
             const [instRes, typeRes] = await Promise.all([
                 axios.get('/api/v2/instances'),
                 axios.get('/api/v2/ontology/types')
             ]);
-            instances.value = instRes.data;
+            applyInstanceList(instRes.data);
             objectTypes.value = typeRes.data;
+        }
+
+        function realtimeChannelTag(channel) {
+            return REALTIME_CHANNEL_TAGS[channel?.state] || REALTIME_CHANNEL_TAGS.unknown;
         }
 
         async function loadActiveDatasetContext() {
@@ -1298,23 +1413,27 @@ createApp({
 
         onMounted(() => {
             loadInstances();
+            instanceListTimer = setInterval(() => { refreshInstances().catch(() => {}); }, 2000);
             loadActiveDatasetContext();
             restoreRuntimeStreamUrl();
         });
         onUnmounted(() => {
             stopPoll();
+            if (instanceListTimer) clearInterval(instanceListTimer);
             clearRuntimeStreamTimer();
         });
 
         return {
             instances, objectTypes, readyTypes, availableInstanceIds, selectedInst, currentSnap,
             spawnForm, spawning, overriding, overrideFields, overridePatch, toasts, pendingDelete,
+            activeMonitorTab,
             activeDataset, activeDatasetLabel,
             runtimeStreamPanelRef, runtimeStreamUrl, runtimeStreamSrc, runtimeStreamStatus,
             runtimeStreamStatusLabel, runtimeStreamStatusDotClass, runtimeStreamError,
             connectRuntimeStream, disconnectRuntimeStream, clearRuntimeStreamUrl, handleRuntimeStreamLoad,
             handleRuntimeStreamError, openRuntimeStreamWindow, fullscreenRuntimeStream,
             loadInstances, spawnInstance, deleteInstance, selectInstance, applyOverride, resetOverride,
+            realtimeChannelTag,
             // FR-7 规范坐标微调
             posOpen, posSaving, pos, posX, openPos, savePos, posEditCanonical, posEditUE, posEditFrame, posEditFloor,
             posSourceLabel, posSourceHint,

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 144" role="img" aria-labelledby="title">
+  <title id="title">Manuel 扫描人物占位图</title>
+  <rect width="120" height="144" rx="10" fill="#f3f3f3"/>
+  <path d="M45 24c4-11 26-12 31 0l-2 6H47l-2-6Z" fill="#8a8a8a"/>
+  <circle cx="60" cy="32" r="16" fill="#d4d4d4" stroke="#5c5c5c" stroke-width="2"/>
+  <path d="M40 57c7-7 33-7 40 0l6 48H34l6-48Z" fill="#c9c9c9" stroke="#5c5c5c" stroke-width="2"/>
+  <path d="M46 105v28M74 105v28M35 67 22 100M85 67l13 33" fill="none" stroke="#5c5c5c" stroke-width="7" stroke-linecap="round"/>
+  <path d="M46 61 60 76l14-15" fill="none" stroke="#8a8a8a" stroke-width="2"/>
+</svg>

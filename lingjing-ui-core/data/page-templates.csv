@@ -1,0 +1,17 @@
+Template Name,Description,Layout Structure,Key Components,Use Case
+Dashboard,Main system dashboard with KPI metrics,Bento grid layout with cards,Card-Glass, Chart-Container, Grid-Bento,Control panels and data overview
+Login,User authentication page,Centered form layout,Card-Solid, Form-Input, Button-Primary,User login and access control
+Settings,System configuration page,Tabs-based layout with sections,Nav-Tabs, Form-Input, Card-Glass,System and user settings
+Profile,User profile management page,Two-column layout,Card-Glass, Form-Input, Media-Avatar,User information management
+Reports,Data reports and analytics page,Grid layout with charts,Chart-Container, Card-Solid, Nav-Pagination,Data analysis and reporting
+404,Page not found error page,Centered error message,Card-Solid, Button-Primary,Error handling
+500,Server error page,Centered error message,Card-Solid, Button-Ghost,Error handling
+Empty State,Empty data state page,Centered empty state message,Card-Glass, Button-Secondary,No data scenarios
+Loading,Loading state page,Centered loading indicator,Feedback-Loading, Utility-Spinner,Content loading
+Search Results,Search results page,List layout with filters,Data-List-Group, Form-Input, Card-Glass,Search functionality
+Wizard,Multi-step process page,Step-based layout with progress,Utility-Progress-Bar, Button-Primary,Multi-step workflows
+Modal,Modal dialog page,Overlay with centered content,Feedback-Modal, Card-Solid, Form-Input,Popup dialogs
+Drawer,Side drawer page,Slide-in side panel,Feedback-Drawer, Card-Glass, Form-Input,Slide-in panels
+Landing,Landing page with hero section,Hero + features + CTA layout,Header-Top, Button-Primary, Media-Image,Product marketing
+Dashboard UE,UE visualization dashboard,Fullscreen with floating panels,UE-Viewport, Card-UE-Mimetic, UE-Stats-HUD,3D visualization dashboards
+Monitoring,Real-time monitoring page,Grid of metric cards and charts,Card-Glass, Chart-Container, Feedback-Alert,Real-time system monitoring

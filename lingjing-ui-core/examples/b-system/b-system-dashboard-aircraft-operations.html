@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>航空制造 · 生产运营总览</title>
+
+  <!-- 引入标准CSS -->
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+
+  <!-- ECharts + 灵境主题（必须先于业务脚本加载） -->
+  <script src="../../scripts/echarts.min.js"></script>
+  <script src="../../scripts/echarts-theme-lingjing.js"></script>
+  <!-- 引入 Lucide Icons -->
+  <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+  <div class="b-layout-sidebar">
+    <!-- 侧边导航 -->
+    <aside class="b-sidebar" id="sidebar">
+      <div class="b-sidebar-header">
+        <div class="b-sidebar-logo">
+          <img src="../../assets/logo-flat.png" alt="航空制造" height="32">
+        </div>
+        <span class="b-sidebar-brand">航空制造后台</span>
+      </div>
+      <nav class="b-sidebar-nav b-scrollable">
+        <ul class="b-sidebar-nav-list">
+          <li class="b-sidebar-nav-item">
+            <a href="#dashboard" class="b-sidebar-nav-link active">
+              <span class="b-sidebar-nav-icon"><i data-lucide="layout-dashboard"></i></span>
+              <span class="b-sidebar-nav-text">生产运营总览</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#orders" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="clipboard-list"></i></span>
+              <span class="b-sidebar-nav-text">工单管理</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#quality" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="shield-check"></i></span>
+              <span class="b-sidebar-nav-text">质量监控</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+      <div class="b-sidebar-footer">
+        <button class="b-sidebar-toggle" onclick="toggleSidebarCollapse()">
+          <span class="b-sidebar-toggle-icon">
+            <i data-lucide="chevrons-left"></i>
+          </span>
+          <span class="b-sidebar-toggle-text">收起</span>
+        </button>
+      </div>
+    </aside>
+
+    <div class="b-sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <!-- 主内容区 -->
+    <main class="b-main">
+      <header class="b-header">
+        <div class="b-header-left">
+          <nav class="b-breadcrumb">
+            <div class="b-breadcrumb-item">
+              <a href="#" class="b-breadcrumb-link">首页</a>
+              <span class="b-breadcrumb-separator">/</span>
+            </div>
+            <div class="b-breadcrumb-item">
+              <span class="b-breadcrumb-current">生产运营总览</span>
+            </div>
+          </nav>
+        </div>
+        <div class="b-header-right">
+          <button class="btn-icon" onclick="window.Lingjing.toggleTheme()" title="切换主题">
+            <i data-lucide="moon" class="icon-light"></i>
+            <i data-lucide="sun" class="icon-dark hidden"></i>
+          </button>
+          <button class="btn-icon" title="告警中心">
+            <i data-lucide="bell"></i>
+          </button>
+          <button class="btn-icon" title="用户">
+            <i data-lucide="user"></i>
+          </button>
+        </div>
+      </header>
+
+      <div class="b-content">
+        <!-- 说明卡片 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h3 class="card-title">
+              <i data-lucide="info"></i>
+              航空制造 · 生产运营总览
+            </h3>
+          </div>
+          <p class="text-secondary">
+            本页面用于汇总当前总装线的生产运营态势，聚焦任务完成情况、生产节奏、异常动态与待办事项，帮助生产管理与班组长在一屏内完成“看全局、盯异常、排优先级”的决策闭环。
+          </p>
+        </div>
+
+        <!-- KPI 区：总任务 / 在制 / 延误 / 异常 -->
+        <div class="stats-grid">
+          <div class="b-stat-card" data-color="blue">
+            <div class="b-stat-header">
+              <span class="b-stat-label">总任务数</span>
+              <i data-lucide="clipboard-list" class="b-stat-icon"></i>
+            </div>
+            <div class="b-stat-value">1,284</div>
+            <div class="b-stat-change positive">
+              <i data-lucide="trending-up"></i>
+              <span>本周已完成 73%</span>
+            </div>
+          </div>
+          <div class="b-stat-card" data-color="green">
+            <div class="b-stat-header">
+              <span class="b-stat-label">在制任务</span>
+              <i data-lucide="activity" class="b-stat-icon"></i>
+            </div>
+            <div class="b-stat-value">312</div>
+            <div class="b-stat-change neutral">
+              <i data-lucide="minus"></i>
+              <span>节拍基本稳定</span>
+            </div>
+          </div>
+          <div class="b-stat-card" data-color="orange">
+            <div class="b-stat-header">
+              <span class="b-stat-label">延误任务</span>
+              <i data-lucide="clock-3" class="b-stat-icon"></i>
+            </div>
+            <div class="b-stat-value">28</div>
+            <div class="b-stat-change negative">
+              <i data-lucide="trending-down"></i>
+              <span>较上周 +6</span>
+            </div>
+          </div>
+          <div class="b-stat-card" data-color="red">
+            <div class="b-stat-header">
+              <span class="b-stat-label">异常数</span>
+              <i data-lucide="triangle-alert" class="b-stat-icon"></i>
+            </div>
+            <div class="b-stat-value">12</div>
+            <div class="b-stat-change negative">
+              <i data-lucide="alert-octagon"></i>
+              <span>其中 P1 级 3 起</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 图表区：生产进度趋势 + 工单分布 -->
+        <div class="charts-grid">
+          <div class="b-chart-card">
+            <div class="b-chart-header">
+              <div>
+                <h3 class="b-chart-title">生产进度趋势</h3>
+                <p class="b-chart-subtitle">按天统计完成架次与计划偏差</p>
+              </div>
+            </div>
+            <div class="b-chart-body">
+              <div id="chartProductionProgress" style="height:280px;"></div>
+            </div>
+          </div>
+          <div class="b-chart-card">
+            <div class="b-chart-header">
+              <div>
+                <h3 class="b-chart-title">工单分布</h3>
+                <p class="b-chart-subtitle">不同工位簇的在制与延误工单数量</p>
+              </div>
+            </div>
+            <div class="b-chart-body">
+              <div id="chartWorkorderDistribution" style="height:280px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 最近异常 / 告警动态 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h2 class="card-title">最近异常与告警动态</h2>
+          </div>
+          <ul class="status-timeline">
+            <li class="status-timeline-item">
+              <div class="status-timeline-time">09:12</div>
+              <div class="status-timeline-content">
+                <div class="status-timeline-title">翼身对接扭矩复核超窗</div>
+                <div class="text-secondary">工位簇：S4 · 责任班组 T2 · 等级 P1</div>
+              </div>
+            </li>
+            <li class="status-timeline-item">
+              <div class="status-timeline-time">10:03</div>
+              <div class="status-timeline-content">
+                <div class="status-timeline-title">前舱段密封重复缺陷预警</div>
+                <div class="text-secondary">工位簇：前舱段 · 等级 P2 · 已推送质量工程师</div>
+              </div>
+            </li>
+            <li class="status-timeline-item">
+              <div class="status-timeline-time">10:27</div>
+              <div class="status-timeline-content">
+                <div class="status-timeline-title">AGV-07 路径重算完成</div>
+                <div class="text-secondary">物流路径恢复正常 · 保持弱提示</div>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- 待办事项 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h2 class="card-title">本班待办事项</h2>
+          </div>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>待办事项</th>
+                  <th>责任角色</th>
+                  <th>目标时间</th>
+                  <th>优先级</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>完成 S4 扭矩复核并解除质量门控</td>
+                  <td>质量工程师 Q1</td>
+                  <td>本班 10:30 前</td>
+                  <td><span class="badge badge-error">P1</span></td>
+                </tr>
+                <tr>
+                  <td>输出前舱段密封工艺调整结论</td>
+                  <td>工艺工程师 P3</td>
+                  <td>本班 11:00 前</td>
+                  <td><span class="badge badge-warning">P2</span></td>
+                </tr>
+                <tr>
+                  <td>验证线束簇闭环动作可跨班次复用</td>
+                  <td>班组 T2</td>
+                  <td>本班结束前</td>
+                  <td><span class="badge badge-success">P3</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function initIcons() {
+      if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+      }
+    }
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+      sidebar.classList.toggle('active');
+      overlay.classList.toggle('active');
+    }
+
+    function toggleSidebarCollapse() {
+      const sidebar = document.getElementById('sidebar');
+      const isCollapsed = sidebar.classList.contains('collapsed');
+      sidebar.classList.toggle('collapsed');
+      const toggleIcon = sidebar.querySelector('.b-sidebar-toggle-icon i');
+      const toggleText = sidebar.querySelector('.b-sidebar-toggle-text');
+      if (isCollapsed) {
+        toggleIcon.setAttribute('data-lucide', 'chevrons-left');
+        toggleText.textContent = '收起';
+      } else {
+        toggleIcon.setAttribute('data-lucide', 'chevrons-right');
+        toggleText.textContent = '展开';
+      }
+      initIcons();
+    }
+
+    window.Lingjing = window.Lingjing || {};
+    window.Lingjing.toggleTheme = function() {
+      const html = document.documentElement;
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      const lightIcon = document.querySelector('.icon-light');
+      const darkIcon = document.querySelector('.icon-dark');
+      if (lightIcon && darkIcon) {
+        if (newTheme === 'dark') {
+          lightIcon.style.display = 'none';
+          darkIcon.style.display = 'block';
+        } else {
+          lightIcon.style.display = 'block';
+          darkIcon.style.display = 'none';
+        }
+      }
+      Object.values(charts).forEach(function(c) { if (c && !c.isDisposed()) c.dispose(); });
+      charts = {};
+      if (typeof echarts !== 'undefined') { initCharts(); }
+    };
+
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+
+    document.addEventListener('DOMContentLoaded', function() {
+      initIcons();
+    });
+
+    function buildProductionProgressOption(tk) {
+      return {
+        tooltip: { trigger: 'axis' },
+        grid: { top: 36, right: 8, bottom: 0, left: 0, containLabel: true },
+        xAxis: {
+          type: 'category',
+          boundaryGap: false,
+          data: ['一','二','三','四','五','六','日']
+        },
+        yAxis: { type: 'value', name: '完成架次' },
+        series: [{
+          name: '完成架次', type: 'line', smooth: true,
+          data: [3,4,4,5,6,5,4],
+          lineStyle: { color: tk.series[0], width: 2 },
+          itemStyle: { color: tk.series[0] },
+          areaStyle: { color: tk.series[0], opacity: 0.06 },
+          symbol: 'circle', symbolSize: 5
+        }]
+      };
+    }
+
+    function buildWorkorderDistributionOption(tk) {
+      return {
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['在制','延误'], right: 0, top: 0 },
+        grid: { top: 36, right: 8, bottom: 0, left: 0, containLabel: true },
+        xAxis: {
+          type: 'category',
+          data: ['机身装配','翼身对接','前舱段密封','航电线束']
+        },
+        yAxis: { type: 'value', name: '工单数' },
+        series: [
+          { name: '在制', type: 'bar', barMaxWidth: 28,
+            data: [56,42,38,24],
+            itemStyle: { color: tk.series[0], borderRadius: [4,4,0,0] } },
+          { name: '延误', type: 'bar', barMaxWidth: 28,
+            data: [4,6,8,3],
+            itemStyle: { color: tk.series[1], borderRadius: [4,4,0,0] } }
+        ]
+      };
+    }
+
+    var charts = {};
+
+    function initCharts() {
+      if (typeof LingJingChart === 'undefined') {
+        console.warn('[dashboard-aircraft] LingJingChart 未加载，跳过图表渲染。');
+        return;
+      }
+      var scene = document.documentElement.getAttribute('data-theme') === 'dark'
+        ? 'b_system_dark' : 'b_system';
+      var tk = LingJingChart.getTokens(scene);
+      var elProgress = document.getElementById('chartProductionProgress');
+      var elDist = document.getElementById('chartWorkorderDistribution');
+      if (elProgress) {
+        charts.progress = LingJingChart.init(elProgress, scene);
+        charts.progress.setOption(buildProductionProgressOption(tk));
+      }
+      if (elDist) {
+        charts.distribution = LingJingChart.init(elDist, scene);
+        charts.distribution.setOption(buildWorkorderDistributionOption(tk));
+      }
+    }
+
+    if (typeof echarts !== 'undefined') {
+      initCharts();
+    } else {
+      console.warn('[dashboard-aircraft] echarts 未加载，图表跳过渲染。');
+    }
+
+    window.addEventListener('resize', function () {
+      if (typeof LingJingChart !== 'undefined' && LingJingChart.resizeAll) {
+        LingJingChart.resizeAll();
+      }
+    });
+  </script>
+</body>
+</html>

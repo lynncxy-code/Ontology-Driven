@@ -1,0 +1,58 @@
+/**
+ * Skeleton
+ * 骨架屏，占位用于加载中的内容。
+ */
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-subtle, var(--bg-secondary));
+  border-radius: var(--radius-md);
+}
+
+.skeleton-line {
+  height: 0.75rem;
+  border-radius: 999px;
+  background: var(--bg-subtle, var(--bg-secondary));
+}
+
+.skeleton-line + .skeleton-line {
+  margin-top: var(--spacing-xs);
+}
+
+.skeleton-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--bg-subtle, var(--bg-secondary));
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.6),
+    rgba(255, 255, 255, 0)
+  );
+  opacity: 0.6;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+[data-theme="dark"] .skeleton::after {
+  background: linear-gradient(
+    90deg,
+    rgba(15, 23, 42, 0),
+    rgba(148, 163, 184, 0.25),
+    rgba(15, 23, 42, 0)
+  );
+}

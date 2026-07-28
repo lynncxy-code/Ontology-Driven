@@ -1,0 +1,402 @@
+{
+  "version": "3.0.0",
+  "updated": "2026-02-26",
+  "components": {
+    "button": {
+      "name": "按钮",
+      "description": "用于触发操作或提交表单",
+      "variants": ["primary", "secondary", "outline", "text", "icon"],
+      "sizes": ["sm", "md", "lg"],
+      "states": ["default", "hover", "active", "disabled", "loading"],
+      "features": {
+        "icon": true,
+        "loading": true,
+        "block": true,
+        "fullWidth": false
+      },
+      "cssClass": "btn",
+      "examples": {
+        "primary": "<button class=\"btn-primary\">主要按钮</button>",
+        "icon": "<button class=\"btn-primary\"><i data-lucide=\"check\"></i><span>提交</span></button>",
+        "loading": "<button class=\"btn-primary\" data-loading><i data-lucide=\"loader-2\"></i>加载中...</button>"
+      }
+    },
+    "card": {
+      "name": "卡片",
+      "description": "用于组织和展示内容",
+      "variants": ["default", "glass", "outlined", "elevated"],
+      "sizes": ["sm", "md", "lg"],
+      "features": {
+        "header": true,
+        "footer": true,
+        "actions": true,
+        "hover": true
+      },
+      "cssClass": ["card", "content-card"],
+      "examples": {
+        "default": "<div class=\"content-card\"><h3>标题</h3><p>内容</p></div>",
+        "glass": "<div class=\"presentation-glass-card\"><h3>标题</h3><p>内容</p></div>"
+      }
+    },
+    "input": {
+      "name": "输入框",
+      "description": "用于用户输入文本数据",
+      "variants": ["text", "email", "password", "number", "search"],
+      "sizes": ["sm", "md", "lg"],
+      "states": ["default", "focus", "error", "disabled"],
+      "features": {
+        "placeholder": true,
+        "icon": true,
+        "clearable": true,
+        "characterCount": false
+      },
+      "cssClass": ["search-input", "form-input"],
+      "examples": {
+        "text": "<input type=\"text\" class=\"search-input\" placeholder=\"请输入...\">",
+        "search": "<input type=\"text\" class=\"search-input\" placeholder=\"搜索...\">"
+      }
+    },
+    "select": {
+      "name": "选择器",
+      "description": "用于从选项列表中选择",
+      "variants": ["single", "multiple"],
+      "sizes": ["sm", "md", "lg"],
+      "states": ["default", "focus", "disabled"],
+      "features": {
+        "placeholder": true,
+        "searchable": false,
+        "clearable": false
+      },
+      "cssClass": ["filter-select", "form-select"],
+      "examples": {
+        "single": "<select class=\"filter-select\"><option>选项1</option><option>选项2</option></select>"
+      }
+    },
+    "table": {
+      "name": "表格",
+      "description": "用于展示结构化数据",
+      "variants": ["basic", "striped", "bordered"],
+      "sizes": ["sm", "md", "lg"],
+      "features": {
+        "sortable": true,
+        "selectable": true,
+        "pagination": true,
+        "loading": false
+      },
+      "cssClass": "data-table",
+      "examples": {
+        "basic": "<table class=\"data-table\"><thead><tr><th>列1</th><th>列2</th></tr></thead><tbody><tr><td>数据1</td><td>数据2</td></tr></tbody></table>"
+      }
+    },
+    "badge": {
+      "name": "徽章",
+      "description": "用于显示状态或标签",
+      "variants": ["primary", "success", "warning", "error", "info", "neutral"],
+      "sizes": ["sm", "md"],
+      "features": {
+        "dot": true,
+        "icon": false,
+        "closable": false
+      },
+      "cssClass": "badge",
+      "examples": {
+        "success": "<span class=\"badge success\">成功</span>",
+        "warning": "<span class=\"badge warning\">警告</span>"
+      }
+    },
+    "modal": {
+      "name": "对话框",
+      "description": "用于显示重要信息或表单",
+      "variants": ["default", "confirm", "alert"],
+      "sizes": ["sm", "md", "lg", "full"],
+      "features": {
+        "header": true,
+        "footer": true,
+        "close": true,
+        "backdrop": true
+      },
+      "cssClass": ["modal", "dialog"],
+      "examples": {
+        "default": "<div class=\"modal\"><div class=\"modal-content\"><h3>标题</h3><p>内容</p></div></div>"
+      }
+    },
+    "dropdown": {
+      "name": "下拉菜单",
+      "description": "用于显示操作选项",
+      "variants": ["default", "split"],
+      "positions": ["bottom", "top", "left", "right"],
+      "features": {
+        "trigger": "button",
+        "hover": false,
+        "click": true
+      },
+      "cssClass": ["dropdown", "dropdown-menu"],
+      "examples": {
+        "default": "<div class=\"dropdown\"><button class=\"btn-primary\">菜单</button><div class=\"dropdown-menu\"><a href=\"#\">选项1</a><a href=\"#\">选项2</a></div></div>"
+      }
+    },
+    "pagination": {
+      "name": "分页",
+      "description": "用于分页显示大量数据",
+      "variants": ["simple", "advanced"],
+      "sizes": ["sm", "md"],
+      "features": {
+        "total": true,
+        "pageSize": true,
+        "jumper": false
+      },
+      "cssClass": "pagination",
+      "examples": {
+        "simple": "<div class=\"pagination\"><button class=\"pagination-btn\">1</button><button class=\"pagination-btn\">2</button></div>"
+      }
+    },
+    "form-group": {
+      "name": "表单组",
+      "description": "用于组织表单元素",
+      "variants": ["default", "inline", "horizontal"],
+      "features": {
+        "label": true,
+        "error": true,
+        "hint": true
+      },
+      "cssClass": ["form-group", "content-card"],
+      "examples": {
+        "default": "<div class=\"form-group\"><label class=\"form-label\">标签</label><input type=\"text\" class=\"search-input\"></div>"
+      }
+    },
+    "drawer": {
+      "name": "抽屉",
+      "description": "侧边抽屉面板",
+      "variants": ["left", "right"],
+      "features": {
+        "header": true,
+        "footer": true,
+        "backdrop": true
+      },
+      "cssClass": "feedback-drawer",
+      "examples": {
+        "right": "<div class=\"feedback-drawer feedback-drawer-right\"><div class=\"feedback-drawer-header\"><span class=\"feedback-drawer-title\">抽屉标题</span></div><div class=\"feedback-drawer-body\">内容...</div></div>"
+      }
+    },
+    "accordion": {
+      "name": "手风琴",
+      "description": "可折叠的内容面板",
+      "variants": ["default"],
+      "features": {
+        "multiple": false
+      },
+      "cssClass": "data-accordion",
+      "examples": {
+        "default": "<div class=\"data-accordion\"><div class=\"data-accordion-item active\"><button class=\"data-accordion-header\"><span>面板 1</span><i data-lucide=\"chevron-down\" class=\"data-accordion-icon\"></i></button><div class=\"data-accordion-content\"><div class=\"data-accordion-body\">内容 1...</div></div></div></div>"
+      }
+    },
+    "stepper": {
+      "name": "步骤条",
+      "description": "引导用户按照流程完成任务",
+      "variants": ["horizontal", "vertical"],
+      "features": {
+        "description": true,
+        "icon": true
+      },
+      "cssClass": "stepper",
+      "examples": {
+        "horizontal": "<div class=\"stepper-horizontal\"><div class=\"stepper-step completed\"><div class=\"stepper-step-header\"><div class=\"stepper-step-icon\">1</div><div class=\"stepper-step-connector\"></div></div><div class=\"stepper-step-content\"><div class=\"stepper-step-title\">第一步</div></div></div><div class=\"stepper-step active\"><div class=\"stepper-step-header\"><div class=\"stepper-step-icon\">2</div><div class=\"stepper-step-connector\"></div></div><div class=\"stepper-step-content\"><div class=\"stepper-step-title\">第二步</div></div></div></div>"
+      }
+    },
+    "segmented-control": {
+      "name": "分段控制",
+      "description": "用于在多个选项间切换",
+      "variants": ["default"],
+      "cssClass": "segmented-control",
+      "examples": {
+        "default": "<div class=\"segmented-control\"><div class=\"segmented-control-item active\">选项 A</div><div class=\"segmented-control-item\">选项 B</div><div class=\"segmented-control-item\">选项 C</div></div>"
+      }
+    },
+    "popover": {
+      "name": "气泡卡片",
+      "description": "悬浮的气泡内容",
+      "variants": ["top", "bottom", "left", "right"],
+      "cssClass": "popover-container",
+      "examples": {
+        "top": "<div class=\"popover-container active\"><button class=\"btn-outline\">悬浮我</button><div class=\"popover-content popover-top\"><div class=\"popover-title\">气泡标题</div><div class=\"popover-body\">气泡详细内容说明...</div><div class=\"popover-arrow\"></div></div></div>"
+      }
+    },
+    "empty-state": {
+      "name": "空状态",
+      "description": "当没有数据时展示的占位内容",
+      "variants": ["default"],
+      "cssClass": "empty-state",
+      "examples": {
+        "default": "<div class=\"empty-state\"><div class=\"empty-state-icon\"><i data-lucide=\"folder-open\"></i></div><div class=\"empty-state-title\">暂无数据</div><div class=\"empty-state-description\">当前没有任何记录，请尝试重新搜索。</div></div>"
+      }
+    },
+    "skeleton": {
+      "name": "骨架屏",
+      "description": "在等待内容加载时展示的占位图形",
+      "variants": ["default"],
+      "cssClass": "skeleton",
+      "examples": {
+        "default": "<div style=\"width: 300px;\"><div class=\"skeleton skeleton-title\" style=\"width: 60%;\"></div><div class=\"skeleton skeleton-text\"></div><div class=\"skeleton skeleton-text\" style=\"width: 80%;\"></div></div>"
+      }
+    },
+    "status-dot": {
+      "name": "状态圆点",
+      "description": "用于表示状态的彩色圆点",
+      "variants": ["success", "error", "warning", "info", "processing"],
+      "cssClass": "status-dot",
+      "examples": {
+        "success": "<span class=\"status-dot status-dot-success\">运行中</span>",
+        "processing": "<span class=\"status-dot status-dot-processing\">处理中</span>"
+      }
+    },
+    "chat-layout": {
+      "name": "对话布局",
+      "description": "AI 助手对话界面的基础布局",
+      "variants": ["default"],
+      "cssClass": "chat-layout",
+      "examples": {
+        "default": "<div class=\"chat-layout\"><div class=\"chat-messages\"><div class=\"message-bubble-ai\"><div class=\"message-avatar-ai\">AI</div><div class=\"message-content\">你好</div></div></div></div>"
+      }
+    },
+    "message-bubble": {
+      "name": "消息气泡",
+      "description": "对话中的消息容器",
+      "variants": ["user", "assistant"],
+      "cssClass": "message-bubble",
+      "examples": {
+        "assistant": "<div class=\"message-bubble message-bubble-ai\"><div class=\"message-avatar message-avatar-ai\">AI</div><div class=\"message-content\">消息内容</div></div>"
+      }
+    },
+    "agent-thinking": {
+      "name": "思考状态",
+      "description": "展示 AI 正在思考的动画",
+      "variants": ["default"],
+      "cssClass": "agent-thinking",
+      "examples": {
+        "default": "<div class=\"agent-thinking\"><span>AI 正在思考</span><div class=\"thinking-dot\"></div></div>"
+      }
+    },
+    "tool-call": {
+      "name": "工具调用",
+      "description": "展示 AI 调用外部工具的状态",
+      "variants": ["default"],
+      "cssClass": "tool-call-card",
+      "examples": {
+        "default": "<div class=\"tool-call-card\">工具调用...</div>"
+      }
+    },
+    "task-status-card": {
+      "name": "任务状态卡片",
+      "description": "展示 AI 任务处理进度的卡片",
+      "variants": ["default"],
+      "cssClass": "task-status-card",
+      "examples": {
+        "default": "<div class=\"task-status-card\">任务进度...</div>"
+      }
+    },
+    "advanced-data-table": {
+      "name": "高级数据表格",
+      "description": "带工具栏和详情面板的复合表格组件",
+      "variants": ["default"],
+      "cssClass": "advanced-data-table",
+      "examples": {
+        "default": "<div class=\"advanced-data-table\">...</div>"
+      }
+    },
+    "filter-panel": {
+      "name": "筛选面板",
+      "description": "侧边或弹窗内的筛选条件容器",
+      "variants": ["default"],
+      "cssClass": "filter-panel",
+      "examples": {
+        "default": "<div class=\"filter-panel\">...</div>"
+      }
+    },
+    "detail-panel": {
+      "name": "详情面板",
+      "description": "展示选中项详细信息的面板",
+      "variants": ["default"],
+      "cssClass": "detail-panel",
+      "examples": {
+        "default": "<div class=\"detail-panel\">...</div>"
+      }
+    },
+    "chart-card": {
+      "name": "图表卡片",
+      "description": "用于承载图表与可视化内容的容器",
+      "variants": ["default"],
+      "cssClass": "chart-card",
+      "examples": {
+        "default": "<div class=\"chart-card\"><div class=\"chart-card-header\"><h3 class=\"chart-card-title\">标题</h3></div><div class=\"chart-card-body\">...</div></div>"
+      }
+    },
+    "metric-trend": {
+      "name": "指标趋势",
+      "description": "用于展示指标数值与趋势条",
+      "variants": ["default"],
+      "cssClass": "metric-trend",
+      "examples": {
+        "default": "<div class=\"metric-trend\"><div class=\"metric-trend-value\">96%</div><div class=\"metric-trend-bar\" style=\"--metric-value: 72%;\"><span></span></div></div>"
+      }
+    },
+    "progress-ring": {
+      "name": "进度环",
+      "description": "用于展示完成率或占比",
+      "variants": ["default"],
+      "cssClass": "progress-ring",
+      "examples": {
+        "default": "<div class=\"progress-ring\" style=\"--progress-value: 68;\"><div class=\"progress-ring-content\"><div class=\"progress-ring-value\">68%</div></div></div>"
+      }
+    },
+    "timeline-strip": {
+      "name": "时间轴条",
+      "description": "用于展示阶段进度与时间节点",
+      "variants": ["default"],
+      "cssClass": "timeline-strip",
+      "examples": {
+        "default": "<div class=\"timeline-strip\"><div class=\"timeline-strip-item\"><div class=\"timeline-strip-time\">阶段</div><div class=\"timeline-strip-bar\" style=\"--timeline-value: 60%;\"><span></span></div></div></div>"
+      }
+    },
+    "telemetry-gauge-group": {
+      "name": "遥测仪表组",
+      "description": "用于展示多项遥测指标",
+      "variants": ["default"],
+      "cssClass": "telemetry-gauge-group",
+      "examples": {
+        "default": "<div class=\"telemetry-gauge-group\"><div class=\"telemetry-gauge\" style=\"--gauge-value: 72;\"><div class=\"telemetry-gauge-arc\"></div><div class=\"telemetry-gauge-value\">72%</div></div></div>"
+      }
+    },
+    "ops-alert-heatmap": {
+      "name": "运营告警热力矩阵",
+      "description": "用于展示异常密度与风险分布",
+      "variants": ["default"],
+      "cssClass": "ops-alert-heatmap",
+      "examples": {
+        "default": "<div class=\"ops-alert-heatmap\"><div class=\"ops-alert-heat-cell\" data-level=\"2\"></div></div>"
+      }
+    }
+
+
+  },
+
+  "combinations": {
+    "form-card": {
+      "name": "表单卡片",
+      "description": "表单和卡片的组合",
+      "components": ["card", "form-group", "button"],
+      "template": "<div class=\"content-card\"><h3>{title}</h3>{fields}<div class=\"action-buttons\">{actions}</div></div>"
+    },
+    "data-list": {
+      "name": "数据列表",
+      "description": "搜索、表格、分页的组合",
+      "components": ["input", "select", "button", "table", "pagination"],
+      "template": "<div class=\"content-card\"><div class=\"search-bar\">{searches}</div><table class=\"data-table\">{table}</table><div class=\"pagination\">{pagination}</div></div>"
+    },
+    "dashboard": {
+      "name": "数据看板",
+      "description": "统计卡片的组合",
+      "components": ["card", "badge"],
+      "template": "<div class=\"grid-dynamic grid-dynamic-4\">{stats}</div>"
+    }
+  }
+}

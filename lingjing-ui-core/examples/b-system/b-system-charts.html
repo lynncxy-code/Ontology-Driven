@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>B 端管理系统 · 数据可视化标准示例</title>
+  <!--
+    ★ 规范说明（供 AI 参考）
+    ───────────────────────────────────────────────────────────────────────
+    场景: b_system
+    图表规范（§1.1.b.chart）:
+      1. 必须用 LingJingChart.init(el, 'b_system') 初始化（禁止裸 echarts.init）
+      2. 加载顺序：echarts.min.js → echarts-theme-lingjing.js → 业务脚本
+      3. 图表容器结构：charts-grid > b-chart-card > b-chart-header + b-chart-body > [普通 div，指定 height]
+      4. 不得用 chart-placeholder 作为 ECharts 挂载目标（该类含渐变背景）
+      5. 颜色从 LingJingChart.getTokens('b_system').series 取值，禁止硬编码
+      6. B 端折线图面积填充 areaStyle.opacity ≤ 0.08（专业克制，区别于 UE5 霓虹风）
+      7. stats-grid 直接放在 b-content 下，不可嵌套在 content-card 内
+    ───────────────────────────────────────────────────────────────────────
+  -->
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+</head>
+<body>
+<div class="b-layout-sidebar">
+
+  <!-- ── 侧边栏 ── -->
+  <aside class="b-sidebar">
+    <div class="b-sidebar-header">
+      <div class="b-sidebar-logo">
+        <img src="../../assets/logo-flat.png" id="siteLogo" alt="灵境" height="32">
+      </div>
+      <span class="b-sidebar-brand">生产监控</span>
+    </div>
+    <nav class="b-sidebar-nav b-scrollable">
+      <ul class="b-sidebar-nav-list">
+        <li class="b-sidebar-nav-item">
+          <a href="#" class="b-sidebar-nav-link">
+            <span class="b-sidebar-nav-icon"><i data-lucide="layout-dashboard"></i></span>
+            <span class="b-sidebar-nav-text">概览</span>
+          </a>
+        </li>
+        <li class="b-sidebar-nav-item">
+          <a href="#" class="b-sidebar-nav-link active">
+            <span class="b-sidebar-nav-icon"><i data-lucide="bar-chart-2"></i></span>
+            <span class="b-sidebar-nav-text">数据看板</span>
+          </a>
+        </li>
+        <li class="b-sidebar-nav-item">
+          <a href="#" class="b-sidebar-nav-link">
+            <span class="b-sidebar-nav-icon"><i data-lucide="table-2"></i></span>
+            <span class="b-sidebar-nav-text">工单管理</span>
+          </a>
+        </li>
+        <li class="b-sidebar-nav-item">
+          <a href="#" class="b-sidebar-nav-link">
+            <span class="b-sidebar-nav-icon"><i data-lucide="settings"></i></span>
+            <span class="b-sidebar-nav-text">系统设置</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- ── 主内容区 ── -->
+  <main class="b-main">
+    <header class="b-header">
+      <div class="b-header-left">
+        <nav class="b-breadcrumb">
+          <div class="b-breadcrumb-item">
+            <a href="#" class="b-breadcrumb-link">首页</a>
+            <span class="b-breadcrumb-separator">/</span>
+          </div>
+          <div class="b-breadcrumb-item">
+            <span class="b-breadcrumb-current">数据看板</span>
+          </div>
+        </nav>
+      </div>
+      <div class="b-header-right">
+        <button class="btn-icon" id="btnTheme" title="切换主题" aria-label="切换深色/浅色主题">
+          <i data-lucide="moon" id="themeIcon"></i>
+        </button>
+        <button class="btn-icon" title="刷新">
+          <i data-lucide="refresh-cw"></i>
+        </button>
+        <button class="btn-icon" title="通知">
+          <i data-lucide="bell"></i>
+        </button>
+      </div>
+    </header>
+
+    <div class="b-content">
+
+      <!-- ① KPI 指标行：stats-grid 直接放 b-content 下，不套 content-card -->
+      <div class="stats-grid" aria-label="关键指标">
+        <div class="b-stat-card" data-color="blue">
+          <div class="b-stat-header">
+            <span class="b-stat-label">本月产量</span>
+            <i data-lucide="package" class="b-stat-icon"></i>
+          </div>
+          <div class="b-stat-value">4,821</div>
+          <div class="b-stat-change positive">
+            <i data-lucide="trending-up"></i>
+            <span>+9.2% 较上月</span>
+          </div>
+        </div>
+        <div class="b-stat-card" data-color="green">
+          <div class="b-stat-header">
+            <span class="b-stat-label">良品率</span>
+            <i data-lucide="check-circle" class="b-stat-icon"></i>
+          </div>
+          <div class="b-stat-value">97.4%</div>
+          <div class="b-stat-change positive">
+            <i data-lucide="trending-up"></i>
+            <span>+0.6%</span>
+          </div>
+        </div>
+        <div class="b-stat-card" data-color="orange">
+          <div class="b-stat-header">
+            <span class="b-stat-label">在制工单</span>
+            <i data-lucide="activity" class="b-stat-icon"></i>
+          </div>
+          <div class="b-stat-value">36</div>
+          <div class="b-stat-change neutral">
+            <i data-lucide="minus"></i>
+            <span>保持稳定</span>
+          </div>
+        </div>
+        <div class="b-stat-card" data-color="purple">
+          <div class="b-stat-header">
+            <span class="b-stat-label">设备 OEE</span>
+            <i data-lucide="cpu" class="b-stat-icon"></i>
+          </div>
+          <div class="b-stat-value">84.6%</div>
+          <div class="b-stat-change negative">
+            <i data-lucide="trending-down"></i>
+            <span>−2.1%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ② 第一行图表：折线图（产量趋势）+ 柱状图（设备 OEE） -->
+      <div class="charts-grid" aria-label="趋势与效率图表">
+
+        <!-- 折线图：产量与计划对比 -->
+        <div class="b-chart-card">
+          <div class="b-chart-header">
+            <div>
+              <h3 class="b-chart-title">产量趋势</h3>
+              <p class="b-chart-subtitle">近 7 日实际 vs 计划产量（件）</p>
+            </div>
+            <button class="btn-text">
+              <i data-lucide="download"></i>
+              <span>导出</span>
+            </button>
+          </div>
+          <div class="b-chart-body">
+            <!-- ECharts 挂载：普通 div，无 chart-placeholder 类 -->
+            <div id="chartLine" style="height: 260px;"></div>
+          </div>
+        </div>
+
+        <!-- 柱状图：各设备 OEE -->
+        <div class="b-chart-card">
+          <div class="b-chart-header">
+            <div>
+              <h3 class="b-chart-title">设备 OEE</h3>
+              <p class="b-chart-subtitle">本月各关键设备综合效率（%）</p>
+            </div>
+            <button class="btn-text">
+              <i data-lucide="sliders-horizontal"></i>
+              <span>筛选</span>
+            </button>
+          </div>
+          <div class="b-chart-body">
+            <div id="chartBar" style="height: 260px;"></div>
+          </div>
+        </div>
+
+      </div><!-- /charts-grid -->
+
+      <!-- ③ 第二行图表：环形图（工单状态）+ 堆叠柱状图（工序完成情况）-->
+      <div class="charts-grid" aria-label="状态与工序图表">
+
+        <!-- 环形图：工单状态分布 -->
+        <div class="b-chart-card">
+          <div class="b-chart-header">
+            <div>
+              <h3 class="b-chart-title">工单状态分布</h3>
+              <p class="b-chart-subtitle">当前批次工单状态占比</p>
+            </div>
+          </div>
+          <div class="b-chart-body">
+            <div id="chartDonut" style="height: 260px;"></div>
+          </div>
+        </div>
+
+        <!-- 堆叠柱状图：各车间工序完成率 -->
+        <div class="b-chart-card">
+          <div class="b-chart-header">
+            <div>
+              <h3 class="b-chart-title">车间工序完成率</h3>
+              <p class="b-chart-subtitle">已完成 / 进行中 / 待开始（%）</p>
+            </div>
+          </div>
+          <div class="b-chart-body">
+            <div id="chartStacked" style="height: 260px;"></div>
+          </div>
+        </div>
+
+      </div><!-- /charts-grid -->
+
+      <!-- ④ 工单明细表 -->
+      <div class="content-card" aria-label="工单明细">
+        <div class="card-header">
+          <h3 class="card-title">工单明细</h3>
+          <!-- 搜索框与按钮直接放 action-buttons 中，不用 search-bar 包裹 -->
+          <div class="action-buttons">
+            <input type="text" class="search-input" placeholder="搜索工单号 / 产品...">
+            <button class="btn-primary">
+              <i data-lucide="plus"></i>
+              <span>新建工单</span>
+            </button>
+          </div>
+        </div>
+        <div class="data-table-container">
+          <table class="data-table" aria-label="工单列表">
+            <thead>
+              <tr>
+                <th>工单号</th>
+                <th>产品</th>
+                <th>车间</th>
+                <th>状态</th>
+                <th>进度</th>
+                <th>计划完成</th>
+                <th>偏差</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>WO-2024-001</td>
+                <td>航空框架件 A</td>
+                <td>总装一车间</td>
+                <td><span class="badge badge-success">进行中</span></td>
+                <td>78%</td>
+                <td>2024-03-28</td>
+                <td class="data-trend data-trend--up">+2 天</td>
+              </tr>
+              <tr>
+                <td>WO-2024-002</td>
+                <td>机翼蒙皮件 B</td>
+                <td>钣金车间</td>
+                <td><span class="badge badge-warning">待确认</span></td>
+                <td>45%</td>
+                <td>2024-03-30</td>
+                <td class="data-trend">0</td>
+              </tr>
+              <tr>
+                <td>WO-2024-003</td>
+                <td>发动机支架 C</td>
+                <td>精加工车间</td>
+                <td><span class="badge badge-error">已延迟</span></td>
+                <td>32%</td>
+                <td>2024-03-25</td>
+                <td class="data-trend data-trend--down">−3 天</td>
+              </tr>
+              <tr>
+                <td>WO-2024-004</td>
+                <td>起落架连接件 D</td>
+                <td>总装二车间</td>
+                <td><span class="badge badge-success">进行中</span></td>
+                <td>91%</td>
+                <td>2024-03-27</td>
+                <td class="data-trend data-trend--up">+1 天</td>
+              </tr>
+              <tr>
+                <td>WO-2024-005</td>
+                <td>舱门铰链件 E</td>
+                <td>装配车间</td>
+                <td><span class="badge badge-primary">已完成</span></td>
+                <td>100%</td>
+                <td>2024-03-22</td>
+                <td class="data-trend data-trend--up">提前 1 天</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /b-content -->
+  </main>
+</div><!-- /b-layout-sidebar -->
+
+<script src="../../scripts/echarts.min.js"></script>
+<script src="../../scripts/echarts-theme-lingjing.js"></script>
+<script src="../../scripts/lucide-umd-500.js"></script>
+
+<script>
+// ── 图表配置工厂函数（主题切换时用相同配置重建） ──────────────────────────
+function buildLineOption(tk) {
+  return {
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['实际产量', '计划产量'], right: 0, top: 0 },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: ['3/19', '3/20', '3/21', '3/22', '3/23', '3/24', '3/25']
+    },
+    yAxis: { type: 'value', name: '件', min: 0 },
+    series: [
+      {
+        name: '实际产量', type: 'line',
+        data: [620, 680, 710, 650, 730, 760, 690],
+        smooth: true, symbol: 'circle', symbolSize: 5,
+        lineStyle: { color: tk.series[0], width: 2 },
+        itemStyle: { color: tk.series[0] },
+        areaStyle: { color: tk.series[0], opacity: 0.06 }
+      },
+      {
+        name: '计划产量', type: 'line',
+        data: [680, 680, 700, 700, 720, 720, 720],
+        smooth: false, symbol: 'none',
+        lineStyle: { color: tk.series[3], width: 1.5, type: 'dashed' },
+        itemStyle: { color: tk.series[3] }
+      }
+    ]
+  };
+}
+
+function buildBarOption(tk) {
+  var oeeData = [
+    { name: 'CNC-01', value: 91 },
+    { name: 'CNC-02', value: 87 },
+    { name: '铆接 R-01', value: 79 },
+    { name: '检测 T-01', value: 74 },
+    { name: '装配 A-02', value: 83 },
+    { name: '铣床 M-03', value: 68 }
+  ];
+  var barColors = oeeData.map(function (d) {
+    if (d.value >= 85) return tk.series[2];
+    if (d.value >= 75) return tk.series[0];
+    if (d.value >= 65) return tk.series[3];
+    return tk.series[4];
+  });
+  return {
+    tooltip: { trigger: 'axis', formatter: '{b}: {c}%' },
+    xAxis: {
+      type: 'category',
+      data: oeeData.map(function (d) { return d.name; }),
+      axisLabel: { fontSize: 11 }
+    },
+    yAxis: { type: 'value', name: 'OEE %', min: 0, max: 100 },
+    series: [{
+      type: 'bar', barMaxWidth: 36,
+      data: oeeData.map(function (d, i) {
+        return { value: d.value, itemStyle: { color: barColors[i], borderRadius: [4, 4, 0, 0] } };
+      }),
+      label: { show: true, position: 'top', fontSize: 11, formatter: '{c}%' }
+    }]
+  };
+}
+
+function buildDonutOption(tk) {
+  return {
+    tooltip: { trigger: 'item', formatter: '{b}: {c} 单 ({d}%)' },
+    legend: { orient: 'vertical', right: '5%', top: 'center', itemWidth: 8, itemHeight: 8 },
+    series: [{
+      name: '工单状态', type: 'pie',
+      radius: ['48%', '70%'], center: ['38%', '50%'],
+      label: { show: false },
+      emphasis: { label: { show: true, fontSize: 13, fontWeight: 'bold' } },
+      data: [
+        { value: 18, name: '进行中', itemStyle: { color: tk.series[0] } },
+        { value: 9,  name: '已完成', itemStyle: { color: tk.series[2] } },
+        { value: 5,  name: '待确认', itemStyle: { color: tk.series[3] } },
+        { value: 4,  name: '已延迟', itemStyle: { color: tk.series[4] } }
+      ]
+    }]
+  };
+}
+
+function buildStackedOption(tk) {
+  return {
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    legend: { data: ['已完成', '进行中', '待开始'], right: 0, top: 0 },
+    xAxis: { type: 'category', data: ['总装一', '钣金', '精加工', '总装二', '装配'] },
+    yAxis: { type: 'value', name: '%', max: 100 },
+    series: [
+      { name: '已完成', type: 'bar', stack: 'total', barMaxWidth: 36, itemStyle: { color: tk.series[2] }, data: [62, 48, 55, 71, 80] },
+      { name: '进行中', type: 'bar', stack: 'total', itemStyle: { color: tk.series[0] }, data: [28, 35, 30, 20, 15] },
+      { name: '待开始', type: 'bar', stack: 'total', itemStyle: { color: tk.series[3], opacity: 0.5 }, data: [10, 17, 15, 9, 5] }
+    ]
+  };
+}
+
+// ── 图表实例引用 ──────────────────────────────────────────────────────────
+var charts = {};
+
+function initCharts() {
+  var scene = document.documentElement.getAttribute('data-theme') === 'dark'
+              ? 'b_system_dark' : 'b_system';
+  var tk = LingJingChart.getTokens(scene);
+  charts.line    = LingJingChart.init(document.getElementById('chartLine'),    scene);
+  charts.bar     = LingJingChart.init(document.getElementById('chartBar'),     scene);
+  charts.donut   = LingJingChart.init(document.getElementById('chartDonut'),   scene);
+  charts.stacked = LingJingChart.init(document.getElementById('chartStacked'), scene);
+  charts.line.setOption(buildLineOption(tk));
+  charts.bar.setOption(buildBarOption(tk));
+  charts.donut.setOption(buildDonutOption(tk));
+  charts.stacked.setOption(buildStackedOption(tk));
+}
+
+// ── 主题切换 ──────────────────────────────────────────────────────────────
+function applyTheme(isDark) {
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  var icon = document.getElementById('themeIcon');
+  icon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+  lucide.createIcons();
+  // 销毁旧实例 → 用新主题重建
+  Object.values(charts).forEach(function (c) { if (c && !c.isDisposed()) c.dispose(); });
+  charts = {};
+  initCharts();
+}
+
+// ── 初始化 ────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
+  lucide.createIcons();
+
+  if (typeof echarts === 'undefined') {
+    console.warn('[b-system-charts] echarts 未加载，图表跳过渲染。');
+    document.querySelectorAll('[id^="chart"]').forEach(function (el) {
+      el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;' +
+        'height:100%;color:var(--theme-text-secondary);font-size:12px;">ECharts 未加载</div>';
+    });
+    return;
+  }
+
+  initCharts();
+
+  document.getElementById('btnTheme').addEventListener('click', function () {
+    var isDark = document.documentElement.getAttribute('data-theme') !== 'dark';
+    applyTheme(isDark);
+  });
+
+  window.addEventListener('resize', function () { LingJingChart.resizeAll(); });
+});
+</script>
+</body>
+</html>

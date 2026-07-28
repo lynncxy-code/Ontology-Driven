@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/nexus_titlebar.css">
     <style>
         :root {
             --bg: #f8f9fa;
@@ -51,58 +52,6 @@
             min-height: 100vh;
             display: flex;
             flex-direction: column;
-        }
-
-        .page-header {
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            padding: 18px 24px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-
-        .page-header-main {
-            min-width: 0;
-        }
-
-        .page-title-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .eyebrow {
-            display: inline-flex;
-            align-items: center;
-            padding: 2px 8px;
-            border-radius: 999px;
-            background: var(--surface-subtle);
-            border: 1px solid var(--border);
-            font-size: 10px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            color: var(--text-soft);
-        }
-
-        h1 {
-            margin: 0;
-            font-size: 19px;
-            line-height: 1.2;
-            letter-spacing: -0.02em;
-            font-weight: 700;
-        }
-
-        .subtitle {
-            margin: 6px 0 0;
-            max-width: 680px;
-            font-size: 12px;
-            line-height: 1.5;
-            color: var(--text-muted);
         }
 
         .hero-actions {
@@ -565,14 +514,6 @@
                 padding: 20px;
             }
 
-            h1 {
-                font-size: 18px;
-            }
-
-            .subtitle {
-                font-size: 11px;
-            }
-
             .meta-grid {
                 grid-template-columns: 1fr;
             }
@@ -591,15 +532,12 @@
 <body>
     <div class="page">
         <div class="container">
-            <header class="page-header">
-                <div class="page-header-main">
-                    <div class="page-title-row">
-                        <h1>CAD 一键成模</h1>
-                        <div class="eyebrow">MODULE 3 · PART A</div>
-                    </div>
-                    <p class="subtitle">上传 DXF 图纸后自动识别墙体路径与柱体实例，生成可直接用于 Unreal Engine 场景接入的结构化 JSON。</p>
+            <header class="nexus-titlebar">
+                <div class="nexus-titlebar__main">
+                    <h1 class="nexus-titlebar__title">CAD 一键成模</h1>
+                    <p class="nexus-titlebar__subtitle">上传 DXF 图纸后自动识别墙体路径与柱体实例，生成可直接用于 Unreal Engine 场景接入的结构化 JSON。</p>
                 </div>
-                <div class="hero-actions">
+                <div class="hero-actions nexus-titlebar__actions">
                     <button class="btn" id="reuploadBtn" onclick="resetUpload()" hidden>重新导入 DXF</button>
                     <button class="btn" id="saveBtn" onclick="saveJson()" hidden>导出 JSON →</button>
                 </div>

@@ -1,0 +1,6 @@
+﻿handle,label,business_type,selection_source,defer_reason
+542656,J-20,fixed_wing_aircraft,candidate,Datasmith source group has no unique UE mother Actor match
+156873,LD-15-25,aviation_weapon,candidate,Duplicate Datasmith source record for selected UE mother Actor (canonical handle 112958)
+242026,3D全息舱,cockpit_simulator,candidate,Datasmith source group has no unique UE mother Actor match
+150793,J-35A,fixed_wing_aircraft,supplemental,Datasmith source group has no unique UE mother Actor match
+551672,翼龙模拟器,cockpit_simulator,supplemental,Datasmith source group has no unique UE mother Actor match

@@ -1,0 +1,26 @@
+{
+  "round_id": "w9_equipment_round1",
+  "created_at": "2026-07-27T13:37:00+08:00",
+  "status": "candidate_inventory_complete",
+  "scope": "equipment_only",
+  "excluded_scope": ["building", "lighting", "post_process", "system_blueprints", "station_label_widgets"],
+  "ue": {
+    "project_file": "D:\\SCC\\SCC2\\scc2\\scc2.uproject",
+    "main_map": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Main",
+    "equipment_source_level": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Main",
+    "source_inventory": "D:\\tmp\\digital_twin_aircraft\\migration_runs\\w9_round1_20260727\\00_input\\w9_scene_inventory_round1.json"
+  },
+  "ontotwin": {
+    "repository": "D:\\tmp\\digital_twin_aircraft",
+    "active_dataset_id": "ds_1785130727581",
+    "active_dataset_name": "SCC W19",
+    "bound_ue_project": null,
+    "object_type_count": 0,
+    "instance_count": 0
+  },
+  "proposed_partition_root": "生产区/ICT产线",
+  "proposed_object_type_policy": "Create six distinct ObjectTypes. Do not use hierarchy_path as ObjectType identity.",
+  "gate_a_status": "awaiting_user_approval",
+  "database_write_performed": false,
+  "ue_assets_modified": false
+}

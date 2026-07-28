@@ -22,14 +22,21 @@ CREATE TABLE IF NOT EXISTS project (
     id               TEXT PRIMARY KEY,
     name             TEXT,
     created_at       TEXT,                 -- 沿用原格式 'YYYY-MM-DD HH:MM:SS'
+    schema_version   INTEGER NOT NULL DEFAULT 1,
     dataset          JSONB,                -- 前端语义图谱数据集（含 graph_data）
     calibration      JSONB,                -- 坐标标定
     spatial_profile  JSONB,                -- 3.1 空间剖面（floor_table 仅留 z_base_mm）
     components        JSONB DEFAULT '{}',  -- 3.0 坐标标定匿名构件
     instance_roster  JSONB DEFAULT '[]',  -- 3.0 身份证号目录
     frames           JSONB DEFAULT '[]',  -- 3.1 帧注册表
+    scene_interactions JSONB NOT NULL DEFAULT '{}', -- 4.0/4.0.1 人物与路线配置；图片元数据仍在 frames
+    media_policy     JSONB NOT NULL DEFAULT '{}', -- 3.7.x 视频来源白名单与 HTTP 例外
     deleted_at       TIMESTAMPTZ
 );
+
+ALTER TABLE project ADD COLUMN IF NOT EXISTS schema_version INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE project ADD COLUMN IF NOT EXISTS scene_interactions JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE project ADD COLUMN IF NOT EXISTS media_policy JSONB NOT NULL DEFAULT '{}';
 
 -- ── 本体（项目级类型注册表）────────────────────────────────────────────────
 -- data 存完整类型记录；rid/name/source 提列便于查询与迁移归类。

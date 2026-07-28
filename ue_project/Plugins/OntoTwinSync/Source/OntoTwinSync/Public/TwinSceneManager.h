@@ -31,7 +31,27 @@
 
 class ATwinInstance;
 class AOntoTwinRuntimeGizmo;
+class APlayerController;
+class APawn;
+class ATwinRuntimeEditorCameraPawn;
+class IWebSocket;
+class UMediaPlayer;
+class UMediaSoundComponent;
+class UMediaTexture;
 class UOntoTwinRuntimeEditorPanel;
+class UOntoTwinOverlayWidget;
+class UTwinInteractionManagerComponent;
+enum class EOntoTwinOverlayMediaAction : uint8;
+
+UENUM(BlueprintType)
+enum class EOntoTwinRuntimeAccessState : uint8
+{
+    Checking,
+    Ready,
+    Unbound,
+    Mismatch,
+    Error
+};
 
 /**
  * ATwinSceneManager
@@ -90,6 +110,26 @@ public:
               meta=(DisplayName="离线阈值(次)"))
     int32 OfflineThreshold = 3;
 
+    /** 连接 AGV 实时状态流；HTTP 快照仍负责实例建档、模型绑定与非空间属性。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接|WebSocket",
+              meta=(DisplayName="启用实时WebSocket"))
+    bool bEnableRealtimeWebSocket = false;
+
+    /** OntoTwin 中间层实时目标地址。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接|WebSocket",
+              meta=(DisplayName="实时WebSocket URL"))
+    FString RealtimeWebSocketUrl = TEXT("ws://10.191.12.40:8080/ws/targets");
+
+    /** WebSocket 断开后的重连间隔。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接|WebSocket",
+              meta=(DisplayName="重连间隔(秒)", ClampMin="0.5", ClampMax="60.0"))
+    float RealtimeReconnectSeconds = 3.0f;
+
+    /** 收到实时帧后，HTTP 在这段时间内不得覆盖该实例的空间坐标。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接|WebSocket",
+              meta=(DisplayName="实时空间优先保持(秒)", ClampMin="0.1", ClampMax="10.0"))
+    float RealtimeSpatialHoldSeconds = 1.0f;
+
     // ═══════════════════════════════════════════════════════════════════════
     // 实例配置
     // ═══════════════════════════════════════════════════════════════════════
@@ -98,6 +138,38 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="实例配置",
               meta=(DisplayName="孪生体蓝图类"))
     TSubclassOf<ATwinInstance> InstanceClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="顶部信息面板",
+              meta=(DisplayName="启用顶部信息面板"))
+    bool bEnableOverlays = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="顶部信息面板",
+              meta=(DisplayName="选中面板类"))
+    TSubclassOf<UOntoTwinOverlayWidget> OverlayWidgetClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="顶部信息面板",
+              meta=(DisplayName="常显最大距离(cm)", ClampMin="100.0", ClampMax="1000000.0"))
+    float OverlayCullDistanceCm = 50000.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="顶部信息面板",
+              meta=(DisplayName="常显最大数量", ClampMin="1", ClampMax="500"))
+    int32 MaxVisibleAlwaysOverlays = 100;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="顶部信息面板|可读性",
+              meta=(DisplayName="常显目标屏幕宽度(px)", ClampMin="120.0", ClampMax="600.0"))
+    float AlwaysOverlayTargetScreenWidthPx = 260.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="顶部信息面板|可读性",
+              meta=(DisplayName="常显最小世界缩放", ClampMin="0.01", ClampMax="1.0"))
+    float AlwaysOverlayMinWorldScale = 0.06f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="顶部信息面板|可读性",
+              meta=(DisplayName="常显最大世界缩放", ClampMin="0.01", ClampMax="2.0"))
+    float AlwaysOverlayMaxWorldScale = 0.35f;
+
+    /** 4.0 场景交互运行组件。人物、输入、路线和心跳不进入 SceneManager 主体。 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="场景交互")
+    UTwinInteractionManagerComponent* InteractionManager;
 
     // ═══════════════════════════════════════════════════════════════════════
     // Runtime Editor（打包 exe 内的轻量场景编辑入口）
@@ -135,6 +207,18 @@ public:
               meta=(DisplayName="取消键"))
     FKey CancelKey = EKeys::Escape;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|相机",
+              meta=(DisplayName="启用独立自由相机"))
+    bool bEnableRuntimeEditorFreeCamera = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|相机",
+              meta=(DisplayName="初始移动速度(cm/s)", ClampMin="100.0", ClampMax="10000.0"))
+    float RuntimeEditorCameraMoveSpeedCmS = 2400.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|相机",
+              meta=(DisplayName="右键观察灵敏度", ClampMin="0.05", ClampMax="5.0"))
+    float RuntimeEditorCameraLookSensitivity = 0.18f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|吸附",
               meta=(DisplayName="启用靠墙吸附"))
     bool bEnableWallSnap = true;
@@ -168,6 +252,9 @@ public:
     void BindCurrentRuntimeProject();
 
     UFUNCTION(BlueprintCallable, Category="Runtime Editor")
+    void RetryRuntimeBindingStatus();
+
+    UFUNCTION(BlueprintCallable, Category="Runtime Editor")
     void SetRuntimeWallSnapEnabled(bool bEnabled);
 
     UFUNCTION(BlueprintCallable, Category="Runtime Editor")
@@ -178,11 +265,37 @@ public:
     FString GetRuntimeEditorSelectionText() const;
     FString GetRuntimeEditorTransformText() const;
     FString GetRuntimeEditorStatusText() const;
+    FString GetRuntimeEditorHeaderStateText() const;
+    FString GetRuntimeEditorDisplayName() const;
+    FString GetRuntimeEditorInstanceIdText() const;
+    bool GetRuntimeEditorTransform(FVector& OutLocation, float& OutYaw) const;
+    EOntoTwinRuntimeAccessState GetRuntimeEditorAccessState() const;
     bool CanBindRuntimeProject() const;
+    bool CanRetryRuntimeBindingStatus() const;
     bool CanSaveRuntimeEdit() const;
+    bool CanCancelRuntimeEdit() const;
     bool HasRuntimeEditSelection() const;
+    bool IsRuntimeEditDirty() const { return bRuntimeEditDirty; }
+    bool IsRuntimeEditSaving() const { return bRuntimeEditSaving; }
     bool IsRuntimeWallSnapEnabled() const { return bEnableWallSnap; }
     bool IsRuntimeGridSnapEnabled() const { return bEnableGridSnap; }
+    bool IsRuntimeEditModeActive() const { return bRuntimeEditMode; }
+
+    /** 共享选择入口：人物模块只产生选择事件，Overlay 仍负责内容与 Widget 生命周期。 */
+    void SelectOverlayFromSceneInteraction(ATwinInstance* Instance);
+    void ClearOverlayFromSceneInteraction();
+
+    /** 将屏幕坐标解析为当前可见的 always Overlay，供漫游和语义输入共用。 */
+    UFUNCTION(BlueprintCallable, Category="场景交互")
+    bool SelectOverlayAtScreenPosition(const FVector2D& ScreenPosition);
+
+    /** 兼容旧场景 Actor：按命中位置找到同位的 OntoTwin Overlay 实例。 */
+    ATwinInstance* FindOverlayInstanceNearHit(
+        const FHitResult& Hit,
+        float MaxDistanceCm = 300.0f) const;
+
+    /** 构造不含坐标的 WebSocket 健康快照，随现有 UE 心跳回报后端。 */
+    TSharedRef<FJsonObject> BuildRealtimeChannelHealth() const;
 
     /** 把当前 UE 工程身份绑定到后端当前激活数据集（数据集之后只接受该工程的 UE 请求） */
     UFUNCTION(CallInEditor, Category="连接",
@@ -195,12 +308,20 @@ public:
     // ═══════════════════════════════════════════════════════════════════════
 
     /** 从数据库拉取本场景实例，生成【临时(transient)】预览 Actor（保存关卡不会写入 .umap） */
-    UFUNCTION(CallInEditor, Category="预览",
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="预览",
               meta=(DisplayName="从数据库拉取预览"))
     void PullPreviewFromDB();
 
+    /**
+     * 自动验收入口：读取 Saved/OntoTwinMigration/ue_snapshots.json，生成 transient
+     * 预览并写 ue_preview_audit.json。用于命令行编辑器验证资产加载，不保存关卡。
+     */
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="迁移",
+              meta=(DisplayName="② 从迁移快照文件生成预览并审计"))
+    void PreviewMigratedActorsFromSnapshotFile();
+
     /** 清除所有预览 Actor */
-    UFUNCTION(CallInEditor, Category="预览",
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="预览",
               meta=(DisplayName="清除预览"))
     void ClearPreview();
 
@@ -221,18 +342,18 @@ public:
     //    共同按钮，Manager 专属按钮会被隐藏——改用文件夹分两步选，彻底避开）
     // ═══════════════════════════════════════════════════════════════════════
 
-    /** 待迁移 actor 的 Outliner 文件夹名：框选历史 actor 右键"移动到文件夹"→ 填此名 */
+    /** 待迁移母 Actor 的 Outliner 文件夹名；其附着后代会递归作为同一 assembly_v1 实例的部件导出。 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="迁移",
               meta=(DisplayName="待迁移文件夹名"))
     FString MigrationFolderName = TEXT("ToMigrate");
 
-    /** ① 导出「待迁移文件夹」下的全部 actor 到 JSON，供后端收编 */
-    UFUNCTION(CallInEditor, Category="迁移",
+    /** ① 导出文件夹内的顶层母 Actor；候选后代去重，并递归导出全部附着部件与特殊组件审计。 */
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="迁移",
               meta=(DisplayName="① 导出待迁移Actor"))
     void ExportSelectedActorsForMigration();
 
-    /** ③ 读后端迁移结果，删除已成功收编的原 actor（DB 之后重新驱动，勿忘保存关卡） */
-    UFUNCTION(CallInEditor, Category="迁移",
+    /** ③ 优先按 assembly_v1.delete_actor_guids 清除母 Actor 及全部已收编后代；兼容旧映射。 */
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="迁移",
               meta=(DisplayName="③ 清除已迁移Actor"))
     void RemoveMigratedActors();
 
@@ -248,9 +369,28 @@ private:
     /** 连续失败计数 */
     int32 ConsecutiveFailures = 0;
 
+    /** 4.1 增量快照游标与当前会话兼容回退状态。 */
+    FString IncrementalSnapshotCursor;
+    bool bIncrementalSnapshotsFellBackToFull = false;
+
     /** 实例注册表：InstanceId → ATwinInstance* */
     UPROPERTY()
     TMap<FString, ATwinInstance*> InstanceRegistry;
+
+    /** AGV 实时状态流。它只更新 InstanceRegistry 中由 HTTP 已创建的 Actor。 */
+    TSharedPtr<IWebSocket> RealtimeSocket;
+    FTimerHandle RealtimeReconnectTimerHandle;
+    int32 RealtimeConnectionGeneration = 0;
+    int64 RealtimeFrameCount = 0;
+    int64 RealtimeLastSourceTimestampMs = 0;
+    double RealtimeLastFramePlatformSeconds = -1.0;
+    FString RealtimeConnectionState = TEXT("disabled");
+    FString RealtimeLastError;
+    TMap<FString, FString> RealtimeTargetStates;
+    TSet<FString> RealtimeAppliedInstanceIds;
+    bool bRealtimeReconnectScheduled = false;
+    bool bRealtimeClosing = false;
+    TSet<FString> RealtimeMissingInstanceWarnings;
 
     /** 编辑器预览 Actor（transient，不入 .umap；由 ClearPreview 清理） */
     UPROPERTY(Transient)
@@ -273,12 +413,67 @@ private:
     UPROPERTY()
     UOntoTwinRuntimeEditorPanel* RuntimeEditorPanel = nullptr;
 
+    UPROPERTY()
+    ATwinRuntimeEditorCameraPawn* RuntimeEditorCameraPawn = nullptr;
+
+    UPROPERTY()
+    APawn* RuntimeEditorOriginalPawn = nullptr;
+
+    UPROPERTY()
+    ATwinInstance* OverlaySelectedInstance = nullptr;
+
+    UPROPERTY()
+    UOntoTwinOverlayWidget* SelectedOverlayWidget = nullptr;
+
+    uint64 SelectedOverlayPayloadSerial = 0;
+
+    bool bOverlayPointerInputActive = false;
+    bool bOverlayPreviousMouseCursor = false;
+
+    UPROPERTY()
+    UMediaPlayer* OverlayMediaPlayer = nullptr;
+
+    UPROPERTY()
+    UMediaTexture* OverlayMediaTexture = nullptr;
+
+    UPROPERTY()
+    UMediaSoundComponent* OverlayMediaSound = nullptr;
+
+public:
+    /** 使用 4.1 增量快照；追加在既有反射属性之后，保持旧关卡的属性索引兼容。 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接",
+              meta=(DisplayName="启用增量快照"))
+    bool bEnableIncrementalSnapshots = true;
+
+private:
+
+    FHttpRequestPtr OverlayMediaResolveRequest;
+    FTimerHandle OverlayMediaRetryTimer;
+    FString OverlayMediaInstanceId;
+    FString OverlayMediaSourceRevision;
+    FString OverlayMediaKind;
+    bool bOverlayMediaMuted = true;
+    bool bOverlayMediaAutoplay = true;
+    bool bOverlayMediaLoop = false;
+    bool bOverlayMediaOpening = false;
+    bool bOverlayMediaReachedEnd = false;
+    bool bOverlayMediaTextureSampleLogged = false;
+    double OverlayMediaDurationSeconds = 0.0;
+    double OverlayMediaPlayedSeconds = 0.0;
+    double OverlayMediaPlaybackStartedAtSeconds = 0.0;
+    bool bOverlayMediaPlayWhenOpened = false;
+    bool bOverlayMediaManualRetryRequired = false;
+    int32 OverlayMediaRetryIndex = 0;
+
     bool bRuntimeEditMode = false;
     bool bRuntimeEditDirty = false;
     bool bRuntimeEditSaving = false;
     bool bRuntimeBindingRequestInFlight = false;
     bool bRuntimeCanSave = false;
     bool bRuntimeDragging = false;
+    bool bRuntimeCameraLookSuppressed = false;
+    bool bRuntimeLookInputWasAlreadyIgnored = false;
+    bool bRuntimeCameraRotating = false;
     bool bRuntimePreviousMouseCursor = false;
     bool bRuntimePreviousAnimRunning = false;
     float RuntimeLastToggleInputTime = -1000.0f;
@@ -288,16 +483,27 @@ private:
     FTransform RuntimeEditBaseline = FTransform::Identity;
     FTransform RuntimeDragStartTransform = FTransform::Identity;
     FVector RuntimeDragStartPoint = FVector::ZeroVector;
+    FVector RuntimeZDragStartPoint = FVector::ZeroVector;
+    FPlane RuntimeZDragPlane = FPlane(FVector::ZeroVector, FVector::ForwardVector);
     float RuntimeEditPlaneZ = 0.0f;
+    float RuntimeDragPlaneZ = 0.0f;
     float RuntimeDragStartAngleDeg = 0.0f;
     float RuntimeDragStartYaw = 0.0f;
-    enum class ERuntimeDragPart : uint8 { None, MoveXY, RotateYaw };
+    enum class ERuntimeDragPart : uint8 { None, MoveXY, MoveZ, RotateYaw };
+    enum class ERuntimeSnapFeedback : uint8 { None, Grid, Wall };
+    ERuntimeDragPart RuntimeHoverPart = ERuntimeDragPart::None;
     ERuntimeDragPart RuntimeDragPart = ERuntimeDragPart::None;
+    ERuntimeSnapFeedback RuntimeSnapFeedback = ERuntimeSnapFeedback::None;
+    FVector RuntimeSnapFeedbackPoint = FVector::ZeroVector;
+    FVector2D RuntimeCameraCursorRestorePosition = FVector2D::ZeroVector;
 
     // ── 内部方法 ─────────────────────────────────────────────────────────
 
     /** 拼接快照接口 URL（SceneId 非空时追加 ?scene= 查询参数） */
     FString BuildSnapshotsUrl() const;
+
+    /** 拼接 4.1 增量快照 URL（可携带不透明 cursor）。 */
+    FString BuildSnapshotChangesUrl() const;
 
     /** 给 UE→后端请求附加 UE 工程身份头（用于数据集强绑定校验） */
     void AddUEProjectHeaders(TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest) const;
@@ -310,11 +516,31 @@ private:
     /** HTTP 响应回调 */
     void OnPollResponse(FHttpRequestPtr HttpRequest, FHttpResponsePtr Response, bool bWasSuccessful);
 
+    /** 4.1 增量快照响应回调。 */
+    void OnIncrementalPollResponse(FHttpRequestPtr HttpRequest, FHttpResponsePtr Response, bool bWasSuccessful);
+
+    /** 新接口不兼容时，仅在当前会话退回旧全量接口。 */
+    void FallBackToFullSnapshots(const FString& Reason);
+
+    /** 连接、消费并自动重连 AGV 实时状态流。 */
+    void ConnectRealtimeWebSocket();
+    void ScheduleRealtimeReconnect();
+    void HandleRealtimeMessage(const FString& Message);
+
     /** 编辑器预览 HTTP 回调：把快照 spawn 成 transient 预览 Actor */
     void OnPreviewResponse(FHttpRequestPtr HttpRequest, FHttpResponsePtr Response, bool bWasSuccessful);
 
-    /** 处理单个实例快照 */
-    void ProcessSnapshot(const TSharedPtr<FJsonObject>& Snapshot);
+    /** 解析快照数组、生成 transient TwinInstance，并写可机读的资产加载审计。 */
+    int32 SpawnPreviewActorsFromJson(const FString& JsonPayload, const FString& SourceLabel);
+
+    /** Saved/OntoTwinMigration/ue_snapshots.json */
+    FString MigrationPreviewSnapshotPath() const;
+
+    /** Saved/OntoTwinMigration/ue_preview_audit.json */
+    FString MigrationPreviewAuditPath() const;
+
+    /** 处理单个实例快照；delta 模式下缺席接口保持现状。 */
+    bool ProcessSnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool bIsDelta = false);
 
     /** Spawn 新的孪生体 Actor */
     ATwinInstance* SpawnTwinInstance(const FString& InstanceId, const TSharedPtr<FJsonObject>& Snapshot);
@@ -323,9 +549,56 @@ private:
     void DestroyTwinInstance(const FString& InstanceId);
 
     void TickRuntimeEditor(float DeltaTime);
+    void TickOverlays();
+    ATwinInstance* FindAlwaysOverlayAtScreenPosition(
+        APlayerController* PlayerController,
+        const FVector2D& ScreenPosition) const;
+    void SelectOverlayInstance(ATwinInstance* Instance);
+    void ClearOverlaySelection();
+    void UpdateAlwaysOverlays(APlayerController* PlayerController);
+    void UpdateOverlayPointerInput(APlayerController* PlayerController, bool bShouldOwnPointer);
+    void RefreshOverlayMediaForSelection(bool bForceResolve = false);
+    void RequestOverlayMediaResolve(bool bResetRetry = false);
+    void OnOverlayMediaResolveResponse(
+        FHttpRequestPtr HttpRequest,
+        FHttpResponsePtr Response,
+        bool bWasSuccessful);
+    void EnsureOverlayMediaPlayer();
+    void UpdateOverlayMediaPlaybackClock();
+    void HandleOverlayMediaAction(EOntoTwinOverlayMediaAction Action);
+    void ScheduleOverlayMediaRetry(const FString& StatusMessage);
+    void StopOverlayMedia(bool bResetWidget = true);
+
+    UFUNCTION()
+    void OnOverlayMediaOpened(FString OpenedUrl);
+
+    UFUNCTION()
+    void OnOverlayMediaTracksChanged();
+
+    UFUNCTION()
+    void OnOverlayMediaOpenFailed(FString FailedUrl);
+
+    UFUNCTION()
+    void OnOverlayMediaEndReached();
+
+    UFUNCTION()
+    void OnOverlayMediaPlaybackResumed();
+
+    UFUNCTION()
+    void OnOverlayMediaPlaybackSuspended();
+
     void RequestRuntimeEditToggle();
     void EnterRuntimeEditMode();
     void ExitRuntimeEditMode();
+    bool StartRuntimeEditorCamera(APlayerController* PlayerController);
+    void StopRuntimeEditorCamera(APlayerController* PlayerController);
+    void TickRuntimeEditorCamera(
+        APlayerController* PlayerController,
+        float DeltaTime,
+        bool bPointerOverRuntimePanel);
+    void BeginRuntimeEditorCameraLook(APlayerController* PlayerController);
+    void EndRuntimeEditorCameraLook(APlayerController* PlayerController);
+    FTransform BuildRuntimeEditorCameraTransform(APlayerController* PlayerController) const;
     void ShowRuntimeEditorPanel();
     void HideRuntimeEditorPanel();
     void EnsureRuntimeGizmo();
@@ -334,11 +607,13 @@ private:
     void SelectRuntimeInstance(ATwinInstance* Instance);
     void ClearRuntimeSelection(bool bRestoreBaseline);
     bool TraceRuntimeCursor(FHitResult& OutHit) const;
+    bool GetRuntimeCursorPointOnPlane(const FPlane& Plane, FVector& OutPoint) const;
     bool GetRuntimeCursorPlanePoint(FVector& OutPoint) const;
     void BeginRuntimeGizmoDrag(ERuntimeDragPart Part);
     void UpdateRuntimeGizmoDrag();
     void EndRuntimeGizmoDrag();
-    void ApplyRuntimeSnaps(FVector& InOutLocation, FRotator& InOutRotation) const;
+    void SetRuntimeCameraLookSuppressed(bool bSuppress);
+    void ApplyRuntimeSnaps(FVector& InOutLocation, FRotator& InOutRotation);
     void MarkRuntimeDirtyFromTransform();
     void ApplyRuntimeSnapshotIfPresent(const TSharedPtr<FJsonObject>& ResponseObj);
 

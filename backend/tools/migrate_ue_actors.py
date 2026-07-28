@@ -8,9 +8,11 @@ FR-6 历史 actor 一次性迁移（离线脚本，OntoTwin 3.4）
 --------
 输入（UE 编辑器脚本导出）：tools/ue_actors_export.json，见 *.sample.json：
     { project_id?, zone_id?, actors: [{ext_guid, name, mesh_asset, transform{tx..sz}}] }
+assembly_v1 复合实例可额外携带 source_actor_guids、render_parts、
+assembly_signature、unsupported_components。母 actor 仍只生成一个 OntoTwin 实例。
 资产→类型映射：tools/mesh_type_mapping.json（见 *.sample.json）。匹配不上进 Legacy 桶。
-输出：tools/ue_migration_result.json —— {ext_guid: instance_id}，供 UE 侧把 InstanceId
-      写回对应 actor（收编完成，之后走正向流程被 ontotwin 修改）。
+输出：tools/ue_migration_result.json —— assembly_v1 结果文档，包含 instances 映射与
+      delete_actor_guids；顶层同时保留旧版 {ext_guid: instance_id} 键，兼容旧 UE 读取器。
 
 幂等
 ----
@@ -37,6 +39,7 @@ from ue_project_binding import bind_active_dataset
 
 _HERE = os.path.dirname(__file__)
 LEGACY_RID = "legacy.unclassified"
+MIGRATION_RESULT_SCHEMA_VERSION = "assembly_v1"
 LEGACY_TYPE = {
     "rid": LEGACY_RID,
     "name": "Legacy 未分类",
@@ -81,18 +84,105 @@ def _best_asset_field(actor):
     return "", ""
 
 
+def _first_render_asset(actor):
+    """Return the first usable assembly part asset without changing the payload."""
+    for part in actor.get("render_parts") or []:
+        if not isinstance(part, dict):
+            continue
+        for key in ("asset_path", "ue_asset_path", "static_mesh_asset", "mesh_asset"):
+            value = part.get(key)
+            if value:
+                return value
+    return ""
+
+
 def _best_asset_key(actor):
-    return _best_asset_field(actor)[1]
+    return _best_asset_field(actor)[1] or _first_render_asset(actor)
 
 
 def _classification_key(actor):
+    signature = actor.get("assembly_signature")
+    if signature:
+        return f"assembly_signature:{signature}"
     field, asset = _best_asset_field(actor)
+    if not asset:
+        asset = _first_render_asset(actor)
+        field = "render_part.asset_path" if asset else ""
     if asset:
         return f"{field}:{asset}"
     folder = actor.get("source_folder_path") or ""
     if folder:
         return f"folder:{folder}"
     return f"name:{actor.get('name') or actor.get('actor_label') or 'unknown'}"
+
+
+def _source_actor_guids(actor):
+    """Return the exact actor deletion set for one migrated mother actor."""
+    values = [actor.get("ext_guid")]
+    source_guids = actor.get("source_actor_guids") or []
+    if not isinstance(source_guids, (list, tuple, set)):
+        source_guids = [source_guids]
+    values.extend(source_guids)
+
+    result = []
+    seen = set()
+    for value in values:
+        guid = str(value or "").strip()
+        if guid and guid not in seen:
+            seen.add(guid)
+            result.append(guid)
+    return result
+
+
+def _render_config_from_actor(actor, injected_interfaces, fallback_asset):
+    """Freeze instance-level rendering data, including an assembly_v1 payload."""
+    config = {
+        "injected_interfaces": list(injected_interfaces or []),
+        "asset_id": fallback_asset or "",
+        "ue_asset_path": fallback_asset or "",
+    }
+    for key in (
+        "source_actor_guids",
+        "render_parts",
+        "assembly_signature",
+        "unsupported_components",
+    ):
+        if key in actor:
+            config[key] = actor[key]
+    return config
+
+
+def _build_migration_result(
+    instances,
+    delete_actor_guids,
+    legacy_actor_mapping=None,
+    blocked_actors=None,
+):
+    """Build the canonical result while retaining legacy top-level GUID lookups."""
+    instance_mapping = dict(instances)
+    document = {
+        "schema_version": MIGRATION_RESULT_SCHEMA_VERSION,
+        "instances": instance_mapping,
+        "delete_actor_guids": list(delete_actor_guids),
+        "blocked_actors": list(blocked_actors or []),
+    }
+    # Legacy UE code enumerates root GUID keys to delete migrated actors. UUID keys
+    # cannot collide with the reserved schema keys, so aliases for mother and child
+    # actors are safe and let old projects consume the upgraded result during rollout.
+    document.update(dict(legacy_actor_mapping or instance_mapping))
+    return document
+
+
+def _unsupported_components(actor):
+    """Normalize exporter findings that make automatic source cleanup unsafe."""
+    findings = actor.get("unsupported_components") or []
+    if not isinstance(findings, (list, tuple, set)):
+        findings = [findings]
+    return [finding for finding in findings if finding]
+
+
+def _classification_action(rule):
+    return ((rule or {}).get("action") or "").strip().lower()
 
 
 def _load_classification_csv(path):
@@ -183,7 +273,13 @@ def _metadata_from_actor(actor, rule, rid, source_asset):
     }
 
 
-def migrate(input_path, mapping_path, classification_csv=None, dry_run=False):
+def migrate(
+    input_path,
+    mapping_path,
+    classification_csv=None,
+    dry_run=False,
+    allow_unsupported=False,
+):
     # 仅当运行时后端是 PG 时才要求 PG 可达（跟随 ONTOTWIN_STORE，与运行中后端一致，
     # 避免"迁移写 PG、运行时读 JSON"的双真源劈叉）
     if os.environ.get("ONTOTWIN_STORE", "json").lower() == "pg" and not pg.ping():
@@ -239,8 +335,19 @@ def migrate(input_path, mapping_path, classification_csv=None, dry_run=False):
     # ext_guid → 已有实例 id（幂等）
     by_guid = {v.get("ext_guid"): k for k, v in insts.items() if v.get("ext_guid")}
 
-    result = {}
-    stats = {"new": 0, "updated": 0, "matched": 0, "legacy": 0}
+    instance_mapping = {}
+    legacy_actor_mapping = {}
+    delete_actor_guids = []
+    delete_guid_seen = set()
+    blocked_actors = []
+    stats = {
+        "new": 0,
+        "updated": 0,
+        "matched": 0,
+        "legacy": 0,
+        "skipped": 0,
+        "blocked": 0,
+    }
     need_legacy = False
 
     for a in actors:
@@ -248,11 +355,36 @@ def migrate(input_path, mapping_path, classification_csv=None, dry_run=False):
         if not guid:
             print(f"跳过（无 ext_guid）: {a.get('name')}")
             continue
-        mesh = a.get("mesh_asset") or a.get("static_mesh_asset") or a.get("skeletal_mesh_asset") or ""
+        mesh = (
+            a.get("mesh_asset")
+            or a.get("static_mesh_asset")
+            or a.get("skeletal_mesh_asset")
+            or _first_render_asset(a)
+            or ""
+        )
         tf = a.get("transform") or {}
 
         group_key = _classification_key(a)
         rule = classification_rules.get(group_key)
+        action = _classification_action(rule)
+        if action in {"skip", "exclude", "ignore"}:
+            stats["skipped"] += 1
+            print(f"跳过（分类 action={action}）: {a.get('name') or guid}")
+            continue
+
+        unsupported = _unsupported_components(a)
+        if unsupported and not allow_unsupported:
+            stats["blocked"] += 1
+            blocked_actors.append({
+                "ext_guid": guid,
+                "name": a.get("name") or a.get("actor_label") or guid,
+                "unsupported_components": unsupported,
+            })
+            print(
+                f"阻止迁移（含 {len(unsupported)} 个不支持项，不会加入清理名单）: "
+                f"{a.get('name') or guid}"
+            )
+            continue
         source_asset = _best_asset_key(a) or mesh
         rid = (rule or {}).get("suggested_object_type_rid")
         if not rid and _is_create_experimental(rule):
@@ -278,11 +410,11 @@ def migrate(input_path, mapping_path, classification_csv=None, dry_run=False):
             "zone_id": zone_id,
             "source": "ue_migrated",
             "ext_guid": guid,
-            "render_config": {
-                "injected_interfaces": ots.get(rid, LEGACY_TYPE).get("injected_interfaces", []),
-                "asset_id": mesh,
-                "ue_asset_path": mesh,
-            },
+            "render_config": _render_config_from_actor(
+                a,
+                ots.get(rid, LEGACY_TYPE).get("injected_interfaces", []),
+                mesh,
+            ),
             "raw_state": _raw_from_transform(rid, a.get("name"), mesh, tf),
         }
         apply_instance_metadata(rec, _metadata_from_actor(a, rule, rid, source_asset))
@@ -297,7 +429,12 @@ def migrate(input_path, mapping_path, classification_csv=None, dry_run=False):
         rec.setdefault("last_seen", rec["created_at"])
         rec["status"] = "online"
         insts[iid] = rec
-        result[guid] = iid
+        instance_mapping[guid] = iid
+        for source_guid in _source_actor_guids(a):
+            legacy_actor_mapping[source_guid] = iid
+            if source_guid not in delete_guid_seen:
+                delete_guid_seen.add(source_guid)
+                delete_actor_guids.append(source_guid)
 
     if need_legacy and LEGACY_RID not in ots:
         ots[LEGACY_RID] = dict(LEGACY_TYPE)
@@ -337,8 +474,15 @@ def migrate(input_path, mapping_path, classification_csv=None, dry_run=False):
 
     print("拟迁移统计:", stats, "| Legacy 桶:", "新建" if (need_legacy and LEGACY_RID not in store.get_object_types()) else "复用/无")
 
+    result = _build_migration_result(
+        instance_mapping,
+        delete_actor_guids,
+        legacy_actor_mapping,
+        blocked_actors,
+    )
+
     if dry_run:
-        print("[dry-run] 未写库。id 映射预览:", json.dumps(result, ensure_ascii=False))
+        print("[dry-run] 未写库。迁移结果预览:", json.dumps(result, ensure_ascii=False))
         return result
 
     store.set_object_types(ots)         # 落 Legacy 类型（若有）
@@ -348,7 +492,7 @@ def migrate(input_path, mapping_path, classification_csv=None, dry_run=False):
     out_path = os.path.join(_HERE, "ue_migration_result.json")
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
-    print(f"完成：{stats} → 已写库。id 映射输出：{out_path}（供 UE 回写 InstanceId）")
+    print(f"完成：{stats} → 已写库。assembly_v1 迁移结果：{out_path}（供 UE 回写/清理原 Actor）")
     print("⚠ 运行中的后端把激活项目缓存在内存——请重启后端使迁移结果生效："
           "docker compose restart backend")
     return result
@@ -361,5 +505,16 @@ if __name__ == "__main__":
     ap.add_argument("--classification-csv", default=None,
                     help="可选：由 generate_migration_classification_csv.py 生成并人工编辑后的分类表")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument(
+        "--allow-unsupported",
+        action="store_true",
+        help="显式允许迁移含不支持组件/负缩放的组合；默认阻止并排除出清理名单",
+    )
     args = ap.parse_args()
-    migrate(args.input, args.mapping, args.classification_csv, args.dry_run)
+    migrate(
+        args.input,
+        args.mapping,
+        args.classification_csv,
+        args.dry_run,
+        args.allow_unsupported,
+    )

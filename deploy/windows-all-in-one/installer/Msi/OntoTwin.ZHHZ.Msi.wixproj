@@ -1,0 +1,18 @@
+<Project Sdk="WixToolset.Sdk/6.0.2">
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <Platform>x64</Platform>
+    <DefineConstants>
+      MsiVersion=$(MsiVersion);
+      PayloadVersion=$(PayloadVersion);
+      LauncherPath=$(LauncherPath);
+      ServicePath=$(ServicePath);
+      HostScriptPath=$(HostScriptPath);
+      PayloadInstallerPath=$(PayloadInstallerPath);
+      CustomerReadmePath=$(CustomerReadmePath)
+    </DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Util.wixext" Version="6.0.2" />
+  </ItemGroup>
+</Project>

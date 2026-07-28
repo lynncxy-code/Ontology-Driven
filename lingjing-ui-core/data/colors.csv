@@ -1,0 +1,19 @@
+No,Color Name,Color Token,Light Value,Dark Value,Usage,Category
+1,Aero-Blue (主色),color-aero-blue,#0066CC,#0084FF,核心品牌色 - 智能航空,Brand Primary
+2,Pulse-Cyan (次色),color-pulse-cyan,#0099AA,#00E5FF,能量流动 - 数据可视化,Brand Secondary
+3,Signal-Green (强调色),color-signal-green,#00A383,#00FFC8,状态安全 - 成功提示,Brand Accent
+4,Error-Red (错误色),color-error-red,#DC2626,#FF4D4F,错误警告 - 严重提示,Functional Error
+5,Warning-Amber (警告色),color-warning-amber,#D97706,#FFB020,警示信息 - 注意提示,Functional Warning
+6,Info-Indigo (信息色),color-info-indigo,#4338CA,#818CF8,信息提示 - 辅助说明,Functional Info
+7,Aero-White (浅色背景),theme-bg-light,#EFF6FF,#02040A,页面基础背景 - 浅色模式,Background
+8,Deep-Space (深色背景),theme-bg-dark,#02040A,#02040A,页面基础背景 - 深色模式,Background
+9,Glass-Light (玻璃浅色),bg-glass-light,"rgba(255, 255, 255, 0.98)","rgba(10, 20, 40, 0.85)",玻璃拟态背景 - 浅色,Glass Effect
+10,Glass-Dark (玻璃深色),bg-glass-dark,"rgba(10, 20, 40, 0.85)","rgba(10, 20, 40, 0.85)",玻璃拟态背景 - 深色,Glass Effect
+11,Card-Light (卡片浅色),bg-card-light,"rgba(255, 255, 255, 0.9)","rgba(15, 30, 60, 0.8)",标准卡片背景 - 浅色,Card
+12,Card-Dark (卡片深色),bg-card-dark,"rgba(15, 30, 60, 0.8)","rgba(15, 30, 60, 0.8)",标准卡片背景 - 深色,Card
+13,Border-Light (边框浅色),border-light,"rgba(28, 102, 196, 0.4)","rgba(0, 132, 255, 0.4)",基础边框 - 浅色模式,Border
+14,Border-Dark (边框深色),border-dark,"rgba(0, 132, 255, 0.4)","rgba(0, 132, 255, 0.4)",基础边框 - 深色模式,Border
+15,Text-Primary-Light (主文本浅色),text-primary-light,#0F172A,#F8FAFC,主要文本 - 浅色模式,Text
+16,Text-Primary-Dark (主文本深色),text-primary-dark,#F8FAFC,#F8FAFC,主要文本 - 深色模式,Text
+17,Text-Secondary-Light (次文本浅色),text-secondary-light,#475569,#CBD5E1,次要文本 - 浅色模式,Text
+18,Text-Secondary-Dark (次文本深色),text-secondary-dark,#CBD5E1,#CBD5E1,次要文本 - 深色模式,Text

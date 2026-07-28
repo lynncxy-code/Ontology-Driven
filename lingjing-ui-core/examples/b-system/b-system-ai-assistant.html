@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>灵境智能排产助手 — AI + 问题监控</title>
+  <!--
+    B 端 AI 工作台示例（scene = ai_assistant / page_type = assistant_workspace）
+    布局：ai-workspace 双栏（左侧 AI 对话 / 右侧排产问题监控）
+
+    ⚠ use_scope = limited：
+    - 仅在 PRD 明确需要「AI 对话 + 问题工作台」的 assistant_workspace 场景下可作为主壳
+    - 不用于普通 b_system dashboard / list / planning 页，也不用于轻量 FAQ/聊天助手
+
+    CSS：lingjing-core-b-system.css（含 ai-assistant 组件）
+    canonical 类参考：§3.1.canonical B 端 + AI 助手组件
+
+    交互逻辑（demo-only）：
+    · 右侧点击问题行的 [问AI] → 将问题描述填入左侧输入框并自动发送
+    · AI 回复包含 tool-call-card（模拟工具调用）+ 解决方案步骤
+    · JS 仅模拟 AI 行为，不代表所有助手必须实现的完整链路
+  -->
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+  <!-- 项目级 CSS 扩展（§3.0.c）：自定义组件用 pj-b-ai-* 前缀，token 驱动 -->
+  <link rel="stylesheet" href="pj-b-system-ai.css">
+  <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+<!-- B 端标准骨架：b-layout-sidebar -->
+<div class="b-layout-sidebar">
+
+  <!-- 侧边栏 -->
+  <aside class="b-sidebar" id="sidebar">
+    <div class="b-sidebar-header">
+      <div class="b-sidebar-logo">
+        <img src="../../assets/logo-flat.png" alt="灵境" height="32">
+      </div>
+      <span class="b-sidebar-brand">灵境智能排产</span>
+    </div>
+    <nav class="b-sidebar-nav b-scrollable">
+      <ul class="b-sidebar-nav-list">
+        <li class="b-sidebar-nav-item">
+          <a href="#" class="b-sidebar-nav-link active">
+            <span class="b-sidebar-nav-icon"><i data-lucide="bot"></i></span>
+            <span class="b-sidebar-nav-text">AI 问题助手</span>
+          </a>
+        </li>
+        <li class="b-sidebar-nav-item">
+          <a href="#" class="b-sidebar-nav-link">
+            <span class="b-sidebar-nav-icon"><i data-lucide="calendar-range"></i></span>
+            <span class="b-sidebar-nav-text">排产计划</span>
+          </a>
+        </li>
+        <li class="b-sidebar-nav-item">
+          <a href="#" class="b-sidebar-nav-link">
+            <span class="b-sidebar-nav-icon"><i data-lucide="cpu"></i></span>
+            <span class="b-sidebar-nav-text">设备台账</span>
+          </a>
+        </li>
+        <li class="b-sidebar-nav-item">
+          <a href="#" class="b-sidebar-nav-link">
+            <span class="b-sidebar-nav-icon"><i data-lucide="shield-check"></i></span>
+            <span class="b-sidebar-nav-text">质量管控</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+    <div class="b-sidebar-footer">
+      <button class="b-sidebar-toggle" onclick="toggleSidebar()">
+        <span class="b-sidebar-toggle-icon"><i data-lucide="chevron-left"></i></span>
+        <span class="b-sidebar-toggle-text">收起导航</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- 主内容区 -->
+  <main class="b-main">
+    <header class="b-header">
+      <div class="b-header-left">
+        <div class="b-breadcrumb">
+          <div class="b-breadcrumb-item">
+            <a href="#" class="b-breadcrumb-link">灵境排产</a>
+            <span class="b-breadcrumb-separator">/</span>
+          </div>
+          <div class="b-breadcrumb-item">
+            <span class="b-breadcrumb-current">AI 问题助手</span>
+          </div>
+        </div>
+      </div>
+      <div class="b-header-right">
+        <span class="status-dot status-dot-success"></span>
+        <span style="font-size:var(--font-size-xs);color:var(--theme-text-secondary);margin-left:4px;">系统正常</span>
+        <button class="btn-icon" id="themeToggleBtn" onclick="toggleTheme()" title="切换明暗主题">
+          <i data-lucide="moon" id="iconThemeMoon" style="width:14px;height:14px;"></i>
+          <i data-lucide="sun"  id="iconThemeSun"  style="width:14px;height:14px;display:none;"></i>
+        </button>
+        <span style="font-size:var(--font-size-xs);color:var(--theme-text-secondary);">张明远</span>
+      </div>
+    </header>
+
+    <div class="b-content" style="padding:0;overflow:hidden;min-height:0;">
+
+        <!--
+          AI 工作台双栏布局（assistant_workspace 限定壳）
+          - 左栏：AI 对话流（assistant 主交互区，必需模块）
+          - 右栏：排产问题监控 / KPI / 表格（workspace 侧监控区，可按 PRD 选择模块组合）
+          - 若只需要轻量问答型助手，请不要直接复用整个 workspace 壳
+        -->
+        <div class="ai-workspace">
+
+          <!-- ══════════════════════════════════════════
+               左侧：AI 对话流
+               ══════════════════════════════════════════ -->
+          <aside class="assistant-sidebar">
+
+            <!-- 对话头部 -->
+            <div class="pj-b-ai-chat-header">
+              <div class="pj-b-ai-chat-header-title">
+                <i data-lucide="bot" style="width:16px;height:16px;opacity:0.9;"></i>
+                灵境排产 AI
+                <span class="pj-b-ai-chat-header-badge">GPT-4o</span>
+              </div>
+              <div class="pj-b-ai-chat-header-status">
+                <span class="status-dot status-dot-success"></span>
+                在线
+              </div>
+            </div>
+
+            <!-- 消息区 -->
+            <div class="chat-messages" id="chatMessages">
+
+              <!-- AI 欢迎消息 -->
+              <div class="message-bubble message-bubble-ai">
+                <div class="message-avatar message-avatar-ai">
+                  <i data-lucide="cpu" style="width:16px;height:16px;"></i>
+                </div>
+                <div class="message-content">
+                  <div class="message-text">
+                    你好，我是灵境排产 AI 助手。我可以帮你分析右侧识别到的生产问题，并提供处置方案。<br><br>
+                    点击问题列表中的 <strong>「问AI」</strong> 按钮，或直接在下方输入描述，即可开始分析。
+                  </div>
+                </div>
+              </div>
+
+              <!-- 用户提问示例 -->
+              <div class="message-bubble message-bubble-user">
+                <div class="message-avatar message-avatar-user">
+                  <i data-lucide="user" style="width:16px;height:16px;"></i>
+                </div>
+                <div class="message-content">
+                  <div class="message-text">
+                    CNC-03 主轴振动超标（当前 8.2mm/s，阈值 6.0mm/s），已影响 AS-403 工序进度，如何处理？
+                  </div>
+                </div>
+              </div>
+
+              <!-- AI 工具调用 -->
+              <div class="tool-call-card">
+                <span class="tool-call-status tool-call-status-success"></span>
+                <i data-lucide="search" style="width:12px;height:12px;opacity:0.6;"></i>
+                <span>查询设备档案 · CNC-03 — 已完成</span>
+              </div>
+              <div class="tool-call-card">
+                <span class="tool-call-status tool-call-status-success"></span>
+                <i data-lucide="database" style="width:12px;height:12px;opacity:0.6;"></i>
+                <span>检索历史振动超标案例 · 找到 12 条相似记录</span>
+              </div>
+
+              <!-- AI 回复解决方案 -->
+              <div class="message-bubble message-bubble-ai">
+                <div class="message-avatar message-avatar-ai">
+                  <i data-lucide="cpu" style="width:16px;height:16px;"></i>
+                </div>
+                <div class="message-content">
+                  <div class="message-text">
+                    根据 CNC-03 设备档案及历史数据，振动超标原因大概率为 <strong>主轴轴承磨损</strong>（置信度 87%）。建议按以下步骤处置：
+                    <div class="ai-solution-steps">
+                      <div class="ai-solution-step">
+                        <span class="ai-step-num">1</span>
+                        <span>立即降速运行（转速降至 70%），减少振动冲击，避免次生损伤。</span>
+                      </div>
+                      <div class="ai-solution-step">
+                        <span class="ai-step-num">2</span>
+                        <span>派维修人员做频谱分析，确认是否为轴承内圈缺陷频率（BPFI ≈ 147Hz）。</span>
+                      </div>
+                      <div class="ai-solution-step">
+                        <span class="ai-step-num">3</span>
+                        <span>若确认，申请型号 <code>SKF-6209</code> 备件，计划利用周末窗口期更换，预计停机 4h。</span>
+                      </div>
+                      <div class="ai-solution-step">
+                        <span class="ai-step-num">4</span>
+                        <span>AS-403 工序可临时调配 CNC-05 承接，排产系统已生成调配方案供确认。</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 任务状态卡 -->
+              <div class="task-status-card" style="margin-left:54px;max-width:300px;">
+                <div class="task-status-header">
+                  <span class="task-status-title">CNC-03 处置任务</span>
+                  <span class="badge badge-warning">处理中</span>
+                </div>
+                <div style="font-size:var(--font-size-xs);color:var(--theme-text-secondary);">已完成 2 / 4 步骤</div>
+                <div class="task-progress">
+                  <div class="task-progress-inner" style="width:50%;"></div>
+                </div>
+              </div>
+
+            </div><!-- /chat-messages -->
+
+            <!-- 输入区 -->
+            <div class="chat-input-area">
+              <div class="chat-input-wrapper">
+                <textarea class="chat-input" id="chatInput"
+                  placeholder="描述问题，或点击右侧「问AI」自动填入…"
+                  rows="2"></textarea>
+                <div class="chat-input-actions">
+                  <div style="display:flex;gap:2px;">
+                    <button class="btn-ghost" title="附件">
+                      <i data-lucide="paperclip" style="width:12px;height:12px;"></i>附件
+                    </button>
+                    <button class="btn-ghost" title="快速模板">
+                      <i data-lucide="zap" style="width:12px;height:12px;"></i>模板
+                    </button>
+                  </div>
+                  <button class="btn-primary pj-b-ai-send-btn" id="sendBtn" onclick="sendMessage()">
+                    <i data-lucide="send" style="width:15px;height:15px;"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </aside><!-- /assistant-sidebar -->
+
+          <!-- ══════════════════════════════════════════
+               右侧：排产问题监控
+               ══════════════════════════════════════════ -->
+          <main class="pj-b-ai-workspace-main">
+
+            <!-- 页面标题 -->
+            <div class="pj-b-ai-monitor-header">
+              <div>
+                <div class="pj-b-ai-monitor-title">排产问题监控</div>
+                <div class="pj-b-ai-monitor-subtitle">实时识别设备异常、工序超时、质量偏差等生产问题</div>
+              </div>
+              <div class="pj-b-ai-monitor-refresh">
+                <i data-lucide="refresh-cw" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>
+                更新于 <span id="refreshTime">--:--:--</span>
+              </div>
+            </div>
+
+            <!-- 统计卡片（带 7 日迷你火花图） -->
+            <div class="stats-grid">
+              <div class="b-stat-card">
+                <div class="b-stat-value" style="color:var(--error-base,#ef4444);">3</div>
+                <div class="b-stat-label">紧急问题</div>
+                <div class="pj-b-ai-stat-meta">需立即处置</div>
+                <div class="stat-sparkline">
+                  <div class="stat-spark stat-spark--error" style="height:8px;"></div>
+                  <div class="stat-spark stat-spark--error" style="height:12px;"></div>
+                  <div class="stat-spark stat-spark--error" style="height:6px;"></div>
+                  <div class="stat-spark stat-spark--error" style="height:14px;"></div>
+                  <div class="stat-spark stat-spark--error" style="height:10px;"></div>
+                  <div class="stat-spark stat-spark--error" style="height:16px;"></div>
+                  <div class="stat-spark stat-spark--error" style="height:22px;"></div>
+                </div>
+              </div>
+              <div class="b-stat-card">
+                <div class="b-stat-value" style="color:var(--warning-base,#f59e0b);">7</div>
+                <div class="b-stat-label">警告问题</div>
+                <div class="pj-b-ai-stat-meta">今日新增 +2</div>
+                <div class="stat-sparkline">
+                  <div class="stat-spark stat-spark--warning" style="height:10px;"></div>
+                  <div class="stat-spark stat-spark--warning" style="height:14px;"></div>
+                  <div class="stat-spark stat-spark--warning" style="height:10px;"></div>
+                  <div class="stat-spark stat-spark--warning" style="height:16px;"></div>
+                  <div class="stat-spark stat-spark--warning" style="height:12px;"></div>
+                  <div class="stat-spark stat-spark--warning" style="height:18px;"></div>
+                  <div class="stat-spark stat-spark--warning" style="height:22px;"></div>
+                </div>
+              </div>
+              <div class="b-stat-card">
+                <div class="b-stat-value" style="color:var(--success-base,#10b981);">12</div>
+                <div class="b-stat-label">已解决</div>
+                <div class="pj-b-ai-stat-meta">本周累计</div>
+                <div class="stat-sparkline">
+                  <div class="stat-spark stat-spark--success" style="height:6px;"></div>
+                  <div class="stat-spark stat-spark--success" style="height:10px;"></div>
+                  <div class="stat-spark stat-spark--success" style="height:8px;"></div>
+                  <div class="stat-spark stat-spark--success" style="height:12px;"></div>
+                  <div class="stat-spark stat-spark--success" style="height:16px;"></div>
+                  <div class="stat-spark stat-spark--success" style="height:18px;"></div>
+                  <div class="stat-spark stat-spark--success" style="height:22px;"></div>
+                </div>
+              </div>
+              <div class="b-stat-card">
+                <div class="b-stat-value">78<span style="font-size:18px;font-weight:400;">%</span></div>
+                <div class="b-stat-label">AI 解决率</div>
+                <div class="pj-b-ai-stat-meta">↑ 较上周 +5%</div>
+                <div class="stat-sparkline">
+                  <div class="stat-spark stat-spark--primary" style="height:14px;"></div>
+                  <div class="stat-spark stat-spark--primary" style="height:14px;"></div>
+                  <div class="stat-spark stat-spark--primary" style="height:16px;"></div>
+                  <div class="stat-spark stat-spark--primary" style="height:16px;"></div>
+                  <div class="stat-spark stat-spark--primary" style="height:18px;"></div>
+                  <div class="stat-spark stat-spark--primary" style="height:18px;"></div>
+                  <div class="stat-spark stat-spark--primary" style="height:22px;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 设备运行状态矩阵 -->
+            <div class="content-card">
+              <div class="card-header">
+                <span class="card-title">
+                  <i data-lucide="cpu" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>
+                  设备运行状态
+                </span>
+                <span style="font-size:var(--font-size-xs);color:var(--theme-text-secondary);">
+                  <span class="status-dot status-dot-error" style="display:inline-block;margin-right:3px;"></span>故障 2
+                  <span class="status-dot status-dot-warning" style="display:inline-block;margin:0 3px 0 8px;"></span>异常 1
+                  <span class="status-dot status-dot-success" style="display:inline-block;margin:0 3px 0 8px;"></span>正常 7
+                </span>
+              </div>
+              <div class="device-matrix">
+                  <div class="device-card">
+                    <div class="device-row">
+                      <span class="device-name">CNC-01</span>
+                      <span class="status-dot status-dot-success"></span>
+                    </div>
+                    <div class="device-metric">主轴 2840rpm</div>
+                    <div class="device-metric">负荷 91%</div>
+                  </div>
+                  <div class="device-card">
+                    <div class="device-row">
+                      <span class="device-name">CNC-02</span>
+                      <span class="status-dot status-dot-success"></span>
+                    </div>
+                    <div class="device-metric">主轴 2760rpm</div>
+                    <div class="device-metric">负荷 85%</div>
+                  </div>
+                  <div class="device-card device-card--error">
+                    <div class="device-row">
+                      <span class="device-name">CNC-03</span>
+                      <span class="status-dot status-dot-error"></span>
+                    </div>
+                    <div class="device-metric device-metric--error">振动 8.2mm/s</div>
+                    <div class="device-metric device-metric--error">降速运行中</div>
+                  </div>
+                  <div class="device-card">
+                    <div class="device-row">
+                      <span class="device-name">CNC-04</span>
+                      <span class="status-dot status-dot-success"></span>
+                    </div>
+                    <div class="device-metric">主轴 2900rpm</div>
+                    <div class="device-metric">负荷 72%</div>
+                  </div>
+                  <div class="device-card">
+                    <div class="device-row">
+                      <span class="device-name">CNC-05</span>
+                      <span class="status-dot status-dot-success"></span>
+                    </div>
+                    <div class="device-metric">备用状态</div>
+                    <div class="device-metric">负荷 62%</div>
+                  </div>
+                  <div class="device-card device-card--error">
+                    <div class="device-row">
+                      <span class="device-name">HYD-01</span>
+                      <span class="status-dot status-dot-error"></span>
+                    </div>
+                    <div class="device-metric device-metric--error">压力 18.2MPa</div>
+                    <div class="device-metric device-metric--error">低于下限 22min</div>
+                  </div>
+                  <div class="device-card device-card--warning">
+                    <div class="device-row">
+                      <span class="device-name">HYD-02</span>
+                      <span class="status-dot status-dot-warning"></span>
+                    </div>
+                    <div class="device-metric device-metric--warning">压力 20.1MPa</div>
+                    <div class="device-metric device-metric--warning">接近下限</div>
+                  </div>
+                  <div class="device-card device-card--error">
+                    <div class="device-row">
+                      <span class="device-name">AGV-07</span>
+                      <span class="status-dot status-dot-error"></span>
+                    </div>
+                    <div class="device-metric device-metric--error">导航故障</div>
+                    <div class="device-metric device-metric--error">安全停车</div>
+                  </div>
+                  <div class="device-card">
+                    <div class="device-row">
+                      <span class="device-name">WELD-01</span>
+                      <span class="status-dot status-dot-success"></span>
+                    </div>
+                    <div class="device-metric">焊接中</div>
+                    <div class="device-metric">负荷 78%</div>
+                  </div>
+                  <div class="device-card device-card--offline">
+                    <div class="device-row">
+                      <span class="device-name">TEST-01</span>
+                      <span class="status-dot"></span>
+                    </div>
+                    <div class="device-metric">计划维护</div>
+                    <div class="device-metric">恢复 14:00</div>
+                  </div>
+                </div>
+            </div>
+
+            <!-- 图表行：7 日趋势 + 问题分类 -->
+            <div class="pj-b-ai-monitor-charts">
+              <div class="b-chart-card">
+                <div class="b-chart-header">
+                  <span class="b-chart-title">近 7 日问题趋势</span>
+                  <span style="font-size:var(--font-size-xs);color:var(--theme-text-secondary);">紧急 / 警告</span>
+                </div>
+                <div class="b-chart-body">
+                  <div id="chartTrend" style="height:140px;"></div>
+                </div>
+              </div>
+              <div class="b-chart-card">
+                <div class="b-chart-header">
+                  <span class="b-chart-title">问题类型分布</span>
+                  <span style="font-size:var(--font-size-xs);color:var(--theme-text-secondary);">本周</span>
+                </div>
+                <div class="b-chart-body">
+                  <div id="chartDist" style="height:140px;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 紧急问题 -->
+            <div class="content-card">
+              <div class="card-header">
+                <span class="card-title">
+                  <i data-lucide="alert-octagon" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;color:var(--error-base,#ef4444);"></i>
+                  紧急问题
+                </span>
+                <span class="badge badge-error">3 条未处置</span>
+              </div>
+              <div class="pj-b-ai-card-body">
+                <div class="data-table-container">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>问题描述</th>
+                        <th>设备</th>
+                        <th>工序</th>
+                        <th>持续时间</th>
+                        <th>超限程度</th>
+                        <th>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr class="issue-row--critical">
+                        <td>
+                          <div class="pj-b-ai-issue-desc">主轴振动超标（8.2mm/s）</div>
+                          <div class="pj-b-ai-issue-desc-sub">阈值 6.0mm/s，超出 37%</div>
+                        </td>
+                        <td><span class="badge badge-error">CNC-03</span></td>
+                        <td>AS-403</td>
+                        <td><span class="duration-tag duration-tag--long">72 min</span></td>
+                        <td>
+                          <div class="overrun-bar">
+                            <div class="overrun-track">
+                              <div class="overrun-fill overrun-fill--error" style="width:65%;"></div>
+                            </div>
+                            <span class="overrun-pct">137%</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span class="pj-b-ai-resolved-mark" id="status-cnc03">
+                            <i data-lucide="check-circle" style="width:12px;height:12px;"></i>已问AI
+                          </span>
+                        </td>
+                      </tr>
+                      <tr class="issue-row--critical">
+                        <td>
+                          <div class="pj-b-ai-issue-desc">液压压力低于下限（18.2 MPa）</div>
+                          <div class="pj-b-ai-issue-desc-sub">正常范围 20–25 MPa</div>
+                        </td>
+                        <td><span class="badge badge-error">HYD-01</span></td>
+                        <td>AS-404</td>
+                        <td><span class="duration-tag duration-tag--long">22 min</span></td>
+                        <td>
+                          <div class="overrun-bar">
+                            <div class="overrun-track">
+                              <div class="overrun-fill overrun-fill--error" style="width:36%;"></div>
+                            </div>
+                            <span class="overrun-pct">91%</span>
+                          </div>
+                        </td>
+                        <td>
+                          <button class="pj-b-ai-ask-btn" id="btn-hyd01"
+                            onclick="askAI(this, 'hyd01', 'HYD-01 液压压力低于下限（当前 18.2 MPa，正常范围 20–25 MPa），持续 22 分钟，影响 AS-404 发动机短舱集成工序，如何处置？')">
+                            <i data-lucide="bot" style="width:11px;height:11px;"></i>问AI
+                          </button>
+                        </td>
+                      </tr>
+                      <tr class="issue-row--critical">
+                        <td>
+                          <div class="pj-b-ai-issue-desc">AGV-07 导航偏差超限</div>
+                          <div class="pj-b-ai-issue-desc-sub">路径偏差 ±12cm，已触发安全停车</div>
+                        </td>
+                        <td><span class="badge badge-error">AGV-07</span></td>
+                        <td>物料配送</td>
+                        <td><span class="duration-tag duration-tag--long">48 min</span></td>
+                        <td>
+                          <div class="overrun-bar">
+                            <div class="overrun-track">
+                              <div class="overrun-fill overrun-fill--error" style="width:80%;"></div>
+                            </div>
+                            <span class="overrun-pct">240%</span>
+                          </div>
+                        </td>
+                        <td>
+                          <button class="pj-b-ai-ask-btn" id="btn-agv07"
+                            onclick="askAI(this, 'agv07', 'AGV-07 导航偏差超限（±12cm），已触发安全停车，物料配送中断，影响 4 条装配线，请提供快速恢复方案。')">
+                            <i data-lucide="bot" style="width:11px;height:11px;"></i>问AI
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- 警告问题 -->
+            <div class="content-card">
+              <div class="card-header">
+                <span class="card-title">
+                  <i data-lucide="alert-triangle" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;color:var(--warning-base,#f59e0b);"></i>
+                  警告问题
+                </span>
+                <span class="badge badge-warning">7 条监控中</span>
+              </div>
+              <div class="pj-b-ai-card-body">
+                <div class="data-table-container">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>问题描述</th>
+                        <th>来源</th>
+                        <th>持续时间</th>
+                        <th>偏差进度</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr class="issue-row--warning">
+                        <td>
+                          <div class="pj-b-ai-issue-desc">AS-403 工序进度滞后 3 天</div>
+                          <div class="pj-b-ai-issue-desc-sub">计划节点：2026-03-23，当前完成 78%</div>
+                        </td>
+                        <td>排产系统</td>
+                        <td><span class="duration-tag duration-tag--long">3d</span></td>
+                        <td>
+                          <div class="overrun-bar">
+                            <div class="overrun-track">
+                              <div class="overrun-fill overrun-fill--warning" style="width:55%;"></div>
+                            </div>
+                            <span class="overrun-pct">78%</span>
+                          </div>
+                        </td>
+                        <td><span class="status-dot" style="margin-right:4px;"></span>观察中</td>
+                        <td>
+                          <button class="pj-b-ai-ask-btn" id="btn-as403"
+                            onclick="askAI(this, 'as403', 'AS-403 主起落架舱安装工序进度滞后 3 天，当前完成 78%，计划节点已过，如何优化排产以追回进度？')">
+                            <i data-lucide="bot" style="width:11px;height:11px;"></i>问AI
+                          </button>
+                        </td>
+                      </tr>
+                      <tr class="issue-row--warning">
+                        <td>
+                          <div class="pj-b-ai-issue-desc">FPY 一次合格率偏低</div>
+                          <div class="pj-b-ai-issue-desc-sub">当前 96.8%，目标 ≥97%，连续 3 日低于目标</div>
+                        </td>
+                        <td>质量系统</td>
+                        <td><span class="duration-tag">3d</span></td>
+                        <td>
+                          <div class="overrun-bar">
+                            <div class="overrun-track">
+                              <div class="overrun-fill overrun-fill--warning" style="width:40%;"></div>
+                            </div>
+                            <span class="overrun-pct">−0.2%</span>
+                          </div>
+                        </td>
+                        <td><span class="status-dot" style="margin-right:4px;"></span>观察中</td>
+                        <td>
+                          <button class="pj-b-ai-ask-btn" id="btn-fpy"
+                            onclick="askAI(this, 'fpy', 'FPY 一次合格率连续 3 天低于目标（当前 96.8%，目标 ≥97%），请分析可能原因并给出提升方案。')">
+                            <i data-lucide="bot" style="width:11px;height:11px;"></i>问AI
+                          </button>
+                        </td>
+                      </tr>
+                      <tr class="issue-row--warning">
+                        <td>
+                          <div class="pj-b-ai-issue-desc">SKF-6209 轴承备件库存不足</div>
+                          <div class="pj-b-ai-issue-desc-sub">当前库存 0 件，预计需求 2 件（CNC-03 维修）</div>
+                        </td>
+                        <td>物料系统</td>
+                        <td><span class="duration-tag">1d</span></td>
+                        <td>
+                          <div class="overrun-bar">
+                            <div class="overrun-track">
+                              <div class="overrun-fill overrun-fill--warning" style="width:100%;"></div>
+                            </div>
+                            <span class="overrun-pct">缺货</span>
+                          </div>
+                        </td>
+                        <td><span class="status-dot" style="margin-right:4px;"></span>待采购</td>
+                        <td>
+                          <button class="pj-b-ai-ask-btn" id="btn-skf"
+                            onclick="askAI(this, 'skf', 'SKF-6209 轴承备件库存为 0，CNC-03 维修需要 2 件，请提供紧急采购建议和替代方案。')">
+                            <i data-lucide="bot" style="width:11px;height:11px;"></i>问AI
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+          </main><!-- /pj-b-ai-workspace-main -->
+
+        </div><!-- /ai-workspace -->
+    </div><!-- /b-content -->
+  </main>
+</div><!-- /b-layout-sidebar -->
+
+<!-- ECharts + Lucide -->
+<script src="../../scripts/echarts.min.js"></script>
+<script>
+/* =======================================================================
+   [DEMO NOTICE] 本脚本仅用于模拟「AI + 问题工作台」交互链路：
+   - 包含硬编码问题/回复/工具调用卡片，用于展示 assistant_workspace 典型形态
+   - 生成新页面时，AI 应优先参考结构骨架与模块划分，而不是照抄具体文案/流程
+   - 轻量型助手场景可以只借用左侧对话区壳，不必引入全部监控/图表/表格逻辑
+   ======================================================================= */
+
+/* ================================================================
+   侧边栏折叠
+   ================================================================ */
+function toggleSidebar() {
+  var sidebar = document.getElementById('sidebar');
+  sidebar.classList.toggle('collapsed');
+}
+
+/* ================================================================
+   主题切换
+   ================================================================ */
+function toggleTheme() {
+  var html   = document.documentElement;
+  var isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  var moon = document.getElementById('iconThemeMoon');
+  var sun  = document.getElementById('iconThemeSun');
+  if (moon) moon.style.display = isDark ? '' : 'none';
+  if (sun)  sun.style.display  = isDark ? 'none' : '';
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+/* ================================================================
+   AI 对话模拟
+   ================================================================ */
+
+/* 预设 AI 回复（按问题 ID 匹配） */
+var AI_REPLIES = {
+  hyd01: {
+    tools: [
+      '查询设备档案 · HYD-01 液压系统 — 已完成',
+      '检索历史压力异常案例 · 找到 8 条相似记录',
+    ],
+    reply: 'HYD-01 液压压力持续偏低，结合历史数据，最可能原因为 <strong>液压油位不足</strong> 或 <strong>减压阀磨损</strong>（置信度 82%）。建议处置步骤：',
+    steps: [
+      '立即检查液压油箱油位，若低于下限（刻度线 L 以下），补充 HM46 液压油至正常位。',
+      '检查减压阀设定压力是否漂移，若偏差 > 5%，需重新调定至 22 MPa。',
+      'AS-404 工序暂缓，待压力恢复正常（连续稳定 5 min）后再恢复。',
+      '若补油后仍未恢复，触发备用液压回路，同步申请减压阀维修工单。',
+    ]
+  },
+  agv07: {
+    tools: [
+      '获取 AGV-07 最近轨迹日志 — 已完成',
+      '检查地面导航磁条状态 · 识别到 3 段异常区域',
+    ],
+    reply: 'AGV-07 停车区域的地面磁条在 S7-S9 段存在 <strong>磁条脱落/遮挡</strong>，导致导航传感器丢失信号后偏差累积触发保护。建议：',
+    steps: [
+      '人工清理 S7-S9 段磁条上方异物（可能为物料散落），检查磁条是否有翘起。',
+      '若磁条脱落，粘贴备用磁条（仓库 B 区有存量），作业约 15 min。',
+      '恢复后手动牵引 AGV-07 至充电站，执行传感器重新校准程序。',
+      '临时由人工配送替代 AGV-07 承担 4 条产线物料，预计影响 2 小时。',
+    ]
+  },
+  as403: {
+    tools: [
+      '拉取 AS-403 工序详细排产数据 — 已完成',
+      '分析关键路径影响 · 识别 2 个瓶颈节点',
+    ],
+    reply: 'AS-403 滞后主要由 <strong>CNC-03 设备停机</strong>（已占用 1.5 天）和 <strong>液压舱物料延迟到货</strong>（0.5 天）叠加所致。建议追回方案：',
+    steps: [
+      '调配 CNC-05（当前负荷 62%）承接 AS-403 剩余 22% 的加工任务，预计可追回 2 天。',
+      '与供应商确认液压舱物料加急到货（建议加收空运费，成本约 ¥3,200）。',
+      '启动周末加班计划（8h），配合 4 名操作工，可进一步追回 0.5 天。',
+      '综合以上，预计 2026-03-30 前追平计划节点，交付风险降至低。',
+    ]
+  },
+  fpy: {
+    tools: [
+      '提取近 3 日质量检验数据 · 1,240 条记录 — 已完成',
+      '识别主要不合格来源 — 完成',
+    ],
+    reply: '近 3 日不合格品集中在 <strong>进气道密封件安装</strong> 工位（AS-402），占不合格总量 61%，主因为 <strong>操作工 W05 装配手法偏差</strong>。建议：',
+    steps: [
+      '对 W05 进行密封件安装规程专项复训（约 2h），明日上岗前完成考核。',
+      '对 AS-402 工位增加首检+互检频率，本周临时调整为每批次 100% 检验。',
+      '检查密封件批次来料质量证明，排查原材料批次差异。',
+      '若 3 天内 FPY 未回升至 97%，启动工艺评审会议。',
+    ]
+  },
+  skf: {
+    tools: [
+      '查询 SKF-6209 国内供应商 — 已完成',
+      '检查可替代型号兼容性 — 完成',
+    ],
+    reply: '国内 SKF 授权经销商（沈阳宏业机械）有现货 SKF-6209，最快 <strong>次日达</strong>（顺丰空运）。同时识别到 1 个替代方案：',
+    steps: [
+      '紧急采购：联系沈阳宏业（联系人：李工，010-XXXX），报价约 ¥480/件，2 件共 ¥960，次日可到。',
+      '替代方案：FAG-6209（德国进口，兼容性 100%），亦有现货，价格略高 ¥120，可并行备库。',
+      'CNC-03 在备件到货前以降速 70% 运行，控制振动不进一步扩大。',
+      '本次事件触发库存预警机制建议：SKF-6209 安全库存设为 2 件。',
+    ]
+  }
+};
+
+/* 当前发送状态 */
+var isSending = false;
+
+/* 右侧「问AI」按钮点击 */
+function askAI(btn, issueId, question) {
+  if (btn.classList.contains('sent')) return;
+
+  /* 填入输入框 */
+  var input = document.getElementById('chatInput');
+  input.value = question;
+  input.focus();
+
+  /* 自动发送 */
+  setTimeout(function() { sendMessage(issueId); }, 200);
+
+  /* 标记为已发送 */
+  btn.classList.add('sent');
+  btn.innerHTML = '<i data-lucide="check" style="width:11px;height:11px;"></i>已发送';
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+/* 发送消息 */
+function sendMessage(issueId) {
+  if (isSending) return;
+  var input   = document.getElementById('chatInput');
+  var msgs    = document.getElementById('chatMessages');
+  var text    = input.value.trim();
+  if (!text) return;
+
+  isSending = true;
+  input.value = '';
+  document.getElementById('sendBtn').disabled = true;
+
+  /* 添加用户消息 */
+  appendMessage('user', text);
+
+  /* 模拟 AI 思考 */
+  var thinking = appendThinking();
+
+  var reply = issueId ? AI_REPLIES[issueId] : null;
+  var delay = reply ? 1200 : 800;
+
+  setTimeout(function() {
+    thinking.remove();
+
+    if (reply) {
+      /* 工具调用卡片 */
+      reply.tools.forEach(function(t) {
+        appendToolCall(t);
+      });
+      /* AI 回复 */
+      setTimeout(function() {
+        appendAIReply(reply.reply, reply.steps);
+        finish();
+      }, 600);
+    } else {
+      appendMessage('ai', '收到你的问题，我正在分析中，请稍等片刻……');
+      finish();
+    }
+  }, delay);
+
+  function finish() {
+    isSending = false;
+    document.getElementById('sendBtn').disabled = false;
+    msgs.scrollTop = msgs.scrollHeight;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  }
+}
+
+/* 追加用户/AI 消息 */
+function appendMessage(role, html) {
+  var msgs = document.getElementById('chatMessages');
+  var div = document.createElement('div');
+  var isUser = role === 'user';
+  var bubbleCls = isUser ? 'message-bubble message-bubble-user' : 'message-bubble message-bubble-ai';
+  var avatarCls = isUser ? 'message-avatar message-avatar-user' : 'message-avatar message-avatar-ai';
+  var iconName  = isUser ? 'user' : 'cpu';
+  div.className = bubbleCls;
+  div.innerHTML =
+    '<div class="' + avatarCls + '">' +
+      '<i data-lucide="' + iconName + '" style="width:16px;height:16px;"></i>' +
+    '</div>' +
+    '<div class="message-content">' +
+      '<div class="message-text">' + html + '</div>' +
+    '</div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+/* 追加 AI 解决方案（带步骤） */
+function appendAIReply(introHtml, steps) {
+  var msgs = document.getElementById('chatMessages');
+  var stepsHtml = steps.map(function(s, i) {
+    return '<div class="ai-solution-step">' +
+      '<span class="ai-step-num">' + (i+1) + '</span>' +
+      '<span>' + s + '</span>' +
+    '</div>';
+  }).join('');
+
+  var div = document.createElement('div');
+  div.className = 'message-bubble message-bubble-ai';
+  div.innerHTML =
+    '<div class="message-avatar message-avatar-ai">' +
+      '<i data-lucide="cpu" style="width:16px;height:16px;"></i>' +
+    '</div>' +
+    '<div class="message-content">' +
+      '<div class="message-text">' +
+        introHtml +
+        '<div class="ai-solution-steps">' + stepsHtml + '</div>' +
+      '</div>' +
+    '</div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+/* 追加 thinking 动画 */
+function appendThinking() {
+  var msgs = document.getElementById('chatMessages');
+  var div = document.createElement('div');
+  div.className = 'agent-thinking';
+  div.innerHTML =
+    '<div class="message-avatar message-avatar-ai" style="width:28px;height:28px;flex-shrink:0;">' +
+      '<i data-lucide="cpu" style="width:12px;height:12px;"></i>' +
+    '</div>' +
+    '<div class="thinking-dots">' +
+      '<div class="thinking-dot"></div>' +
+      '<div class="thinking-dot"></div>' +
+      '<div class="thinking-dot"></div>' +
+    '</div>' +
+    '<span>分析中…</span>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+/* 追加工具调用卡片 */
+function appendToolCall(text) {
+  var msgs = document.getElementById('chatMessages');
+  var div = document.createElement('div');
+  div.className = 'tool-call-card';
+  div.innerHTML =
+    '<span class="tool-call-status tool-call-status-success"></span>' +
+    '<i data-lucide="search" style="width:12px;height:12px;opacity:0.6;"></i>' +
+    '<span>' + text + '</span>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+/* ================================================================
+   ECharts 初始化
+   ================================================================ */
+function initCharts() {
+  if (typeof echarts === 'undefined') return;
+
+  /* 从 CSS 变量读取主题色（降级到硬编码备用） */
+  var style = getComputedStyle(document.documentElement);
+  var clrErr  = (style.getPropertyValue('--error-base')   || '#ef4444').trim();
+  var clrWarn = (style.getPropertyValue('--warning-base') || '#f59e0b').trim();
+  var clrText = (style.getPropertyValue('--theme-text-secondary') || '#94a3b8').trim();
+  var clrBorder= (style.getPropertyValue('--theme-border-light') || 'rgba(255,255,255,0.08)').trim();
+
+  var days = ['03-20','03-21','03-22','03-23','03-24','03-25','03-26'];
+
+  /* ① 7 日趋势图（双柱） */
+  var trend = LingJingChart.init(document.getElementById('chartTrend'), 'lingjing-b-system');
+  trend.setOption({
+    backgroundColor: 'transparent',
+    grid: { top:12, right:12, bottom:24, left:28 },
+    tooltip: { trigger:'axis', backgroundColor:'rgba(2,8,20,0.9)', borderColor:'rgba(255,255,255,0.08)',
+                textStyle:{ color:'#e2e8f0', fontSize:11 } },
+    legend: { bottom:0, textStyle:{ color:clrText, fontSize:10 }, itemWidth:8, itemHeight:8 },
+    xAxis: { data:days, axisLine:{ lineStyle:{ color:clrBorder } }, axisTick:{ show:false },
+             axisLabel:{ color:clrText, fontSize:10 } },
+    yAxis: { splitLine:{ lineStyle:{ color:clrBorder, type:'dashed' } },
+             axisLabel:{ color:clrText, fontSize:10 } },
+    series: [
+      { name:'紧急', type:'bar', stack:'t', barWidth:'55%',
+        itemStyle:{ color:clrErr, borderRadius:[0,0,0,0] },
+        data:[1,2,1,3,2,3,3] },
+      { name:'警告', type:'bar', stack:'t', barWidth:'55%',
+        itemStyle:{ color:clrWarn, borderRadius:[3,3,0,0] },
+        data:[4,5,6,4,6,5,7] }
+    ]
+  });
+
+  /* ② 问题类型分布（环形图） */
+  var dist = LingJingChart.init(document.getElementById('chartDist'), 'lingjing-b-system');
+  dist.setOption({
+    backgroundColor: 'transparent',
+    tooltip: { trigger:'item', backgroundColor:'rgba(2,8,20,0.9)', borderColor:'rgba(255,255,255,0.08)',
+                textStyle:{ color:'#e2e8f0', fontSize:11 },
+                formatter: '{b}: {c} ({d}%)' },
+    legend: { orient:'vertical', right:8, top:'center',
+              textStyle:{ color:clrText, fontSize:10 }, itemWidth:8, itemHeight:8 },
+    series:[{
+      type:'pie', radius:['42%','68%'], center:['35%','50%'],
+      label:{ show:false },
+      data:[
+        { value:3, name:'设备故障', itemStyle:{ color:clrErr } },
+        { value:5, name:'工序超时', itemStyle:{ color:clrWarn } },
+        { value:2, name:'质量偏差', itemStyle:{ color:'#8b5cf6' } },
+        { value:2, name:'物料缺货', itemStyle:{ color:'#0ea5e9' } }
+      ]
+    }]
+  });
+}
+
+/* Enter 发送 */
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  initCharts();
+
+  document.getElementById('chatInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  /* 刷新时间 */
+  function updateTime() {
+    var n = new Date();
+    var p = function(x) { return String(x).padStart(2,'0'); };
+    var el = document.getElementById('refreshTime');
+    if (el) el.textContent = p(n.getHours())+':'+p(n.getMinutes())+':'+p(n.getSeconds());
+  }
+  updateTime();
+  setInterval(updateTime, 1000);
+});
+</script>
+</body>
+</html>

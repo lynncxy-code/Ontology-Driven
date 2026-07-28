@@ -1,0 +1,125 @@
+/**
+ * Filter Bar
+ * B 端列表/看板页头的顶部筛选区域。
+ *
+ * 结构：
+ *   <div class="filter-bar">
+ *     <div class="filter-bar-main">          ← 筛选字段区（自动换行）
+ *       <input class="search-input">          ← 关键词搜索框（较宽，flex:2）
+ *       <select class="filter-select">        ← 下拉筛选（固定宽，flex:0）
+ *       <input class="filter-input">          ← 文本/日期等通用筛选输入（flex:1）
+ *     </div>
+ *     <div class="filter-bar-extra">          ← 操作按钮区（不换行，右对齐）
+ *       <button class="btn-outline">重置</button>
+ *       <button class="btn-primary">查询</button>
+ *     </div>
+ *   </div>
+ *
+ * 注意：复杂多字段筛选用此组件；简单 1-2 字段可用 search-bar。
+ */
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: 0;
+}
+
+/* 筛选字段区：flex 换行，字段按 flex-basis 自动排列 */
+.filter-bar-main {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-md);
+  min-width: 0;
+}
+
+/* 操作按钮区：不换行，始终跟在字段区后 */
+.filter-bar-extra {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-shrink: 0;
+}
+
+/* ---- 筛选字段 flex 尺寸 ---- */
+
+/* 关键词搜索框：较宽，优先占空间 */
+.filter-bar .search-input {
+  flex: 2 1 220px;
+  min-width: 180px;
+  width: auto;
+}
+
+/* 下拉筛选：固定宽，不扩展 */
+.filter-bar .filter-select {
+  flex: 0 1 160px;
+  min-width: 130px;
+  width: auto;
+}
+
+/**
+ * .filter-input
+ * 筛选区通用输入框（文本、日期、数字等）。
+ * 解决 width:100% 全局规则在 flex 容器内导致独占一行的问题。
+ */
+.filter-input {
+  flex: 1 1 160px;
+  min-width: 130px;
+  width: auto;      /* 覆盖 forms-advanced.css 中 width:100% 的全局规则 */
+}
+
+/* 兜底：未加 filter-input 类时，filter-bar 内常见 input 类型也保持多列 */
+.filter-bar input[type="text"]:not(.search-input),
+.filter-bar input[type="date"],
+.filter-bar input[type="datetime-local"],
+.filter-bar input[type="month"],
+.filter-bar input[type="number"],
+.filter-bar .form-input {
+  flex: 1 1 160px;
+  min-width: 130px;
+  width: auto;
+}
+
+/* 按钮不压缩 */
+.filter-bar .btn-primary,
+.filter-bar .btn-outline,
+.filter-bar .btn-ghost,
+.filter-bar-extra .btn-primary,
+.filter-bar-extra .btn-outline,
+.filter-bar-extra .btn-ghost {
+  flex-shrink: 0;
+}
+
+@media (max-width: 1024px) {
+  .filter-bar {
+    gap: var(--spacing-sm);
+  }
+  .filter-bar-main {
+    gap: var(--spacing-sm);
+  }
+}
+
+@media (max-width: 768px) {
+  .filter-bar-main {
+    width: 100%;
+  }
+
+  .filter-bar .search-input,
+  .filter-bar .filter-select,
+  .filter-bar .filter-input,
+  .filter-bar input[type="text"]:not(.search-input),
+  .filter-bar input[type="date"],
+  .filter-bar input[type="datetime-local"],
+  .filter-bar .form-input {
+    flex: 1 1 100%;
+    min-width: 100%;
+  }
+
+  .filter-bar-extra {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

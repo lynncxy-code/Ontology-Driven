@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工单详情 - 灵境Core B端示例</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+  <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+  <div class="b-layout-sidebar">
+    <aside class="b-sidebar" id="sidebar">
+      <div class="b-sidebar-header">
+        <div class="b-sidebar-logo">
+          <img src="../../assets/logo-flat.png" alt="灵境" height="32">
+        </div>
+        <span class="b-sidebar-brand">灵境Core</span>
+      </div>
+      <nav class="b-sidebar-nav b-scrollable">
+        <ul class="b-sidebar-nav-list">
+          <li class="b-sidebar-nav-item">
+            <a href="#orders" class="b-sidebar-nav-link active">
+              <span class="b-sidebar-nav-icon"><i data-lucide="file-text"></i></span>
+              <span class="b-sidebar-nav-text">工单详情</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+      <div class="b-sidebar-footer">
+        <button class="b-sidebar-toggle" id="toggleSidebar">
+          <span class="b-sidebar-toggle-icon"><i data-lucide="chevrons-left"></i></span>
+          <span class="b-sidebar-toggle-text">收起</span>
+        </button>
+      </div>
+    </aside>
+    <div class="b-sidebar-overlay" id="sidebarOverlay"></div>
+
+    <main class="b-main">
+      <header class="b-header">
+        <div class="b-header-left">
+          <nav class="b-breadcrumb">
+            <div class="b-breadcrumb-item">
+              <a href="#" class="b-breadcrumb-link">工单管理</a>
+              <span class="b-breadcrumb-separator">/</span>
+            </div>
+            <div class="b-breadcrumb-item">
+              <span class="b-breadcrumb-current">工单详情 #WO-2026-00018</span>
+            </div>
+          </nav>
+        </div>
+        <div class="b-header-right">
+          <button class="btn-secondary">返回列表</button>
+          <button class="btn-primary">提交审批</button>
+        </div>
+      </header>
+
+      <div class="b-content">
+        <!-- 基本信息卡 -->
+        <div class="grid-cols-2">
+          <div class="content-card">
+            <div class="card-header">
+              <h3 class="card-title">基本信息</h3>
+            </div>
+            <div class="desc-list">
+              <div class="desc-list-item">
+                <span class="desc-list-label">工单编号</span>
+                <span class="desc-list-value">WO-2026-00018</span>
+              </div>
+              <div class="desc-list-item">
+                <span class="desc-list-label">工单类型</span>
+                <span class="desc-list-value"><span class="badge badge-info">质量异常</span></span>
+              </div>
+              <div class="desc-list-item">
+                <span class="desc-list-label">当前状态</span>
+                <span class="desc-list-value"><span class="badge badge-warning">待审批</span></span>
+              </div>
+              <div class="desc-list-item">
+                <span class="desc-list-label">责任部门</span>
+                <span class="desc-list-value">总装一车间</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 关联设备信息 -->
+          <div class="content-card">
+            <div class="card-header">
+              <h3 class="card-title">关联对象</h3>
+            </div>
+            <div class="desc-list">
+              <div class="desc-list-item">
+                <span class="desc-list-label">机型 / 架次</span>
+                <span class="desc-list-value">A320 / B-1234</span>
+              </div>
+              <div class="desc-list-item">
+                <span class="desc-list-label">工位</span>
+                <span class="desc-list-value">总装工位 G12</span>
+              </div>
+              <div class="desc-list-item">
+                <span class="desc-list-label">发现班次</span>
+                <span class="desc-list-value">早班（07:00 - 15:00）</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 审批流 / 状态时间线 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h3 class="card-title">状态时间线</h3>
+          </div>
+          <ol class="status-timeline">
+            <li class="status-timeline-item completed">
+              <div class="status-timeline-dot"></div>
+              <div class="status-timeline-time">2026-04-02 09:18</div>
+              <div class="status-timeline-content">
+                <div class="status-timeline-title">发现质量异常</div>
+                <div class="status-timeline-meta">操作人：张三（检验）</div>
+              </div>
+            </li>
+            <li class="status-timeline-item completed">
+              <div class="status-timeline-dot"></div>
+              <div class="status-timeline-time">2026-04-02 10:05</div>
+              <div class="status-timeline-content">
+                <div class="status-timeline-title">创建工单并指派责任部门</div>
+                <div class="status-timeline-meta">操作人：系统</div>
+              </div>
+            </li>
+            <li class="status-timeline-item active">
+              <div class="status-timeline-dot"></div>
+              <div class="status-timeline-time">2026-04-02 14:30</div>
+              <div class="status-timeline-content">
+                <div class="status-timeline-title">部门主管审批中</div>
+                <div class="status-timeline-meta">审批人：李伟（总装一车间主任）</div>
+              </div>
+            </li>
+            <li class="status-timeline-item pending">
+              <div class="status-timeline-dot"></div>
+              <div class="status-timeline-time">待完成</div>
+              <div class="status-timeline-content">
+                <div class="status-timeline-title">质量部复核</div>
+                <div class="status-timeline-meta">待操作</div>
+              </div>
+            </li>
+            <li class="status-timeline-item pending">
+              <div class="status-timeline-dot"></div>
+              <div class="status-timeline-time">待完成</div>
+              <div class="status-timeline-content">
+                <div class="status-timeline-title">工单关闭</div>
+                <div class="status-timeline-meta">待操作</div>
+              </div>
+            </li>
+          </ol>
+        </div>
+
+        <!-- 关联记录：使用表格，但不引入 Dashboard 壳 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h3 class="card-title">关联检查记录</h3>
+          </div>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>记录时间</th>
+                  <th>项目</th>
+                  <th>结果</th>
+                  <th>记录人</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>2026-04-01 15:12</td>
+                  <td>铆接扭矩</td>
+                  <td>合格</td>
+                  <td>李四</td>
+                </tr>
+                <tr>
+                  <td>2026-04-01 15:28</td>
+                  <td>外观检查</td>
+                  <td>发现轻微划伤</td>
+                  <td>李四</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+
+      const sidebar = document.getElementById('sidebar');
+      const toggleBtn = document.getElementById('toggleSidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+
+      toggleBtn.addEventListener('click', function () {
+        sidebar.classList.toggle('collapsed');
+        const isCollapsed = sidebar.classList.contains('collapsed');
+        toggleBtn.querySelector('.b-sidebar-toggle-text').textContent = isCollapsed ? '展开' : '收起';
+      });
+
+      overlay.addEventListener('click', function () {
+        sidebar.classList.remove('active');
+        overlay.classList.remove('active');
+      });
+    });
+  </script>
+</body>
+</html>

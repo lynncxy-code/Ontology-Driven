@@ -1,0 +1,859 @@
+/**
+ * Data Display Components
+ * LingJing Core Design System v1.5.1+
+ *
+ * 包含数据展示组件:
+ * - Accordion (手风琴)
+ * - Tabs (标签页)
+ * - List Group (列表组)
+ */
+
+/* ========================================
+   Segmented Control (分段控制)
+   ======================================== */
+
+/**
+ * .segmented-control
+ * 描述: 分段控制器，用于在多个选项间切换
+ * 用法: <div class="segmented-control">...</div>
+ */
+.segmented-control {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  user-select: none;
+}
+
+.segmented-control-item {
+  position: relative;
+  padding: 6px 16px;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: calc(var(--radius-md) - 2px);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.segmented-control-item:hover:not(.active) {
+  color: var(--text-primary);
+}
+
+.segmented-control-item.active {
+  background: var(--bg-base);
+  color: var(--brand-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"] .segmented-control {
+  background: var(--bg-secondary);
+}
+
+[data-theme="dark"] .segmented-control-item.active {
+  background: var(--bg-card-light);
+  box-shadow: var(--shadow-md);
+}
+
+/* ========================================
+   Accordion (手风琴)
+   ======================================== */
+
+
+/**
+ * .data-accordion
+ * 描述: 可折叠的内容面板
+ * 用法: <div class="data-accordion">...</div>
+ */
+.data-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 8px);
+  border-radius: var(--radius-lg, 12px);
+}
+
+.data-accordion-item {
+  background: var(--bg-base);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.data-accordion-item.active {
+  border-color: var(--brand-primary);
+}
+
+.data-accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--spacing-md, 16px);
+  font-size: var(--font-size-base, 16px);
+  font-weight: 600;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.data-accordion-header:hover {
+  background: var(--bg-secondary);
+}
+
+.data-accordion-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--text-secondary);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.data-accordion-item.active .data-accordion-icon {
+  transform: rotate(180deg);
+}
+
+.data-accordion-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.data-accordion-item.active .data-accordion-content {
+  max-height: 1000px; /* Large enough for most content */
+}
+
+.data-accordion-body {
+  padding: 0 var(--spacing-md, 16px) var(--spacing-md, 16px);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* Dark Mode */
+[data-theme="dark"] .data-accordion-item {
+  background: var(--bg-elevated);
+}
+
+/* ========================================
+   Tabs (标签页)
+   ======================================== */
+
+/**
+ * .data-tabs
+ * 描述: 标签页内容容器
+ * 用法: <div class="data-tabs">...</div>
+ */
+.data-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md, 16px);
+}
+
+.data-tabs-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs, 4px);
+  border-bottom: 1px solid var(--border-primary);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.data-tabs-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.data-tab-trigger {
+  position: relative;
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+  font-size: var(--font-size-base, 16px);
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.data-tab-trigger:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.data-tab-trigger.active {
+  color: var(--brand-primary);
+  border-bottom-color: var(--brand-primary);
+}
+
+.data-tabs-content {
+  padding: var(--spacing-md, 16px) 0;
+}
+
+.data-tab-panel {
+  display: none;
+  animation: tab-fade-in 0.2s ease;
+}
+
+.data-tab-panel.active {
+  display: block;
+}
+
+@keyframes tab-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Tabs Variants - Pills */
+.data-tabs-pills .data-tabs-nav {
+  border-bottom: none;
+  gap: var(--spacing-sm, 8px);
+}
+
+.data-tabs-pills .data-tab-trigger {
+  border-radius: var(--radius-md, 8px);
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.data-tabs-pills .data-tab-trigger.active {
+  background: var(--brand-primary);
+  color: white;
+}
+
+/* ========================================
+   List Group (列表组)
+   ======================================== */
+
+/**
+ * .data-list-group
+ * 描述: 结构化列表容器
+ * 用法: <ul class="data-list-group">...</ul>
+ */
+.data-list-group {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+}
+
+.data-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md, 16px);
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-primary);
+  text-align: left;
+  transition: all 0.2s ease;
+  cursor: default;
+}
+
+.data-list-item:last-child {
+  border-bottom: none;
+}
+
+.data-list-item-interactive {
+  cursor: pointer;
+}
+
+.data-list-item-interactive:hover {
+  background: var(--bg-secondary);
+}
+
+.data-list-item-interactive:active {
+  background: var(--bg-tertiary);
+}
+
+.data-list-item.active {
+  background: var(--bg-secondary);
+  color: var(--brand-primary);
+  border-left: 3px solid var(--brand-primary);
+  padding-left: calc(var(--spacing-md, 16px) - 3px);
+}
+
+.data-list-item-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs, 4px);
+}
+
+.data-list-item-title {
+  font-size: var(--font-size-base, 16px);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.data-list-item-description {
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-secondary);
+}
+
+.data-list-item-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--spacing-xs, 4px);
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-tertiary);
+}
+
+.data-list-item-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: var(--font-size-xs, 12px);
+  font-weight: 600;
+  background: var(--brand-primary);
+  color: white;
+  border-radius: var(--radius-full, 999px);
+}
+
+.data-list-item-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-right: var(--spacing-sm, 8px);
+  color: var(--text-secondary);
+}
+
+/* List Group Variants */
+.data-list-group-flush {
+  border: none;
+  border-radius: 0;
+}
+
+.data-list-group-flush .data-list-item:first-child {
+  border-top: none;
+}
+
+/* Dark Mode */
+[data-theme="dark"] .data-list-group {
+  background: var(--bg-elevated);
+}
+
+/* ========================================
+   Badges / Tags / Chart Container (迁移自 components.css)
+   ======================================== */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+  border: 1px solid transparent;
+}
+
+
+.badge-primary,
+.badge-info {
+  background: var(--bg-status-info);
+  color: var(--color-aero-blue);
+  border-color: var(--glass-border-medium);
+}
+
+.badge-secondary {
+  background: var(--bg-status-info);
+  color: var(--color-pulse-cyan);
+  border-color: var(--glass-border-medium);
+}
+
+.badge-success {
+  background: var(--bg-status-success);
+  color: var(--color-signal-green);
+  border-color: var(--glass-border-medium);
+}
+
+.badge-warning {
+  background: var(--bg-status-warning);
+  color: var(--color-warning-amber);
+  border-color: var(--glass-border-medium);
+}
+
+.badge-error,
+.badge-danger {
+  background: var(--bg-status-error);
+  color: var(--color-error-red);
+  border-color: var(--color-error-red);
+}
+
+
+.badge:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Legacy badge variants (迁移自 forms-b.css) */
+.badge.success {
+  background: var(--bg-status-success);
+  color: var(--color-signal-green);
+}
+
+.badge.warning {
+  background: var(--bg-status-warning);
+  color: var(--color-warning-amber);
+}
+
+.badge.error {
+  background: var(--bg-status-error);
+  color: var(--color-alert-red);
+}
+
+.badge.info {
+  background: var(--bg-status-info);
+  color: var(--color-aero-blue);
+}
+
+.badge.neutral {
+  background: var(--bg-status-neutral);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .badge.success {
+  background: var(--bg-status-success);
+}
+
+[data-theme="dark"] .badge.warning {
+  background: var(--bg-status-warning);
+}
+
+[data-theme="dark"] .badge.error {
+  background: var(--bg-status-error);
+}
+
+[data-theme="dark"] .badge.info {
+  background: var(--bg-status-info);
+  color: var(--color-aero-blue);
+}
+
+
+.data-tag {
+  display: inline-block;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--bg-status-info);
+  color: var(--color-aero-blue);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  border: 1px solid var(--glass-border-light);
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+}
+
+.data-tag:hover {
+  background: var(--bg-glass-accent);
+  border-color: var(--glass-border-medium);
+}
+
+.chart-container {
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--glass-shadow-light);
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+}
+
+.chart-container:hover {
+  box-shadow: var(--glass-shadow), var(--glow-primary);
+  transform: translateY(-2px);
+}
+
+/* ========================================
+  Data Table (迁移自 forms-b.css)
+  ======================================== */
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.data-table thead {
+  background: var(--bg-secondary);
+}
+
+.data-table th {
+  padding: var(--spacing-md);
+  text-align: left;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--theme-border-base);
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--theme-border-light);
+  white-space: nowrap;
+}
+
+.data-table tbody tr {
+  background: var(--bg-card-solid);
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+}
+
+.data-table tbody tr:nth-child(even) {
+  background: var(--bg-table-zebra);
+}
+
+
+
+
+
+
+
+.data-table tbody tr:hover {
+  background: var(--bg-glass-accent);
+  box-shadow: inset 0 0 0 1px var(--glass-border-light);
+}
+
+[data-theme="dark"] .data-table thead {
+  background: var(--bg-glass-accent);
+}
+
+[data-theme="dark"] .data-table th {
+  border-bottom-color: var(--glass-border-medium);
+}
+
+[data-theme="dark"] .data-table td {
+  border-bottom-color: var(--glass-border-light);
+}
+
+[data-theme="dark"] .data-table tbody tr:hover {
+  background: var(--bg-glass-accent);
+  box-shadow: 0 1px 3px var(--glass-border-medium);
+}
+
+/* ========================================
+  Responsive Design
+  ======================================== */
+
+
+@media (max-width: 768px) {
+  .data-accordion-header {
+    padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+    font-size: var(--font-size-sm, 14px);
+  }
+
+  .data-accordion-body {
+    padding: 0 var(--spacing-md, 16px) var(--spacing-sm, 8px);
+    font-size: var(--font-size-sm, 14px);
+  }
+
+  .data-tab-trigger {
+    padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+    font-size: var(--font-size-sm, 14px);
+  }
+
+  .data-list-item {
+    padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-sm, 8px);
+  }
+
+  .data-list-item-meta {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .data-table {
+    font-size: var(--font-size-xs);
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: var(--spacing-sm);
+  }
+}
+
+
+@media (max-width: 480px) {
+  .data-table th,
+  .data-table td {
+    padding: var(--spacing-xs);
+  }
+}
+
+/* ========================================
+  Accessibility
+  ======================================== */
+
+
+/* Focus Visible */
+.data-accordion-header:focus-visible,
+.data-tab-trigger:focus-visible,
+.data-list-item-interactive:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .data-accordion-icon,
+  .data-accordion-content,
+  .data-tab-panel,
+  .data-list-item {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .data-accordion-item,
+  .data-list-group {
+    border-width: 2px;
+  }
+}
+
+/* ========================================
+   Desc List（描述列表 / 只读详情字段）
+   用于详情页展示只读 label:value 对，
+   自适应多列，空间充裕时一行展示 2-4 项。
+   禁止在可编辑表单中使用，表单请用 form-group。
+   ======================================== */
+
+/**
+ * .desc-list
+ * 外层容器，自适应列数（最小列宽 200px）
+ */
+.desc-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-md) var(--spacing-xl);
+}
+
+/**
+ * .desc-list-item
+ * 单个字段，label 在上，value 在下
+ */
+.desc-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  min-width: 0;
+}
+
+/**
+ * .desc-list-label
+ * 字段标签，次要色小字
+ */
+.desc-list-label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/**
+ * .desc-list-value
+ * 字段值，主色正文
+ */
+.desc-list-value {
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+  font-weight: 400;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+[data-theme="dark"] .desc-list-label {
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .desc-list-value {
+  color: var(--text-primary);
+}
+
+/* ========================================
+   Status Timeline（状态时间线 / 审批流时间线）
+   迁移自 advanced-data-table.css，独立为通用组件。
+
+   HTML 结构：
+   <ol class="status-timeline">
+     <li class="status-timeline-item completed">
+       <div class="status-timeline-dot"></div>
+       <div class="status-timeline-time">2026-04-02 09:18</div>
+       <div class="status-timeline-content">
+         <div class="status-timeline-title">步骤标题</div>
+         <div class="status-timeline-meta">操作人：张三</div>
+       </div>
+     </li>
+     <!-- 状态类：completed | active | pending -->
+   </ol>
+
+   兼容别名：activity-timeline（来自 UX 规范）
+   ======================================== */
+
+.status-timeline,
+.activity-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+/* 连接竖线 */
+.status-timeline::before,
+.activity-timeline::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 10px;
+  bottom: 12px;
+  width: 2px;
+  background: var(--theme-border-light);
+  border-radius: var(--radius-full);
+}
+
+/* 每个节点：2列 grid，左列固定 16px 放圆点，右列放内容 */
+.status-timeline-item,
+.activity-timeline-item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  column-gap: var(--spacing-md);
+  row-gap: var(--spacing-xs);
+  align-items: start;
+  padding-bottom: var(--spacing-xl);
+  position: relative;
+}
+
+.status-timeline-item:last-child,
+.activity-timeline-item:last-child {
+  padding-bottom: 0;
+}
+
+/* 非圆点子元素全部进入第 2 列 */
+.status-timeline-item > :not(.status-timeline-dot):not(.activity-timeline-dot),
+.activity-timeline-item > :not(.status-timeline-dot):not(.activity-timeline-dot) {
+  grid-column: 2;
+}
+
+/* ---- 圆点 ---- */
+.status-timeline-dot,
+.activity-timeline-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  background: var(--theme-bg-base);
+  border: 2px solid var(--theme-border-base);
+  position: relative;
+  top: 2px;
+  z-index: 1;
+  transition: background var(--anim-duration-fast) ease,
+              border-color var(--anim-duration-fast) ease;
+}
+
+/* completed：实心填充 */
+.status-timeline-item.completed .status-timeline-dot,
+.activity-timeline-item.completed .activity-timeline-dot {
+  background: var(--theme-primary);
+  border-color: var(--theme-primary);
+}
+
+/* active：当前步骤，蓝边 + 光晕 */
+.status-timeline-item.active .status-timeline-dot,
+.activity-timeline-item.active .activity-timeline-dot {
+  background: var(--theme-bg-base);
+  border-color: var(--theme-primary);
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.15);
+}
+
+/* pending：未来步骤，灰边空心 */
+.status-timeline-item.pending .status-timeline-dot,
+.activity-timeline-item.pending .activity-timeline-dot {
+  background: var(--theme-bg-base);
+  border-color: var(--theme-border-light);
+}
+
+/* ---- 时间戳 ---- */
+.status-timeline-time,
+.activity-timeline-time {
+  font-size: var(--font-size-xs);
+  color: var(--theme-text-tertiary);
+  line-height: 1.4;
+}
+
+.status-timeline-item.pending .status-timeline-time,
+.activity-timeline-item.pending .activity-timeline-time {
+  color: var(--theme-text-quaternary, var(--text-placeholder));
+}
+
+/* ---- 内容区 ---- */
+.status-timeline-content,
+.activity-timeline-content {
+  grid-column: 2;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+/* 标题 */
+.status-timeline-title,
+.activity-timeline-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--theme-text-primary);
+  line-height: 1.4;
+}
+
+.status-timeline-item.pending .status-timeline-title,
+.activity-timeline-item.pending .activity-timeline-title {
+  color: var(--theme-text-secondary);
+  font-weight: 400;
+}
+
+/* 次要信息（操作人、备注等） */
+.status-timeline-meta,
+.activity-timeline-meta {
+  font-size: var(--font-size-xs);
+  color: var(--theme-text-secondary);
+  line-height: 1.5;
+}
+
+.status-timeline-item.pending .status-timeline-meta,
+.activity-timeline-item.pending .activity-timeline-meta {
+  color: var(--theme-text-tertiary);
+}
+
+/* 深色模式 */
+[data-theme="dark"] .status-timeline::before,
+[data-theme="dark"] .activity-timeline::before {
+  background: rgba(0, 132, 255, 0.15);
+}
+
+[data-theme="dark"] .status-timeline-item.active .status-timeline-dot,
+[data-theme="dark"] .activity-timeline-item.active .activity-timeline-dot {
+  box-shadow: 0 0 0 3px rgba(0, 132, 255, 0.2);
+}

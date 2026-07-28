@@ -1,0 +1,36 @@
+/**
+ * Lingjing Core - UE5 Overlay / 数字孪生叠加层入口
+ *
+ * @version 2.7.5
+ * @description 适用于 UE5 Web Overlay、数字孪生叠加层、三维视口 HUD、世界锚点与对象详情联动界面
+ * @update 2026-03-23 - 从 B 端系统入口中拆分，建立独立场景入口
+ * 仅包含 UE 叠加层所需基础能力与专属组件，避免复制后台系统冗余样式
+ */
+
+/* Foundation - 基础令牌与兼容层 */
+@import '../01-foundation/variables.css';            /* CSS变量 */
+@import '../01-foundation/token-aliases.css';        /* 语义兼容层 */
+@import '../01-foundation/scrollbar.css';            /* 全局滚动条 */
+@import '../01-foundation/states.css';               /* 交互状态样式 */
+
+/* Utilities - 工具类 */
+@import '../01-foundation/utilities.css';            /* 工具类 */
+
+/* Core Components - UE Overlay 核心能力 */
+@import '../01-foundation/glass-effects.css';        /* 玻璃拟态效果 */
+@import '../02-components/buttons.css';              /* 按钮和交互 */
+@import '../02-components/ue-components.css';        /* UE 专用组件 */
+@import '../02-components/icon-system.css';          /* 图标系统 */
+@import '../02-components/topbar-hud.css';           /* UE5 顶部 HUD */
+@import '../02-components/world-marker.css';         /* UE5 世界锚点 */
+@import '../02-components/detail-panel.css';         /* UE5 详情面板 */
+@import '../02-components/alert-center.css';         /* UE5 告警中心 */
+@import '../02-components/layer-switcher.css';       /* UE5 图层开关 */
+
+/* Scene Components - UE Overlay / Digital Twin */
+@import '../03-layouts/scenes/digital-twin.css';     /* 数字孪生场景 */
+@import '../03-layouts/scenes/ue5-overlay.css';      /* UE5 Overlay 场景 */
+
+/* Enhancements - 增强能力 */
+@import '../03-layouts/responsive.css';              /* 响应式设计 */
+@import '../04-themes/theme-switcher.css';           /* 主题切换 */

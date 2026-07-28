@@ -1,0 +1,465 @@
+/**
+ * Lingjing Core - Dropdown Menu Component
+ * 
+ * @version 2.6.2
+ * @description 下拉菜单组件 - 用于操作菜单、用户菜单、筛选器
+ * @usage 所有场景通用的核心交互组?
+ * 
+ * Components:
+ * - .dropdown           下拉容器
+ * - .dropdown-trigger   触发按钮
+ * - .dropdown-menu      菜单列表
+ * - .dropdown-item      菜单?
+ * - .dropdown-divider   分割?
+ * - .dropdown-header    分组标题
+ * 
+ * Positions:
+ * - .dropdown-bottom-left    底部左对齐（默认?
+ * - .dropdown-bottom-right   底部右对?
+ * - .dropdown-top-left       顶部左对?
+ * - .dropdown-top-right      顶部右对?
+ */
+
+/* ============================================================================
+   Dropdown Container - 下拉容器
+   ========================================================================= */
+
+.dropdown {
+  /* Layout */
+  position: relative;
+  display: inline-block;
+}
+
+/* Trigger Button - 触发按钮 */
+.dropdown-trigger {
+  /* 使用现有按钮样式，不额外定义 */
+  cursor: pointer;
+}
+
+/* ============================================================================
+   Dropdown Menu - 菜单列表
+   ========================================================================= */
+
+.dropdown-menu {
+  /* Positioning */
+  position: absolute;
+  z-index: 1000;
+  
+  /* Layout */
+  min-width: 160px;
+  padding: var(--spacing-xs) 0;
+  margin: 0;
+  list-style: none;
+  
+  /* Style - 玻璃拟态效?*/
+  background: var(--bg-card);
+  border: var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  
+  /* Animation */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
+  transition: opacity var(--anim-duration-fast) var(--anim-ease-out),
+              visibility var(--anim-duration-fast) var(--anim-ease-out),
+              transform var(--anim-duration-fast) var(--anim-ease-out);
+  
+  /* Overflow */
+  max-height: 400px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* 深色主题 */
+[data-theme="dark"] .dropdown-menu {
+  background: var(--bg-card-dark);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Show on hover/active */
+.dropdown:hover .dropdown-menu,
+.dropdown.active .dropdown-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* Scrollbar */
+.dropdown-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dropdown-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb {
+  background: rgba(0, 102, 204, 0.3);
+  border-radius: 3px;
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 102, 204, 0.5);
+}
+
+/* ============================================================================
+   Dropdown Positions - 位置变体
+   ========================================================================= */
+
+/* Bottom Left - 底部左对齐（默认?*/
+.dropdown-bottom-left .dropdown-menu,
+.dropdown .dropdown-menu {
+  top: calc(100% + 4px);
+  left: 0;
+}
+
+/* Bottom Right - 底部右对?*/
+.dropdown-bottom-right .dropdown-menu {
+  top: calc(100% + 4px);
+  right: 0;
+}
+
+/* Top Left - 顶部左对?*/
+.dropdown-top-left .dropdown-menu {
+  bottom: calc(100% + 4px);
+  left: 0;
+  transform: translateY(8px);
+}
+
+.dropdown-top-left:hover .dropdown-menu,
+.dropdown-top-left.active .dropdown-menu {
+  transform: translateY(0);
+}
+
+/* Top Right - 顶部右对?*/
+.dropdown-top-right .dropdown-menu {
+  bottom: calc(100% + 4px);
+  right: 0;
+  transform: translateY(8px);
+}
+
+.dropdown-top-right:hover .dropdown-menu,
+.dropdown-top-right.active .dropdown-menu {
+  transform: translateY(0);
+}
+
+/* ============================================================================
+   Dropdown Item - 菜单?
+   ========================================================================= */
+
+.dropdown-item {
+  /* Layout */
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  
+  /* Style */
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+  
+  /* Remove default styles */
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+}
+
+[data-theme="dark"] .dropdown-item {
+  color: var(--text-primary-dark);
+}
+
+/* Hover State */
+.dropdown-item:hover {
+  background: var(--bg-hover);
+  color: var(--brand-primary);
+}
+
+/* Active State */
+.dropdown-item:active {
+  background: var(--bg-active);
+}
+
+/* Selected State */
+.dropdown-item.selected {
+  background: rgba(0, 102, 204, 0.1);
+  color: var(--brand-primary);
+  font-weight: 500;
+}
+
+/* Disabled State */
+.dropdown-item.disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+[data-theme="dark"] .dropdown-item.disabled {
+  color: var(--text-tertiary-dark);
+}
+
+/* Icon in Item */
+.dropdown-item i,
+.dropdown-item svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* ============================================================================
+   Dropdown Divider - 分割?
+   ========================================================================= */
+
+.dropdown-divider {
+  height: 1px;
+  margin: var(--spacing-xs) 0;
+  background: var(--border-primary);
+  border: none;
+}
+
+[data-theme="dark"] .dropdown-divider {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ============================================================================
+   Dropdown Header - 分组标题
+   ========================================================================= */
+
+.dropdown-header {
+  /* Layout */
+  padding: var(--spacing-xs) var(--spacing-md);
+  
+  /* Style */
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+[data-theme="dark"] .dropdown-header {
+  color: var(--text-tertiary-dark);
+}
+
+/* ============================================================================
+   Dropdown Variants - 变体样式
+   ========================================================================= */
+
+/* Danger Item - 危险操作 */
+.dropdown-item.danger {
+  color: #F5222D;
+}
+
+.dropdown-item.danger:hover {
+  background: rgba(245, 34, 45, 0.1);
+  color: #F5222D;
+}
+
+/* Success Item - 成功操作 */
+.dropdown-item.success {
+  color: #52C41A;
+}
+
+.dropdown-item.success:hover {
+  background: rgba(82, 196, 26, 0.1);
+  color: #52C41A;
+}
+
+/* Large Menu - 大号菜单 */
+.dropdown-menu.large {
+  min-width: 240px;
+}
+
+.dropdown-menu.large .dropdown-item {
+  padding: var(--spacing-md) var(--spacing-lg);
+  font-size: var(--font-size-base);
+}
+
+/* Small Menu - 小号菜单 */
+.dropdown-menu.small {
+  min-width: 120px;
+}
+
+.dropdown-menu.small .dropdown-item {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+}
+
+/* ============================================================================
+   Dropdown with Icons - 带图标的菜单
+   ========================================================================= */
+
+.dropdown-item-icon {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.dropdown-item-icon i,
+.dropdown-item-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================================================
+   Dropdown with Badges - 带徽章的菜单
+   ========================================================================= */
+
+.dropdown-item-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+
+.dropdown-item-badge .badge {
+  margin-left: auto;
+}
+
+/* ============================================================================
+   Responsive Design - 响应式设?
+   ========================================================================= */
+
+@media (max-width: 768px) {
+  .dropdown-menu {
+    min-width: 200px;
+    max-width: calc(100vw - 32px);
+  }
+  
+  .dropdown-menu.large {
+    min-width: 240px;
+  }
+}
+
+/* ============================================================================
+   Accessibility - 无障碍访?
+   ========================================================================= */
+
+/* Focus State */
+.dropdown-item:focus {
+  outline: none;
+  background: var(--bg-hover);
+}
+
+.dropdown-item:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: -2px;
+}
+
+/* Keyboard Navigation */
+.dropdown-item[aria-selected="true"] {
+  background: var(--bg-hover);
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .dropdown-menu {
+    transition: none;
+  }
+  
+  .dropdown:hover .dropdown-menu,
+  .dropdown.active .dropdown-menu {
+    transform: none;
+  }
+}
+
+/* ============================================================================
+   Usage Examples - 使用示例
+   ========================================================================= */
+
+/**
+ * 基础用法?
+ * 
+ * <div class="dropdown">
+ *   <button class="btn-icon dropdown-trigger">
+ *     <i data-lucide="more-horizontal"></i>
+ *   </button>
+ *   <ul class="dropdown-menu">
+ *     <li><button class="dropdown-item">编辑</button></li>
+ *     <li><button class="dropdown-item">复制</button></li>
+ *     <li><hr class="dropdown-divider"></li>
+ *     <li><button class="dropdown-item danger">删除</button></li>
+ *   </ul>
+ * </div>
+ * 
+ * 带图标的菜单?
+ * 
+ * <div class="dropdown">
+ *   <button class="btn-outline dropdown-trigger">
+ *     <span>操作</span>
+ *     <i data-lucide="chevron-down"></i>
+ *   </button>
+ *   <ul class="dropdown-menu">
+ *     <li>
+ *       <button class="dropdown-item">
+ *         <i data-lucide="edit"></i>
+ *         <span>编辑</span>
+ *       </button>
+ *     </li>
+ *     <li>
+ *       <button class="dropdown-item">
+ *         <i data-lucide="copy"></i>
+ *         <span>复制</span>
+ *       </button>
+ *     </li>
+ *     <li><hr class="dropdown-divider"></li>
+ *     <li>
+ *       <button class="dropdown-item danger">
+ *         <i data-lucide="trash-2"></i>
+ *         <span>删除</span>
+ *       </button>
+ *     </li>
+ *   </ul>
+ * </div>
+ * 
+ * 用户菜单（右对齐）：
+ * 
+ * <div class="dropdown dropdown-bottom-right">
+ *   <button class="btn-icon dropdown-trigger">
+ *     <i data-lucide="user"></i>
+ *   </button>
+ *   <ul class="dropdown-menu">
+ *     <li class="dropdown-header">账户设置</li>
+ *     <li>
+ *       <a href="#profile" class="dropdown-item">
+ *         <i data-lucide="user"></i>
+ *         <span>个人资料</span>
+ *       </a>
+ *     </li>
+ *     <li>
+ *       <a href="#settings" class="dropdown-item">
+ *         <i data-lucide="settings"></i>
+ *         <span>系统设置</span>
+ *       </a>
+ *     </li>
+ *     <li><hr class="dropdown-divider"></li>
+ *     <li>
+ *       <button class="dropdown-item danger">
+ *         <i data-lucide="log-out"></i>
+ *         <span>退出登?/span>
+ *       </button>
+ *     </li>
+ *   </ul>
+ * </div>
+ * 
+ * JavaScript控制（点击切换）?
+ * 
+ * const dropdown = document.querySelector('.dropdown');
+ * const trigger = dropdown.querySelector('.dropdown-trigger');
+ * 
+ * trigger.addEventListener('click', () => {
+ *   dropdown.classList.toggle('active');
+ * });
+ * 
+ * // 点击外部关闭
+ * document.addEventListener('click', (e) => {
+ *   if (!dropdown.contains(e.target)) {
+ *     dropdown.classList.remove('active');
+ *   }
+ * });
+ */

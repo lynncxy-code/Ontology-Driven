@@ -1,0 +1,1224 @@
+/* Lingjing Core UE Components CSS */
+
+/* -------------------------- */
+/* UE 渐变与颜色工具类（迁移自 components.css） */
+/* -------------------------- */
+
+.ue-gradient-dark {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.6));
+}
+
+.ue-bg-slate-medium {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+.ue-text-slate-light {
+  color: #CBD5E1;
+}
+
+/* -------------------------- */
+/* UE 重点操作/建议提示 (Focus Banner) */
+/* -------------------------- */
+
+.ue-focus-banner {
+  margin-top: 10px;
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  background: rgba(var(--ue5-overlay-brand-rgb), 0.18);
+  border: 1px solid rgba(var(--ue5-overlay-brand-rgb), 0.42);
+  border-left-width: 3px;
+  box-shadow: none;
+}
+
+.ue-focus-banner__title {
+  display: block;
+  margin-bottom: 6px;
+  color: #4f8df5;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ue-focus-banner__content {
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  color: var(--ue5-overlay-text-base);
+}
+
+/* -------------------------- */
+/* UE 重点操作/建议提示 (Focus Banner) */
+/* -------------------------- */
+
+.ue-focus-banner {
+  margin-top: 10px;
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  background: rgba(var(--ue5-overlay-brand-rgb), 0.18);
+  border: 1px solid rgba(var(--ue5-overlay-brand-rgb), 0.42);
+  border-left: 3px solid #4f8df5;
+  box-shadow: none;
+}
+
+.ue-focus-banner__title {
+  display: block;
+  margin-bottom: 6px;
+  color: #4f8df5;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ue-focus-banner__content {
+  margin: 0;
+  color: var(--ue5-overlay-text-base);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* -------------------------- */
+/* UE卡片样式增强 */
+/* -------------------------- */
+
+
+
+
+/* 高级UE拟态卡?*/
+.card-ue-advanced {
+  background: var(--ue-bg-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: var(--ue-border-glow);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--ue-shadow-prism), 0 0 30px rgba(0, 132, 255, 0.2);
+  padding: var(--spacing-xl);
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+  position: relative;
+  overflow: hidden;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-ue-advanced::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  bottom: -1px;
+  background: linear-gradient(
+    45deg,
+    transparent,
+    rgba(0, 132, 255, 0.15),
+    transparent,
+    rgba(0, 229, 255, 0.1),
+    transparent
+  );
+  border-radius: var(--radius-xl);
+  pointer-events: none;
+  animation: ue-advanced-border-glow 4s ease-in-out infinite;
+}
+
+.card-ue-advanced::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+    circle at 20% 80%,
+    rgba(0, 132, 255, 0.1) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+}
+
+.card-ue-advanced:hover {
+  transform: translateY(-8px);
+  box-shadow: 
+    var(--ue-shadow-prism), 
+    0 0 50px rgba(0, 132, 255, 0.4),
+    0 0 100px rgba(0, 229, 255, 0.2);
+  border-color: rgba(0, 229, 255, 0.6);
+}
+
+.card-ue-advanced .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-lg);
+  position: relative;
+  z-index: 1;
+}
+
+.card-ue-advanced .card-title {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--ue-text-highlight);
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+  margin: 0;
+}
+
+.card-ue-advanced .card-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 4px var(--spacing-sm);
+  background: rgba(0, 132, 255, 0.2);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--ue-text-highlight);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.card-ue-advanced .card-status::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: var(--color-signal-green);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--color-signal-green);
+  animation: ue-status-pulse 2s ease-in-out infinite;
+}
+
+.card-ue-advanced .card-content {
+  flex: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.card-ue-advanced .card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid rgba(0, 229, 255, 0.2);
+  position: relative;
+  z-index: 1;
+}
+
+/* Legacy UE拟态卡片（迁移自 components.css） */
+.card-ue-mimetic {
+  background: var(--ue-bg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: var(--ue-border-glow);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--ue-shadow-prism);
+  padding: var(--spacing-lg);
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+  position: relative;
+  overflow: hidden;
+}
+
+.card-ue-mimetic::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  bottom: -1px;
+  background: linear-gradient(45deg, transparent, rgba(0, 132, 255, 0.1), transparent);
+  border-radius: var(--radius-lg);
+  pointer-events: none;
+  animation: ue-border-glow 3s ease-in-out infinite;
+}
+
+.card-ue-mimetic:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--ue-shadow-prism), 0 0 40px rgba(0, 132, 255, 0.3);
+  border-color: rgba(0, 229, 255, 0.5);
+}
+
+/* UE数据卡片 */
+.card-ue-data {
+  background: var(--ue-bg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: var(--ue-border-glow);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--ue-shadow-prism);
+  padding: var(--spacing-lg);
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+  position: relative;
+  overflow: hidden;
+  min-height: 200px;
+}
+
+.card-ue-data::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 229, 255, 0.05),
+    transparent
+  );
+  pointer-events: none;
+  animation: ue-data-flow 6s linear infinite;
+}
+
+.card-ue-data:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--ue-shadow-prism), 0 0 25px rgba(0, 132, 255, 0.3);
+  border-color: rgba(0, 229, 255, 0.4);
+}
+
+.card-ue-data .data-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.card-ue-data .data-icon {
+  width: 48px;
+  height: 48px;
+  background: var(--ue-gradient-data-highlight);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+}
+
+.card-ue-data .data-title {
+  font-size: var(--font-size-md);
+  font-weight: 500;
+  color: var(--ue-text-highlight);
+  margin: 0;
+}
+
+.card-ue-data .data-value {
+  font-size: var(--font-size-3xl);
+  font-weight: 700;
+  color: var(--ue-text-highlight);
+  margin: var(--spacing-sm) 0;
+  text-shadow: 0 0 15px rgba(0, 229, 255, 0.5);
+  font-family: var(--font-mono);
+}
+
+.card-ue-data .data-trend {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.card-ue-data .trend-up {
+  color: var(--color-signal-green);
+}
+
+.card-ue-data .trend-down {
+  color: var(--color-error-red);
+}
+
+/* UE控制面板 */
+.ue-control-panel {
+  background: var(--ue-bg-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: var(--ue-border-glow);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--ue-shadow-prism), 0 0 40px rgba(0, 132, 255, 0.25);
+  padding: var(--spacing-xl);
+  position: relative;
+  overflow: hidden;
+}
+
+.ue-control-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.4), transparent);
+  pointer-events: none;
+}
+
+.ue-control-panel::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.4), transparent);
+  pointer-events: none;
+}
+
+.ue-control-panel .panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-lg);
+  position: relative;
+  z-index: 1;
+}
+
+.ue-control-panel .panel-title {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--ue-text-highlight);
+  margin: 0;
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+}
+
+.ue-control-panel .panel-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.ue-control-panel .control-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-lg);
+  position: relative;
+  z-index: 1;
+}
+
+.ue-control-panel .control-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.ue-control-panel .control-label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ue-control-panel .control-value {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--ue-text-highlight);
+  font-family: var(--font-mono);
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+}
+
+.ue-control-panel .control-slider {
+  width: 100%;
+  height: 6px;
+  background: rgba(0, 132, 255, 0.2);
+  border-radius: var(--radius-full);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+}
+
+.ue-control-panel .control-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.8), rgba(0, 132, 255, 0.6));
+  border: 2px solid rgba(0, 229, 255, 0.5);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.5);
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+}
+
+.ue-control-panel .control-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.7);
+}
+
+.ue-control-panel .control-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.8), rgba(0, 132, 255, 0.6));
+  border: 2px solid rgba(0, 229, 255, 0.5);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.5);
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+}
+
+.ue-control-panel .control-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.7);
+}
+
+/* UE导航面板 */
+.ue-nav-panel {
+  background: var(--ue-bg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: var(--ue-border-glow);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--ue-shadow-prism);
+  padding: var(--spacing-lg);
+  min-width: 240px;
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+  position: relative;
+  overflow: hidden;
+}
+
+.ue-nav-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 132, 255, 0.1),
+    transparent,
+    rgba(0, 132, 255, 0.05)
+  );
+  pointer-events: none;
+}
+
+.ue-nav-panel:hover {
+  box-shadow: var(--ue-shadow-prism), 0 0 30px rgba(0, 132, 255, 0.3);
+  transform: translateX(4px);
+}
+
+.ue-nav-panel .nav-header {
+  padding-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+}
+
+.ue-nav-panel .nav-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--ue-text-highlight);
+  margin: 0;
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+}
+
+.ue-nav-panel .nav-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.ue-nav-panel .nav-item {
+  margin: 0;
+}
+
+.ue-nav-panel .nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+  position: relative;
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.ue-nav-panel .nav-link::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--color-pulse-cyan);
+  transform: scaleY(0);
+  transition: transform var(--anim-duration-fast) var(--anim-ease-out);
+  box-shadow: 0 0 10px var(--color-pulse-cyan);
+}
+
+.ue-nav-panel .nav-link:hover {
+  background: rgba(0, 132, 255, 0.1);
+  color: var(--ue-text-highlight);
+  transform: translateX(4px);
+}
+
+.ue-nav-panel .nav-link:hover::before {
+  transform: scaleY(1);
+}
+
+.ue-nav-panel .nav-link.active {
+  background: rgba(0, 132, 255, 0.2);
+  color: var(--ue-text-highlight);
+  box-shadow: 0 0 15px rgba(0, 132, 255, 0.3);
+}
+
+.ue-nav-panel .nav-link.active::before {
+  transform: scaleY(1);
+}
+
+.ue-nav-panel .nav-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* -------------------------- */
+/* Legacy UE primitives (迁移自 components.css) */
+/* -------------------------- */
+
+.ue-viewport {
+  background: var(--ue-bg-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: var(--ue-border-glow);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--ue-shadow-prism);
+  padding: var(--spacing-xl);
+  position: relative;
+  overflow: hidden;
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ue-viewport::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at center, transparent 60%, rgba(0, 132, 255, 0.1) 100%);
+  pointer-events: none;
+}
+
+.ue-viewport::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, transparent 49%, rgba(0, 229, 255, 0.1) 50%, transparent 51%);
+  background-size: 20px 20px;
+  animation: ue-grid-move 20s linear infinite;
+  pointer-events: none;
+  opacity: 0.3;
+}
+
+.ue-stats-hud {
+  background: var(--ue-gradient-data-highlight);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  position: relative;
+  overflow: hidden;
+  color: white;
+}
+
+.ue-stats-hud::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+}
+
+.ue-stats-hud .stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+}
+
+.ue-stats-hud .stat-item:last-child {
+  margin-bottom: 0;
+}
+
+.ue-stats-hud .stat-value {
+  color: var(--ue-text-highlight);
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.ue-toggle {
+  position: relative;
+  width: 60px;
+  height: 32px;
+  cursor: pointer;
+}
+
+.ue-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.ue-toggle .toggle-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: 32px;
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.ue-toggle .toggle-slider::before {
+  position: absolute;
+  content: '';
+  height: 26px;
+  width: 26px;
+  left: 2px;
+  bottom: 2px;
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.3), rgba(0, 132, 255, 0.5));
+  border-radius: 50%;
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 0 10px rgba(0, 229, 255, 0.3);
+}
+
+.ue-toggle input:checked + .toggle-slider {
+  background: rgba(0, 132, 255, 0.3);
+  border-color: rgba(0, 229, 255, 0.5);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+}
+
+.ue-toggle input:checked + .toggle-slider::before {
+  transform: translateX(28px);
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.8), rgba(0, 132, 255, 0.6));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 15px rgba(0, 229, 255, 0.5);
+}
+
+.vignette-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at center, transparent 60%, rgba(0, 0, 0, 0.7) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.table-ue {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--ue-bg-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: var(--ue-border-glow);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--ue-shadow-prism);
+}
+
+.table-ue th,
+.table-ue td {
+  padding: var(--spacing-md);
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: var(--font-size-sm);
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+}
+
+.table-ue th {
+  background: rgba(0, 132, 255, 0.2);
+  font-weight: 600;
+  color: var(--ue-text-highlight);
+  position: relative;
+}
+
+.table-ue th::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.3), transparent);
+}
+
+.table-ue tr:hover {
+  background: rgba(0, 132, 255, 0.1);
+}
+
+.table-ue tr:hover td {
+  color: var(--ue-text-highlight);
+}
+
+/* UE状态指示器 */
+.ue-status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 4px var(--spacing-sm);
+  background: rgba(0, 132, 255, 0.15);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--ue-text-highlight);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+  position: relative;
+  overflow: hidden;
+}
+
+.ue-status-indicator::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.3), transparent);
+  animation: ue-status-sweep 2s ease-in-out infinite;
+}
+
+.ue-status-indicator:hover {
+  background: rgba(0, 132, 255, 0.25);
+  border-color: rgba(0, 229, 255, 0.5);
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.ue-status-indicator .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: ue-status-pulse 2s ease-in-out infinite;
+}
+
+.ue-status-indicator .status-dot.active {
+  background: var(--color-signal-green);
+  box-shadow: 0 0 10px var(--color-signal-green);
+}
+
+.ue-status-indicator .status-dot.warning {
+  background: var(--color-warning-amber);
+  box-shadow: 0 0 10px var(--color-warning-amber);
+}
+
+.ue-status-indicator .status-dot.error {
+  background: var(--color-error-red);
+  box-shadow: 0 0 10px var(--color-error-red);
+}
+
+.ue-status-indicator .status-dot.idle {
+  background: var(--text-secondary);
+  box-shadow: 0 0 10px var(--text-secondary);
+}
+
+/* UE加载动画 */
+.ue-loader {
+  display: inline-block;
+  position: relative;
+  width: 48px;
+  height: 48px;
+}
+
+.ue-loader::div {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 4px solid rgba(0, 229, 255, 0.3);
+  border-top: 4px solid var(--ue-text-highlight);
+  border-radius: 50%;
+  animation: ue-spin 1s linear infinite;
+}
+
+.ue-loader.small {
+  width: 24px;
+  height: 24px;
+}
+
+.ue-loader.small::div {
+  border-width: 2px;
+}
+
+.ue-loader.large {
+  width: 64px;
+  height: 64px;
+}
+
+.ue-loader.large::div {
+  border-width: 6px;
+}
+
+/* UE提示?*/
+.ue-tooltip {
+  position: relative;
+  display: inline-block;
+  cursor: help;
+}
+
+.ue-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ue-bg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: var(--ue-border-glow);
+  border-radius: var(--radius-md);
+  box-shadow: var(--ue-shadow-prism), 0 0 20px rgba(0, 132, 255, 0.3);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--ue-text-highlight);
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+  z-index: 1000;
+  min-width: 120px;
+  text-align: center;
+}
+
+.ue-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: 115%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: var(--ue-border-glow) transparent transparent transparent;
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+  z-index: 1001;
+}
+
+.ue-tooltip:hover::after {
+  opacity: 1;
+  visibility: visible;
+  bottom: 135%;
+}
+
+.ue-tooltip:hover::before {
+  opacity: 1;
+  visibility: visible;
+  bottom: 125%;
+}
+
+/* -------------------------- */
+/* UE动画增强 */
+/* -------------------------- */
+
+@keyframes ue-border-glow {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+@keyframes ue-grid-move {
+  0% {
+    transform: translateX(0) translateY(0);
+  }
+  100% {
+    transform: translateX(-20px) translateY(-20px);
+  }
+}
+
+@keyframes ue-advanced-border-glow {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes ue-data-flow {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes ue-status-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes ue-status-sweep {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+@keyframes ue-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* -------------------------- */
+/* 响应式设?*/
+/* -------------------------- */
+
+@media (max-width: 639px) {
+  .card-ue-mimetic {
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+  }
+}
+
+@media (min-width: 640px) and (max-width: 767px) {
+  .card-ue-mimetic {
+    padding: var(--spacing-md);
+  }
+}
+
+@media (max-width: 768px) {
+  .card-ue-advanced,
+  .card-ue-data,
+  .ue-control-panel,
+  .ue-nav-panel {
+    padding: var(--spacing-md);
+    border-radius: var(--radius-lg);
+  }
+  
+  .card-ue-advanced .card-title,
+  .ue-control-panel .panel-title,
+  .ue-nav-panel .nav-title {
+    font-size: var(--font-size-md);
+  }
+  
+  .card-ue-data .data-value {
+    font-size: var(--font-size-2xl);
+  }
+  
+  .ue-control-panel .control-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+  
+  .ue-viewport {
+    min-height: 300px;
+    padding: var(--spacing-md);
+  }
+
+  .ue-nav-panel {
+    min-width: auto;
+    width: 100%;
+    padding: var(--spacing-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .card-ue-advanced,
+  .card-ue-data,
+  .ue-control-panel,
+  .ue-nav-panel {
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-md);
+  }
+  
+  .card-ue-advanced .card-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-sm);
+  }
+  
+  .ue-control-panel .control-value {
+    font-size: var(--font-size-xl);
+  }
+}
+
+/* -------------------------- */
+/* 工具?*/
+/* -------------------------- */
+
+/* UE边框发光 */
+.ue-border-glow {
+  border: var(--ue-border-glow);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+  animation: ue-advanced-border-glow 3s ease-in-out infinite;
+}
+
+/* UE文本发光 */
+.ue-text-glow {
+  color: var(--ue-text-highlight);
+  text-shadow: 0 0 15px rgba(0, 229, 255, 0.5);
+}
+
+/* UE背景渐变 */
+.ue-bg-gradient {
+  background: var(--ue-gradient-data-highlight);
+}
+
+/* UE悬停效果 */
+.ue-hover-effect {
+  transition: all var(--anim-duration-normal) var(--anim-ease-out);
+}
+
+.ue-hover-effect:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--ue-shadow-prism), 0 0 30px rgba(0, 132, 255, 0.3);
+}
+
+/* UE状态工具类 */
+.ue-status-active {
+  color: var(--color-signal-green);
+  text-shadow: 0 0 10px var(--color-signal-green);
+}
+
+.ue-status-warning {
+  color: var(--color-warning-amber);
+  text-shadow: 0 0 10px var(--color-warning-amber);
+}
+
+.ue-status-error {
+  color: var(--color-error-red);
+  text-shadow: 0 0 10px var(--color-error-red);
+}
+
+.ue-status-idle {
+  color: var(--text-secondary);
+  text-shadow: 0 0 5px var(--text-secondary);
+}
+
+/* -------------------------- */
+/* Tailwind CSS 替代?*/
+/* 这些类替代了之前?components.csv 中的 Tailwind CSS 语法 */
+/* -------------------------- */
+
+/*
+ * .card-ue-data-highlight
+ * 替代: .bg-gradient-to-br.from-black/90.to-black/60
+ * 描述: UE 数据高亮卡片，深色渐变背? */
+.card-ue-data-highlight {
+  background: linear-gradient(to bottom right, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.6));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-lg, 12px);
+  padding: var(--spacing-md, 16px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all var(--anim-duration-normal) ease;
+}
+
+.card-ue-data-highlight:hover {
+  border-color: rgba(0, 132, 255, 0.3);
+  box-shadow: 0 8px 24px rgba(0, 132, 255, 0.15);
+}
+
+/*
+ * .panel-row-clean
+ * 替代: .panel-row.!ring-0
+ * 描述: 无边框的面板行，用于 UE 场景中的干净列表
+ */
+.panel-row-clean {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+  background: transparent;
+  box-shadow: none !important;
+  outline: none !important;
+  border: none !important;
+  transition: background var(--anim-duration-normal) ease;
+}
+
+.panel-row-clean:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/*
+ * .timeline-histogram
+ * 替代: .ue-bg-slate-medium
+ * 描述: 时间分布柱状图，中等深度?slate 背景? */
+.timeline-histogram {
+  background-color: rgba(148, 163, 184, 0.5); /* slate-400/50 */
+  border-radius: var(--radius-sm, 4px);
+  height: 100%;
+  min-height: 4px;
+  transition: all var(--anim-duration-fast) ease;
+}
+
+.timeline-histogram:hover {
+  background-color: rgba(148, 163, 184, 0.7); /* slate-400/70 */
+}
+
+/*
+ * .timeline-label
+ * 替代: .ue-text-slate-light
+ * 描述: 时间轴文本标签，浅色 slate 文本
+ */
+.timeline-label {
+  color: rgb(203, 213, 225); /* slate-300 */
+  font-size: var(--font-size-xs, 12px);
+  font-weight: 500;
+  letter-spacing: 0.025em;
+  user-select: none;
+}
+
+/* Dark Mode Adjustments */
+[data-theme="dark"] .card-ue-data-highlight {
+  background: linear-gradient(to bottom right, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.7));
+}
+
+[data-theme="dark"] .panel-row-clean:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .timeline-histogram {
+  background-color: rgba(100, 116, 139, 0.6); /* darker slate */
+}
+
+[data-theme="dark"] .timeline-label {
+  color: rgb(226, 232, 240); /* lighter slate-200 */
+}

@@ -1,0 +1,1031 @@
+/**
+ * Forms - Advanced Components
+ * LingJing Core Design System v1.5.1+
+ *
+ * 包含高级表单组件:
+ * - Form Input & Label (基础输入框和标签) ?全局统一规范
+ * - Checkbox (多选框)
+ * - Switch (开?
+ * - Radio Button (单选框)
+ * - Select Dropdown (下拉选择)
+ * - Textarea (多行文本)
+ * - Range Slider (滑块)
+ * - Time Picker (12H/24H 时间选择?
+ */
+
+/* ========================================
+   CSS Variables
+   ======================================== */
+:root {
+  /* Form Advanced Colors */
+  --form-checkbox-size: 18px;
+  --form-switch-width: 44px;
+  --form-switch-height: 24px;
+  --form-switch-dot-size: 18px;
+  --form-radio-size: 20px;
+  --form-radio-dot-size: 10px;
+  --form-select-height: 40px;
+  --form-textarea-min-height: 100px;
+  --form-slider-height: 6px;
+  --form-slider-thumb-size: 18px;
+  --form-timepicker-width: 280px;
+}
+
+/* ========================================
+   Form Group & Label (全局统一)
+   ======================================== */
+
+/**
+ * .form-group
+ * 描述: 表单组容?
+ * 用法: <div class="form-group">...</div>
+ */
+.form-group {
+  margin-bottom: var(--spacing-lg, 24px);
+}
+
+/**
+ * .form-label
+ * 描述: 表单标签
+ * 用法: <label class="form-label">标签文本</label>
+ */
+.form-label {
+  display: block;
+  font-size: var(--font-size-sm, 14px);
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-xs, 4px);
+}
+
+/* ========================================
+   Form Input (全局统一规范)
+   ======================================== */
+
+/**
+ * .form-input
+ * 描述: 基础文本输入?- 全局统一标准
+ * 用法: <input type="text" class="form-input">
+ * 规范: 圆角8px, 内边?px 16px, 边框1px语义化颜? 白色填充背景
+ */
+.form-input,
+input[type="text"].form-input,
+input[type="email"].form-input,
+input[type="password"].form-input,
+input[type="tel"].form-input,
+input[type="url"].form-input,
+input[type="number"].form-input {
+  display: block;
+  width: 100%;
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+  font-size: var(--font-size-base, 16px);
+  font-family: inherit;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background-color: var(--bg-input, #FFFFFF);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md, 8px);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+/* Hover State */
+.form-input:hover {
+  border-color: var(--brand-primary, #0084FF);
+}
+
+/* Focus State */
+.form-input:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px var(--bg-status-info);
+}
+
+/* Disabled State */
+.form-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  background-color: var(--bg-secondary);
+}
+
+/* Placeholder */
+.form-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* Legacy input-field (兼容旧类名) */
+.input-field {
+  background: var(--input-bg);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: 0 var(--spacing-md);
+  height: 36px;
+  font-size: var(--font-size-sm);
+  color: var(--color-aero-blue);
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+  outline: none;
+}
+
+.input-field:focus {
+  border-color: var(--color-pulse-cyan);
+  box-shadow: 0 0 0 3px var(--bg-status-info), var(--glow-secondary);
+}
+
+.input-field:hover {
+  border-color: var(--color-aero-blue);
+}
+
+.input-field::placeholder {
+  color: var(--text-placeholder);
+}
+
+/* Dark Mode - 深色模式使用半透明背景确保分割效果 */
+[data-theme="dark"] .form-input {
+  background-color: var(--bg-input, rgba(30, 41, 59, 0.5));
+}
+
+
+/* ========================================
+   Checkbox (多选框)
+   ======================================== */
+
+/**
+ * .form-checkbox
+ * 描述: 多选框组件
+ * 用法: <label class="form-checkbox"><input type="checkbox"><span>选项</span></label>
+ */
+.form-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  font-size: var(--font-size-base, 16px);
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+  padding-left: calc(var(--form-checkbox-size) + var(--spacing-sm, 8px));
+  min-height: var(--form-checkbox-size);
+}
+
+.form-checkbox input[type="checkbox"] {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  width: var(--form-checkbox-size);
+  height: var(--form-checkbox-size);
+  margin: 0;
+  cursor: pointer;
+}
+
+.form-checkbox::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--form-checkbox-size);
+  height: var(--form-checkbox-size);
+  border: 2px solid var(--border-primary);
+  border-radius: var(--radius-xs, 4px);
+  background: var(--bg-input, #FFFFFF);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.form-checkbox::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 50%;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: translateY(-60%) rotate(45deg) scale(0);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+/* Checked State */
+.form-checkbox input[type="checkbox"]:checked ~ ::before,
+.form-checkbox:has(input[type="checkbox"]:checked)::before {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary);
+}
+
+.form-checkbox input[type="checkbox"]:checked ~ ::after,
+.form-checkbox:has(input[type="checkbox"]:checked)::after {
+  transform: translateY(-60%) rotate(45deg) scale(1);
+}
+
+/* Hover State */
+.form-checkbox:hover::before {
+  border-color: var(--brand-primary);
+}
+
+/* Disabled State */
+.form-checkbox input[type="checkbox"]:disabled ~ *,
+.form-checkbox:has(input[type="checkbox"]:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Indeterminate State */
+.form-checkbox input[type="checkbox"]:indeterminate ~ ::before,
+.form-checkbox:has(input[type="checkbox"]:indeterminate)::before {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary);
+}
+
+.form-checkbox input[type="checkbox"]:indeterminate ~ ::after,
+.form-checkbox:has(input[type="checkbox"]:indeterminate)::after {
+  width: 8px;
+  height: 0;
+  border-width: 0 0 2px 0;
+  transform: translateY(-50%) rotate(0deg) scale(1);
+  left: 5px;
+}
+
+/* Dark Mode - 深色模式使用半透明背景确保分割效果 */
+[data-theme="dark"] .form-checkbox::before {
+  background: var(--bg-input);
+}
+
+[data-theme="dark"] .form-checkbox input[type="checkbox"]:checked ~ ::before,
+[data-theme="dark"] .form-checkbox:has(input[type="checkbox"]:checked)::before {
+  background: var(--brand-primary);
+}
+
+/* ========================================
+   Checkbox Group (多选框?
+   ======================================== */
+
+.form-checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 8px);
+}
+
+.form-checkbox-group.horizontal {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--spacing-md, 12px);
+}
+
+/* ========================================
+   Switch (开?
+   ======================================== */
+
+/**
+ * .form-switch
+ * 描述: 开关组?
+ * 用法: <label class="form-switch"><input type="checkbox"><span>开?/span></label>
+ */
+.form-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  font-size: var(--font-size-base, 16px);
+  color: var(--text-primary);
+  padding-left: calc(var(--form-switch-width) + var(--spacing-sm, 8px));
+  min-height: var(--form-switch-height);
+}
+
+.form-switch input[type="checkbox"] {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  width: var(--form-switch-width);
+  height: var(--form-switch-height);
+  margin: 0;
+  cursor: pointer;
+}
+
+.form-switch::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--form-switch-width);
+  height: var(--form-switch-height);
+  background: var(--glass-overlay-dark);
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  border: 1px solid var(--border-primary);
+}
+
+[data-theme="dark"] .form-switch::before {
+  background: var(--glass-overlay-light);
+}
+
+.form-switch::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  width: var(--form-switch-dot-size);
+  height: var(--form-switch-dot-size);
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transform: translateY(-50%) translateX(0);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+/* Checked State */
+.form-switch input[type="checkbox"]:checked ~ ::before,
+.form-switch:has(input[type="checkbox"]:checked)::before {
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
+}
+
+.form-switch input[type="checkbox"]:checked ~ ::after,
+.form-switch:has(input[type="checkbox"]:checked)::after {
+  transform: translateY(-50%) translateX(20px);
+}
+
+/* Hover State */
+.form-switch:hover::before {
+  opacity: 0.8;
+}
+
+/* Disabled State */
+.form-switch input[type="checkbox"]:disabled ~ span,
+.form-switch:has(input[type="checkbox"]:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Small Variant */
+.form-switch.small {
+  font-size: var(--font-size-sm, 14px);
+  --form-switch-width: 36px;
+  --form-switch-height: 20px;
+  --form-switch-dot-size: 14px;
+}
+
+.form-switch.small input[type="checkbox"]:checked ~ ::after,
+.form-switch.small:has(input[type="checkbox"]:checked)::after {
+  transform: translateY(-50%) translateX(16px);
+}
+
+/* Large Variant */
+.form-switch.large {
+  font-size: var(--font-size-lg, 18px);
+  --form-switch-width: 52px;
+  --form-switch-height: 28px;
+  --form-switch-dot-size: 22px;
+}
+
+.form-switch.large input[type="checkbox"]:checked ~ ::after,
+.form-switch.large:has(input[type="checkbox"]:checked)::after {
+  transform: translateY(-50%) translateX(24px);
+}
+
+/* ========================================
+   Radio Button
+   ======================================== */
+
+/**
+ * .form-radio
+ * 描述: 单选按钮组?
+ * 用法: <label class="form-radio"><input type="radio"><span>选项</span></label>
+ */
+.form-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  font-size: var(--font-size-base, 16px);
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+
+.form-radio input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.form-radio::before {
+  content: '';
+  display: inline-block;
+  width: var(--form-radio-size);
+  height: var(--form-radio-size);
+  border: 2px solid var(--border-primary);
+  border-radius: 50%;
+  background: var(--bg-input, #FFFFFF);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.form-radio::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 50%;
+  transform: translateY(-50%) scale(0);
+  width: var(--form-radio-dot-size);
+  height: var(--form-radio-dot-size);
+  border-radius: 50%;
+  background: var(--brand-primary);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Checked State */
+.form-radio input[type="radio"]:checked + span::before,
+.form-radio:has(input[type="radio"]:checked)::before {
+  border-color: var(--brand-primary);
+  background: var(--bg-input, #FFFFFF);
+}
+
+.form-radio input[type="radio"]:checked ~ *::after,
+.form-radio:has(input[type="radio"]:checked)::after {
+  transform: translateY(-50%) scale(1);
+}
+
+/* Hover State */
+.form-radio:hover::before {
+  border-color: var(--brand-primary);
+}
+
+/* Disabled State */
+.form-radio input[type="radio"]:disabled ~ *,
+.form-radio:has(input[type="radio"]:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Focus State */
+.form-radio input[type="radio"]:focus-visible ~ *::before,
+.form-radio:has(input[type="radio"]:focus-visible)::before {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* Radio Group */
+.form-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 8px);
+}
+
+.form-radio-group-inline {
+  display: flex;
+  flex-direction: row;
+  gap: var(--spacing-md, 16px);
+  flex-wrap: wrap;
+}
+
+/* Dark Mode - 深色模式使用半透明背景确保分割效果 */
+[data-theme="dark"] .form-radio::before {
+  background: var(--bg-input, rgba(30, 41, 59, 0.5));
+  border-color: var(--border-secondary);
+}
+
+[data-theme="dark"] .form-radio input[type="radio"]:checked + span::before,
+[data-theme="dark"] .form-radio:has(input[type="radio"]:checked)::before {
+  background: var(--bg-input, rgba(30, 41, 59, 0.5));
+}
+
+/* ========================================
+   Select Dropdown
+   ======================================== */
+
+/**
+ * .form-select
+ * 描述: 下拉选择?
+ * 用法: <select class="form-select"><option>选项</option></select>
+ */
+.form-select {
+  display: block;
+  width: 100%;
+  height: var(--form-select-height);
+  padding: 0 var(--spacing-md, 16px);
+  padding-right: 40px;
+  font-size: var(--font-size-base, 16px);
+  font-family: inherit;
+  color: var(--text-primary);
+  background-color: var(--bg-input, #FFFFFF);
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-md, 16px) center;
+  background-size: 12px 8px;
+  border: 1px solid var(--border-primary);
+
+  border-radius: var(--radius-md, 8px);
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+/* Hover State */
+.form-select:hover {
+  border-color: var(--brand-primary);
+}
+
+/* Focus State */
+.form-select:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px var(--bg-status-info);
+}
+
+/* Disabled State */
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  background-color: var(--bg-secondary);
+}
+
+/* Dark Mode - 深色模式使用半透明背景确保分割效果 */
+[data-theme="dark"] .form-select {
+  background-color: var(--bg-input);
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2300E5FF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-md, 16px) center;
+  background-size: 12px 8px;
+}
+
+
+/* Select with Label */
+.form-select-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs, 4px);
+}
+
+.form-select-label {
+  font-size: var(--font-size-sm, 14px);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* ========================================
+   Textarea
+   ======================================== */
+
+/**
+ * .form-textarea
+ * 描述: 多行文本输入?- 全局统一标准
+ * 用法: <textarea class="form-textarea"></textarea>
+ * 规范: 圆角8px, 内边?px 16px, 边框1px语义化颜? 最小高?00px, 白色填充背景
+ */
+.form-textarea {
+  display: block;
+  width: 100%;
+  min-height: var(--form-textarea-min-height);
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+  font-size: var(--font-size-base, 16px);
+  font-family: inherit;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background-color: var(--bg-input, #FFFFFF);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md, 8px);
+  outline: none;
+  resize: vertical;
+  transition: all 0.2s ease;
+}
+
+/* Hover State */
+.form-textarea:hover {
+  border-color: var(--brand-primary);
+}
+
+/* Focus State */
+.form-textarea:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px var(--bg-status-info);
+}
+
+/* Disabled State */
+.form-textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  background-color: var(--bg-secondary);
+  resize: none;
+}
+
+/* Placeholder */
+.form-textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* Dark Mode - 深色模式使用半透明背景确保分割效果 */
+[data-theme="dark"] .form-textarea {
+  background-color: var(--bg-input);
+}
+
+/* Textarea with Counter */
+.form-textarea-wrapper {
+  position: relative;
+}
+
+.form-textarea-counter {
+  position: absolute;
+  bottom: var(--spacing-xs, 4px);
+  right: var(--spacing-sm, 8px);
+  font-size: var(--font-size-xs, 12px);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+/* ========================================
+   Range Slider
+   ======================================== */
+
+/**
+ * .form-slider
+ * 描述: 范围滑块
+ * 用法: <input type="range" class="form-slider">
+ */
+.form-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: var(--form-slider-height);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-full, 999px);
+  outline: none;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+/* Hover State */
+.form-slider:hover {
+  background: var(--bg-tertiary);
+}
+
+/* Track - Webkit */
+.form-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--form-slider-thumb-size);
+  height: var(--form-slider-thumb-size);
+  background: var(--brand-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.form-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: var(--shadow-md);
+}
+
+/* Track - Firefox */
+.form-slider::-moz-range-thumb {
+  width: var(--form-slider-thumb-size);
+  height: var(--form-slider-thumb-size);
+  background: var(--brand-primary);
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.form-slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: var(--shadow-md);
+}
+
+/* Focus State */
+.form-slider:focus::-webkit-slider-thumb {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.form-slider:focus::-moz-range-thumb {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* Disabled State */
+.form-slider:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.form-slider:disabled::-webkit-slider-thumb {
+  cursor: not-allowed;
+  background: var(--text-disabled);
+}
+
+.form-slider:disabled::-moz-range-thumb {
+  cursor: not-allowed;
+  background: var(--text-disabled);
+}
+
+/* Slider with Labels */
+.form-slider-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 8px);
+}
+
+.form-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-secondary);
+}
+
+/* Dark Mode */
+[data-theme="dark"] .form-slider {
+  background: var(--bg-tertiary);
+}
+
+/* ========================================
+   Time Picker (12H)
+   ======================================== */
+
+/**
+ * .time-picker-12h
+ * 描述: 12小时制时间选择?
+ * 用法: <div class="time-picker-12h">...</div>
+ */
+.time-picker-12h,
+.time-picker-24h {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs, 4px);
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+  background: var(--bg-base);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md, 8px);
+  width: var(--form-timepicker-width);
+}
+
+.time-picker-input {
+  width: 50px;
+  padding: var(--spacing-xs, 4px);
+  text-align: center;
+  font-size: var(--font-size-base, 16px);
+  font-weight: 500;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+}
+
+.time-picker-input:focus {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm, 4px);
+}
+
+.time-picker-separator {
+  font-size: var(--font-size-lg, 20px);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.time-picker-period {
+  display: flex;
+  gap: var(--spacing-xs, 4px);
+  margin-left: var(--spacing-sm, 8px);
+}
+
+.time-picker-period-btn {
+  padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+  font-size: var(--font-size-sm, 14px);
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.time-picker-period-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.time-picker-period-btn.active {
+  background: var(--brand-primary);
+  color: white;
+  border-color: var(--brand-primary);
+}
+
+/* Dark Mode */
+[data-theme="dark"] .time-picker-12h,
+[data-theme="dark"] .time-picker-24h {
+  background: var(--bg-card-heavy);
+}
+
+/* ========================================
+   Time Picker (24H)
+   ======================================== */
+
+/**
+ * .time-picker-24h
+ * 描述: 24小时制时间选择器（无需 AM/PM?
+ * 用法: <div class="time-picker-24h">...</div>
+ */
+/* 样式?12H 相同，但没有 period 按钮 */
+
+/* ========================================
+  Search & Filter Inputs (迁移自 forms-b.css)
+  ======================================== */
+
+.search-input,
+.filter-select,
+.filter-input,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="tel"],
+input[type="url"],
+input[type="number"],
+input[type="date"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="time"],
+textarea,
+select {
+  background: var(--input-bg);
+  backdrop-filter: blur(var(--blur-sm));
+  -webkit-backdrop-filter: blur(var(--blur-sm));
+  border: var(--input-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  transition: all var(--anim-duration-fast) var(--anim-ease-out);
+  outline: none;
+  width: 100%;
+}
+
+.search-input {
+  flex: 1 1 auto;
+  min-width: 200px;
+  max-width: 500px; /* 限制最大宽度，给筛选框和按钮留空间 */
+}
+
+.filter-select {
+  width: auto; /* 覆盖通用的width: 100% */
+  flex: 0 0 auto; /* 不扩展也不收缩，保持内容宽度 */
+  min-width: 150px;
+}
+
+.search-input:focus,
+.filter-select:focus,
+.filter-input:focus,
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="search"]:focus,
+input[type="tel"]:focus,
+input[type="url"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+input[type="datetime-local"]:focus,
+input[type="month"]:focus,
+input[type="time"]:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--color-aero-blue);
+  box-shadow: 0 0 0 3px var(--bg-status-info);
+  background: var(--bg-card);
+}
+
+.search-input:hover,
+.filter-select:hover,
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: var(--glass-border-hover);
+}
+
+.search-input::placeholder,
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-placeholder);
+}
+
+select.filter-select,
+select {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-md) center;
+  background-size: 12px 8px;
+  padding-right: calc(var(--spacing-md) * 2.5);
+}
+
+textarea {
+  min-height: 80px;
+  resize: vertical;
+  padding: var(--spacing-sm) var(--spacing-md);
+  line-height: 1.6;
+}
+
+[data-theme="dark"] .search-input,
+[data-theme="dark"] .filter-select,
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  background: var(--input-bg);
+  border: var(--input-border);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .search-input:focus,
+[data-theme="dark"] .filter-select:focus,
+[data-theme="dark"] input:focus,
+[data-theme="dark"] textarea:focus,
+[data-theme="dark"] select:focus {
+  border-color: var(--color-aero-blue);
+  box-shadow: 0 0 0 3px var(--bg-status-info);
+  background: var(--bg-card-heavy);
+}
+
+[data-theme="dark"] select {
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%2300E5FF' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-md) center;
+  background-size: 12px 8px;
+}
+
+/* ========================================
+  Responsive Design
+  ======================================== */
+
+
+@media (max-width: 768px) {
+  .form-radio-group-inline {
+    flex-direction: column;
+  }
+
+  .time-picker-12h,
+  .time-picker-24h {
+    width: 100%;
+  }
+}
+
+/* ========================================
+   Accessibility
+   ======================================== */
+
+/* Screen Reader Only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .form-radio::before,
+  .form-select,
+  .form-textarea,
+  .form-slider,
+  .time-picker-12h,
+  .time-picker-24h {
+    border-width: 2px;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .form-radio,
+  .form-radio::before,
+  .form-radio::after,
+  .form-select,
+  .form-textarea,
+  .form-slider,
+  .form-slider::-webkit-slider-thumb,
+  .form-slider::-moz-range-thumb,
+  .time-picker-period-btn {
+    transition: none;
+  }
+}

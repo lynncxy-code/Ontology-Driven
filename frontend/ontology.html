@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/vendor/vue-3.3.4.global.prod.js" integrity="sha384-QLgwzsuau/sa8LhRgjRzkvQS0LyUzCM2B8FPwVoSu1KDel940/orifPaumNXp9hK" crossorigin="anonymous"></script>
     <script src="/vendor/axios-1.7.9.min.js" integrity="sha384-jLwhcmGu/RL8PSTUEl/559f8QVLL4QqM+HBvoZlt4F7XCdsdoDGAwW4nPFfoM7lU" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.3.2/bin/jsencrypt.min.js" integrity="sha384-FwzUI3CDdHbj2MEKbnjj0eCvB+gYurE3x3pW/udNFOVUbrCrl3REWMQ1FBTolvoj" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="/nexus_titlebar.css" />
     <style>
         .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
@@ -19,15 +21,12 @@
 <body class="bg-gray-50 text-gray-900 h-screen overflow-hidden flex flex-col font-sans antialiased">
 <div id="app" class="flex flex-col flex-1 min-h-0">
     <!-- Header -->
-    <header class="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0 flex items-center justify-between">
-        <div>
-            <div class="flex items-center gap-3">
-                <h1 class="text-lg font-bold">本体配置中心</h1>
-                <span class="text-[10px] font-mono bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full border border-gray-200">MODULE 1 · PART A</span>
-            </div>
-            <p class="text-xs text-gray-500 mt-1">为 ObjectType 挂载标准三维接口，赋予业务对象三维存在性与行为能力</p>
+    <header class="nexus-titlebar">
+        <div class="nexus-titlebar__main">
+            <h1 class="nexus-titlebar__title">本体配置中心</h1>
+            <p class="nexus-titlebar__subtitle">为 ObjectType 挂载标准三维接口，赋予业务对象三维存在性与行为能力</p>
         </div>
-        <div>
+        <div class="nexus-titlebar__actions">
             <a href="/instance" class="text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md transition border border-transparent hover:border-gray-300">
                 前往 实例运维中心 &rarr;
             </a>
@@ -89,7 +88,14 @@
                     <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                         <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
                             <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">对象业务信息</span>
-                            <span class="text-[10px] font-mono bg-white border border-gray-200 text-gray-500 px-2 py-0.5 rounded">{{ selected.rid }}</span>
+                            <div class="flex items-center gap-2">
+                                <a :href="`/interaction?target=type&type_rid=${encodeURIComponent(selected.rid)}&from=ontology`"
+                                   class="text-xs font-medium bg-gray-900 text-white px-3 py-1.5 rounded-md hover:bg-black transition inline-flex items-center gap-1.5">
+                                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M8 9h8M8 13h5"></path></svg>
+                                    配置信息面板
+                                </a>
+                                <span class="text-[10px] font-mono bg-white border border-gray-200 text-gray-500 px-2 py-0.5 rounded">{{ selected.rid }}</span>
+                            </div>
                         </div>
                         <div class="p-5">
                             <div class="mb-5 flex justify-between items-start">
@@ -309,21 +315,40 @@
                                 <div class="flex items-center gap-3 mb-4">
                                     <div class="flex bg-gray-100 border border-gray-200 rounded-lg overflow-hidden p-1">
                                         <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='library' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('library')">ArtStudio 资产库</button>
-                                        <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='local' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('local')">本地默认资产库</button>
+                                        <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='mine' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('mine')">我的资产</button>
                                         <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='manual' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('manual')">路径直连</button>
                                     </div>
                                     <!-- 数据源指示 -->
                                     <span v-if="bindMode==='library'" class="text-[10px] font-mono ml-auto text-gray-600 bg-gray-50 border border-gray-200" style="padding:2px 8px; border-radius:4px;">
                                         ArtStudio 资产库
                                     </span>
-                                    <span v-if="bindMode==='local'" class="text-[10px] font-mono ml-auto text-gray-600 bg-gray-50 border border-gray-200" style="padding:2px 8px; border-radius:4px;">
-                                        本地默认资产库（40 个）
+                                    <span v-if="bindMode==='mine'" class="text-[10px] font-mono ml-auto text-gray-600 bg-gray-50 border border-gray-200" style="padding:2px 8px; border-radius:4px;">
+                                        ArtStudio · 我的资产
                                     </span>
                                     <span v-if="bindMode==='manual'" class="text-[10px] font-mono ml-auto text-gray-600 bg-gray-50 border border-gray-200" style="padding:2px 8px; border-radius:4px;">
                                         运行时 GLB / UE 已打包资产
                                     </span>
                                 </div>
-                                <div v-if="assetLoadWarning && bindMode === 'library'"
+                                <div v-if="bindMode === 'mine'"
+                                     class="mb-4 text-[11px] text-gray-600 leading-relaxed border-l-2 border-gray-300 pl-3">
+                                    <span v-if="identityLoading">正在确认 ArtStudio 登录状态…</span>
+                                    <template v-else-if="artstudioIdentity?.authenticated">
+                                        当前账号：
+                                        <span class="font-medium text-gray-900">{{ artstudioIdentity.user?.display_name }}</span>
+                                        <span v-if="artstudioIdentity.user?.username" class="font-mono text-gray-500">（{{ artstudioIdentity.user.username }}）</span>
+                                        <button @click="refreshMyAssets" class="ml-2 text-[10px] underline underline-offset-2 hover:text-gray-900">刷新状态</button>
+                                        <button @click="disconnectArtstudio" :disabled="disconnecting"
+                                                class="ml-2 text-[10px] underline underline-offset-2 hover:text-gray-900 disabled:opacity-50">
+                                            {{ disconnecting ? '正在断开…' : '断开连接' }}
+                                        </button>
+                                    </template>
+                                    <template v-else>
+                                        {{ identityError || '尚未连接 ArtStudio 账号。' }}
+                                        <button ref="loginTrigger" @click="openArtstudioLogin" :disabled="identityLoading"
+                                                class="ml-2 text-[10px] font-medium text-gray-900 underline underline-offset-2 hover:text-black disabled:opacity-50">连接账号</button>
+                                    </template>
+                                </div>
+                                <div v-if="assetLoadWarning && (bindMode === 'library' || bindMode === 'mine')"
                                      class="mb-4 text-[11px] text-gray-600 leading-relaxed border-l-2 border-gray-300 pl-3">
                                     {{ assetLoadWarning }}
                                 </div>
@@ -334,8 +359,8 @@
                                         <select v-model="assetOwnerType" @change="onFilterChange"
                                                 class="text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-gray-900 bg-white">
                                             <option value="">全部所有者</option>
-                                            <option value="1">个人资产</option>
-                                            <option value="2">组织资产</option>
+                                            <option value="1">组织资产</option>
+                                            <option value="2">个人资产</option>
                                         </select>
                                         <select v-model="assetCategory" @change="onFilterChange"
                                                 class="text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-gray-900 bg-white">
@@ -348,8 +373,8 @@
                                     </div>
                                 </template>
 
-                                <template v-if="bindMode === 'local'">
-                                    <!-- 默认资产库：搜索 -->
+                                <template v-if="bindMode === 'mine' && artstudioIdentity?.authenticated">
+                                    <!-- 当前 ArtStudio 用户的个人资产：搜索 -->
                                     <div class="flex items-center gap-2 mb-4">
                                         <input type="text" v-model="assetQuery" @keyup.enter="onSearch"
                                                placeholder="搜索资产名称…"
@@ -358,15 +383,20 @@
                                     </div>
                                 </template>
 
-                                <!-- 资产卡片网格 + 分页（library / local 共用） -->
-                                <template v-if="bindMode === 'library' || bindMode === 'local'">
+                                <!-- 资产卡片网格 + 分页（公开库 / 我的资产共用） -->
+                                <template v-if="bindMode === 'library' || (bindMode === 'mine' && artstudioIdentity?.authenticated)">
                                     <!-- 资产卡片网格 -->
                                     <div class="grid grid-cols-2 gap-3 mb-4">
                                         <div v-for="asset in pagedAssets" :key="asset.file_number"
-                                             @click="selectedAssetFn = asset.file_number; selectedAssetUePath = asset.ue_path || ''; assetResult = null"
+                                             @click="selectLibraryAsset(asset)"
+                                             :aria-disabled="asset.bindable === false ? 'true' : 'false'"
                                              :class="[
-                                                'p-3 border rounded-lg cursor-pointer transition flex flex-col',
-                                                selectedAssetFn === asset.file_number ? 'border-gray-900 bg-gray-50 ring-1 ring-gray-900' : 'border-gray-200 hover:border-gray-400'
+                                                'p-3 border rounded-lg transition flex flex-col',
+                                                asset.bindable === false
+                                                    ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
+                                                    : (selectedAssetFn === asset.file_number
+                                                        ? 'border-gray-900 bg-gray-50 ring-1 ring-gray-900 cursor-pointer'
+                                                        : 'border-gray-200 hover:border-gray-400 cursor-pointer')
                                              ]">
                                             <!-- 封面图 -->
                                             <img v-if="asset.cover_url" :src="asset.cover_url" :alt="asset.name"
@@ -377,10 +407,11 @@
                                             </div>
                                             <div class="font-mono text-xs font-bold text-gray-900">{{ asset.file_number }}</div>
                                             <div class="text-[11px] text-gray-500 mt-1 truncate">{{ asset.name }}</div>
-                                            <div class="mt-auto pt-2 flex items-center gap-1">
-                                                <span class="text-[9px] bg-gray-100 text-gray-500 px-1 border border-gray-200 rounded font-semibold">{{ asset.format?.toUpperCase() }}</span>
-                                                <span v-if="asset.ue_path" class="text-[8px] text-gray-400 truncate ml-auto max-w-[100px]" title="UE 路径">{{ asset.ue_path }}</span>
-                                            </div>
+                                             <div class="mt-auto pt-2 flex items-center gap-1">
+                                                 <span class="text-[9px] bg-gray-100 text-gray-500 px-1 border border-gray-200 rounded font-semibold">{{ asset.format?.toUpperCase() }}</span>
+                                                 <span v-if="asset.bindable === false" class="text-[9px] text-gray-500 ml-auto">暂不支持运行时绑定</span>
+                                                 <span v-if="asset.ue_path" class="text-[8px] text-gray-400 truncate ml-auto max-w-[100px]" title="UE 路径">{{ asset.ue_path }}</span>
+                                             </div>
                                         </div>
                                     </div>
                                     <!-- Pagination（服务端分页） -->
@@ -413,8 +444,8 @@
                                         该路径只在资产已加入 UE 打包 Cook 时适用于 exe；未 Cook 的资产在打包后会显示占位盒。
                                     </div>
                                     <div class="flex items-center gap-3">
-                                        <button class="text-xs font-medium bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-800 disabled:opacity-50 transition drop-shadow-sm"
-                                                :disabled="!selectedAssetFn || bindingAsset" @click="bindAsset(selectedAssetFn)">
+                                         <button class="text-xs font-medium bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-800 disabled:opacity-50 transition drop-shadow-sm"
+                                                :disabled="!selectedAsset || bindingAsset" @click="bindAsset(selectedAssetFn)">
                                             {{ bindingAsset ? '处理中...' : '确认绑定选中资产' }}
                                         </button>
                                     </div>
@@ -478,6 +509,79 @@
         </div>
     </div>
 
+    <!-- ArtStudio 账号连接 -->
+    <transition name="fade">
+        <div v-if="loginModalOpen"
+             class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 px-4"
+             role="dialog" aria-modal="true" aria-labelledby="artstudio-login-title"
+             tabindex="-1" @click.self="closeArtstudioLogin" @keydown.esc="closeArtstudioLogin">
+            <div class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-2xl">
+                <div class="mb-5 flex items-start justify-between gap-4">
+                    <div>
+                        <h3 id="artstudio-login-title" class="text-base font-semibold text-gray-900">连接 ArtStudio</h3>
+                        <p class="mt-1 text-xs leading-relaxed text-gray-500">使用你的 ArtStudio 创作者账号登录。账号密码仅用于本次连接，不会保存。</p>
+                    </div>
+                    <button type="button" @click="closeArtstudioLogin" :disabled="loginLoading"
+                            class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-40"
+                            aria-label="关闭登录窗口">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <path d="M6 6l12 12M18 6L6 18"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <form @submit.prevent="submitArtstudioLogin" class="space-y-4">
+                    <div>
+                        <label for="artstudio-username" class="mb-1.5 block text-xs font-medium text-gray-700">用户名</label>
+                        <input id="artstudio-username" ref="loginUsernameInput" v-model.trim="loginForm.username"
+                               type="text" autocomplete="username" :disabled="loginLoading"
+                               placeholder="请输入 ArtStudio 用户名"
+                               class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 disabled:bg-gray-50" />
+                    </div>
+                    <div>
+                        <label for="artstudio-password" class="mb-1.5 block text-xs font-medium text-gray-700">密码</label>
+                        <input id="artstudio-password" v-model="loginForm.password"
+                               type="password" autocomplete="current-password" :disabled="loginLoading"
+                               placeholder="请输入密码"
+                               class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 disabled:bg-gray-50" />
+                    </div>
+
+                    <div v-if="challengeLoading" class="text-xs text-gray-500">正在准备安全登录…</div>
+                    <div v-else-if="loginChallenge?.captcha_enabled">
+                        <label for="artstudio-captcha" class="mb-1.5 block text-xs font-medium text-gray-700">验证码</label>
+                        <div class="flex items-stretch gap-2">
+                            <input id="artstudio-captcha" v-model.trim="loginForm.captcha"
+                                   type="text" autocomplete="off" maxlength="6" :disabled="loginLoading"
+                                   placeholder="请输入验证码"
+                                   class="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 disabled:bg-gray-50" />
+                            <div class="flex h-10 min-w-[112px] items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-gray-50 px-2">
+                                <img v-if="loginChallenge.captcha?.image" :src="loginChallenge.captcha.image" alt="ArtStudio 验证码" class="max-h-9 max-w-[100px]" />
+                                <span v-else class="text-[11px] text-gray-400">加载中</span>
+                            </div>
+                            <button type="button" @click="refreshLoginCaptcha" :disabled="captchaLoading || loginLoading"
+                                    class="rounded-md border border-gray-200 bg-white px-2.5 text-xs text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40">
+                                {{ captchaLoading ? '刷新中' : '换一张' }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div v-if="loginError" class="border-l-2 border-red-300 pl-3 text-xs leading-relaxed text-red-700" role="alert">
+                        {{ loginError }}
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2 pt-2">
+                        <button type="button" @click="closeArtstudioLogin" :disabled="loginLoading"
+                                class="rounded-md border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">取消</button>
+                        <button type="submit" :disabled="loginLoading || challengeLoading || !loginChallenge"
+                                class="rounded-md border border-gray-900 bg-gray-900 px-4 py-2 text-xs font-medium text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-40">
+                            {{ loginLoading ? '正在连接…' : '连接账号' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </transition>
+
     <!-- Toast Notifications -->
     <div class="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
         <transition-group name="fade">
@@ -493,14 +597,14 @@
 </div>
 
 <script>
-const { createApp, ref, computed, onMounted } = Vue;
+const { createApp, ref, computed, onMounted, nextTick } = Vue;
 createApp({
     setup() {
         const objectTypes   = ref([]);
         const allInterfaces = ref([]);
         const allAssets     = ref([]);       // 当前页的资产
         const assetTotal    = ref(0);         // 总资产数（服务端返回）
-        const assetSource   = ref("studio");  // "studio" | "mock"
+        const assetSource   = ref("studio");  // "studio" | "mine" | "mock"
         const selected      = ref(null);
         const pendingInterfaces = ref(new Set());
         const pendingRemove = ref(new Set());   // 编辑模式下，待卸载的接口
@@ -512,12 +616,25 @@ createApp({
         const manualPath    = ref('');
         const assetResult   = ref(null);
         const assetLoadWarning = ref('');
+        const artstudioIdentity = ref(null);
+        const identityLoading = ref(false);
+        const identityError = ref('');
+        const loginModalOpen = ref(false);
+        const loginLoading = ref(false);
+        const challengeLoading = ref(false);
+        const captchaLoading = ref(false);
+        const disconnecting = ref(false);
+        const loginError = ref('');
+        const loginChallenge = ref(null);
+        const loginUsernameInput = ref(null);
+        const loginTrigger = ref(null);
+        const loginForm = ref({ username: '', password: '', captcha: '' });
         const bindingAsset  = ref(false);
         const promotingModelPath = ref('');
         const toasts        = ref([]);
         const assetPage     = ref(1);
         const assetCategory = ref("");          // 分类筛选，""=全部
-        const assetOwnerType = ref("");          // 所有者筛选（ArtStudio），""=全部 / 1=个人 / 2=组织
+        const assetOwnerType = ref("");          // 所有者筛选（ArtStudio），""=全部 / 1=组织 / 2=个人
         const assetQuery    = ref("");          // 搜索关键词
         const ASSET_PAGE_SIZE = 10;
         let assetLoadSeq = 0;
@@ -535,6 +652,9 @@ createApp({
         const assetTotalPages = computed(() => Math.max(1, Math.ceil(assetTotal.value / ASSET_PAGE_SIZE)));
         // 服务端已分页，allAssets 就是当前页数据
         const pagedAssets = computed(() => allAssets.value);
+        const selectedAsset = computed(() => (
+            allAssets.value.find(asset => asset.file_number === selectedAssetFn.value && asset.bindable !== false) || null
+        ));
 
         const parentInterfaces = computed(() => allInterfaces.value.filter(i => i.tier === 'parent'));
         const childInterfaces  = computed(() => allInterfaces.value.filter(i => i.tier === 'child'));
@@ -693,6 +813,13 @@ createApp({
             } finally { bindingAsset.value = false; }
         }
 
+        function selectLibraryAsset(asset) {
+            if (!asset || asset.bindable === false) return;
+            selectedAssetFn.value = asset.file_number;
+            selectedAssetUePath.value = asset.ue_path || '';
+            assetResult.value = null;
+        }
+
         function modelSourceLabel(source) {
             const map = {
                 artstudio: 'ArtStudio',
@@ -708,7 +835,8 @@ createApp({
         function assetSourceLabel(source) {
             const map = {
                 studio: 'ArtStudio',
-                mock: '本地默认资产库',
+                mine: 'ArtStudio · 我的资产',
+                mock: '历史本地资产',
                 local: '运行时 GLB 文件',
                 ue_cooked: 'UE 已打包资产引用',
             };
@@ -773,14 +901,20 @@ createApp({
                 assetLoadWarning.value = "";
                 return;
             }
+            if (requestMode === 'mine' && !artstudioIdentity.value?.authenticated) {
+                allAssets.value = [];
+                assetTotal.value = 0;
+                assetSource.value = "mine";
+                return;
+            }
 
             const params = { page: assetPage.value, size: ASSET_PAGE_SIZE };
 
-            if (requestMode === 'local') {
-                params.source = 'mock';
+            if (requestMode === 'mine') {
+                params.source = 'mine';
                 if (assetQuery.value) params.q = assetQuery.value;
             } else {
-                // ArtStudio 模式
+                // ArtStudio 公开资产模式
                 params.source = 'studio';
                 if (assetOwnerType.value) params.ownerType = assetOwnerType.value;
                 if (assetCategory.value)  params.category = assetCategory.value;
@@ -792,28 +926,209 @@ createApp({
                 if (requestSeq !== assetLoadSeq || requestMode !== bindMode.value) return;
                 allAssets.value  = data.items || [];
                 assetTotal.value = data.total || 0;
-                assetSource.value = data._source || (requestMode === 'local' ? "mock" : "studio");
+                assetSource.value = data._source || (requestMode === 'mine' ? "mine" : "studio");
                 assetLoadWarning.value = data.warning || "";
+                if (!allAssets.value.some(asset => asset.file_number === selectedAssetFn.value && asset.bindable !== false)) {
+                    selectedAssetFn.value = '';
+                    selectedAssetUePath.value = '';
+                    assetResult.value = null;
+                }
             } catch (e) {
                 if (requestSeq !== assetLoadSeq || requestMode !== bindMode.value) return;
                 allAssets.value  = [];
                 assetTotal.value = 0;
-                assetSource.value = requestMode === 'local' ? "mock" : "studio_error";
-                assetLoadWarning.value = requestMode === 'local'
-                    ? '本地默认资产库加载失败。'
-                    : (e.response?.data?.warning || e.response?.data?.error || 'ArtStudio 资产库暂不可用。');
+                assetSource.value = requestMode === 'mine' ? "mine_error" : "studio_error";
+                const data = e.response?.data || {};
+                assetLoadWarning.value = data.warning || data.message || data.error || 'ArtStudio 资产库暂不可用。';
+                if (requestMode === 'mine' && data.authenticated === false) {
+                    artstudioIdentity.value = data;
+                    identityError.value = data.message || 'ArtStudio 登录状态异常，请刷新后重试。';
+                }
+            }
+        }
+
+        function artstudioPublicKeyPem(value) {
+            const key = String(value || '').replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
+            const lines = key.match(/.{1,64}/g) || [];
+            return `-----BEGIN PUBLIC KEY-----\n${lines.join('\n')}\n-----END PUBLIC KEY-----`;
+        }
+
+        async function loadArtstudioChallenge() {
+            challengeLoading.value = true;
+            loginError.value = '';
+            loginChallenge.value = null;
+            try {
+                const { data } = await axios.get('/api/v2/assets/auth/challenge');
+                loginChallenge.value = data;
+                loginForm.value.captcha = '';
+                return true;
+            } catch (e) {
+                loginError.value = e.response?.data?.message || '暂时无法准备 ArtStudio 登录，请稍后再试。';
+                return false;
+            } finally {
+                challengeLoading.value = false;
+            }
+        }
+
+        async function refreshLoginCaptcha() {
+            captchaLoading.value = true;
+            loginForm.value.captcha = '';
+            try {
+                const { data } = await axios.get('/api/v2/assets/auth/captcha');
+                if (!loginChallenge.value) loginChallenge.value = { captcha_enabled: true };
+                loginChallenge.value.captcha = data.captcha;
+                loginError.value = '';
+            } catch (e) {
+                loginError.value = e.response?.data?.message || '暂时无法刷新验证码，请稍后再试。';
+            } finally {
+                captchaLoading.value = false;
+            }
+        }
+
+        async function openArtstudioLogin() {
+            loginModalOpen.value = true;
+            loginError.value = '';
+            loginForm.value.password = '';
+            loginForm.value.captcha = '';
+            await nextTick();
+            loginUsernameInput.value?.focus();
+            await loadArtstudioChallenge();
+        }
+
+        function closeArtstudioLogin(force = false) {
+            if (loginLoading.value && !force) return;
+            loginModalOpen.value = false;
+            loginForm.value.password = '';
+            loginForm.value.captcha = '';
+            loginError.value = '';
+            nextTick(() => loginTrigger.value?.focus());
+        }
+
+        function encryptArtstudioPassword(password) {
+            if (!loginChallenge.value?.public_key) throw new Error('ArtStudio 安全登录信息尚未就绪。');
+            if (typeof window.JSEncrypt !== 'function') throw new Error('安全登录组件加载失败，请刷新页面后重试。');
+            const encryptor = new window.JSEncrypt();
+            encryptor.setPublicKey(artstudioPublicKeyPem(loginChallenge.value.public_key));
+            const encrypted = encryptor.encrypt(password);
+            if (!encrypted) throw new Error('密码安全处理失败，请重新输入。');
+            return encrypted;
+        }
+
+        async function submitArtstudioLogin() {
+            loginError.value = '';
+            if (!loginForm.value.username || !loginForm.value.password) {
+                loginError.value = '请输入用户名和密码。';
+                return;
+            }
+            if (!loginChallenge.value) {
+                loginError.value = '安全登录信息尚未就绪，请稍后再试。';
+                return;
+            }
+            if (loginChallenge.value.captcha_enabled && !loginForm.value.captcha) {
+                loginError.value = '请输入验证码。';
+                return;
+            }
+
+            loginLoading.value = true;
+            try {
+                const encryptedPassword = encryptArtstudioPassword(loginForm.value.password);
+                loginForm.value.password = '';
+                const { data } = await axios.post('/api/v2/assets/auth/login', {
+                    username: loginForm.value.username,
+                    encrypted_password: encryptedPassword,
+                    captcha: loginForm.value.captcha,
+                    uuid: loginChallenge.value.captcha?.uuid || '',
+                });
+                artstudioIdentity.value = {
+                    authenticated: true,
+                    configured: true,
+                    user: data.user || {},
+                };
+                identityError.value = '';
+                closeArtstudioLogin(true);
+                toast('ok', 'ArtStudio 账号已连接');
+                if (bindMode.value === 'mine') {
+                    assetPage.value = 1;
+                    await loadAssets();
+                }
+            } catch (e) {
+                loginForm.value.password = '';
+                const message = e.response?.data?.message || e.message || '登录失败，请检查账号信息后重试。';
+                if (loginChallenge.value?.captcha_enabled) await refreshLoginCaptcha();
+                loginError.value = message;
+            } finally {
+                loginLoading.value = false;
+            }
+        }
+
+        async function disconnectArtstudio() {
+            disconnecting.value = true;
+            try {
+                await axios.post('/api/v2/assets/auth/logout');
+                artstudioIdentity.value = { authenticated: false, configured: false };
+                identityError.value = '尚未连接 ArtStudio 账号。';
+                allAssets.value = [];
+                assetTotal.value = 0;
+                selectedAssetFn.value = '';
+                selectedAssetUePath.value = '';
+                toast('ok', '已断开 ArtStudio 账号');
+            } catch (e) {
+                toast('err', e.response?.data?.message || '暂时无法断开账号，请稍后再试。');
+            } finally {
+                disconnecting.value = false;
+            }
+        }
+
+        async function loadArtstudioIdentity() {
+            identityLoading.value = true;
+            identityError.value = '';
+            try {
+                const { data } = await axios.get('/api/v2/assets/identity');
+                artstudioIdentity.value = data;
+                return data.authenticated === true;
+            } catch (e) {
+                const data = e.response?.data || {};
+                artstudioIdentity.value = {
+                    authenticated: false,
+                    configured: data.configured === true,
+                    code: data.code || 'artstudio_identity_unavailable',
+                };
+                identityError.value = data.message || '暂时无法确认 ArtStudio 登录状态，请稍后再试。';
+                return false;
+            } finally {
+                identityLoading.value = false;
+            }
+        }
+
+        async function refreshMyAssets() {
+            const authenticated = await loadArtstudioIdentity();
+            if (bindMode.value !== 'mine') return;
+            assetLoadWarning.value = '';
+            allAssets.value = [];
+            assetTotal.value = 0;
+            if (authenticated) {
+                assetPage.value = 1;
+                await loadAssets();
             }
         }
 
         // 切换绑定模式
-        function switchBindMode(mode) {
+        async function switchBindMode(mode) {
+            ++assetLoadSeq;
             bindMode.value = mode;
             assetResult.value = null;
             selectedAssetFn.value = '';
             selectedAssetUePath.value = '';
             assetLoadWarning.value = '';
             assetPage.value = 1;
-            loadAssets();
+            allAssets.value = [];
+            assetTotal.value = 0;
+            if (mode === 'mine') {
+                const authenticated = await loadArtstudioIdentity();
+                if (bindMode.value === 'mine' && authenticated) await loadAssets();
+                return;
+            }
+            await loadAssets();
         }
 
         // 筛选条件变化（重置到第一页）
@@ -866,11 +1181,13 @@ createApp({
             objectTypes, sortedObjectTypes, allInterfaces, allAssets, assetTotal, assetSource, selected,
             parentInterfaces, childInterfaces, pendingInterfaces, pendingRemove, hasRepresentable,
             defaultModel, migrationModels,
-            editMode, saving, bindMode, selectedAssetFn, selectedAssetUePath, manualPath, assetResult, assetLoadWarning, bindingAsset, promotingModelPath, toasts,
+            editMode, saving, bindMode, selectedAssetFn, selectedAssetUePath, selectedAsset, manualPath, assetResult, assetLoadWarning, artstudioIdentity, identityLoading, identityError, bindingAsset, promotingModelPath, toasts,
+            loginModalOpen, loginLoading, challengeLoading, captchaLoading, disconnecting, loginError, loginChallenge, loginUsernameInput, loginTrigger, loginForm,
             assetPage, assetTotalPages, pagedAssets, assetCategory, assetOwnerType, assetQuery, ASSET_CATEGORIES,
-            isInjected, isChecked, toggleInterface, saveInterfaces, removeInterface, bindAsset, selectType,
+            isInjected, isChecked, toggleInterface, saveInterfaces, removeInterface, bindAsset, selectLibraryAsset, selectType,
             modelSourceLabel, assetSourceLabel, promoteModel,
-            enterEditMode, cancelEditMode, saveEdit, loadAssets, switchBindMode, onFilterChange,
+            enterEditMode, cancelEditMode, saveEdit, loadAssets, loadArtstudioIdentity, refreshMyAssets, switchBindMode, onFilterChange,
+            openArtstudioLogin, closeArtstudioLogin, submitArtstudioLogin, refreshLoginCaptcha, disconnectArtstudio,
             onCategoryChange, onSearch, onPageChange,
         };
     }

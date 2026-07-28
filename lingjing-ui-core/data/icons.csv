@@ -1,0 +1,196 @@
+No,Category,Icon Name,Keywords,Library,Import Code,Usage,Best For,Style
+1,Navigation,menu,hamburger menu navigation toggle bars,Lucide,import { Menu } from 'lucide-react',<Menu />,Mobile navigation drawer toggle sidebar,Outline
+2,Navigation,menu,navigation menu bars,FontAwesome 7,<i class="fa-solid fa-bars"></i>,Navigation menu toggle,Regular
+3,Navigation,arrow-left,back previous return navigate,Lucide,import { ArrowLeft } from 'lucide-react',<ArrowLeft />,Back button breadcrumb navigation,Outline
+4,Navigation,arrow-left,back previous return,FontAwesome 7,<i class="fa-solid fa-arrow-left"></i>,Back navigation,Regular
+5,Navigation,arrow-right,next forward continue navigate,Lucide,import { ArrowRight } from 'lucide-react',<ArrowRight />,Forward button next step CTA,Outline
+6,Navigation,arrow-right,next forward continue,FontAwesome 7,<i class="fa-solid fa-arrow-right"></i>,Forward navigation,Regular
+7,Navigation,chevron-down,dropdown expand accordion select,Lucide,import { ChevronDown } from 'lucide-react',<ChevronDown />,Dropdown toggle accordion header,Outline
+8,Navigation,chevron-down,dropdown expand accordion,FontAwesome 7,<i class="fa-solid fa-chevron-down"></i>,Dropdown toggle,Regular
+9,Navigation,chevron-up,collapse close accordion minimize,Lucide,import { ChevronUp } from 'lucide-react',<ChevronUp />,Accordion collapse minimize,Outline
+10,Navigation,chevron-up,collapse close accordion,FontAwesome 7,<i class="fa-solid fa-chevron-up"></i>,Accordion collapse,Regular
+11,Navigation,home,homepage main dashboard start,Lucide,import { Home } from 'lucide-react',<Home />,Home navigation main page,Outline
+12,Navigation,home,homepage main,FontAwesome 7,<i class="fa-solid fa-home"></i>,Home page navigation,Regular
+13,Navigation,x,close cancel dismiss remove exit,Lucide,import { X } from 'lucide-react',<X />,Modal close dismiss button,Outline
+14,Navigation,x,close cancel dismiss,FontAwesome 7,<i class="fa-solid fa-xmark"></i>,Close button,Regular
+15,Navigation,external-link,open new tab external link,Lucide,import { ExternalLink } from 'lucide-react',<ExternalLink />,External link indicator,Outline
+16,Navigation,external-link,open new tab,FontAwesome 7,<i class="fa-solid fa-up-right-from-square"></i>,External link,Regular
+17,Action,plus,add create new insert,Lucide,import { Plus } from 'lucide-react',<Plus />,Add button create new item,Outline
+18,Action,plus,add create new,FontAwesome 7,<i class="fa-solid fa-plus"></i>,Add button,Regular
+19,Action,minus,remove subtract decrease delete,Lucide,import { Minus } from 'lucide-react',<Minus />,Remove item quantity decrease,Outline
+20,Action,minus,remove subtract decrease,FontAwesome 7,<i class="fa-solid fa-minus"></i>,Remove button,Regular
+21,Action,trash-2,delete remove discard bin,Lucide,import { Trash2 } from 'lucide-react',<Trash2 />,Delete action destructive,Outline
+22,Action,trash,delete remove discard,FontAwesome 7,<i class="fa-solid fa-trash-can"></i>,Delete button,Regular
+23,Action,edit,pencil modify change update,Lucide,import { Edit } from 'lucide-react',<Edit />,Edit button modify content,Outline
+24,Action,edit,pencil modify change,FontAwesome 7,<i class="fa-solid fa-pen-to-square"></i>,Edit button,Regular
+25,Action,save,disk store persist save,Lucide,import { Save } from 'lucide-react',<Save />,Save button persist changes,Outline
+26,Action,save,save store persist,FontAwesome 7,<i class="fa-solid fa-floppy-disk"></i>,Save button,Regular
+27,Action,download,export save file download,Lucide,import { Download } from 'lucide-react',<Download />,Download file export,Outline
+28,Action,download,download export file,FontAwesome 7,<i class="fa-solid fa-download"></i>,Download button,Regular
+29,Action,upload,import file attach upload,Lucide,import { Upload } from 'lucide-react',<Upload />,Upload file import,Outline
+30,Action,upload,upload import file,FontAwesome 7,<i class="fa-solid fa-upload"></i>,Upload button,Regular
+31,Action,copy,duplicate clipboard paste,Lucide,import { Copy } from 'lucide-react',<Copy />,Copy to clipboard,Outline
+32,Action,copy,copy duplicate clipboard,FontAwesome 7,<i class="fa-solid fa-copy"></i>,Copy button,Regular
+33,Action,share,social distribute send,Lucide,import { Share } from 'lucide-react',<Share />,Share button social,Outline
+34,Action,share,share distribute send,FontAwesome 7,<i class="fa-solid fa-share-from-square"></i>,Share button,Regular
+35,Action,search,find lookup filter query,Lucide,import { Search } from 'lucide-react',<Search />,Search input bar,Outline
+36,Action,search,search find lookup,FontAwesome 7,<i class="fa-solid fa-magnifying-glass"></i>,Search button,Regular
+37,Action,filter,sort refine narrow options,Lucide,import { Filter } from 'lucide-react',<Filter />,Filter dropdown sort,Outline
+38,Action,filter,filter sort refine,FontAwesome 7,<i class="fa-solid fa-filter"></i>,Filter button,Regular
+39,Action,settings,gear cog preferences config,Lucide,import { Settings } from 'lucide-react',<Settings />,Settings page configuration,Outline
+40,Action,settings,settings gear config,FontAwesome 7,<i class="fa-solid fa-gear"></i>,Settings button,Regular
+41,Status,check,success done complete verified,Lucide,import { Check } from 'lucide-react',<Check />,Success state checkmark,Outline
+42,Status,check,success done complete,FontAwesome 7,<i class="fa-solid fa-check"></i>,Success checkmark,Regular
+43,Status,check-circle,success verified approved complete,Lucide,import { CheckCircle } from 'lucide-react',<CheckCircle />,Success badge verified,Outline
+44,Status,check-circle,success verified approved,FontAwesome 7,<i class="fa-solid fa-circle-check"></i>,Success badge,Regular
+45,Status,x-circle,error failed cancel rejected,Lucide,import { XCircle } from 'lucide-react',<XCircle />,Error state failed,Outline
+46,Status,x-circle,error failed cancel,FontAwesome 7,<i class="fa-solid fa-circle-xmark"></i>,Error state,Regular
+47,Status,alert-triangle,warning caution attention danger,Lucide,import { AlertTriangle } from 'lucide-react',<AlertTriangle />,Warning message caution,Outline
+48,Status,alert-triangle,warning caution attention,FontAwesome 7,<i class="fa-solid fa-triangle-exclamation"></i>,Warning message,Regular
+49,Status,alert-circle,info notice information help,Lucide,import { AlertCircle } from 'lucide-react',<AlertCircle />,Info notice alert,Outline
+50,Status,alert-circle,info notice information,FontAwesome 7,<i class="fa-solid fa-circle-info"></i>,Info notice,Regular
+51,Status,info,information help tooltip details,Lucide,import { Info } from 'lucide-react',<Info />,Information tooltip help,Outline
+52,Status,info,information help tooltip,FontAwesome 7,<i class="fa-solid fa-info"></i>,Information icon,Regular
+53,Status,loader,loading spinner processing wait,Lucide,import { Loader } from 'lucide-react',<Loader className="animate-spin" />,Loading state spinner,Outline
+54,Status,loader,loading spinner processing,FontAwesome 7,<i class="fa-solid fa-spinner fa-spin"></i>,Loading spinner,Regular
+55,Status,clock,time schedule pending wait,Lucide,import { Clock } from 'lucide-react',<Clock />,Pending time schedule,Outline
+56,Status,clock,time schedule pending,FontAwesome 7,<i class="fa-solid fa-clock"></i>,Clock icon,Regular
+57,Communication,mail,email message inbox letter,Lucide,import { Mail } from 'lucide-react',<Mail />,Email contact inbox,Outline
+58,Communication,mail,email message inbox,FontAwesome 7,<i class="fa-solid fa-envelope"></i>,Email icon,Regular
+59,Communication,message-circle,chat comment bubble conversation,Lucide,import { MessageCircle } from 'lucide-react',<MessageCircle />,Chat comment message,Outline
+60,Communication,message-circle,chat comment message,FontAwesome 7,<i class="fa-solid fa-comment"></i>,Chat icon,Regular
+61,Communication,phone,call mobile telephone contact,Lucide,import { Phone } from 'lucide-react',<Phone />,Phone contact call,Outline
+62,Communication,phone,phone call contact,FontAwesome 7,<i class="fa-solid fa-phone"></i>,Phone icon,Regular
+63,Communication,send,submit dispatch message airplane,Lucide,import { Send } from 'lucide-react',<Send />,Send message submit,Outline
+64,Communication,send,send submit message,FontAwesome 7,<i class="fa-solid fa-paper-plane"></i>,Send button,Regular
+65,Communication,bell,notification alert ring reminder,Lucide,import { Bell } from 'lucide-react',<Bell />,Notification bell alert,Outline
+66,Communication,bell,notification alert ring,FontAwesome 7,<i class="fa-solid fa-bell"></i>,Notification icon,Regular
+67,User,user,profile account person avatar,Lucide,import { User } from 'lucide-react',<User />,User profile account,Outline
+68,User,user,user profile account,FontAwesome 7,<i class="fa-solid fa-user"></i>,User icon,Regular
+69,User,users,team group people members,Lucide,import { Users } from 'lucide-react',<Users />,Team group members,Outline
+70,User,users,users team group,FontAwesome 7,<i class="fa-solid fa-users"></i>,Users icon,Regular
+71,User,user-plus,add invite new member,Lucide,import { UserPlus } from 'lucide-react',<UserPlus />,Add user invite,Outline
+72,User,user-plus,add user invite,FontAwesome 7,<i class="fa-solid fa-user-plus"></i>,Add user button,Regular
+73,User,log-in,signin authenticate enter,Lucide,import { LogIn } from 'lucide-react',<LogIn />,Login signin,Outline
+74,User,log-in,login signin authenticate,FontAwesome 7,<i class="fa-solid fa-right-to-bracket"></i>,Login icon,Regular
+75,User,log-out,signout exit leave logout,Lucide,import { LogOut } from 'lucide-react',<LogOut />,Logout signout,Outline
+76,User,log-out,logout signout exit,FontAwesome 7,<i class="fa-solid fa-right-from-bracket"></i>,Logout icon,Regular
+77,Media,image,photo picture gallery thumbnail,Lucide,import { Image } from 'lucide-react',<Image />,Image photo gallery,Outline
+78,Media,image,image photo picture,FontAwesome 7,<i class="fa-solid fa-image"></i>,Image icon,Regular
+79,Media,video,movie film play record,Lucide,import { Video } from 'lucide-react',<Video />,Video player media,Outline
+80,Media,video,video movie film,FontAwesome 7,<i class="fa-solid fa-video"></i>,Video icon,Regular
+81,Media,play,start video audio media,Lucide,import { Play } from 'lucide-react',<Play />,Play button video audio,Outline
+82,Media,play,play video audio,FontAwesome 7,<i class="fa-solid fa-play"></i>,Play button,Regular
+83,Media,pause,stop halt video audio,Lucide,import { Pause } from 'lucide-react',<Pause />,Pause button media,Outline
+84,Media,pause,pause video audio,FontAwesome 7,<i class="fa-solid fa-pause"></i>,Pause button,Regular
+85,Media,volume-2,sound audio speaker music,Lucide,import { Volume2 } from 'lucide-react',<Volume2 />,Volume audio sound,Outline
+86,Media,volume-2,volume sound audio,FontAwesome 7,<i class="fa-solid fa-volume-high"></i>,Volume icon,Regular
+87,Media,mic,microphone record voice audio,Lucide,import { Mic } from 'lucide-react',<Mic />,Microphone voice record,Outline
+88,Media,mic,microphone record voice,FontAwesome 7,<i class="fa-solid fa-microphone"></i>,Microphone icon,Regular
+89,Media,camera,photo capture snapshot picture,Lucide,import { Camera } from 'lucide-react',<Camera />,Camera photo capture,Outline
+90,Media,camera,camera photo capture,FontAwesome 7,<i class="fa-solid fa-camera"></i>,Camera icon,Regular
+91,Aviation,plane,aircraft flight airplane aviation,Lucide,import { Plane } from 'lucide-react',<Plane />,Aircraft flight aviation,Outline
+92,Aviation,plane,airplane aircraft flight,FontAwesome 7,<i class="fa-solid fa-plane"></i>,Airplane icon,Regular
+93,Aviation,plane-takeoff,departure takeoff fly up,Lucide,import { PlaneTakeoff } from 'lucide-react',<PlaneTakeoff />,Flight departure takeoff,Outline
+94,Aviation,plane-takeoff,plane takeoff departure,FontAwesome 7,<i class="fa-solid fa-plane-up"></i>,Plane takeoff icon,Regular
+95,Aviation,plane-landing,arrival landing fly down,Lucide,import { PlaneLanding } from 'lucide-react',<PlaneLanding />,Flight arrival landing,Outline
+96,Aviation,plane-landing,plane landing arrival,FontAwesome 7,<i class="fa-solid fa-plane-down"></i>,Plane landing icon,Regular
+97,Aviation,compass,navigation direction bearing,Lucide,import { Compass } from 'lucide-react',<Compass />,Navigation compass direction,Outline
+98,Aviation,compass,compass navigation direction,FontAwesome 7,<i class="fa-solid fa-compass"></i>,Compass icon,Regular
+99,Aviation,radar,radar detection tracking,Lucide,import { Radar } from 'lucide-react',<Radar />,Radar tracking detection,Outline
+100,Aviation,radar,radar detection tracking,FontAwesome 7,<i class="fa-solid fa-radar"></i>,Radar icon,Regular
+101,Aviation,globe,world earth global location,Lucide,import { Globe } from 'lucide-react',<Globe />,Global world earth location,Outline
+102,Aviation,globe,globe world earth,FontAwesome 7,<i class="fa-solid fa-globe"></i>,Globe icon,Regular
+103,Aviation,map,map location navigation route,Lucide,import { Map } from 'lucide-react',<Map />,Map navigation location route,Outline
+104,Aviation,map,map location navigation,FontAwesome 7,<i class="fa-solid fa-map"></i>,Map icon,Regular
+105,Aviation,wind,wind speed direction weather,Lucide,import { Wind } from 'lucide-react',<Wind />,Wind speed direction weather,Outline
+106,Aviation,wind,wind weather speed,FontAwesome 7,<i class="fa-solid fa-wind"></i>,Wind icon,Regular
+107,Aviation,cloud,cloud weather sky,Lucide,import { Cloud } from 'lucide-react',<Cloud />,Cloud weather sky,Outline
+108,Aviation,cloud,cloud weather sky,FontAwesome 7,<i class="fa-solid fa-cloud"></i>,Cloud icon,Regular
+109,Aviation,sun,sun weather sunny,Lucide,import { Sun } from 'lucide-react',<Sun />,Sun weather sunny,Outline
+110,Aviation,sun,sun weather sunny,FontAwesome 7,<i class="fa-solid fa-sun"></i>,Sun icon,Regular
+111,Aviation,moon,moon weather night,Lucide,import { Moon } from 'lucide-react',<Moon />,Moon weather night,Outline
+112,Aviation,moon,moon weather night,FontAwesome 7,<i class="fa-solid fa-moon"></i>,Moon icon,Regular
+113,Aviation,thermometer,temperature weather,Lucide,import { Thermometer } from 'lucide-react',<Thermometer />,Temperature weather,Outline
+114,Aviation,thermometer,temperature weather,FontAwesome 7,<i class="fa-solid fa-temperature-half"></i>,Thermometer icon,Regular
+115,Aviation,activity,activity pulse heartbeat,Lucide,import { Activity } from 'lucide-react',<Activity />,Activity pulse heartbeat,Outline
+116,Aviation,activity,activity pulse heartbeat,FontAwesome 7,<i class="fa-solid fa-heart-pulse"></i>,Activity icon,Regular
+117,Aviation,zap,lightning power energy,Lucide,import { Zap } from 'lucide-react',<Zap />,Lightning power energy,Outline
+118,Aviation,zap,lightning power energy,FontAwesome 7,<i class="fa-solid fa-bolt"></i>,Lightning icon,Regular
+119,Aviation,shield,shield security protection,Lucide,import { Shield } from 'lucide-react',<Shield />,Shield security protection,Outline
+120,Aviation,shield,shield security protection,FontAwesome 7,<i class="fa-solid fa-shield-halved"></i>,Shield icon,Regular
+121,Aviation,lock,lock secure password,Lucide,import { Lock } from 'lucide-react',<Lock />,Lock secure password,Outline
+122,Aviation,lock,lock secure password,FontAwesome 7,<i class="fa-solid fa-lock"></i>,Lock icon,Regular
+123,Aviation,unlock,unlock open access,Lucide,import { Unlock } from 'lucide-react',<Unlock />,Unlock open access,Outline
+124,Aviation,unlock,unlock open access,FontAwesome 7,<i class="fa-solid fa-unlock"></i>,Unlock icon,Regular
+125,Aviation,key,key access unlock,Lucide,import { Key } from 'lucide-react',<Key />,Key access unlock,Outline
+126,Aviation,key,key access unlock,FontAwesome 7,<i class="fa-solid fa-key"></i>,Key icon,Regular
+127,Aviation,eye,eye view visible,Lucide,import { Eye } from 'lucide-react',<Eye />,Eye view visible,Outline
+128,Aviation,eye,eye view visible,FontAwesome 7,<i class="fa-solid fa-eye"></i>,Eye icon,Regular
+129,Aviation,eye-off,eye-off hidden invisible,Lucide,import { EyeOff } from 'lucide-react',<EyeOff />,Eye-off hidden invisible,Outline
+130,Aviation,eye-off,eye-off hidden invisible,FontAwesome 7,<i class="fa-solid fa-eye-slash"></i>,Eye off icon,Regular
+131,Aviation,star,star rating favorite,Lucide,import { Star } from 'lucide-react',<Star />,Star rating favorite,Outline
+132,Aviation,star,star rating favorite,FontAwesome 7,<i class="fa-solid fa-star"></i>,Star icon,Regular
+133,Aviation,heart,heart like favorite,Lucide,import { Heart } from 'lucide-react',<Heart />,Heart like favorite,Outline
+134,Aviation,heart,heart like favorite,FontAwesome 7,<i class="fa-solid fa-heart"></i>,Heart icon,Regular
+135,Aviation,bookmark,bookmark save favorite,Lucide,import { Bookmark } from 'lucide-react',<Bookmark />,Bookmark save favorite,Outline
+136,Aviation,bookmark,bookmark save favorite,FontAwesome 7,<i class="fa-solid fa-bookmark"></i>,Bookmark icon,Regular
+137,Aviation,flag,flag marker alert,Lucide,import { Flag } from 'lucide-react',<Flag />,Flag marker alert,Outline
+138,Aviation,flag,flag marker alert,FontAwesome 7,<i class="fa-solid fa-flag"></i>,Flag icon,Regular
+139,Aviation,target,target goal aim,Lucide,import { Target } from 'lucide-react',<Target />,Target goal aim,Outline
+140,Aviation,target,target goal aim,FontAwesome 7,<i class="fa-solid fa-bullseye"></i>,Target icon,Regular
+141,Aviation,award,award badge trophy,Lucide,import { Award } from 'lucide-react',<Award />,Award badge trophy,Outline
+142,Aviation,award,award badge trophy,FontAwesome 7,<i class="fa-solid fa-award"></i>,Award icon,Regular
+143,Aviation,medal,medal achievement,Lucide,import { Medal } from 'lucide-react',<Medal />,Medal achievement,Outline
+144,Aviation,medal,medal achievement,FontAwesome 7,<i class="fa-solid fa-medal"></i>,Medal icon,Regular
+145,Aviation,trophy,trophy winner champion,Lucide,import { Trophy } from 'lucide-react',<Trophy />,Trophy winner champion,Outline
+146,Aviation,trophy,trophy winner champion,FontAwesome 7,<i class="fa-solid fa-trophy"></i>,Trophy icon,Regular
+147,Aviation,certificate,certificate credential,Lucide,import { Certificate } from 'lucide-react',<Certificate />,Certificate credential,Outline
+148,Aviation,certificate,certificate credential,FontAwesome 7,<i class="fa-solid fa-certificate"></i>,Certificate icon,Regular
+149,Aviation,graduation-cap,graduation cap education,Lucide,import { GraduationCap } from 'lucide-react',<GraduationCap />,Graduation cap education,Outline
+150,Aviation,graduation-cap,graduation cap education,FontAwesome 7,<i class="fa-solid fa-graduation-cap"></i>,Graduation cap icon,Regular
+151,Aviation,book,book read education,Lucide,import { Book } from 'lucide-react',<Book />,Book read education,Outline
+152,Aviation,book,book read education,FontAwesome 7,<i class="fa-solid fa-book"></i>,Book icon,Regular
+153,Aviation,library,library books resources,Lucide,import { Library } from 'lucide-react',<Library />,Library books resources,Outline
+154,Aviation,library,library books resources,FontAwesome 7,<i class="fa-solid fa-book-bookmark"></i>,Library icon,Regular
+155,Aviation,file,file document,Lucide,import { File } from 'lucide-react',<File />,File document,Outline
+156,Aviation,file,file document,FontAwesome 7,<i class="fa-solid fa-file"></i>,File icon,Regular
+157,Aviation,file-text,file text document,Lucide,import { FileText } from 'lucide-react',<FileText />,File text document,Outline
+158,Aviation,file-text,file text document,FontAwesome 7,<i class="fa-solid fa-file-lines"></i>,File text icon,Regular
+159,Aviation,folder,folder directory,Lucide,import { Folder } from 'lucide-react',<Folder />,Folder directory,Outline
+160,Aviation,folder,folder directory,FontAwesome 7,<i class="fa-solid fa-folder"></i>,Folder icon,Regular
+161,Aviation,archive,archive compress zip,Lucide,import { Archive } from 'lucide-react',<Archive />,Archive compress zip,Outline
+162,Aviation,archive,archive compress zip,FontAwesome 7,<i class="fa-solid fa-box-archive"></i>,Archive icon,Regular
+163,Aviation,link,link url connect,Lucide,import { Link } from 'lucide-react',<Link />,Link url connect,Outline
+164,Aviation,link,link url connect,FontAwesome 7,<i class="fa-solid fa-link"></i>,Link icon,Regular
+165,Aviation,link-2,link chain connect,Lucide,import { Link2 } from 'lucide-react',<Link2 />,Link chain connect,Outline
+166,Aviation,unlink,unlink disconnect,Lucide,import { Unlink } from 'lucide-react',<Unlink />,Unlink disconnect,Outline
+167,Aviation,unlink,unlink disconnect,FontAwesome 7,<i class="fa-solid fa-unlink"></i>,Unlink icon,Regular
+168,Aviation,refresh-ccw,refresh reload rotate,Lucide,import { RefreshCcw } from 'lucide-react',<RefreshCcw />,Refresh reload rotate,Outline
+169,Aviation,refresh-ccw,refresh reload rotate,FontAwesome 7,<i class="fa-solid fa-rotate-left"></i>,Refresh CCW icon,Regular
+170,Aviation,refresh-cw,refresh reload rotate,Lucide,import { RefreshCw } from 'lucide-react',<RefreshCw />,Refresh reload rotate,Outline
+171,Aviation,refresh-cw,refresh reload rotate,FontAwesome 7,<i class="fa-solid fa-rotate-right"></i>,Refresh CW icon,Regular
+172,Aviation,zoom-in,zoom in enlarge,Lucide,import { ZoomIn } from 'lucide-react',<ZoomIn />,Zoom in enlarge,Outline
+173,Aviation,zoom-in,zoom in enlarge,FontAwesome 7,<i class="fa-solid fa-search-plus"></i>,Zoom in icon,Regular
+174,Aviation,zoom-out,zoom out shrink,Lucide,import { ZoomOut } from 'lucide-react',<ZoomOut />,Zoom out shrink,Outline
+175,Aviation,zoom-out,zoom out shrink,FontAwesome 7,<i class="fa-solid fa-search-minus"></i>,Zoom out icon,Regular
+176,Aviation,maximize,maximize fullscreen,Lucide,import { Maximize } from 'lucide-react',<Maximize />,Maximize fullscreen,Outline
+177,Aviation,maximize,maximize fullscreen,FontAwesome 7,<i class="fa-solid fa-up-right-and-down-left-from-center"></i>,Maximize icon,Regular
+178,Aviation,minimize,minimize window,Lucide,import { Minimize } from 'lucide-react',<Minimize />,Minimize window,Outline
+179,Aviation,minimize,minimize window,FontAwesome 7,<i class="fa-solid fa-down-left-and-up-right-to-center"></i>,Minimize icon,Regular
+180,Aviation,monitor,monitor screen display,Lucide,import { Monitor } from 'lucide-react',<Monitor />,Monitor screen display,Outline
+181,Aviation,monitor,monitor screen display,FontAwesome 7,<i class="fa-solid fa-display"></i>,Monitor icon,Regular
+182,Aviation,laptop,laptop computer,Lucide,import { Laptop } from 'lucide-react',<Laptop />,Laptop computer,Outline
+183,Aviation,laptop,laptop computer,FontAwesome 7,<i class="fa-solid fa-laptop"></i>,Laptop icon,Regular
+184,Aviation,smartphone,smartphone mobile phone,Lucide,import { Smartphone } from 'lucide-react',<Smartphone />,Smartphone mobile phone,Outline
+185,Aviation,smartphone,smartphone mobile phone,FontAwesome 7,<i class="fa-solid fa-mobile-screen"></i>,Smartphone icon,Regular
+186,Aviation,tablet,tablet device,Lucide,import { Tablet } from 'lucide-react',<Tablet />,Tablet device,Outline
+187,Aviation,tablet,tablet device,FontAwesome 7,<i class="fa-solid fa-tablet-screen-button"></i>,Tablet icon,Regular
+188,Aviation,wifi,wifi wireless network,Lucide,import { Wifi } from 'lucide-react',<Wifi />,Wifi wireless network,Outline
+189,Aviation,wifi,wifi wireless network,FontAwesome 7,<i class="fa-solid fa-wifi"></i>,Wifi icon,Regular
+190,Aviation,bluetooth,bluetooth wireless,Lucide,import { Bluetooth } from 'lucide-react',<Bluetooth />,Bluetooth wireless,Outline
+191,Aviation,bluetooth,bluetooth wireless,FontAwesome 7,<i class="fa-solid fa-bluetooth"></i>,Bluetooth icon,Regular
+192,Aviation,battery,battery power charge,Lucide,import { Battery } from 'lucide-react',<Battery />,Battery power charge,Outline
+193,Aviation,battery,battery power charge,FontAwesome 7,<i class="fa-solid fa-battery-three-quarters"></i>,Battery icon,Regular
+194,Aviation,signal,signal strength network,Lucide,import { Signal } from 'lucide-react',<Signal />,Signal strength network,Outline
+195,Aviation,signal,signal strength network,FontAwesome 7,<i class="fa-solid fa-signal"></i>,Signal icon,Regular

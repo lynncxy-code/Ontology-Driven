@@ -1,0 +1,10 @@
+# Proposed only — requires manual Gate A approval.
+# Business category: 建筑模型
+# hierarchy_path: W9/建筑
+
+SCC_Building_1F | 002A981BAEA83BDCBD792B81B61F710B | /Game/SCC_W9/Art/Maps/L_SCC_W9_Building.L_SCC_W9_Building:PersistentLevel.Actor_20
+SCC_Building_3F | 4976D34C8E1136E4968022FB84959DE0 | /Game/SCC_W9/Art/Maps/L_SCC_W9_Building.L_SCC_W9_Building:PersistentLevel.Actor_21
+SCC_Building_4F | A15DCC925FF03016AD7683EE89905129 | /Game/SCC_W9/Art/Maps/L_SCC_W9_Building.L_SCC_W9_Building:PersistentLevel.Actor_22
+
+# Blocked, excluded from proposed allowlist:
+# SCC_Building_2F | 62D03EF5D548310F97949A9E81CD3F7A | 539 descendants, 7 negative-scale actors

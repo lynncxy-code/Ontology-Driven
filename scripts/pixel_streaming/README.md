@@ -25,7 +25,7 @@ Runtime 默认带 `-ExecCmds=DisableAllScreenMessages`，隐藏 `Print String`�
 
 ```text
 D:\tmp\pixel-streaming-infra-UE5.6\PixelStreamingInfrastructure-UE5.6
-D:\tmp_ue\test0316\Saved\CodexPackageCheck\Windows\test0316.exe
+<YOUR_PACKAGED_UE_RUNTIME.exe>
 ```
 
 ## 使用
@@ -33,13 +33,13 @@ D:\tmp_ue\test0316\Saved\CodexPackageCheck\Windows\test0316.exe
 只做环境预检，不启动进程：
 
 ```powershell
-.\scripts\pixel_streaming\Start-LocalPixelStreaming.ps1 -PreflightOnly
+.\scripts\pixel_streaming\Start-LocalPixelStreaming.ps1 -RuntimeExe "D:\path\to\YourProject.exe" -PreflightOnly
 ```
 
 启动 Signalling Server 和 UE Runtime：
 
 ```powershell
-.\scripts\pixel_streaming\Start-LocalPixelStreaming.ps1
+.\scripts\pixel_streaming\Start-LocalPixelStreaming.ps1 -RuntimeExe "D:\path\to\YourProject.exe"
 ```
 
 脚本可以重复执行：若完整会话已运行，会直接显示当前进程；若 Signalling Server 仍在但 UE 已退出，会复用现有服务并只补启 UE。
@@ -51,13 +51,13 @@ UE Runtime 通过 Windows 原生 `CreateProcess` 以 `DETACHED_PROCESS + CREATE_
 如需显式覆盖连接上限：
 
 ```powershell
-.\scripts\pixel_streaming\Start-LocalPixelStreaming.ps1 -MaxPlayers 1
+.\scripts\pixel_streaming\Start-LocalPixelStreaming.ps1 -RuntimeExe "D:\path\to\YourProject.exe" -MaxPlayers 1
 ```
 
 启动后同时打开独立 player 页面：
 
 ```powershell
-.\scripts\pixel_streaming\Start-LocalPixelStreaming.ps1 -OpenPlayer
+.\scripts\pixel_streaming\Start-LocalPixelStreaming.ps1 -RuntimeExe "D:\path\to\YourProject.exe" -OpenPlayer
 ```
 
 查看状态和日志位置：

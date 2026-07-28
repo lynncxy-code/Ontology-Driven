@@ -1,0 +1,4 @@
+/* v3.1 legacy feedback bridge
+ * 仅作为旧入口占位，真实样式由 `feedback.css` 提供
+ */
+@import './feedback.css';

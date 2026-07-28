@@ -1,0 +1,230 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>飞机制造数字孪生 - 生产任务态势页</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+  <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+  <div class="b-layout-sidebar">
+    <aside class="b-sidebar" id="sidebar">
+      <div class="b-sidebar-header">
+        <div class="b-sidebar-logo">
+          <img src="../../assets/logo-flat.png" alt="灵境" height="32">
+        </div>
+        <span class="b-sidebar-brand">飞机制造中台</span>
+      </div>
+      <nav class="b-sidebar-nav b-scrollable">
+        <ul class="b-sidebar-nav-list">
+          <li class="b-sidebar-nav-item">
+            <a href="#" class="b-sidebar-nav-link active">
+              <span class="b-sidebar-nav-icon"><i data-lucide="layout-dashboard"></i></span>
+              <span class="b-sidebar-nav-text">生产总览</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="activity"></i></span>
+              <span class="b-sidebar-nav-text">工段监控</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="shield-check"></i></span>
+              <span class="b-sidebar-nav-text">质量追踪</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+      <div class="b-sidebar-footer">
+        <button class="b-sidebar-toggle" onclick="toggleSidebar()">
+          <span class="b-sidebar-toggle-icon"><i data-lucide="chevron-left"></i></span>
+          <span class="b-sidebar-toggle-text">收起导航</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="b-main">
+      <header class="b-header">
+        <div class="b-header-left">
+          <div class="b-breadcrumb">
+            <div class="b-breadcrumb-item">
+              <a href="#" class="b-breadcrumb-link">制造任务</a>
+              <span class="b-breadcrumb-separator">/</span>
+            </div>
+            <div class="b-breadcrumb-item">
+              <span class="b-breadcrumb-current">任务态势页</span>
+            </div>
+          </div>
+        </div>
+        <div class="b-header-right">
+          <button class="btn-icon" title="通知">
+            <i data-lucide="bell"></i>
+          </button>
+          <button class="btn-icon" title="切换主题" onclick="toggleTheme()">
+            <i data-lucide="moon"></i>
+          </button>
+
+        </div>
+      </header>
+
+      <div class="b-content b-scrollable">
+        <section class="aviation-section">
+          <div class="aviation-grid aviation-grid-3">
+            <div class="flight-metric-card">
+              <div class="flight-metric-header">
+                <h4 class="flight-metric-title">在制机体数量</h4>
+                <span class="flight-metric-chip"><i data-lucide="hash"></i> 批次 2026-Q2</span>
+              </div>
+              <div class="flight-metric-value">12</div>
+              <div class="flight-metric-meta">
+                <span class="flight-metric-trend">+2 架次</span>
+                <span>较上周提升</span>
+              </div>
+            </div>
+            <div class="flight-metric-card">
+              <div class="flight-metric-header">
+                <h4 class="flight-metric-title">关键工段风险</h4>
+                <span class="flight-metric-chip"><i data-lucide="alert-circle"></i> 装配 · 航电</span>
+              </div>
+              <div class="flight-metric-value">中等</div>
+              <div class="flight-metric-meta">
+                <span class="flight-metric-trend warning">2 项待确认</span>
+              </div>
+            </div>
+            <div class="flight-metric-card">
+              <div class="flight-metric-header">
+                <h4 class="flight-metric-title">关键件齐套率</h4>
+                <span class="flight-metric-chip"><i data-lucide="package"></i> 结构件/航电</span>
+              </div>
+              <div class="flight-metric-value">93%</div>
+              <div class="flight-metric-meta">
+                <span class="flight-metric-trend down">低于目标</span>
+                <span>需加速供应</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="aviation-section aviation-grid aviation-grid-2">
+          <div class="mission-status-board">
+            <div class="mission-status-header">
+              <h3 class="mission-status-title">生产阶段执行</h3>
+              <span class="mission-status-meta">今日计划 · 08:00 - 18:00</span>
+            </div>
+            <div class="mission-status-list">
+              <div class="mission-status-item">
+                <div class="mission-status-dot success"></div>
+                <div class="mission-status-content">
+                  <div class="mission-status-name">机体装配完成</div>
+                  <div class="mission-status-desc">结构件装配与检查全部通过，进入航电集成。</div>
+                </div>
+              </div>
+              <div class="mission-status-item">
+                <div class="mission-status-dot"></div>
+                <div class="mission-status-content">
+                  <div class="mission-status-name">航电集成进行中</div>
+                  <div class="mission-status-desc">关键部件已到位，预计 2 天内完成。</div>
+                </div>
+              </div>
+              <div class="mission-status-item">
+                <div class="mission-status-dot warning"></div>
+                <div class="mission-status-content">
+                  <div class="mission-status-name">试飞排程待确认</div>
+                  <div class="mission-status-desc">需与试飞中心确认窗口与安全评估。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="safety-score-card">
+            <div class="safety-score-main">
+              <div class="safety-score-ring">
+                <span class="safety-score-value">92</span>
+              </div>
+              <div class="safety-score-summary">
+                <div class="safety-score-title">生产安全评分</div>
+                <div class="safety-score-meta">基于 15 项工艺指标</div>
+              </div>
+            </div>
+            <div class="safety-score-label">等级：A · 稳定</div>
+          </div>
+        </section>
+
+        <section class="aviation-section">
+          <div class="telemetry-strip">
+            <div class="telemetry-item">
+              <span class="telemetry-label">产线节拍</span>
+              <span class="telemetry-value">42 min / 架</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">工位稼动率</span>
+              <span class="telemetry-value">87%</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">一次合格率</span>
+              <span class="telemetry-value">96.4%</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">孪生同步</span>
+              <span class="telemetry-value">实时</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">关键件库存</span>
+              <span class="telemetry-value">2,380 件</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="aviation-section">
+          <div class="route-leg-card">
+            <div class="route-leg-location">
+              <div class="route-leg-label">工段起点</div>
+              <div class="route-leg-code">结构件装配</div>
+            </div>
+            <div class="route-leg-divider"></div>
+            <div class="route-leg-location">
+              <div class="route-leg-label">当前工段</div>
+              <div class="route-leg-code">航电集成</div>
+            </div>
+            <div class="route-leg-divider"></div>
+            <div class="route-leg-location">
+              <div class="route-leg-label">下一工段</div>
+              <div class="route-leg-code">总装交付</div>
+            </div>
+            <div class="route-leg-status">
+              <span class="route-leg-badge on-time">按节拍</span>
+              <span>预计完工 4 天</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function toggleSidebar() {
+      var sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('collapsed');
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+    }
+
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+
+    if (window.lucide) {
+      window.lucide.createIcons();
+    }
+  </script>
+
+</body>
+</html>

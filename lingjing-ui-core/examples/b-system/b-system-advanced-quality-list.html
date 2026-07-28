@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>航空制造 · 质检记录列表</title>
+  <link rel="stylesheet" href="../../components/dist/lingjing-core-b-system.css">
+  <script src="../../scripts/lucide-umd-500.js"></script>
+</head>
+<body>
+  <div class="b-layout-sidebar">
+    <!-- 侧边栏 -->
+    <aside class="b-sidebar" id="sidebar">
+      <div class="b-sidebar-header">
+        <div class="b-sidebar-logo">
+          <img src="../../assets/logo-flat.png" alt="航空制造" height="32">
+        </div>
+        <span class="b-sidebar-brand">航空制造后台</span>
+      </div>
+      <nav class="b-sidebar-nav b-scrollable">
+        <ul class="b-sidebar-nav-list">
+          <li class="b-sidebar-nav-item">
+            <a href="#dashboard" class="b-sidebar-nav-link">
+              <span class="b-sidebar-nav-icon"><i data-lucide="layout-dashboard"></i></span>
+              <span class="b-sidebar-nav-text">生产运营总览</span>
+            </a>
+          </li>
+          <li class="b-sidebar-nav-item">
+            <a href="#quality-list" class="b-sidebar-nav-link active">
+              <span class="b-sidebar-nav-icon"><i data-lucide="shield-check"></i></span>
+              <span class="b-sidebar-nav-text">质检记录列表</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+      <div class="b-sidebar-footer">
+        <button class="b-sidebar-toggle" onclick="toggleSidebarCollapse()">
+          <span class="b-sidebar-toggle-icon"><i data-lucide="chevrons-left"></i></span>
+          <span class="b-sidebar-toggle-text">收起</span>
+        </button>
+      </div>
+    </aside>
+
+    <div class="b-sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <!-- 主内容区 -->
+    <main class="b-main">
+      <header class="b-header">
+        <div class="b-header-left">
+          <nav class="b-breadcrumb">
+            <div class="b-breadcrumb-item">
+              <a href="#" class="b-breadcrumb-link">质检管理</a>
+              <span class="b-breadcrumb-separator">/</span>
+            </div>
+            <div class="b-breadcrumb-item">
+              <span class="b-breadcrumb-current">质检记录列表</span>
+            </div>
+          </nav>
+        </div>
+        <div class="b-header-right">
+          <button class="btn-icon" onclick="window.Lingjing.toggleTheme()" title="切换主题">
+            <i data-lucide="moon" class="icon-light"></i>
+            <i data-lucide="sun" class="icon-dark hidden"></i>
+          </button>
+          <button class="btn-icon" title="告警中心">
+            <i data-lucide="bell"></i>
+          </button>
+          <button class="btn-icon" title="用户">
+            <i data-lucide="user"></i>
+          </button>
+        </div>
+      </header>
+
+      <div class="b-content">
+        <!-- 说明卡片 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h3 class="card-title">
+              <i data-lucide="info"></i>
+              航空制造 · 质检记录列表（顶部筛选区）
+            </h3>
+          </div>
+          <p class="text-secondary">
+            本页面面向质检工程师与班组长，用于在一个列表视图内，通过表格上方的筛选条快速缩小质检记录范围，结合质检状态、责任人、时间窗口与工位信息，定位需要优先处理的异常与复检任务。
+          </p>
+        </div>
+
+        <!-- 列表卡片：顶部筛选区 + 表格 -->
+        <div class="content-card">
+          <div class="card-header">
+            <h2 class="card-title">质检记录</h2>
+            <button class="btn-primary" type="button">
+              <i data-lucide="download"></i>
+              <span>导出当前结果</span>
+            </button>
+          </div>
+
+          <!-- 顶部筛选条（filter-bar） -->
+          <div class="filter-bar">
+            <div class="filter-bar-main">
+              <input type="text" class="search-input" placeholder="搜索记录号、检验项目...">
+              <select class="filter-select">
+                <option>全部状态</option>
+                <option>待质检</option>
+                <option>合格</option>
+                <option>不合格</option>
+                <option>复检中</option>
+              </select>
+              <input type="text" class="filter-input" placeholder="责任人姓名或工号">
+              <input type="date" class="filter-input" aria-label="开始日期">
+              <input type="date" class="filter-input" aria-label="结束日期">
+              <select class="filter-select">
+                <option>全部工位簇</option>
+                <option>机身装配</option>
+                <option>翼身对接</option>
+                <option>前舱段密封</option>
+                <option>航电线束</option>
+              </select>
+            </div>
+            <div class="filter-bar-extra">
+              <button class="btn-outline" type="button">
+                <i data-lucide="x"></i>
+                <span>重置</span>
+              </button>
+              <button class="btn-primary" type="button">
+                <i data-lucide="filter"></i>
+                <span>应用筛选</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 数据表格 -->
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>
+                    <input type="checkbox" aria-label="全选记录" />
+                  </th>
+                  <th>记录号</th>
+                  <th>工位</th>
+                  <th>检验项目</th>
+                  <th>质检状态</th>
+                  <th>责任人</th>
+                  <th>质检时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><input type="checkbox" /></td>
+                  <td>QI-2026-00128</td>
+                  <td>翼身对接 S4</td>
+                  <td>扭矩复核</td>
+                  <td><span class="badge badge-error">不合格</span></td>
+                  <td>张强</td>
+                  <td>2026-03-21 09:42</td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" /></td>
+                  <td>QI-2026-00132</td>
+                  <td>前舱段密封</td>
+                  <td>密封性抽检</td>
+                  <td><span class="badge badge-warning">复检中</span></td>
+                  <td>李敏</td>
+                  <td>2026-03-21 10:08</td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" /></td>
+                  <td>QI-2026-00141</td>
+                  <td>航电线束区</td>
+                  <td>线束布置检查</td>
+                  <td><span class="badge badge-success">合格</span></td>
+                  <td>王磊</td>
+                  <td>2026-03-21 10:36</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 分页 -->
+          <div class="pagination mt-md">
+            <button class="nav-pagination-item" type="button" aria-label="上一页"><i data-lucide="chevron-left"></i></button>
+            <button class="nav-pagination-item active" type="button">1</button>
+            <button class="nav-pagination-item" type="button">2</button>
+            <button class="nav-pagination-item" type="button">3</button>
+            <button class="nav-pagination-item" type="button" aria-label="下一页"><i data-lucide="chevron-right"></i></button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function initIcons() {
+      if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+      }
+    }
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+      sidebar.classList.toggle('active');
+      overlay.classList.toggle('active');
+    }
+
+    function toggleSidebarCollapse() {
+      const sidebar = document.getElementById('sidebar');
+      const isCollapsed = sidebar.classList.contains('collapsed');
+      sidebar.classList.toggle('collapsed');
+      const toggleIcon = sidebar.querySelector('.b-sidebar-toggle-icon i');
+      const toggleText = sidebar.querySelector('.b-sidebar-toggle-text');
+      if (isCollapsed) {
+        toggleIcon.setAttribute('data-lucide', 'chevrons-left');
+        toggleText.textContent = '收起';
+      } else {
+        toggleIcon.setAttribute('data-lucide', 'chevrons-right');
+        toggleText.textContent = '展开';
+      }
+      initIcons();
+    }
+
+    window.Lingjing = window.Lingjing || {};
+    window.Lingjing.toggleTheme = function() {
+      const html = document.documentElement;
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      const lightIcon = document.querySelector('.icon-light');
+      const darkIcon = document.querySelector('.icon-dark');
+      if (lightIcon && darkIcon) {
+        if (newTheme === 'dark') {
+          lightIcon.style.display = 'none';
+          darkIcon.style.display = 'block';
+        } else {
+          lightIcon.style.display = 'block';
+          darkIcon.style.display = 'none';
+        }
+      }
+    };
+
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+
+    document.addEventListener('DOMContentLoaded', function() {
+      initIcons();
+    });
+  </script>
+</body>
+</html>

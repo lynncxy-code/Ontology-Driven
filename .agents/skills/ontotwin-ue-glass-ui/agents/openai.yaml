@@ -1,0 +1,7 @@
+interface:
+  display_name: "OntoTwin UE Glass UI"
+  short_description: "设计与审查 OntoTwin UE5.6 液态玻璃信息叠加层"
+  default_prompt: "Use $ontotwin-ue-glass-ui to design or review an OntoTwin UE5.6 liquid-glass information overlay."
+policy:
+  allow_implicit_invocation: true
+

@@ -118,7 +118,9 @@ function Merge-JsonMcp($path) {
     Info "已备份原配置到 $bak"
   }
   $tmp = "$path.tmp-$(Get-Date -Format 'yyyyMMddHHmmssfff')"
-  Set-Content -Path $tmp -Value $json -Encoding UTF8
+  # 无 BOM UTF-8：PS 5.1 的 Set-Content -Encoding UTF8 会写 BOM，
+  # 而严格 JSON 解析器读到 BOM 可能报错（正是「安装器砸用户配置」隐患）。
+  [System.IO.File]::WriteAllText($tmp, $json, (New-Object System.Text.UTF8Encoding($false)))
   Move-Item -Path $tmp -Destination $path -Force
   return $true
 }
@@ -194,13 +196,17 @@ if ((Test-Path $codexDir) -or $DryRun) {
     if ($existing -match "(?m)^\s*\[mcp_servers\.(`"$ServerName`"|$ServerName)\]\s*$") {
       Warn "config.toml 已有 [mcp_servers.$ServerName]，跳过（避免重复；如需更新请手动改）"
     } else {
-      # 追加前备份 config.toml（若存在）。
       if (Test-Path $codexToml) {
+        # 已有文件：先备份，再 Add-Content 追加（追加不会给已有文件另加 BOM）。
         $codexBak = "$codexToml.bak-$(Get-Date -Format 'yyyyMMddHHmmss')"
         Copy-Item -Path $codexToml -Destination $codexBak -Force
         Info "已备份 config.toml 到 $codexBak"
+        Add-Content -Path $codexToml -Value $codexBlock -Encoding UTF8
+      } else {
+        # 新建 config.toml：写无 BOM UTF-8（PS 5.1 的 -Encoding UTF8 会给新文件加 BOM，
+        # 而 TOML 解析器遇 BOM 可能报错）。
+        [System.IO.File]::WriteAllText($codexToml, $codexBlock, (New-Object System.Text.UTF8Encoding($false)))
       }
-      Add-Content -Path $codexToml -Value $codexBlock -Encoding UTF8
       Ok "Codex CLI 已注册（追加 TOML 块）"
     }
   }

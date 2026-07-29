@@ -601,9 +601,11 @@ class ProjectStore:
             inst = self._inst().get(instance_id)
             return dict(inst.get("render_config") or {}) if inst else None
 
-    def update_raw_state(self, instance_id, patch, persist=False):
+    def update_raw_state(self, instance_id, patch, persist=False, expected_project_id=None):
         """persist=True 才落盘（模拟器高频波动传 False，避免狂写磁盘）。"""
         with self._lock:
+            if expected_project_id is not None and self._active_id != expected_project_id:
+                raise ProjectMismatch(expected_project_id, self._active_id)
             inst = self._inst().get(instance_id)
             if not inst:
                 return False
@@ -819,23 +821,64 @@ class ProjectStore:
             self._save_current()
 
     # ── 绑定（构件 ↔ 身份证号，1:1） ──────────────────────────
-    def bind(self, component_id, instance_id):
+    def _bind_into(self, working, component_id, instance_id):
+        """在工作副本上做「构件存在 + 目标身份证号 1:1 未占用」校验并写入。
+
+        不落盘、不加锁——由调用方（bind / bind_batch）在锁内决定何时保存。
+        成功时改写 working["components"][component_id]["bound_instance_id"]，返回 (True, None)；
+        失败时不改动 working，返回 (False, reason)。
+        """
+        comps = (working.get("components") if working else None) or {}
+        comp = comps.get(component_id)
+        if not comp:
+            return False, "构件不存在"
+        # 1:1：该身份证号不能已被别的构件占用
+        for cid, c in comps.items():
+            if cid != component_id and c.get("bound_instance_id") == instance_id:
+                return False, f"身份证号 {instance_id} 已绑定其他构件"
+        comp["bound_instance_id"] = instance_id
+        return True, None
+
+    def bind(self, component_id, instance_id, expected_project_id=None):
         """把构件绑到身份证号；1:1 占用校验。返回 (ok, err)。"""
         with self._lock:
-            comps = self._comps()
-            comp = comps.get(component_id)
-            if not comp:
-                return False, "构件不存在"
-            # 1:1：该身份证号不能已被别的构件占用
-            for cid, c in comps.items():
-                if cid != component_id and c.get("bound_instance_id") == instance_id:
-                    return False, f"身份证号 {instance_id} 已绑定其他构件"
-            comp["bound_instance_id"] = instance_id
-            self._save_current()
-            return True, None
+            if expected_project_id is not None and self._active_id != expected_project_id:
+                raise ProjectMismatch(expected_project_id, self._active_id)
+            ok, reason = self._bind_into(self._current, component_id, instance_id)
+            if ok:
+                self._save_current()
+            return ok, reason
 
-    def unbind(self, component_id):
+    def bind_batch(self, pairs, expected_project_id=None):
+        """单锁批事务：逐对在工作副本上校验+写，末尾只保存一次；无成功项则不保存。
+
+        返回 {"bound": n, "failed": [{"component_id", "instance_id", "reason"}]}。
+        绝不跨项目、绝不每条各自落盘。
+        """
         with self._lock:
+            if not self._current:
+                raise RuntimeError("no active project")
+            if expected_project_id is not None and self._active_id != expected_project_id:
+                raise ProjectMismatch(expected_project_id, self._active_id)
+            working = copy.deepcopy(self._current)
+            bound, failed = 0, []
+            for p in pairs or []:
+                cid = p.get("component_id")
+                iid = (p.get("instance_id") or "").strip()
+                ok, reason = self._bind_into(working, cid, iid)
+                if ok:
+                    bound += 1
+                else:
+                    failed.append({"component_id": cid, "instance_id": iid, "reason": reason})
+            if bound:
+                self._current = working
+                self._save_current()
+            return {"bound": bound, "failed": failed}
+
+    def unbind(self, component_id, expected_project_id=None):
+        with self._lock:
+            if expected_project_id is not None and self._active_id != expected_project_id:
+                raise ProjectMismatch(expected_project_id, self._active_id)
             comp = self._comps().get(component_id)
             if not comp:
                 return False

@@ -2432,7 +2432,13 @@ def override_state():
         if k in ('is_visible', 'is_loaded') and isinstance(v, str):
             patch[k] = v.lower() not in ('false', '0', 'no')
 
-    success = instance_store.update_raw_state(instance_id, patch, persist=True)
+    expected = data.get("expected_project_id")
+    try:
+        success = instance_store.update_raw_state(
+            instance_id, patch, persist=True, expected_project_id=expected
+        )
+    except ProjectMismatch as e:
+        return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
     if not success:
         return jsonify({"error": "Instance not found"}), 404
 
@@ -2607,7 +2613,15 @@ def binding_bind():
     if err:
         return err
     data = request.json or {}
-    ok, e = project_store.bind(data.get("component_id"), (data.get("instance_id") or "").strip())
+    expected = data.get("expected_project_id")
+    try:
+        ok, e = project_store.bind(
+            data.get("component_id"),
+            (data.get("instance_id") or "").strip(),
+            expected_project_id=expected,
+        )
+    except ProjectMismatch as ex:
+        return jsonify({"error": "project changed", "expected": ex.expected, "actual": ex.actual}), 409
     if not ok:
         return jsonify({"error": e}), 400
     return jsonify({"status": "ok"})
@@ -2619,15 +2633,14 @@ def binding_bind_batch():
     _, err = _require_active_project()
     if err:
         return err
-    pairs = (request.json or {}).get("pairs") or []
-    bound, failed = 0, []
-    for p in pairs:
-        ok, e = project_store.bind(p.get("component_id"), (p.get("instance_id") or "").strip())
-        if ok:
-            bound += 1
-        else:
-            failed.append({"component_id": p.get("component_id"), "error": e})
-    return jsonify({"status": "ok", "bound": bound, "failed": failed})
+    data = request.json or {}
+    pairs = data.get("pairs") or []
+    expected = data.get("expected_project_id")
+    try:
+        res = project_store.bind_batch(pairs, expected_project_id=expected)
+    except ProjectMismatch as e:
+        return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
+    return jsonify({"status": "ok", **res})
 
 
 @app.route('/api/v2/binding/unbind', methods=['POST'])
@@ -2635,7 +2648,12 @@ def binding_unbind():
     _, err = _require_active_project()
     if err:
         return err
-    ok = project_store.unbind((request.json or {}).get("component_id"))
+    data = request.json or {}
+    expected = data.get("expected_project_id")
+    try:
+        ok = project_store.unbind(data.get("component_id"), expected_project_id=expected)
+    except ProjectMismatch as e:
+        return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
     return jsonify({"status": "ok" if ok else "noop"})
 
 

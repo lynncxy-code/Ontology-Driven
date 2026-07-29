@@ -1,0 +1,3 @@
+rid,display_name,description,cardinality
+ri.link.stores,存放,货架存放料箱,1:N
+ri.link.carries,搬运,AGV搬运料箱,1:N

@@ -1,0 +1,3 @@
+from_rid,to_rid
+ri.link.stores,ri.obj.shelf
+ri.link.carries,ri.obj.agv

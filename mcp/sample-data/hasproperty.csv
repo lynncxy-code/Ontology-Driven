@@ -1,0 +1,4 @@
+from_rid,to_rid
+ri.obj.shelf,ri.prop.capacity
+ri.obj.box,ri.prop.status
+ri.obj.agv,ri.prop.status

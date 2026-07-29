@@ -1,0 +1,4 @@
+rid,api_name,display_name,description,lifecycle_status
+ri.obj.shelf,shelf,货架,存放料箱的货架,ACTIVE
+ri.obj.agv,agv,AGV搬运车,自动搬运料箱的小车,ACTIVE
+ri.obj.box,box,料箱,周转料箱,ACTIVE

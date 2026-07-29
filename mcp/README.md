@@ -84,7 +84,7 @@ claude mcp add ontotwin \
 
 **MCP 协议本身不强制「写工具必须人工审批」**——是否弹出审批、能否自动运行，完全取决于客户端版本与配置（例如 Cursor 可被设置为自动运行工具）。因此本项目的写安全**不能只依赖客户端审批**：真正的护栏是后端锁内的 `expected_project_id` 原子校验（见设计 spec §5.2）与 SKILL 的黄金铁律。客户端审批只是「兼容客户端**可**提供的额外体验」，不是协议保证。
 
-工具已按操作分级：`read` / `compute` / `stage-write` 相对安全，`persist-write`（落库 / 改全局激活态）为高危。**persist-write 工具默认应关闭自动批准**，逐次人工确认。涉及的 persist-write 工具：`activate_project`、`save_components`、`bind_instance`、`bind_instances_batch`、`unbind_instance`、`mint_instances(dry_run=false)`、`set_instance_state`。
+工具已按操作分级：`read` / `compute` / `stage-write` 相对安全，`persist-write`（落库 / 改全局激活态）为高危。**persist-write 工具默认应关闭自动批准**，逐次人工确认。涉及的 persist-write 工具：`activate_project`、`upload_roster`、`save_components`、`bind_instance`、`bind_instances_batch`、`unbind_instance`、`mint_instances(dry_run=false)`、`set_instance_state`。注意 `upload_roster` 虽是上传 CSV，但后端会把花名册**直接写进当前激活项目**，属 persist-write（应带 `expected_project_id`）。
 
 - **Claude Code**：默认对工具调用逐次询问；避免用 `--dangerously-skip-permissions` / 全局「始终允许」把写工具一次性放行。可在权限设置里对本 server 的读工具批量允许、对上述 persist-write 工具保持每次询问。具体开关名称以所用 Claude Code 版本为准。
 - **Cursor**：MCP 工具存在「自动运行 / auto-run」开关。**务必不要**对本 server 开全局自动运行；把上述 persist-write 工具保持为需手动确认。开关位置（Settings → MCP / Tools 下的 auto-run）以所用 Cursor 版本为准。

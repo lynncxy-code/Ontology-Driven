@@ -30,7 +30,7 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 ## 黄金铁律（写前逐条过）
 
 1. **先确认可写**：任何写操作前先 `get_active_project`，只有 `writable=true`（即 `kind=project`）才能写。`kind=demo` 是内置只读、`kind=none` 是没激活，两者都必须先 `activate_project` 换到真实项目。
-2. **写工具必带 `expected_project_id` 且先向人复述**：把 `get_active_project` 返回的 `project_id` 传给每个 persist-write 工具（`save_components` / `bind_instance` / `bind_instances_batch` / `unbind_instance` / `mint_instances` / `set_instance_state`），后端会在锁内原子校验「现在还是不是这个项目」，不符则 409。动手前用一句话向人复述「**将在项目 X 做 Y**」。
+2. **写工具必带 `expected_project_id` 且先向人复述**：把 `get_active_project` 返回的 `project_id` 传给每个 persist-write 工具（`upload_roster` / `save_components` / `bind_instance` / `bind_instances_batch` / `unbind_instance` / `mint_instances` / `set_instance_state`），后端会在锁内原子校验「现在还是不是这个项目」，不符则 409。注意 `upload_roster` 虽是上传 CSV，但后端会把花名册**直接写进当前激活项目**（persist-write），同样必带 `expected_project_id`。动手前用一句话向人复述「**将在项目 X 做 Y**」。
 3. **术语链不可混**：类型 / 构件 / 实例 三层含义固定（见上）。别把「构件」当「实例」去 `set_instance_state`，也别在类型库为空时急着 `save_components`（后端会拒块）。
 4. **铸造前先 dry_run**：先 `mint_instances(dry_run=true)` 看**真实无副作用预览**（返回 `to_create` / `to_update`），确认无误后再 `mint_instances(dry_run=false, expected_project_id=X)` 真写。注意预览与真写是两次请求，其间若有人改了绑定，结果可能有出入——预览不是提交保证。
 
@@ -48,7 +48,7 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 ⑦ parse_cad_dxf(file_path=五楼.dxf)                   → 扫描 INSERT 块得设备候选
 ⑧ calibrate_coordinates(anchors=[4 组锚点])           → 求仿射矩阵 + RMSE，先看误差
 ⑨ save_components(payload=..., expected_project_id=X) ⚠ persist-write
-⑩ upload_roster(file_path=清单.csv) + list_roster     → 上传花名册并核对
+⑩ upload_roster(file_path=清单.csv, expected_project_id=X) + list_roster  ⚠ persist-write：花名册写进激活项目
 ⑪ automatch_bindings()                                → 只出建议，不落库
 ⑫ bind_instances_batch(pairs=..., expected_project_id=X) ⚠ persist-write
 ⑬ mint_instances(dry_run=true)                        → 真实预览 to_create/to_update
@@ -72,4 +72,4 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 - **无激活项目**（`get_active_project` 返回 `kind=none`，或写工具报「无激活项目」）：先 `list_projects` 看有哪些，再 `activate_project` 切到目标；确认没有目标项目时才 `create_empty_project` 或走导入链新建。
 - **Demo 只读**（`kind=demo`、`writable=false`）：内置演示数据集不可写。先 `activate_project` 换到真实项目再写，别对着 demo 试。
 - **图库降级**：本体图 / 语义相关调用报「语义图库暂不可达（Neo4j）」时，如实说明该能力暂降级，**不要**一律承诺「不影响主功能」——本体导入/图谱确实受影响；坐标/绑定/运行态可能仍可用，逐项确认而非笼统安抚。
-- **后端不可达 / 超时**：连接或读超时 → 报「Nexus 后端暂不可达」，检查 `NEXUS_BASE_URL`。**非幂等写**（`save_*` / `mint_*` / `bind_*` / `activate_*` / `set_instance_state`）超时后**禁止自动重试**（结果状态不确定）；只读 / 纯计算可有限次退避重试。CAD 解析超时后先查是否实际已完成再决定，别贸然重解析。
+- **后端不可达 / 超时**：连接或读超时 → 报「Nexus 后端暂不可达」，检查 `NEXUS_BASE_URL`。**非幂等写**（`upload_roster` / `save_*` / `mint_*` / `bind_*` / `activate_*` / `set_instance_state`）超时后**禁止自动重试**（结果状态不确定）；只读 / 纯计算可有限次退避重试。CAD 解析超时后先查是否实际已完成再决定，别贸然重解析。

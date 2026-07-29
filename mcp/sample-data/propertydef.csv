@@ -1,0 +1,3 @@
+rid,api_name,display_name,data_type,description
+ri.prop.status,status,状态,STRING,运行状态
+ri.prop.capacity,capacity,容量,INTEGER,货架容量

@@ -30,8 +30,9 @@ class NexusClient:
         return self._handle(operation, r)
 
     def post_json(self, operation, path, json=None, timeout=None):
+        to = timeout if timeout is not None else self.s.timeout_read
         try:
-            r = self._c.post(path, json=json or {}, timeout=timeout)
+            r = self._c.post(path, json=json or {}, timeout=to)
         except httpx.HTTPError as e:
             raise map_transport_error(operation, e)
         return self._handle(operation, r)

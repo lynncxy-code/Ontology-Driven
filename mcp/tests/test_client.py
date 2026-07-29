@@ -32,13 +32,27 @@ def test_multipart_sends_file(make_client):
     assert "multipart/form-data" in seen["ct"]
 
 
-def test_multipart_timeout_override(make_client):
+def test_post_json_default_timeout_not_none(make_client):
+    # 不传 timeout 时须回落到 Client 的 read 超时（30），而非显式 None（httpx 视为无限等待）
+    seen = {}
     def h(req):
+        seen["timeout"] = req.extensions.get("timeout")
+        return httpx.Response(200, json={"ok": True})
+    c = make_client(h)
+    c.post_json("mint_instances", "/api/v2/binding/mint", json={"dry_run": True})
+    assert seen["timeout"]["read"] == 30.0
+
+
+def test_multipart_timeout_override(make_client):
+    # 传入 timeout 覆盖默认 upload 超时，httpx 请求扩展里应真实带上 120
+    seen = {}
+    def h(req):
+        seen["timeout"] = req.extensions.get("timeout")
         return httpx.Response(200, json={"status": "ok"})
     c = make_client(h)
-    # 传入 timeout 覆盖默认 upload 超时，不应报错
     assert c.post_multipart("parse_cad_dxf", "/api/v2/coord/parse",
                             files=[("file", "a.dxf", b"0")], timeout=120.0) == {"status": "ok"}
+    assert seen["timeout"]["read"] == 120.0
 
 
 def test_connect_error_maps(make_client):

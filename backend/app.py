@@ -814,8 +814,11 @@ def coord_save_components():
     # CAD 仍可更新项目默认 canonical→UE；图片只作为独立空间源写入构件。
     # Task 8：不再三次独立加锁+保存；先在内存中算出 profile/frame/components 三份产物，
     # 末尾用 save_component_bundle 一次持锁、一次保存（原子）。
+    import copy
     expected_project_id = data.get("expected_project_id")
-    profile = project_store.get_spatial_profile()
+    # get_spatial_profile() 返回 live 内部引用；先深拷贝再改，绝不原地改动当前项目
+    # live spatial_profile —— 否则 bundle 事务校验失败/回滚时该内存改动无法还原。
+    profile = copy.deepcopy(project_store.get_spatial_profile())
     origin = [0.0, 0.0] if mode == "image" else (profile.get("canonical_origin") or [0.0, 0.0])[:2]
     source_to_ue_matrix = _compose_origin(matrix, origin)
     profile_patch = None
@@ -2588,11 +2591,12 @@ def binding_roster_upload():
     if not entries:
         return jsonify({"error": "未解析到有效行（至少需要『实例编号』列）"}), 400
     # multipart 上传：expected 走 form field（非 JSON body）。缺省不传则跳过、旧行为不变。
+    # 校验下沉到 add_roster_entries 锁内、写之前，杜绝 handler 级 check-then-act 的 TOCTOU。
     expected = request.form.get("expected_project_id")
-    if expected is not None and project_store.get_active_id() != expected:
-        return jsonify({"error": "project changed", "expected": expected,
-                        "actual": project_store.get_active_id()}), 409
-    project_store.add_roster_entries(entries)
+    try:
+        project_store.add_roster_entries(entries, expected_project_id=expected)
+    except ProjectMismatch as e:
+        return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
     return jsonify({"status": "ok", "added": len(entries), "roster": project_store.get_roster()})
 
 

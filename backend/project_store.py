@@ -845,9 +845,16 @@ class ProjectStore:
                 self._current["instance_roster"] = roster or []
                 self._save_current()
 
-    def add_roster_entries(self, entries):
-        """追加清单行，按 instance_id 去重（已存在则覆盖）。"""
+    def add_roster_entries(self, entries, expected_project_id=None):
+        """追加清单行，按 instance_id 去重（已存在则覆盖）。
+
+        expected_project_id 非 None 时在锁内、写之前校验激活项目，不符抛
+        ProjectMismatch（消除 handler 级 check-then-act 的 TOCTOU）；缺省 None
+        跳过校验，旧行为不变。
+        """
         with self._lock:
+            if expected_project_id is not None and self._active_id != expected_project_id:
+                raise ProjectMismatch(expected_project_id, self._active_id)
             if not self._current:
                 return
             roster = self._current["instance_roster"]
@@ -963,12 +970,15 @@ class ProjectStore:
                 rec = copy.deepcopy(old[iid])          # 逐条深拷贝，勿改入参
                 new_render = comp.get("render_config") or rec.get("render_config") or {}
                 new_name = comp.get("type_name", ot_rid)
-                changed = (
-                    rec.get("object_type_rid") != ot_rid
-                    or rec.get("object_type_name") != new_name
-                    or rec.get("component_id") != comp.get("id")
-                    or rec.get("render_config") != new_render
-                )
+                # will_update 判定唯一遍历 _MINT_BUSINESS_FIELDS，消除魔法字面量、
+                # 避免与常量双真源漂移；仍排除 last_seen/created_at（不在该元组内）。
+                new_vals = {
+                    "object_type_rid": ot_rid,
+                    "object_type_name": new_name,
+                    "component_id": comp.get("id"),
+                    "render_config": new_render,
+                }
+                changed = any(rec.get(f) != new_vals[f] for f in self._MINT_BUSINESS_FIELDS)
                 rec["component_id"] = comp.get("id")
                 rec["object_type_rid"] = ot_rid
                 rec["object_type_name"] = new_name

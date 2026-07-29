@@ -26,3 +26,44 @@ def test_bind_batch_expected_mismatch_whole_batch(store):
     with pytest.raises(ProjectMismatch):
         store.bind_batch([{"component_id": "c1", "instance_id": "DW-1"}],
                          expected_project_id="p_test")
+
+
+# ── Task 8：save_component_bundle 组合事务（一次持锁、一次保存） ──
+
+def test_save_bundle_single_transaction(store):
+    res = store.save_component_bundle(
+        expected_project_id="p_test",
+        profile_patch={"unit": "mm"},
+        frame_patch=None,
+        component_plan={"mode": "publish",
+                        "components": {"c3": {"id": "c3", "object_type_rid": "PE16A"}}},
+        mode="publish",
+    )
+    assert res["ok"] is True
+    comps = store.get_components()
+    # publish = 整体替换：只剩 c3，旧的 c1/c2 被清空。
+    assert "c3" in comps
+    assert "c1" not in comps and "c2" not in comps
+    # profile 已按 set_spatial_profile 语义整体替换。
+    assert store.get_spatial_profile() == {"unit": "mm"}
+
+
+def test_save_bundle_frame_upsert(store):
+    # frame_patch 命中 id 整条替换、否则追加（与 upsert_frame 语义一致）。
+    store.save_component_bundle(
+        expected_project_id="p_test",
+        profile_patch=None,
+        frame_patch={"id": "frame_cad", "name": "CAD 图纸", "unit": "mm"},
+        component_plan={"mode": "publish", "components": {}},
+        mode="publish",
+    )
+    assert store.get_frame("frame_cad") == {"id": "frame_cad", "name": "CAD 图纸", "unit": "mm"}
+
+
+def test_save_bundle_expected_mismatch(store):
+    store.create_project("厂B", project_id="p_b")
+    with pytest.raises(ProjectMismatch):
+        store.save_component_bundle(
+            expected_project_id="p_test", profile_patch={"unit": "mm"},
+            frame_patch=None, component_plan={"mode": "publish", "components": {}},
+            mode="publish")

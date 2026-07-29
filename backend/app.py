@@ -812,12 +812,16 @@ def coord_save_components():
     # 3.1/3.2/3.0.2：规范系 = 来源帧坐标 − 规范原点。
     # 每个来源保存自己的 source→UE 矩阵，避免图片源/CAD 源互相覆盖。
     # CAD 仍可更新项目默认 canonical→UE；图片只作为独立空间源写入构件。
+    # Task 8：不再三次独立加锁+保存；先在内存中算出 profile/frame/components 三份产物，
+    # 末尾用 save_component_bundle 一次持锁、一次保存（原子）。
+    expected_project_id = data.get("expected_project_id")
     profile = project_store.get_spatial_profile()
     origin = [0.0, 0.0] if mode == "image" else (profile.get("canonical_origin") or [0.0, 0.0])[:2]
     source_to_ue_matrix = _compose_origin(matrix, origin)
+    profile_patch = None
     if mode == "dxf":
         profile["ue_transform"]["matrix"] = source_to_ue_matrix
-        project_store.set_spatial_profile(profile)
+        profile_patch = profile          # 整体替换（对齐 set_spatial_profile）
     requested_frame_id = str(data.get("frame_id") or "").strip()
     frame_id = requested_frame_id if mode == "image" and requested_frame_id else (
         "frame_image" if mode == "image" else "frame_cad"
@@ -825,6 +829,7 @@ def coord_save_components():
     frame_name = "图片平面图" if mode == "image" else "CAD 图纸"
     frame_unit = "px" if mode == "image" else "mm"
     existing_frame = project_store.get_frame(frame_id) if requested_frame_id else None
+    frame_patch = None
     if mode == "image" and requested_frame_id:
         if not existing_frame or existing_frame.get("kind") != "image":
             return jsonify({"error": "找不到当前图片对应的项目空间底图"}), 400
@@ -837,12 +842,12 @@ def coord_save_components():
     else:
         # 兼容旧图片/CAD 工作流；4.0.1 项目图片 Frame 已由 spatial_assets 模块维护，
         # 保存构件时不得再覆盖其图片身份、锚点、版本或 Z 基准。
-        project_store.upsert_frame({
+        frame_patch = {
             "id": frame_id, "name": frame_name, "kind": mode, "unit": frame_unit,
             "to_canonical": {"method": "anchor", "matrix": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]},
             "to_ue": {"method": "anchor", "matrix": source_to_ue_matrix},
             "floor": 1, "map_code": None,
-        })
+        }
 
     old = project_store.get_components()
     def _source_key(comp):
@@ -906,7 +911,17 @@ def coord_save_components():
             # 保留已有绑定（按 id 命中旧构件）
             "bound_instance_id": (old.get(cid) or {}).get("bound_instance_id"),
         }
-    project_store.set_components(comps)
+    # 一次持锁、一次保存：profile + frame + components 组合事务（原子）。
+    try:
+        project_store.save_component_bundle(
+            expected_project_id=expected_project_id,
+            profile_patch=profile_patch,
+            frame_patch=frame_patch,
+            component_plan={"mode": "publish", "components": comps},
+            mode="publish",
+        )
+    except ProjectMismatch as e:
+        return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
     return jsonify({
         "status": "ok",
         "saved": len(comps),

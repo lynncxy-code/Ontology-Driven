@@ -732,6 +732,45 @@ class ProjectStore:
                 self._current["components"] = {}
                 self._save_current()
 
+    def save_component_bundle(self, expected_project_id, profile_patch,
+                              frame_patch, component_plan, mode="publish"):
+        """坐标标定"保存构件"的组合事务：一次持锁内依次应用
+        spatial_profile / frame / components，末尾只 `_save_current()` 一次。
+
+        合并规则与三个独立 setter **逐字一致**，只是搬到工作副本上：
+          - profile（对齐 set_spatial_profile）：整体替换。profile_patch 为待写入的
+            完整 spatial_profile；None 表示本次不动 profile（例如图片源）。
+          - frame（对齐 upsert_frame）：按 id upsert——命中即整条替换、否则追加。
+            frame_patch 为 None 表示不动 frames。
+          - components（对齐 set_components）：component_plan={"mode","components"}。
+            mode=="publish" → 整体替换（清空后写入）；其余 → 并入现有集合。
+
+        expected_project_id 非 None 时在锁内校验激活项目，不符抛 ProjectMismatch。
+        """
+        component_plan = component_plan or {}
+        plan_mode = component_plan.get("mode") or mode
+        new_comps = component_plan.get("components") or {}
+
+        def _apply(w):
+            if profile_patch is not None:
+                w["spatial_profile"] = profile_patch or _default_spatial_profile()
+            if frame_patch:
+                frames = w.setdefault("frames", [])
+                fid = frame_patch.get("id")
+                for i, f in enumerate(frames):
+                    if f.get("id") == fid:
+                        frames[i] = frame_patch
+                        break
+                else:
+                    frames.append(frame_patch)
+            comps = w.setdefault("components", {})
+            if plan_mode == "publish":
+                comps.clear()
+            comps.update(new_comps)
+            return {"ok": True, "saved": len(comps), "component_count": len(comps)}
+
+        return self.transact_expected_active(expected_project_id, _apply)
+
     def get_component_by_instance(self, instance_id):
         """按已绑定身份证号反查构件（FR-7 单实例微调用）。"""
         with self._lock:

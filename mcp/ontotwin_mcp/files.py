@@ -35,5 +35,8 @@ def resolve_upload(file_path, settings, allowed_ext=None, max_bytes=50_000_000):
     size = os.path.getsize(real)
     if size > max_bytes:
         raise ValueError(f"文件过大: {size} > {max_bytes}")
+    # 注：先校验（exists/root/ext/size）后打开，存在极窄的 TOCTOU 窗口——
+    # 校验与 open 之间文件可能被替换。单用户本地场景可接受；前提是
+    # allowed_roots 目录不应对低权限用户可写（否则可借符号链接绕过校验）。
     with open(real, "rb") as f:
         return base, f.read()

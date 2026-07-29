@@ -1,4 +1,4 @@
-"""binding 域写工具：花名册上传（stage-write）、自动匹配（compute）、
+"""binding 域写工具：花名册上传（persist-write，写当前激活项目）、自动匹配（compute）、
 绑定/解绑/批量绑定/铸造实例（persist-write，会修改当前激活项目）。
 
 统一约定：expected_project_id 非空时作乐观并发校验；为空则不放进 body/data，
@@ -14,8 +14,10 @@ def register(mcp, client, registry):
 
     @mcp.tool()
     def upload_roster(file_path: str, expected_project_id: str = "") -> dict:
-        """上传绑定花名册 CSV 到暂存区（stage-write，不改激活项目）。
+        """本操作会修改当前激活项目（persist-write）：上传绑定花名册 CSV。
 
+        后端 add_roster_entries 会把花名册条目写入当前激活项目，并在锁内按
+        expected_project_id 校验，故此工具是持久化写、须遵守 expected 铁律。
         expected_project_id 非空时作为 form field 传给后端做乐观并发校验；
         为空则不放进表单，保持后端缺省行为。
         """

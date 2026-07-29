@@ -4,6 +4,8 @@
 （promote_model_binding、transform PUT、spatial 写）按 spec 收敛策略暂不开。
 """
 
+from urllib.parse import quote
+
 
 def register(mcp, client, registry):
     @mcp.tool()
@@ -11,7 +13,7 @@ def register(mcp, client, registry):
         """返回指定实例的位置/变换信息（位置诊断）。只读。"""
         return client.get(
             "get_instance_transform",
-            f"/api/v2/instances/{instance_id}/transform")
+            f"/api/v2/instances/{quote(instance_id, safe='/')}/transform")
 
     @mcp.tool()
     def get_ue_binding_status() -> dict:
@@ -19,8 +21,8 @@ def register(mcp, client, registry):
         return client.get("get_ue_binding_status", "/api/v2/ue/binding_status")
 
     @mcp.tool()
-    def list_spatial_frames() -> list:
-        """列出当前激活项目的空间坐标系（frames）。只读。"""
+    def list_spatial_frames() -> dict:
+        """列出当前激活项目的空间坐标系（frames）。只读。返回后端包裹结构 {frames}。"""
         return client.get("list_spatial_frames", "/api/v2/spatial/frames")
 
     for f in (get_instance_transform, get_ue_binding_status, list_spatial_frames):

@@ -1,6 +1,8 @@
 """ontology 域工具：导入暂存图 / 项目本体图 / 类型库列举与详情（读），
 以及本体写链的 import→publish 两步（stage-write）。"""
 
+from urllib.parse import quote
+
 from .. import config
 from ..files import resolve_upload
 
@@ -24,7 +26,8 @@ def register(mcp, client, registry):
             active = registry["get_active_project"]()
             did = active.get("dataset_id")
         return client.get(
-            "get_project_ontology_graph", f"/api/v2/ontology/datasets/{did}/graph")
+            "get_project_ontology_graph",
+            f"/api/v2/ontology/datasets/{quote(did, safe='/')}/graph")
 
     @mcp.tool()
     def list_object_types() -> list:
@@ -34,7 +37,8 @@ def register(mcp, client, registry):
     @mcp.tool()
     def get_object_type(rid: str) -> dict:
         """返回指定 rid 的对象类型详情（含属性与能力接口）。只读。"""
-        return client.get("get_object_type", f"/api/v2/ontology/types/{rid}")
+        return client.get("get_object_type",
+                          f"/api/v2/ontology/types/{quote(rid, safe='/')}")
 
     @mcp.tool()
     def import_ontology_csv(file_paths: list) -> dict:

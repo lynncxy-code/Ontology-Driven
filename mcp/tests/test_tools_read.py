@@ -153,3 +153,36 @@ def test_phase2_read_tools_registered():
     mcp = build_server(c)
     expected = {"get_instance_transform", "get_ue_binding_status", "list_spatial_frames"}
     assert expected <= set(mcp._ot_tools)
+
+
+# --- 路径参数 URL 编码（M7）---
+
+def test_get_instance_state_url_encodes_special_chars():
+    # instance_id 含 '#' 等特殊字符时必须编码进 path，避免截断/歧义。
+    c = FakeClient({"/api/v2/instances/a%23b": {"ok": True}})
+    mcp = build_server(c)
+    res = _tool(mcp, "get_instance_state")("a#b")
+    assert res == {"ok": True}
+    assert c.calls[-1][1] == "/api/v2/instances/a%23b"
+
+
+def test_get_instance_transform_url_encodes_special_chars():
+    c = FakeClient({"/api/v2/instances/a%23b/transform": {"pos": []}})
+    mcp = build_server(c)
+    _tool(mcp, "get_instance_transform")("a#b")
+    assert c.calls[-1][1] == "/api/v2/instances/a%23b/transform"
+
+
+def test_get_object_type_url_encodes_special_chars():
+    c = FakeClient({"/api/v2/ontology/types/a%23b": {"rid": "a#b"}})
+    mcp = build_server(c)
+    _tool(mcp, "get_object_type")("a#b")
+    assert c.calls[-1][1] == "/api/v2/ontology/types/a%23b"
+
+
+def test_url_encode_preserves_slash_for_path_route():
+    # safe='/' 保留斜杠以兼容后端 <path:> 路由，但转义 '#'。
+    c = FakeClient({"/api/v2/instances/a/b%23c": {"ok": True}})
+    mcp = build_server(c)
+    _tool(mcp, "get_instance_state")("a/b#c")
+    assert c.calls[-1][1] == "/api/v2/instances/a/b%23c"

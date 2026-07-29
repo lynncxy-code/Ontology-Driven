@@ -1,5 +1,7 @@
 """runtime 域读工具：实例 / 状态快照 / 空间画像 / 绑定台。"""
 
+from urllib.parse import quote
+
 
 def register(mcp, client, registry):
     @mcp.tool()
@@ -10,7 +12,8 @@ def register(mcp, client, registry):
     @mcp.tool()
     def get_instance_state(instance_id: str) -> dict:
         """返回指定实例的当前状态。只读。"""
-        return client.get("get_instance_state", f"/api/v2/instances/{instance_id}")
+        return client.get("get_instance_state",
+                          f"/api/v2/instances/{quote(instance_id, safe='/')}")
 
     @mcp.tool()
     def get_instance_snapshot(instance_id: str) -> dict:
@@ -31,13 +34,13 @@ def register(mcp, client, registry):
         return client.get("get_spatial_profile", "/api/v2/spatial/profile")
 
     @mcp.tool()
-    def list_components() -> list:
-        """列出绑定台可用组件。只读。"""
+    def list_components() -> dict:
+        """列出绑定台可用组件。只读。返回后端包裹结构 {components, count}。"""
         return client.get("list_components", "/api/v2/binding/components")
 
     @mcp.tool()
-    def list_roster() -> list:
-        """列出绑定台花名册（实例绑定关系）。只读。"""
+    def list_roster() -> dict:
+        """列出绑定台花名册（实例绑定关系）。只读。返回后端包裹结构 {roster}。"""
         return client.get("list_roster", "/api/v2/binding/roster")
 
     @mcp.tool()

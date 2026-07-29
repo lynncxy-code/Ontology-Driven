@@ -252,6 +252,13 @@ def _default_scene_interactions():
     }
 
 
+class ProjectMismatch(Exception):
+    def __init__(self, expected, actual):
+        super().__init__(f"active project changed: expected={expected} actual={actual}")
+        self.expected = expected
+        self.actual = actual
+
+
 class ProjectStore:
     def __init__(self, projects_dir=None, active_file=None):
         self._lock = threading.RLock()
@@ -453,6 +460,24 @@ class ProjectStore:
         with self._lock:
             if not self._current:
                 raise RuntimeError("no active project")
+            previous = self._current
+            working = copy.deepcopy(previous)
+            result = updater(working)
+            self._current = working
+            try:
+                self._save_current()
+            except Exception:
+                self._current = previous
+                raise
+            return result
+
+    def transact_expected_active(self, expected_id, updater):
+        """Atomic write with optional active-project guard, all under one lock."""
+        with self._lock:
+            if not self._current:
+                raise RuntimeError("no active project")
+            if expected_id is not None and self._active_id != expected_id:
+                raise ProjectMismatch(expected_id, self._active_id)
             previous = self._current
             working = copy.deepcopy(previous)
             result = updater(working)

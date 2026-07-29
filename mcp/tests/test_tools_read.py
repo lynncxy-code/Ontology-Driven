@@ -122,3 +122,34 @@ def test_all_read_tools_registered():
         "get_spatial_profile", "list_components", "list_roster",
     }
     assert expected <= set(mcp._ot_tools)
+
+
+# --- 二期只读工具（spec §3.3）---
+
+def test_get_instance_transform_uses_id_in_path():
+    c = FakeClient({"/api/v2/instances/i1/transform": {"pos": [0, 0, 0]}})
+    mcp = build_server(c)
+    res = _tool(mcp, "get_instance_transform")("i1")
+    assert res == {"pos": [0, 0, 0]}
+    assert c.calls[-1][1] == "/api/v2/instances/i1/transform"
+
+
+def test_get_ue_binding_status_calls_endpoint():
+    c = FakeClient({"/api/v2/ue/binding_status": {"bound": True}})
+    mcp = build_server(c)
+    assert _tool(mcp, "get_ue_binding_status")() == {"bound": True}
+    assert c.calls[-1][1] == "/api/v2/ue/binding_status"
+
+
+def test_list_spatial_frames_calls_endpoint():
+    c = FakeClient({"/api/v2/spatial/frames": [{"id": "world"}]})
+    mcp = build_server(c)
+    assert _tool(mcp, "list_spatial_frames")() == [{"id": "world"}]
+    assert c.calls[-1][1] == "/api/v2/spatial/frames"
+
+
+def test_phase2_read_tools_registered():
+    c = FakeClient({})
+    mcp = build_server(c)
+    expected = {"get_instance_transform", "get_ue_binding_status", "list_spatial_frames"}
+    assert expected <= set(mcp._ot_tools)

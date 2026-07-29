@@ -294,9 +294,8 @@ class ProjectStorePG(ProjectStore):
                 self._save_current()
                 self._soft_delete_absent_instances()
 
-    def mint_instances(self):
-        n = super().mint_instances()
-        return n
+    def mint_instances(self, dry_run=False, expected_project_id=None):
+        return super().mint_instances(dry_run=dry_run, expected_project_id=expected_project_id)
 
     # ── 项目列举 / 数据集 ────────────────────────────────────
     def list_projects(self):

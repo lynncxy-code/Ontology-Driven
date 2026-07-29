@@ -10,6 +10,10 @@ class NexusClient:
             base_url=settings.base_url,
             timeout=httpx.Timeout(settings.timeout_read, connect=settings.timeout_connect),
             transport=transport,
+            # MCP 直连内网 Nexus REST，默认不读系统代理（HTTP(S)_PROXY/ALL_PROXY），
+            # 否则发往内网的请求会被 clash/VPN 错误劫持导致超时或 ImportError。
+            # 逃生口：置 NEXUS_TRUST_ENV=1 时才走系统代理（远程 Nexus 场景）。
+            trust_env=settings.trust_env,
         )
 
     def _handle(self, operation, resp):

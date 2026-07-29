@@ -55,6 +55,13 @@ def test_multipart_timeout_override(make_client):
     assert seen["timeout"]["read"] == 120.0
 
 
+def test_client_trust_env_false_by_default(make_client):
+    # 默认不读系统代理：httpx.Client._trust_env 必须为 False，
+    # 否则发往内网 Nexus 的请求会被 HTTP(S)_PROXY/ALL_PROXY 错误劫持走 VPN/clash。
+    c = make_client(lambda req: httpx.Response(200, json={}))
+    assert c._c._trust_env is False
+
+
 def test_connect_error_maps(make_client):
     def h(req):
         raise httpx.ConnectError("refused")

@@ -21,6 +21,7 @@ pip install -e .
 | `NEXUS_TIMEOUT_READ` | `30` | 普通读超时 |
 | `NEXUS_TIMEOUT_UPLOAD` | `60` | 上传超时 |
 | `NEXUS_TIMEOUT_CADPARSE` | `120` | DXF 解析超时（`parse_cad_dxf` 专用，耗时长） |
+| `NEXUS_TRUST_ENV` | `0`（不走代理） | 是否读系统代理（`HTTP(S)_PROXY`/`ALL_PROXY`）。默认 `0` 直连内网 Nexus；置 `1`/`true` 才读系统代理，供确需经代理访问远程 Nexus 的场景 |
 
 分级超时是刻意的：非幂等写超时后结果状态不确定，MCP 侧不自动重试（详见 SKILL「失败自救」）。
 
@@ -110,3 +111,4 @@ cp -r skills/ontotwin-nexus <你的项目>/.claude/skills/
 - **文件路径是「MCP 进程侧」的本地路径**：上传类工具（`import_ontology_csv` / `parse_cad_dxf` / `upload_roster`）由 MCP 进程读本地文件再组 multipart 上传。容器 / SSH / 远程开发环境下，看到的是运行 MCP 进程那一侧的文件系统，注意路径归属。受 `NEXUS_ALLOWED_ROOTS` 约束。
 - **本体 CSV 保留原始文件名**：后端按 basename 识别 6 张表（`objectdef`/`linkdef`/`linksourcetype`/`linktargettype` 必须 + `propertydef`/`hasproperty` 可选），别改名。
 - **二期工具暂未注册**：位置诊断（transform）、UE 身份绑定、spatial 只读等高风险 / 非通用工具见 Task 10，本轮 M1–M2 只注册 27 个核心工具。
+- **本机装了代理（clash/VPN）也不影响**：MCP 默认 `trust_env=False` 直连内网 Nexus，已绕过系统代理，无需另设 `NO_PROXY`。若确需经代理访问远程 Nexus，再置 `NEXUS_TRUST_ENV=1`。

@@ -10,6 +10,7 @@ class Settings:
     timeout_upload: float = 60.0
     timeout_cadparse: float = 120.0
     allowed_roots: list = field(default_factory=list)
+    trust_env: bool = False
 
 
 def _f(name, default):
@@ -26,4 +27,5 @@ def load() -> Settings:
         timeout_upload=_f("NEXUS_TIMEOUT_UPLOAD", 60.0),
         timeout_cadparse=_f("NEXUS_TIMEOUT_CADPARSE", 120.0),
         allowed_roots=[p for p in roots.split(";") if p],
+        trust_env=os.environ.get("NEXUS_TRUST_ENV", "").lower() in ("1", "true", "yes"),
     )

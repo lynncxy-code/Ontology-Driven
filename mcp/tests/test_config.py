@@ -19,3 +19,18 @@ def test_env_override(monkeypatch):
     assert s.base_url == "http://127.0.0.1:5000"
     assert s.timeout_read == 5.0
     assert s.allowed_roots == ["/data", "/tmp/up"]
+
+
+def test_trust_env_default_false(monkeypatch):
+    monkeypatch.delenv("NEXUS_TRUST_ENV", raising=False)
+    s = config.load()
+    assert s.trust_env is False
+
+
+def test_trust_env_opt_in(monkeypatch):
+    monkeypatch.setenv("NEXUS_TRUST_ENV", "1")
+    assert config.load().trust_env is True
+    monkeypatch.setenv("NEXUS_TRUST_ENV", "true")
+    assert config.load().trust_env is True
+    monkeypatch.setenv("NEXUS_TRUST_ENV", "0")
+    assert config.load().trust_env is False

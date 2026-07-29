@@ -63,7 +63,7 @@ states = {
 }
 # 2.9.4 重构：统一项目存储（取代 InstanceStore）。
 # 实例归属"当前激活项目"，与数据集/类型表一起持久化、一起加载、一起删——单一事实来源。
-from project_store import ProjectStore
+from project_store import ProjectStore, ProjectMismatch
 project_store = ProjectStore()
 instance_store = project_store          # 向后兼容别名：实例操作接口一致
 simulator = MockInstanceSimulator(project_store)
@@ -2641,12 +2641,27 @@ def binding_unbind():
 
 @app.route('/api/v2/binding/mint', methods=['POST'])
 def binding_mint():
-    """把已绑定构件铸造/同步为实例（实例集 = 已绑定构件集）。"""
+    """把已绑定构件铸造/同步为实例；支持 dry_run 预览与 expected_project_id 原子校验。"""
     _, err = _require_active_project()
     if err:
         return err
-    n = project_store.mint_instances()
-    return jsonify({"status": "ok", "minted": n})
+    # 严格 JSON 边界：有 JSON content-type 且 body 非空但畸形 → 400，不静默真写
+    if request.content_type and 'application/json' in request.content_type and request.data:
+        parsed = request.get_json(silent=True)
+        if parsed is None:
+            return jsonify({"error": "invalid JSON body"}), 400
+        data = parsed
+    else:
+        data = {}
+    dry_run = data.get("dry_run", False)
+    if not isinstance(dry_run, bool):
+        return jsonify({"error": "dry_run must be a JSON boolean"}), 400
+    expected = data.get("expected_project_id")
+    try:
+        res = project_store.mint_instances(dry_run=dry_run, expected_project_id=expected)
+    except ProjectMismatch as e:
+        return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
+    return jsonify({"status": "ok", **res})
 
 
 # ═══════════════════════════════════════════════════════════════

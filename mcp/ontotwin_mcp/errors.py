@@ -15,8 +15,15 @@ class NexusError(Exception):
         super().__init__(msg)
 
 
+def map_bad_response(operation, status=0):
+    """成功响应体不是合法 JSON（2xx + application/json 但 body 畸形）时的映射。"""
+    return NexusError("NEXUS_BAD_RESPONSE", status, operation, "", False,
+                      "后端返回了非法 JSON")
+
+
 def map_response_error(operation, status, body_text, parsed_json):
-    berr = (parsed_json or {}).get("error") if isinstance(parsed_json, dict) else (body_text or "")[:300]
+    pj = parsed_json if isinstance(parsed_json, dict) else {}
+    berr = pj.get("error") if isinstance(parsed_json, dict) else (body_text or "")[:300]
     if status == 400:
         if isinstance(berr, str) and "无激活项目" in berr:
             return NexusError("NEXUS_NO_ACTIVE_PROJECT", 400, operation, berr, False,
@@ -27,7 +34,7 @@ def map_response_error(operation, status, body_text, parsed_json):
     if status == 404:
         return NexusError("NEXUS_NOT_FOUND", 404, operation, berr, False)
     if status == 409:
-        exp = (parsed_json or {}).get("expected"); act = (parsed_json or {}).get("actual")
+        exp = pj.get("expected"); act = pj.get("actual")
         return NexusError("NEXUS_PROJECT_CHANGED", 409, operation, berr, False,
                           f"当前激活项目已变（expected={exp} actual={act}），请重新确认后再写")
     if status == 413:

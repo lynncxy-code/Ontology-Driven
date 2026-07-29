@@ -29,7 +29,7 @@ def register(mcp, client, registry):
         }
 
     @mcp.tool()
-    def activate_project(dataset_id: str, expected_current: str = "") -> dict:
+    def activate_project(dataset_id: str) -> dict:
         """会改全局激活态（persist）：把指定数据集设为当前激活项目。高危，一切工具只认当前激活项目。
 
         激活已有项目为只读操作，不覆盖其类型能力配置。

@@ -69,3 +69,16 @@ def test_connect_error_maps(make_client):
     with pytest.raises(NexusError) as e:
         c.get("list_projects", "/api/v2/ontology/datasets")
     assert e.value.code == "NEXUS_UNREACHABLE"
+
+
+def test_success_malformed_json_maps_to_nexus_error(make_client):
+    # 2xx + application/json header 但 body 畸形：resp.json() 会抛 JSONDecodeError，
+    # 成功分支必须把它映射成 NexusError，而不是让裸异常漏到工具层。
+    def h(req):
+        return httpx.Response(200, headers={"content-type": "application/json"},
+                              content=b"{not valid json")
+    c = make_client(h)
+    with pytest.raises(NexusError) as e:
+        c.get("list_instances", "/api/v2/instances")
+    assert e.value.code == "NEXUS_BAD_RESPONSE"
+    assert "list_instances" in str(e.value)

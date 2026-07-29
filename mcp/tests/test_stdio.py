@@ -30,7 +30,7 @@ class FakeClient:
         return self.routes.get(path, {})
 
 
-# 核心工具必须全部注册（≥22：15 读 + 7 写；实际 27）
+# 核心工具必须全部注册（≥22：15 读 + 7 写；实际 30，含 3 个二期只读工具）
 CORE_TOOLS = {
     "get_active_project",
     "mint_instances",

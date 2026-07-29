@@ -5,7 +5,7 @@ description: 编排 OntoTwin Nexus MCP 工具搭建/运维数字孪生场景。�
 
 # OntoTwin Nexus 编排手册
 
-Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」。所有工具**只认当前激活项目**——切错项目 = 写错场景。本手册教你用 27 个 MCP 工具把「一份 DXF + 一份设备清单」变成可运维的数字孪生。
+Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」。所有工具**只认当前激活项目**——切错项目 = 写错场景。本手册教你用 30 个 MCP 工具把「一份 DXF + 一份设备清单」变成可运维的数字孪生。
 
 ## 四段流水线心智图
 
@@ -23,6 +23,7 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 | 实例 | 花名册撮合、绑定、铸造 | 读 `list_roster` · 计算 `automatch_bindings` · 写 `upload_roster` `bind_instance` `bind_instances_batch` `unbind_instance` `mint_instances` |
 | 运行 | 查状态、改状态、看快照 | 读 `list_instances` `get_instance_state` `get_instance_snapshot` `get_state_snapshots` · 写 `set_instance_state` |
 | 项目/元 | 选场景、确认可写 | 读 `list_projects` `get_active_project` |
+| 二期诊断 | 查位置变换 / UE 绑定态 / 空间坐标系（均只读） | 读 `get_instance_transform` `get_ue_binding_status` `list_spatial_frames` |
 
 `parse_cad_dxf` / `calibrate_coordinates` / `automatch_bindings` 是**无副作用的计算或暂存**，可放心多跑；带「会修改当前激活项目」的才是落库写（persist-write），须走下面的铁律。
 

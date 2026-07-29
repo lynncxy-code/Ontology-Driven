@@ -1,6 +1,6 @@
 import httpx
 
-from .errors import map_response_error, map_transport_error
+from .errors import map_bad_response, map_response_error, map_transport_error
 
 
 class NexusClient:
@@ -19,7 +19,14 @@ class NexusClient:
     def _handle(self, operation, resp):
         if resp.is_success:
             ct = resp.headers.get("content-type", "")
-            return resp.json() if "application/json" in ct else resp.text
+            if "application/json" not in ct:
+                return resp.text
+            try:
+                return resp.json()
+            except Exception:
+                # 2xx + application/json 但 body 畸形：映射成 NexusError，
+                # 别让裸 JSONDecodeError 漏到工具层。
+                raise map_bad_response(operation, resp.status_code)
         try:
             parsed = resp.json()
         except Exception:

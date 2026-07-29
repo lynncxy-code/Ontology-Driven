@@ -1,6 +1,6 @@
 # OntoTwin Nexus MCP Server
 
-把 Nexus 的读 / 写 / 运维能力（27 个工具）以 **MCP** 暴露给 Claude Code、Cursor 等 AI 客户端。本地 stdio 进程，不 import 后端任何模块，只对 `${NEXUS_BASE_URL}/api/v2` 发 HTTP。工具怎么编排见 `skills/ontotwin-nexus/SKILL.md`。
+把 Nexus 的读 / 写 / 运维能力（30 个工具）以 **MCP** 暴露给 Claude Code、Cursor 等 AI 客户端。本地 stdio 进程，不 import 后端任何模块，只对 `${NEXUS_BASE_URL}/api/v2` 发 HTTP。工具怎么编排见 `skills/ontotwin-nexus/SKILL.md`。
 
 ## 安装
 
@@ -110,5 +110,5 @@ cp -r skills/ontotwin-nexus <你的项目>/.claude/skills/
 - **写工具需后端已部署 M0 扩展**：`mint_instances` 的 `dry_run` 真预览、以及各写工具的 `expected_project_id` 原子校验，都依赖后端两项加法式扩展（spec §14）。后端未部署该扩展时，缺省字段仍是旧行为，但 `dry_run=true` 可能不生效（会真写）、`expected_project_id` 不做校验（防不住写-写竞态）。部署到 88.66（PG 模式）后才完整生效。
 - **文件路径是「MCP 进程侧」的本地路径**：上传类工具（`import_ontology_csv` / `parse_cad_dxf` / `upload_roster`）由 MCP 进程读本地文件再组 multipart 上传。容器 / SSH / 远程开发环境下，看到的是运行 MCP 进程那一侧的文件系统，注意路径归属。受 `NEXUS_ALLOWED_ROOTS` 约束。
 - **本体 CSV 保留原始文件名**：后端按 basename 识别 6 张表（`objectdef`/`linkdef`/`linksourcetype`/`linktargettype` 必须 + `propertydef`/`hasproperty` 可选），别改名。
-- **二期工具暂未注册**：位置诊断（transform）、UE 身份绑定、spatial 只读等高风险 / 非通用工具见 Task 10，本轮 M1–M2 只注册 27 个核心工具。
+- **已注册 3 个二期只读工具（transform / ue_binding_status / spatial_frames）**：位置诊断（`get_instance_transform`）、UE 身份绑定状态（`get_ue_binding_status`）、空间坐标系列举（`list_spatial_frames`）均为只读，已并入 30 个工具中。二期**写**工具（promote_model_binding、transform PUT、spatial 写）按 spec 收敛策略仍暂不开。
 - **本机装了代理（clash/VPN）也不影响**：MCP 默认 `trust_env=False` 直连内网 Nexus，已绕过系统代理，无需另设 `NO_PROXY`。若确需经代理访问远程 Nexus，再置 `NEXUS_TRUST_ENV=1`。

@@ -40,6 +40,20 @@ def register(mcp, client, registry):
         """列出绑定台花名册（实例绑定关系）。只读。"""
         return client.get("list_roster", "/api/v2/binding/roster")
 
+    @mcp.tool()
+    def set_instance_state(instance_id: str, patch: dict,
+                           expected_project_id: str = "") -> dict:
+        """本操作会修改当前激活项目（persist-write）：覆写指定实例的状态字段。
+
+        patch 为要覆盖的状态键值；expected_project_id 非空时作乐观并发校验，
+        为空则保持后端缺省（旧）行为。
+        """
+        body = {"instance_id": instance_id, "patch": patch}
+        if expected_project_id:
+            body["expected_project_id"] = expected_project_id
+        return client.post_json("set_instance_state", "/api/v2/state/override", json=body)
+
     for f in (list_instances, get_instance_state, get_instance_snapshot,
-              get_state_snapshots, get_spatial_profile, list_components, list_roster):
+              get_state_snapshots, get_spatial_profile, list_components, list_roster,
+              set_instance_state):
         registry[f.__name__] = f

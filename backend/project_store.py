@@ -844,57 +844,100 @@ class ProjectStore:
             return True
 
     # ── 铸造（已绑定构件 → 实例） ──────────────────────────────
-    def mint_instances(self):
-        """把所有已绑定构件同步为实例。
+    # will_update 只比这些"业务字段"，排除 last_seen/created_at 等时间字段，
+    # 否则每次铸造都会因 last_seen 刷新而全量误报 update。
+    _MINT_BUSINESS_FIELDS = ("object_type_rid", "object_type_name", "component_id", "render_config")
 
-        3.4.3 起不再让 instances 与"已绑定构件集"强对齐。原因：
-        同一项目内可能同时存在 UE 历史迁移自由实例、CAD 构件实例、图片构件实例。
-        铸造某个空间源时只应 upsert 对应构件实例，不能删除其他来源实例。
-        已存在的实例保留其 raw_state/last_seen（不重置在线状态）。返回铸造数量。"""
+    def _plan_mint(self, snapshot, now):
+        """纯规划函数：只读 snapshot、不改 snapshot、不落库、不取时钟。
+
+        逐条深拷贝旧实例后再改，构造与 snapshot 完全分离的 result_instances。
+        `now`（时间戳）由调用方传入，planner 内不再调 time.time()，保证同一次
+        铸造里所有新增/刷新的时间戳一致且可预测。
+
+        语义与原 mint_instances 完全一致（3.4.3）：不与"已绑定构件集"强对齐——
+        result 先携带旧实例全集（保留 UE 历史/其他来源自由实例），再对已绑定
+        构件 upsert；已存在实例保留其 raw_state 且不重置在线状态。
+        """
+        comps = snapshot.get("components", {}) or {}
+        old = snapshot.get("instances", {}) or {}
+        # 3.1：楼层 → Z 基准(cm) 查表（沿用原实现）
+        sp = snapshot.get("spatial_profile") or _default_spatial_profile()
+        scale = (sp.get("ue_transform") or {}).get("scale_to_cm", 0.1)
+        floor_z_cm = {}
+        for ft in sp.get("floor_table") or []:
+            floor_z_cm[ft.get("floor")] = float(ft.get("z_base_mm", 0)) * scale
+
+        # 先深拷贝旧实例全集（原实现的 new_instances = dict(old)：保留自由实例），
+        # 深拷贝确保对入参零改动。
+        result = copy.deepcopy(old)
+        to_create, to_update = [], []
+        for comp in comps.values():
+            iid = comp.get("bound_instance_id")
+            if not iid:
+                continue
+            ot_rid = comp.get("object_type_rid", "")
+            if iid in old:
+                rec = copy.deepcopy(old[iid])          # 逐条深拷贝，勿改入参
+                new_render = comp.get("render_config") or rec.get("render_config") or {}
+                new_name = comp.get("type_name", ot_rid)
+                changed = (
+                    rec.get("object_type_rid") != ot_rid
+                    or rec.get("object_type_name") != new_name
+                    or rec.get("component_id") != comp.get("id")
+                    or rec.get("render_config") != new_render
+                )
+                rec["component_id"] = comp.get("id")
+                rec["object_type_rid"] = ot_rid
+                rec["object_type_name"] = new_name
+                rec["render_config"] = new_render
+                rec["last_seen"] = now
+                if changed:
+                    to_update.append(iid)
+            else:
+                pos = {"x": (comp.get("ue_xy") or [0, 0])[0],
+                       "y": (comp.get("ue_xy") or [0, 0])[1],
+                       "z": floor_z_cm.get(comp.get("floor", 1), 0.0)}
+                rec = {
+                    "id": iid,
+                    "component_id": comp.get("id"),
+                    "object_type_rid": ot_rid,
+                    "object_type_name": comp.get("type_name", ot_rid),
+                    "render_config": comp.get("render_config") or {},
+                    "created_at": now,
+                    "last_seen": now,
+                    "status": "online",
+                    "raw_state": _default_raw_state(ot_rid, comp.get("type_name"), pos),
+                }
+                to_create.append(iid)
+            apply_instance_metadata(rec)
+            result[iid] = rec
+        return {"to_create": to_create, "to_update": to_update, "result_instances": result}
+
+    def mint_instances(self, dry_run=False, expected_project_id=None):
+        """把所有已绑定构件同步为实例；dry_run 与真写共用同一段规划逻辑。
+
+        返回 dict：{"minted": n, "to_create": [...], "to_update": [...]}。
+        （历史签名返回 int 计数，本任务起改为 dict——调用方 app.py 由 Task 6 适配。）
+        dry_run=True 只出规划、minted=0、不落库；dry_run=False 落库并计已绑定构件数。
+        expected_project_id 非空且与当前激活项目不符时抛 ProjectMismatch（全程持锁）。
+        """
+        now = time.time()
         with self._lock:
             if not self._current:
-                return 0
-            comps = self._comps()
-            old = self._current.get("instances") or {}
-            # 3.1：楼层 → Z 基准(cm) 查表
-            sp = self._current.get("spatial_profile") or _default_spatial_profile()
-            scale = (sp.get("ue_transform") or {}).get("scale_to_cm", 0.1)
-            floor_z_cm = {}
-            for ft in sp.get("floor_table") or []:
-                floor_z_cm[ft.get("floor")] = float(ft.get("z_base_mm", 0)) * scale
-            new_instances = dict(old)
-            for comp in comps.values():
-                iid = comp.get("bound_instance_id")
-                if not iid:
-                    continue
-                ot_rid = comp.get("object_type_rid", "")
-                if iid in old:
-                    rec = old[iid]
-                    rec["component_id"] = comp.get("id")
-                    rec["object_type_rid"] = ot_rid
-                    rec["object_type_name"] = comp.get("type_name", ot_rid)
-                    rec["render_config"] = comp.get("render_config") or rec.get("render_config") or {}
-                    rec["last_seen"] = time.time()
-                else:
-                    pos = {"x": (comp.get("ue_xy") or [0, 0])[0],
-                           "y": (comp.get("ue_xy") or [0, 0])[1],
-                           "z": floor_z_cm.get(comp.get("floor", 1), 0.0)}
-                    rec = {
-                        "id": iid,
-                        "component_id": comp.get("id"),
-                        "object_type_rid": ot_rid,
-                        "object_type_name": comp.get("type_name", ot_rid),
-                        "render_config": comp.get("render_config") or {},
-                        "created_at": time.time(),
-                        "last_seen": time.time(),
-                        "status": "online",
-                        "raw_state": _default_raw_state(ot_rid, comp.get("type_name"), pos),
-                    }
-                apply_instance_metadata(rec)
-                new_instances[iid] = rec
-            self._current["instances"] = new_instances
+                return {"minted": 0, "to_create": [], "to_update": []}
+            if expected_project_id is not None and self._active_id != expected_project_id:
+                raise ProjectMismatch(expected_project_id, self._active_id)
+            snapshot = copy.deepcopy(self._current)
+            plan = self._plan_mint(snapshot, now)
+            if dry_run:
+                return {"minted": 0, "to_create": plan["to_create"], "to_update": plan["to_update"]}
+            self._current["instances"] = plan["result_instances"]
             self._save_current()
-            return len([c for c in comps.values() if c.get("bound_instance_id")])
+            # minted 沿用原语义：已绑定构件数（非 result 全集，后者含保留的自由实例）。
+            minted = len([c for c in (snapshot.get("components") or {}).values()
+                          if c.get("bound_instance_id")])
+            return {"minted": minted, "to_create": plan["to_create"], "to_update": plan["to_update"]}
 
 
 # ── 存储后端开关（3.4）─────────────────────────────────────────

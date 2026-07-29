@@ -2587,6 +2587,11 @@ def binding_roster_upload():
             entries.append(norm)
     if not entries:
         return jsonify({"error": "未解析到有效行（至少需要『实例编号』列）"}), 400
+    # multipart 上传：expected 走 form field（非 JSON body）。缺省不传则跳过、旧行为不变。
+    expected = request.form.get("expected_project_id")
+    if expected is not None and project_store.get_active_id() != expected:
+        return jsonify({"error": "project changed", "expected": expected,
+                        "actual": project_store.get_active_id()}), 409
     project_store.add_roster_entries(entries)
     return jsonify({"status": "ok", "added": len(entries), "roster": project_store.get_roster()})
 

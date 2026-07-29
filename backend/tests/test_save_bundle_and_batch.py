@@ -1,4 +1,6 @@
 """Task 7：bind/unbind/update_raw_state 锁内 expected 校验 + bind_batch 单锁批事务。"""
+import io
+
 import pytest
 from project_store import ProjectMismatch
 
@@ -67,3 +69,29 @@ def test_save_bundle_expected_mismatch(store):
             expected_project_id="p_test", profile_patch={"unit": "mm"},
             frame_patch=None, component_plan={"mode": "publish", "components": {}},
             mode="publish")
+
+
+# ── Task 9：roster/upload multipart form field expected 校验 ──
+
+def test_roster_upload_expected_mismatch_409(client):
+    # 新建并激活「厂C-roster」→ 激活项目已切走；带 expected=p_test（旧项目）应 409。
+    # 名称须与其它测试互不相同：create_empty_dataset 的 _datasets 是进程级模块全局，
+    # 跨测试累积；同名会触发 name_duplicated 409 而不激活，污染依赖激活切换的用例。
+    client.post("/api/v2/ontology/datasets", json={"name": "厂C-roster", "activate": True})
+    data = {"file": (io.BytesIO("实例编号\nDW-001\n".encode("utf-8-sig")), "roster.csv"),
+            "expected_project_id": "p_test"}
+    r = client.post("/api/v2/binding/roster/upload", data=data,
+                    content_type="multipart/form-data")
+    assert r.status_code == 409
+    body = r.get_json()
+    assert body["error"] == "project changed"
+    assert body["expected"] == "p_test"
+
+
+def test_roster_upload_no_expected_still_works(client):
+    # 不带 expected → 旧行为不变，正常落库。
+    data = {"file": (io.BytesIO("实例编号\nDW-777\n".encode("utf-8-sig")), "roster.csv")}
+    r = client.post("/api/v2/binding/roster/upload", data=data,
+                    content_type="multipart/form-data")
+    assert r.status_code == 200
+    assert r.get_json()["added"] == 1

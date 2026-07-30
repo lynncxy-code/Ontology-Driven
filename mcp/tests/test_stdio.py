@@ -146,3 +146,21 @@ async def test_lifecycle_model_binding_tools_listed_and_callable():
     assert new_tools <= names, f"缺工具: {new_tools - names}"
     assert len(names) >= 66, f"工具总数应 ≥66（57+9），实际 {len(names)}"
     assert res.isError is False
+
+
+async def test_ontology_edit_tools_listed_and_callable():
+    """M4 本体深编辑 7 工具全部注册；挑一个只读工具走真 call_tool。"""
+    routes = {"/api/v2/ontology/interfaces": {"interfaces": []}}
+    mcp = build_server(FakeClient(routes))
+    async with create_connected_server_and_client_session(mcp._mcp_server) as session:
+        names = {t.name for t in (await session.list_tools()).tools}
+        res = await session.call_tool("list_interface_defs", {})
+
+    new_tools = {
+        "list_interface_defs", "list_property_defs", "get_ontology_registry",
+        "list_transform_types", "inject_interfaces", "remove_interface",
+        "build_staging_graph_from_registry",
+    }
+    assert new_tools <= names, f"缺工具: {new_tools - names}"
+    assert len(names) >= 73, f"工具总数应 ≥73（66+7），实际 {len(names)}"
+    assert res.isError is False

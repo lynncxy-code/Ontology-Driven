@@ -137,3 +137,21 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 - 「在当前项目建一个货架实例 shelf-A3，放在规范坐标 (1200, 800)」
 - 「把 shelf-A3 挪到 (1500, 900)」
 - 「给 shelf-A3 换成高精模型」/「把 shelf-A3 恢复成类型默认模型」
+
+## 本体深编辑（能力接口 / 定义 / 暂存图）
+
+**配能力接口**
+- `list_interface_defs()` 看有哪些接口 → `inject_interfaces(rid, ["I3D_Representable", "I3D_Spatial", ...])` 挂载（合并追加）。子接口（Spatial/Visual/Behavioral/Overlay）必须已有或同时挂 `I3D_Representable`，否则 400。
+- `remove_interface(rid, "I3D_Spatial")` 移除；移 `I3D_Representable` 会级联清空所有子接口 + 清资产。
+- 注：`enable_info_panel(rid)` 是「注入 I3D_Representable + I3D_Overlay」的便捷特例；要挂别的接口用 `inject_interfaces`。
+
+**查定义**
+- `list_property_defs()` / `list_transform_types()`（静态定义）；`get_ontology_registry()`（Neo4j 注册表，不可达返回 `NEXUS_DEGRADED`，不影响其它功能）。
+
+**暂存图**
+- `build_staging_graph_from_registry()` 从图库出暂存图 → `get_import_staging_graph()` 读回 → `publish_ontology_dataset(name)` 发布。
+
+**触发示例**
+- 「给货架类型挂上 I3D_Representable 和 I3D_Spatial」
+- 「看看有哪些能力接口可以挂」
+- 「从本体图库重建暂存图并发布成新数据集」

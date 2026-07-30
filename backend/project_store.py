@@ -808,8 +808,10 @@ class ProjectStore:
                 self._save_current()
             return sp
 
-    def set_spatial_profile(self, profile):
+    def set_spatial_profile(self, profile, expected_project_id=None):
         with self._lock:
+            if expected_project_id is not None and self._active_id != expected_project_id:
+                raise ProjectMismatch(expected_project_id, self._active_id)
             if self._current:
                 self._current["spatial_profile"] = profile or _default_spatial_profile()
                 self._save_current()
@@ -825,9 +827,11 @@ class ProjectStore:
                     return f
             return None
 
-    def upsert_frame(self, frame):
+    def upsert_frame(self, frame, expected_project_id=None):
         """按 id 新增/更新一帧。"""
         with self._lock:
+            if expected_project_id is not None and self._active_id != expected_project_id:
+                raise ProjectMismatch(expected_project_id, self._active_id)
             if not self._current:
                 return
             self._current.setdefault("frames", [])

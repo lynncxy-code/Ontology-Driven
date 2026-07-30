@@ -1025,8 +1025,12 @@ def spatial_profile_put():
         profile["floor_table"] = data["floor_table"]
     if "canonical_origin" in data:
         profile["canonical_origin"] = data["canonical_origin"]
-    project_store.set_spatial_profile(profile)
-    _rederive_components()                       # FR-8：全场重算 + 同步实例
+    expected = data.get("expected_project_id")
+    try:
+        project_store.set_spatial_profile(profile, expected_project_id=expected)
+        _rederive_components()                   # FR-8：全场重算 + 同步实例
+    except ProjectMismatch as e:
+        return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
     return jsonify({"status": "ok", "profile": profile})
 
 
@@ -1042,9 +1046,13 @@ def spatial_frames_post():
     if project_store.get_active() is None:
         return jsonify({"error": "当前无激活项目"}), 400
     frame = request.json or {}
+    expected = frame.pop("expected_project_id", None)  # 从帧数据剥离，避免污染存储
     if not frame.get("id"):
         return jsonify({"error": "缺少 frame id"}), 400
-    project_store.upsert_frame(frame)
+    try:
+        project_store.upsert_frame(frame, expected_project_id=expected)
+    except ProjectMismatch as e:
+        return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
     return jsonify({"status": "ok", "frames": project_store.list_frames()})
 
 
@@ -1072,7 +1080,11 @@ def spatial_frame_calibrate(frame_id):
         frame["unit"] = data["unit"]
     frame["from_canonical"] = {"method": "anchor", "matrix": from_canon}
     frame["to_canonical"] = {"method": "anchor", "matrix": to_canon} if to_canon else None
-    project_store.upsert_frame(frame)
+    expected = data.get("expected_project_id")
+    try:
+        project_store.upsert_frame(frame, expected_project_id=expected)
+    except ProjectMismatch as e:
+        return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
     return jsonify({"status": "ok", "metrics": res.get("metrics"), "frame": frame})
 
 

@@ -81,6 +81,51 @@ def test_publish_reference_frame_empty_body():
     assert c.calls[-1][2] == {}
 
 
+def test_create_reference_frame_threads_expected_project(monkeypatch):
+    monkeypatch.setattr(
+        "ontotwin_mcp.tools.spatial.resolve_upload",
+        lambda p, s, allowed_ext=None: ("plan.png", b"img"))
+    c = C(); mcp = build_server(c)
+    _t(mcp, "create_reference_frame")("whatever.png", expected_project_id="p1")
+    data = c.calls[-1][3]
+    assert data.get("expected_project_id") == "p1"
+
+
+def test_create_reference_frame_omits_empty_expected_project(monkeypatch):
+    monkeypatch.setattr(
+        "ontotwin_mcp.tools.spatial.resolve_upload",
+        lambda p, s, allowed_ext=None: ("plan.png", b"img"))
+    c = C(); mcp = build_server(c)
+    _t(mcp, "create_reference_frame")("whatever.png")
+    data = c.calls[-1][3]
+    assert "expected_project_id" not in data
+
+
+def test_save_reference_frame_draft_threads_expected_project():
+    c = C(); mcp = build_server(c)
+    _t(mcp, "save_reference_frame_draft")("f1", {"anchors": []}, expected_project_id="p1")
+    body = c.calls[-1][2]
+    assert body.get("expected_project_id") == "p1"
+
+
+def test_save_reference_frame_draft_omits_empty_expected_project():
+    c = C(); mcp = build_server(c)
+    _t(mcp, "save_reference_frame_draft")("f1", {"anchors": []})
+    assert "expected_project_id" not in c.calls[-1][2]
+
+
+def test_publish_reference_frame_threads_expected_project():
+    c = C(); mcp = build_server(c)
+    _t(mcp, "publish_reference_frame")("f1", expected_project_id="p1")
+    assert c.calls[-1][2].get("expected_project_id") == "p1"
+
+
+def test_publish_reference_frame_omits_empty_expected_project():
+    c = C(); mcp = build_server(c)
+    _t(mcp, "publish_reference_frame")("f1")
+    assert "expected_project_id" not in c.calls[-1][2]
+
+
 def test_spatial_tools_registered():
     c = C(); mcp = build_server(c)
     expected = {

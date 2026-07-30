@@ -83,7 +83,7 @@ class SpatialFrameService:
             raise SpatialFrameNotFoundError("当前项目中找不到该空间底图")
         return self._public_frame(frame)
 
-    def create_image_frame(self, file_storage, fields):
+    def create_image_frame(self, file_storage, fields, expected_project_id=None):
         project = self._project()
         if file_storage is None:
             raise SpatialFrameValidationError("image_required", "请选择图片文件", status=400)
@@ -123,13 +123,13 @@ class SpatialFrameService:
             working.setdefault("frames", []).append(copy.deepcopy(frame))
 
         try:
-            self.store.transact_active(update)
+            self.store.transact_expected_active(expected_project_id, update)
         except Exception:
             self.storage.remove_if_created(path, created)
             raise
         return {"status": "ok", "frame": self._public_frame(frame)}
 
-    def save_draft(self, frame_id, payload):
+    def save_draft(self, frame_id, payload, expected_project_id=None):
         if not isinstance(payload, dict):
             raise SpatialFrameValidationError("invalid_request", "请求体必须是对象", status=400)
         project = self._project()
@@ -227,7 +227,7 @@ class SpatialFrameService:
                     return
             raise SpatialFrameNotFoundError("当前项目中找不到该空间底图")
 
-        self.store.transact_active(update)
+        self.store.transact_expected_active(expected_project_id, update)
         return {"status": "ok", "frame": self._public_frame(updated)}
 
     @staticmethod
@@ -240,7 +240,7 @@ class SpatialFrameService:
                 return float(item.get("z_base_mm") or 0.0)
         return 0.0
 
-    def publish(self, frame_id, payload):
+    def publish(self, frame_id, payload, expected_project_id=None):
         payload = payload if isinstance(payload, dict) else {}
         project = self._project()
         current = _find_frame(project, frame_id)
@@ -322,7 +322,7 @@ class SpatialFrameService:
             target["ue_ground_z_cm"] = reference.get("ue_ground_z_cm")
             target["ue_level"] = published.get("ue_level")
 
-        self.store.transact_active(update)
+        self.store.transact_expected_active(expected_project_id, update)
         return {"status": "ok", "frame": self._public_frame(published)}
 
     def image_file(self, frame_id):

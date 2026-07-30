@@ -19,10 +19,12 @@ def register(mcp, client, registry):
 
     @mcp.tool()
     def create_reference_frame(file_path: str, floor: int = 1, floor_id: str = "",
-                               ue_level: str = "", name: str = "") -> dict:
+                               ue_level: str = "", name: str = "",
+                               expected_project_id: str = "") -> dict:
         """本操作会修改当前激活项目：上传一张底图作空间标定参考帧（multipart）。
 
         file_path 指向本地图片（png/jpg/jpeg/webp）；floor/floor_id/ue_level/name 为可选元数据。
+        expected_project_id 非空时绑定目标项目身份，激活项目已切换则后端返回 409。
         """
         base, content = resolve_upload(
             file_path, settings, allowed_ext=[".png", ".jpg", ".jpeg", ".webp"])
@@ -33,6 +35,8 @@ def register(mcp, client, registry):
             data["ue_level"] = ue_level
         if name:
             data["name"] = name
+        if expected_project_id:
+            data["expected_project_id"] = expected_project_id
         return client.post_multipart(
             "create_reference_frame", f"{_FRAMES}/assets",
             [("file", base, content)], data=data)
@@ -49,29 +53,37 @@ def register(mcp, client, registry):
 
     @mcp.tool()
     def save_reference_frame_draft(frame_id: str, draft: dict,
-                                   expected_draft_revision: Optional[int] = None) -> dict:
+                                   expected_draft_revision: Optional[int] = None,
+                                   expected_project_id: str = "") -> dict:
         """本操作会修改当前激活项目：保存底图参考帧草稿（锚点/楼层参照等）。
 
         draft 结构以 get_reference_frame 返回为准。expected_draft_revision 非 None 时作
         乐观并发校验（取自 get_reference_frame 的 draft_revision）；省略保持后端缺省。
+        expected_project_id 非空时绑定目标项目身份，激活项目已切换则后端返回 409。
         """
         body = dict(draft)
         if expected_draft_revision is not None:
             body["expected_draft_revision"] = expected_draft_revision
+        if expected_project_id:
+            body["expected_project_id"] = expected_project_id
         return client.put_json(
             "save_reference_frame_draft",
             f"{_FRAMES}/{quote(frame_id, safe='/')}/draft", json=body)
 
     @mcp.tool()
     def publish_reference_frame(frame_id: str, payload: Optional[dict] = None,
-                                expected_draft_revision: Optional[int] = None) -> dict:
+                                expected_draft_revision: Optional[int] = None,
+                                expected_project_id: str = "") -> dict:
         """本操作会修改当前激活项目：发布底图参考帧（把草稿标定固化为生效标定）。
 
         expected_draft_revision 非 None 时作乐观并发校验；省略保持后端缺省。
+        expected_project_id 非空时绑定目标项目身份，激活项目已切换则后端返回 409。
         """
         body = dict(payload) if payload else {}
         if expected_draft_revision is not None:
             body["expected_draft_revision"] = expected_draft_revision
+        if expected_project_id:
+            body["expected_project_id"] = expected_project_id
         return client.post_json(
             "publish_reference_frame",
             f"{_FRAMES}/{quote(frame_id, safe='/')}/publish", json=body)

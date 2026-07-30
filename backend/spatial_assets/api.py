@@ -1,5 +1,7 @@
 from flask import Blueprint, jsonify, request, send_file
 
+from project_store import ProjectMismatch
+
 from .service import SpatialFrameConflictError, SpatialFrameNotFoundError, SpatialFrameService
 from .validators import SpatialFrameValidationError
 
@@ -20,13 +22,20 @@ def register_spatial_asset_routes(app, project_store, asset_root=None):
             return jsonify({"error": "spatial_frame_revision_conflict", "message": str(exc)}), 409
         except SpatialFrameNotFoundError as exc:
             return jsonify({"error": "spatial_frame_not_found", "message": str(exc)}), 404
+        except ProjectMismatch as exc:
+            return jsonify({
+                "error": "project changed",
+                "expected": exc.expected,
+                "actual": exc.actual,
+            }), 409
         except (TypeError, ValueError) as exc:
             return jsonify({"error": "invalid_request", "message": str(exc)}), 400
 
     @blueprint.post("/api/v2/spatial-frames/assets")
     def create_asset():
         return execute(lambda: service.create_image_frame(
-            request.files.get("file"), request.form.to_dict()
+            request.files.get("file"), request.form.to_dict(),
+            request.form.get("expected_project_id"),
         ), 201)
 
     @blueprint.get("/api/v2/spatial-frames")
@@ -56,11 +65,15 @@ def register_spatial_asset_routes(app, project_store, asset_root=None):
     @blueprint.put("/api/v2/spatial-frames/<frame_id>/draft")
     def save_draft(frame_id):
         data = request.get_json(silent=True) or {}
-        return execute(lambda: service.save_draft(frame_id, data))
+        return execute(lambda: service.save_draft(
+            frame_id, data, data.get("expected_project_id")
+        ))
 
     @blueprint.post("/api/v2/spatial-frames/<frame_id>/publish")
     def publish(frame_id):
         data = request.get_json(silent=True) or {}
-        return execute(lambda: service.publish(frame_id, data))
+        return execute(lambda: service.publish(
+            frame_id, data, data.get("expected_project_id")
+        ))
 
     app.register_blueprint(blueprint)

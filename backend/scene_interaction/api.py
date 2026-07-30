@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 
+from project_store import ProjectMismatch
 from ue_project_binding import check_request_matches_active, request_ue_project
 
 from .catalog import CatalogValidationError, ResourceCatalog
@@ -23,6 +24,8 @@ def register_scene_interaction_routes(app, project_store, catalog_path=None):
             return jsonify(action()), success_status
         except SceneInteractionForbiddenError as exc:
             return jsonify(exc.payload), 403
+        except ProjectMismatch as exc:
+            return jsonify({"error": "project changed", "expected": exc.expected, "actual": exc.actual}), 409
         except SceneInteractionValidationError as exc:
             return jsonify({"error": "roaming_validation_failed", "fields": exc.errors}), 422
         except SceneInteractionConflictError as exc:
@@ -73,6 +76,7 @@ def register_scene_interaction_routes(app, project_store, catalog_path=None):
         data = request.get_json(silent=True) or {}
         return execute(lambda: service.save_roaming(
             data.get("config"), data.get("expected_revision"),
+            data.get("expected_project_id"),
         ))
 
     @blueprint.get("/api/v2/scene-interactions/routes")
@@ -84,6 +88,7 @@ def register_scene_interaction_routes(app, project_store, catalog_path=None):
         data = request.get_json(silent=True) or {}
         return execute(lambda: service.create_route(
             data.get("route"), data.get("expected_revision"),
+            data.get("expected_project_id"),
         ), success_status=201)
 
     @blueprint.get("/api/v2/scene-interactions/routes/<route_id>")
@@ -95,6 +100,7 @@ def register_scene_interaction_routes(app, project_store, catalog_path=None):
         data = request.get_json(silent=True) or {}
         return execute(lambda: service.update_route(
             route_id, data.get("route"), data.get("expected_revision"),
+            data.get("expected_project_id"),
         ))
 
     @blueprint.delete("/api/v2/scene-interactions/routes/<route_id>")
@@ -102,6 +108,7 @@ def register_scene_interaction_routes(app, project_store, catalog_path=None):
         data = request.get_json(silent=True) or {}
         return execute(lambda: service.delete_route(
             route_id, data.get("expected_revision"),
+            data.get("expected_project_id"),
         ))
 
     @blueprint.post("/api/v2/scene-interactions/routes/<route_id>/review")
@@ -109,6 +116,7 @@ def register_scene_interaction_routes(app, project_store, catalog_path=None):
         data = request.get_json(silent=True) or {}
         return execute(lambda: service.review_route(
             route_id, data.get("expected_revision"),
+            data.get("expected_project_id"),
         ))
 
     @blueprint.post("/api/v2/scene-interactions/routes/<route_id>/default")
@@ -116,6 +124,7 @@ def register_scene_interaction_routes(app, project_store, catalog_path=None):
         data = request.get_json(silent=True) or {}
         return execute(lambda: service.set_default_route(
             route_id, data.get("expected_revision"),
+            data.get("expected_project_id"),
         ))
 
     @blueprint.get("/api/v2/scene-interactions/runtime")

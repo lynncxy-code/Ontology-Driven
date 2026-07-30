@@ -146,7 +146,7 @@ class SceneInteractionService:
             "spatial_profile": copy.deepcopy(project.get("spatial_profile") or {}),
         }
 
-    def save_roaming(self, config, expected_revision):
+    def save_roaming(self, config, expected_revision, expected_project_id=None):
         project = self._project()
         try:
             expected = int(expected_revision)
@@ -189,7 +189,7 @@ class SceneInteractionService:
             scene["revision"] = current + 1
             return scene["revision"]
 
-        revision = self.store.transact_active(update)
+        revision = self.store.transact_expected_active(expected_project_id, update)
         return {
             "status": "ok",
             "project_id": project_id,
@@ -232,7 +232,7 @@ class SceneInteractionService:
             "route": public_route(project, route, include_waypoints=True),
         }
 
-    def create_route(self, payload, expected_revision):
+    def create_route(self, payload, expected_revision, expected_project_id=None):
         project = self._project()
         expected = self._expected_revision(expected_revision)
         project_id = project.get("id")
@@ -254,7 +254,7 @@ class SceneInteractionService:
             scene["revision"] = current_revision + 1
             result.update({"route": route, "revision": scene["revision"]})
 
-        self.store.transact_active(update)
+        self.store.transact_expected_active(expected_project_id, update)
         return {
             "status": "ok",
             "project_id": project_id,
@@ -262,7 +262,7 @@ class SceneInteractionService:
             "route": public_route(self.store.get_active_copy(), result["route"], True),
         }
 
-    def update_route(self, route_id, payload, expected_revision):
+    def update_route(self, route_id, payload, expected_revision, expected_project_id=None):
         project = self._project()
         expected = self._expected_revision(expected_revision)
         project_id = project.get("id")
@@ -290,7 +290,7 @@ class SceneInteractionService:
                 return
             raise SceneInteractionNotFoundError("当前项目中找不到该漫游路线")
 
-        self.store.transact_active(update)
+        self.store.transact_expected_active(expected_project_id, update)
         return {
             "status": "ok",
             "project_id": project_id,
@@ -298,14 +298,14 @@ class SceneInteractionService:
             "route": public_route(self.store.get_active_copy(), result["route"], True),
         }
 
-    def review_route(self, route_id, expected_revision):
+    def review_route(self, route_id, expected_revision, expected_project_id=None):
         project = self._project()
         current = find_project_route(project, route_id)
         if not current:
             raise SceneInteractionNotFoundError("当前项目中找不到该漫游路线")
-        return self.update_route(route_id, current, expected_revision)
+        return self.update_route(route_id, current, expected_revision, expected_project_id)
 
-    def delete_route(self, route_id, expected_revision):
+    def delete_route(self, route_id, expected_revision, expected_project_id=None):
         project = self._project()
         expected = self._expected_revision(expected_revision)
         project_id = project.get("id")
@@ -333,10 +333,10 @@ class SceneInteractionService:
             scene["revision"] = current_revision + 1
             result["revision"] = scene["revision"]
 
-        self.store.transact_active(update)
+        self.store.transact_expected_active(expected_project_id, update)
         return {"status": "ok", "project_id": project_id, "revision": result["revision"]}
 
-    def set_default_route(self, route_id, expected_revision):
+    def set_default_route(self, route_id, expected_revision, expected_project_id=None):
         project = self._project()
         expected = self._expected_revision(expected_revision)
         project_id = project.get("id")
@@ -372,7 +372,7 @@ class SceneInteractionService:
             scene["revision"] = current_revision + 1
             result["revision"] = scene["revision"]
 
-        self.store.transact_active(update)
+        self.store.transact_expected_active(expected_project_id, update)
         return {"status": "ok", "project_id": project_id, "revision": result["revision"], "route_id": route_id}
 
     def runtime_projection(self, binding):

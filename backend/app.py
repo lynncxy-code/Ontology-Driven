@@ -967,6 +967,9 @@ def _floor_zbase_mm(profile, floor):
 def _rederive_components(sync_instances=True):
     """按当前 spatial_profile 重算所有构件的派生 UE 坐标；并同步已绑定实例的位置。
     profile/楼层表变更后调用（FR-8 改一处全场重算）。"""
+    # 已知限制（并发）：本函数独立取当前激活项目、逐步 set_components/mint_instances/update_raw_state，
+    # 无整段项目护栏。调用它的 profile PUT / transform PUT 在初始护栏通过后若激活项目被切，
+    # 重算可能落到新项目。多步非原子，接受为已知限制（单用户顺序调用风险低）。
     profile = project_store.get_spatial_profile()
     origin = (profile.get("canonical_origin") or [0.0, 0.0])[:2]
     scale = (profile.get("ue_transform") or {}).get("scale_to_cm", 0.1)

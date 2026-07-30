@@ -79,7 +79,7 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 三块配置都走「读活配置 → 改 → 带 revision 写回」，后端 validator 兜底。
 
 **金规**
-1. **写前必先读**：`get_overlay_context` / `get_roaming_config` / `get_route` 返回里带 revision，写工具的 `expected_revision` 必填，取自刚读到的值。
+1. **写前必先读**：`get_overlay_context` / `get_roaming_config` / `get_route` 返回里带 revision，写工具的 `expected_revision` 必填，取自刚读到的值。注意 `expected_revision` 只防**同项目**的丢失更新，**不**兼作跨项目护栏；防「切项目后误写」要另带 `expected_project_id`（从 `get_active_project` 取，见文末「并发已知限制」）。
 2. **遇 `NEXUS_REVISION_CONFLICT`**：配置被他处改过 → 重新读 → 合并意图 → 重写。注意漫游/路线共享**同一个 scene revision 计数器**（roaming 配置、每条路线、评审、设默认全在这一份文档上），**每次写都会把它 +1**；连续多步写时，每步的 `expected_revision` 必须用上一步返回的最新值，不能复用最初读到的那个。
 3. **config 结构以读到的活配置为准**，不臆造字段；结构非法后端返回 `NEXUS_VALIDATION`，按 `fields` 里的 path/message 纠正。
 4. **类型首次配面板**先 `enable_info_panel(object_type_rid)` 注入能力，再 `save_overlay_type_config`。
@@ -203,3 +203,8 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 - 「把规范原点设成 (1,1)」
 - 「用这几组锚点标定 world 帧」
 - 「导出当前 CAD 场景 JSON」
+
+## 并发已知限制
+
+- **配置/分区写已绑项目身份**：overlay/scene/routes/zones 的写在 `expected_project_id` 非空时锁内校验激活项目（防「切项目后误写」）。`expected_revision` 只防**同项目**的丢失更新——跨项目漂移靠 `expected_project_id` 兜底，写这些配置时建议一并带上（从 `get_active_project` 取）。
+- **多步写端点非整段原子**：CAD 批量投产（`spawn_cad_instances`）、空间回写（`writeback_instance_transform`）、以及 `set_spatial_profile`/`set_instance_transform` 触发的全场重算，是多步逐个加锁。中途切激活项目可能「部分写 + 409」——重试前请核对已写状态（如 `list_instances`），避免重复 id 冲突。

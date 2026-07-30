@@ -44,8 +44,11 @@ def map_response_error(operation, status, body_text, parsed_json):
         if ("expected" in pj or "actual" in pj
                 or berr == "project changed" or berr == "active_project_changed"):
             exp = pj.get("expected"); act = pj.get("actual")
-            return NexusError("NEXUS_PROJECT_CHANGED", 409, operation, berr, False,
-                              f"当前激活项目已变（expected={exp} actual={act}），请重新确认后再写")
+            if exp is not None or act is not None:
+                hint = f"当前激活项目已变（expected={exp} actual={act}），请重新确认后再写"
+            else:
+                hint = "当前激活项目已变，请重新确认后再写"
+            return NexusError("NEXUS_PROJECT_CHANGED", 409, operation, berr, False, hint)
         # 配置乐观锁冲突：overlay_/scene_interaction_revision_conflict
         if isinstance(berr, str) and berr.endswith("revision_conflict"):
             return NexusError("NEXUS_REVISION_CONFLICT", 409, operation, berr, False,

@@ -103,3 +103,11 @@ def test_409_active_project_changed_maps_project_changed():
         '{"error":"active_project_changed"}', {"error": "active_project_changed"})
     assert e.code == "NEXUS_PROJECT_CHANGED"
     assert e.http_status == 409
+
+
+def test_409_active_project_changed_hint_has_no_none_noise():
+    e = map_response_error(
+        "assign_zones", 409,
+        '{"error":"active_project_changed"}', {"error": "active_project_changed"})
+    assert e.code == "NEXUS_PROJECT_CHANGED"
+    assert "None" not in str(e)

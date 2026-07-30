@@ -56,3 +56,20 @@ class NexusClient:
         except httpx.HTTPError as e:
             raise map_transport_error(operation, e)
         return self._handle(operation, r)
+
+    def put_json(self, operation, path, json=None, timeout=None):
+        to = timeout if timeout is not None else self.s.timeout_read
+        try:
+            r = self._c.put(path, json=json or {}, timeout=to)
+        except httpx.HTTPError as e:
+            raise map_transport_error(operation, e)
+        return self._handle(operation, r)
+
+    def delete_json(self, operation, path, json=None, timeout=None):
+        to = timeout if timeout is not None else self.s.timeout_read
+        try:
+            # httpx 的 delete() 不支持 body，用 request 显式带 json
+            r = self._c.request("DELETE", path, json=json or {}, timeout=to)
+        except httpx.HTTPError as e:
+            raise map_transport_error(operation, e)
+        return self._handle(operation, r)

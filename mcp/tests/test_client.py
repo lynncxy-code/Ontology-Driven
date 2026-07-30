@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 
@@ -82,3 +84,38 @@ def test_success_malformed_json_maps_to_nexus_error(make_client):
         c.get("list_instances", "/api/v2/instances")
     assert e.value.code == "NEXUS_BAD_RESPONSE"
     assert "list_instances" in str(e.value)
+
+
+def test_put_json_ok(make_client):
+    def h(req):
+        assert req.method == "PUT"
+        assert req.url.path == "/api/v2/overlays/object-types/x"
+        assert json.loads(req.content) == {"config": {}, "expected_revision": 3}
+        return httpx.Response(200, json={"status": "ok"})
+    c = make_client(h)
+    assert c.put_json("save_overlay_type_config",
+                      "/api/v2/overlays/object-types/x",
+                      json={"config": {}, "expected_revision": 3}) == {"status": "ok"}
+
+
+def test_delete_json_sends_body(make_client):
+    seen = {}
+    def h(req):
+        seen["method"] = req.method
+        seen["body"] = json.loads(req.content) if req.content else None
+        return httpx.Response(200, json={"status": "ok"})
+    c = make_client(h)
+    c.delete_json("clear_overlay_instance_override",
+                  "/api/v2/overlays/instances/i1", json={"expected_revision": 2})
+    assert seen["method"] == "DELETE"
+    assert seen["body"] == {"expected_revision": 2}
+
+
+def test_put_json_default_timeout_falls_back(make_client):
+    seen = {}
+    def h(req):
+        seen["timeout"] = req.extensions.get("timeout")
+        return httpx.Response(200, json={"ok": True})
+    c = make_client(h)
+    c.put_json("op", "/x", json={"a": 1})
+    assert seen["timeout"]["read"] == 30.0

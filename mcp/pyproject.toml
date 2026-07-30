@@ -14,5 +14,11 @@ ontotwin-mcp = "ontotwin_mcp.server:main"
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
+# 只把 Python 包 ontotwin_mcp 打进去。发行根目录同时有 skills/、sample-data/，
+# 不显式限定的话 setuptools 扁平布局自动发现会撞出「Multiple top-level packages discovered」，
+# 导致 pip install（含 install.ps1）在解压后的发行包上直接失败。
+[tool.setuptools.packages.find]
+include = ["ontotwin_mcp*"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

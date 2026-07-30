@@ -1015,7 +1015,12 @@ def spatial_profile_put():
     if project_store.get_active() is None:
         return jsonify({"error": "当前无激活项目"}), 400
     data = request.json or {}
-    profile = project_store.get_spatial_profile()
+    import copy
+    # 深拷贝再改：get_spatial_profile 返回的是活引用，若直接原地改，
+    # 被 expected_project_id 护栏拒绝（set_spatial_profile 抛 ProjectMismatch）后，
+    # 内存态剖面仍被端点提前改脏（未落盘但脏，下次合法写会持久化）。
+    # 深拷贝后：护栏命中则 set_spatial_profile 整体替换为新对象；未命中则活剖面丝毫不动。
+    profile = copy.deepcopy(project_store.get_spatial_profile())
     # 只更新允许的子项，保留 matrix（锚点拟合的精确 规范→UE）除非显式传入
     if "ue_transform" in data:
         ut = profile.get("ue_transform") or {}

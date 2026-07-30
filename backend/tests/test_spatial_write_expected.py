@@ -44,3 +44,15 @@ def test_frames_post_does_not_leak_expected_into_frame(client, store):
     fr = next((f for f in store.list_frames() if f.get("id") == "fclean"), None)
     assert fr is not None
     assert "expected_project_id" not in fr
+
+
+def test_profile_put_409_does_not_mutate_in_memory_profile(client, store):
+    # 回归：get_spatial_profile 返回活引用，端点原地改会在护栏拒绝后污染内存态。
+    # 端点深拷贝后修好——被拒的 PUT 不得改动内存剖面。
+    before = list(store.get_spatial_profile().get("canonical_origin") or [])
+    r = client.put("/api/v2/spatial/profile",
+                   json={"canonical_origin": [99, 99], "expected_project_id": "p_other"})
+    assert r.status_code == 409
+    after = list(store.get_spatial_profile().get("canonical_origin") or [])
+    assert after == before, f"被拒的 PUT 污染了内存剖面: {before} -> {after}"
+    assert after != [99, 99]

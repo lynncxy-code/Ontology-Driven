@@ -547,7 +547,7 @@ class OverlayService:
         project = self._project()
         return self.media_policy.describe(project.get("media_policy") or {})
 
-    def save_media_policy(self, values, expected_revision):
+    def save_media_policy(self, values, expected_revision, expected_project_id=None):
         normalized = self.media_policy.validate_project_policy(values or {})
 
         def update(project):
@@ -558,7 +558,7 @@ class OverlayService:
             project["media_policy"] = copy.deepcopy(normalized)
             return self.media_policy.describe(project["media_policy"])
 
-        return self.store.transact_active(update)
+        return self.store.transact_expected_active(expected_project_id, update)
 
     def resolve_media(self, instance_id):
         project = self._project()
@@ -603,7 +603,7 @@ class OverlayService:
             "retry": {"delays_seconds": [2, 5, 15], "max_attempts": 3},
         }
 
-    def save_type(self, rid, config, expected_revision):
+    def save_type(self, rid, config, expected_revision, expected_project_id=None):
         validate_full_config(config)
         normalized_config = normalize_full_config(config)
 
@@ -622,9 +622,9 @@ class OverlayService:
             configs["I3D_Overlay"] = envelope
             return copy.deepcopy(envelope)
 
-        return self.store.transact_active(update)
+        return self.store.transact_expected_active(expected_project_id, update)
 
-    def save_instance(self, instance_id, values, expected_revision):
+    def save_instance(self, instance_id, values, expected_revision, expected_project_id=None):
         validate_override(values)
 
         def update(project):
@@ -644,12 +644,13 @@ class OverlayService:
             overrides["I3D_Overlay"] = envelope
             return copy.deepcopy(envelope)
 
-        return self.store.transact_active(update)
+        return self.store.transact_expected_active(expected_project_id, update)
 
-    def clear_instance(self, instance_id, expected_revision):
-        return self.save_instance(instance_id, {}, expected_revision)
+    def clear_instance(self, instance_id, expected_revision, expected_project_id=None):
+        return self.save_instance(instance_id, {}, expected_revision, expected_project_id)
 
-    def batch_instances(self, object_type_rid, instance_ids, merge_patch, expected_revisions):
+    def batch_instances(self, object_type_rid, instance_ids, merge_patch, expected_revisions,
+                        expected_project_id=None):
         if not isinstance(instance_ids, list) or not instance_ids or len(instance_ids) > 200:
             raise OverlayValidationError("批量实例数量必须为 1 至 200")
         if len(set(instance_ids)) != len(instance_ids):
@@ -685,4 +686,4 @@ class OverlayService:
                 result.append({"instance_id": instance_id, "revision": envelope["revision"]})
             return result
 
-        return self.store.transact_active(update)
+        return self.store.transact_expected_active(expected_project_id, update)

@@ -1,5 +1,7 @@
 from flask import Blueprint, jsonify, request
 
+from project_store import ProjectMismatch
+
 from .schema import OverlayValidationError, clone_templates
 from .media import MediaPolicyError
 from .service import OverlayConflictError, OverlayNotFoundError, OverlayService
@@ -18,6 +20,12 @@ def register_overlay_routes(app, project_store, on_object_types_changed=None, pl
             return jsonify({"error": "overlay_target_not_found", "message": str(exc)}), 404
         except OverlayConflictError as exc:
             return jsonify({"error": "overlay_revision_conflict", "message": str(exc)}), 409
+        except ProjectMismatch as exc:
+            return jsonify({
+                "error": "project changed",
+                "expected": exc.expected,
+                "actual": exc.actual,
+            }), 409
         except MediaPolicyError as exc:
             return jsonify({
                 "error": exc.code,
@@ -56,6 +64,7 @@ def register_overlay_routes(app, project_store, on_object_types_changed=None, pl
                 object_type_rid,
                 data.get("config"),
                 data.get("expected_revision", 0),
+                data.get("expected_project_id"),
             )
             if on_object_types_changed:
                 on_object_types_changed()
@@ -72,6 +81,7 @@ def register_overlay_routes(app, project_store, on_object_types_changed=None, pl
                 instance_id,
                 data.get("override") or {},
                 data.get("expected_revision", 0),
+                data.get("expected_project_id"),
             ),
         })
 
@@ -81,7 +91,9 @@ def register_overlay_routes(app, project_store, on_object_types_changed=None, pl
         expected = request.args.get("expected_revision", data.get("expected_revision", 0))
         return execute(lambda: {
             "status": "ok",
-            "override": service.clear_instance(instance_id, expected),
+            "override": service.clear_instance(
+                instance_id, expected, data.get("expected_project_id")
+            ),
         })
 
     @blueprint.post("/api/v2/overlays/instances/batch")
@@ -94,6 +106,7 @@ def register_overlay_routes(app, project_store, on_object_types_changed=None, pl
                 data.get("instance_ids"),
                 data.get("merge_patch") or {},
                 data.get("expected_revisions") or {},
+                data.get("expected_project_id"),
             ),
         })
 
@@ -105,7 +118,9 @@ def register_overlay_routes(app, project_store, on_object_types_changed=None, pl
     def save_media_policy():
         data = request.get_json(silent=True) or {}
         return execute(lambda: service.save_media_policy(
-            data.get("policy") or {}, data.get("expected_revision", 0)
+            data.get("policy") or {},
+            data.get("expected_revision", 0),
+            data.get("expected_project_id"),
         ))
 
     @blueprint.post("/api/v2/overlays/media/resolve")

@@ -636,8 +636,11 @@ class ProjectStore:
                 return list(insts.keys())
             return [iid for iid, r in insts.items() if r.get("zone_id") == zone_id]
 
-    def assign_zone(self, instance_ids, zone_id):
-        """批量设置实例分区；zone_id=None 表示解除分区，一次持久化全部变更。"""
+    def assign_zone(self, instance_ids, zone_id, expected_project_id=None):
+        """批量设置实例分区；zone_id=None 表示解除分区，一次持久化全部变更。
+
+        expected_project_id 非 None 时在锁内、写之前校验激活项目，不符抛
+        ProjectMismatch（防激活项目在锁外切换导致的 TOCTOU 写错项目）。"""
         with self._lock:
             if not self._current:
                 return {
@@ -647,6 +650,8 @@ class ProjectStore:
                     "unchanged": [],
                     "missing": list(instance_ids or []),
                 }
+            if expected_project_id is not None and self._active_id != expected_project_id:
+                raise ProjectMismatch(expected_project_id, self._active_id)
 
             updated = []
             unchanged = []

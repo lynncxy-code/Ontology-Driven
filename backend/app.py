@@ -1078,7 +1078,9 @@ def spatial_frame_calibrate(frame_id):
         return jsonify({"error": f"标定失败: {e}"}), 400
     from_canon = res["transform_matrix"]
     to_canon = coord_invert(from_canon)
-    frame = project_store.get_frame(frame_id) or {"id": frame_id, "kind": "custom", "unit": "mm"}
+    import copy
+    # 深拷贝已存在帧再改：get_frame 返回活引用，被 expected 护栏拒绝后活帧会被污染（同 profile 别名类）
+    frame = copy.deepcopy(project_store.get_frame(frame_id)) or {"id": frame_id, "kind": "custom", "unit": "mm"}
     if data.get("name"):
         frame["name"] = data["name"]
     if data.get("unit"):

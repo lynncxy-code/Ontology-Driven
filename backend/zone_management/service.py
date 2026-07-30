@@ -1,5 +1,7 @@
 from collections import Counter
 
+from project_store import ProjectMismatch
+
 
 class ZoneManagementError(ValueError):
     def __init__(self, code, message, fields=None):
@@ -113,7 +115,15 @@ class ZoneManagementService:
 
         instance_ids = _normalize_instance_ids(payload.get("instance_ids"))
         zone_id = _normalize_zone_id(payload.get("zone_id"))
-        result = self.store.assign_zone(instance_ids, zone_id)
+        try:
+            result = self.store.assign_zone(
+                instance_ids, zone_id,
+                expected_project_id=expected_project_id or None,
+            )
+        except ProjectMismatch as e:
+            raise ZoneManagementConflictError(
+                f"激活项目已从 {e.expected} 切换为 {e.actual}，请刷新后重试"
+            )
         result["updated_count"] = len(result["updated"])
         result["unchanged_count"] = len(result["unchanged"])
         result["missing_count"] = len(result["missing"])

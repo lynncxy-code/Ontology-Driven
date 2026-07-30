@@ -110,3 +110,21 @@ async def test_scene_config_tools_listed_and_callable():
     assert new_tools <= names, f"缺工具: {new_tools - names}"
     assert len(names) >= 50, f"工具总数应 ≥50（30+20），实际 {len(names)}"
     assert res.isError is False
+
+
+async def test_spatial_zones_tools_listed_and_callable():
+    """M2 空间/分区 7 工具全部注册；挑一个只读工具走真 call_tool。"""
+    routes = {"/api/v2/spatial-frames": {"project_id": "p1", "frames": []}}
+    mcp = build_server(FakeClient(routes))
+    async with create_connected_server_and_client_session(mcp._mcp_server) as session:
+        names = {t.name for t in (await session.list_tools()).tools}
+        res = await session.call_tool("list_reference_frames", {})
+
+    new_tools = {
+        "create_reference_frame", "list_reference_frames", "get_reference_frame",
+        "save_reference_frame_draft", "publish_reference_frame",
+        "get_zones", "assign_zones",
+    }
+    assert new_tools <= names, f"缺工具: {new_tools - names}"
+    assert len(names) >= 57, f"工具总数应 ≥57（50+7），实际 {len(names)}"
+    assert res.isError is False

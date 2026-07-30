@@ -101,3 +101,17 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 
 **已知限制**
 - 漫游路线的「路线不存在」(bad route_id) 目前会被后端用与「无激活项目」相同的错误码返回，MCP 侧因而报成 `NEXUS_NO_ACTIVE_PROJECT`。若你确信项目已激活却收到该错误，多半是 route_id 不存在，请核对 `list_routes()`。（根因在后端错误码复用，待后续版本区分。）
+
+## 空间参考帧 / 分区
+
+**空间标定底图参考帧**（`reference_frame`，别与坐标系的 `list_spatial_frames` 混淆）
+- playbook：`create_reference_frame(底图路径, floor=…)` → `get_reference_frame(frame_id)` 拿 `draft_revision` → 改 `draft`（锚点/楼层参照）→ `save_reference_frame_draft(frame_id, draft, expected_draft_revision)` → `publish_reference_frame(frame_id, expected_draft_revision=…)`。
+- 金规：写前先 `get_reference_frame` 拿 `draft_revision`；遇 `NEXUS_REVISION_CONFLICT` 重读重写；`draft` 结构以读到的活帧为准。
+
+**实例分区**（zones）
+- `get_zones()` 看各分区实例数 → `assign_zones(instance_ids, zone_id)` 批量指派；`zone_id` 传空串=解除分区。
+- 并发多写时带 `expected_project_id`（从 `get_active_project` 的 `project_id` 取）。
+
+**触发示例**
+- 「上传这张一楼底图作空间参考帧，楼层填 1」
+- 「把这批实例划到 A 区」 / 「解除这些实例的分区」

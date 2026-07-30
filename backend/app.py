@@ -583,6 +583,7 @@ def coord_spawn_instances():
     mode = data.get("mode", "dxf")
     source_label = data.get("source_label") or ""
     strategy = data.get("conflict_strategy") or "update_coord"
+    expected = data.get("expected_project_id")
 
     if not items:
         return jsonify({"error": "items 为空"}), 400
@@ -731,36 +732,47 @@ def coord_spawn_instances():
             "rotation_z": rec["rotation_z"],
         }
 
-    # 5.1 to_create — 全部 spawn（绑定当前激活数据集为 scene_id，冻结渲染配置）
-    for rec in to_create:
-        instance_store.spawn(rec["instance_id"], rec["object_type_rid"], {
-            "x": rec["translation_x"], "y": rec["translation_y"], "z": rec["translation_z"]
-        },            render_config=_build_render_config(rec["object_type_rid"]))
-        instance_store.update_raw_state(rec["instance_id"], {"rotation_z": rec["rotation_z"]}, persist=True)
-        written_create += 1
-
-    # 5.2 to_update_coord_only — 补充坐标
-    for rec in to_update_coord_only:
-        instance_store.update_raw_state(rec["instance_id"], _coord_patch(rec), persist=True)
-        written_update += 1
-
-    # 5.3 conflicts — 按策略处理
-    for rec in conflicts:
-        if strategy == "update_coord":
-            instance_store.update_raw_state(rec["instance_id"], _coord_patch(rec), persist=True)
-            written_conflict += 1
-        elif strategy == "skip":
-            skipped_conflict += 1
-        elif strategy == "duplicate":
-            new_iid = rec["instance_id"]
-            n = 2
-            while new_iid in instance_store._instances:
-                new_iid = f"{rec['instance_id']}-{n}"; n += 1
-            instance_store.spawn(new_iid, rec["object_type_rid"], {
+    # expected 非 None 时把它透传给每个写调用，下游在锁内校验激活项目。
+    # 逐 item 写非原子：中途切项目会先部分写、后续 item 触发 409（同 M3 writeback）。
+    try:
+        # 5.1 to_create — 全部 spawn（绑定当前激活数据集为 scene_id，冻结渲染配置）
+        for rec in to_create:
+            instance_store.spawn(rec["instance_id"], rec["object_type_rid"], {
                 "x": rec["translation_x"], "y": rec["translation_y"], "z": rec["translation_z"]
-            },                render_config=_build_render_config(rec["object_type_rid"]))
-            instance_store.update_raw_state(new_iid, {"rotation_z": rec["rotation_z"]}, persist=True)
-            dup_records.append({"original_id": rec["instance_id"], "new_id": new_iid})
+            },            render_config=_build_render_config(rec["object_type_rid"]),
+                expected_project_id=expected)
+            instance_store.update_raw_state(rec["instance_id"], {"rotation_z": rec["rotation_z"]}, persist=True,
+                expected_project_id=expected)
+            written_create += 1
+
+        # 5.2 to_update_coord_only — 补充坐标
+        for rec in to_update_coord_only:
+            instance_store.update_raw_state(rec["instance_id"], _coord_patch(rec), persist=True,
+                expected_project_id=expected)
+            written_update += 1
+
+        # 5.3 conflicts — 按策略处理
+        for rec in conflicts:
+            if strategy == "update_coord":
+                instance_store.update_raw_state(rec["instance_id"], _coord_patch(rec), persist=True,
+                    expected_project_id=expected)
+                written_conflict += 1
+            elif strategy == "skip":
+                skipped_conflict += 1
+            elif strategy == "duplicate":
+                new_iid = rec["instance_id"]
+                n = 2
+                while new_iid in instance_store._instances:
+                    new_iid = f"{rec['instance_id']}-{n}"; n += 1
+                instance_store.spawn(new_iid, rec["object_type_rid"], {
+                    "x": rec["translation_x"], "y": rec["translation_y"], "z": rec["translation_z"]
+                },                render_config=_build_render_config(rec["object_type_rid"]),
+                    expected_project_id=expected)
+                instance_store.update_raw_state(new_iid, {"rotation_z": rec["rotation_z"]}, persist=True,
+                    expected_project_id=expected)
+                dup_records.append({"original_id": rec["instance_id"], "new_id": new_iid})
+    except ProjectMismatch as e:
+        return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
 
     return jsonify({
         "status": "ok",

@@ -1155,6 +1155,7 @@ def instance_transform_put(instance_id):
     if project_store.get_active() is None:
         return jsonify({"error": "当前无激活项目"}), 400
     data = request.json or {}
+    expected = data.get("expected_project_id")
     comp = project_store.get_component_by_instance(instance_id)
     if not comp:
         raw = project_store.get_raw_state(instance_id)
@@ -1165,17 +1166,20 @@ def instance_transform_put(instance_id):
         ue_xy = coord_canon_to_ue(profile, [float(canon_xy[0]), float(canon_xy[1])], int(data.get("floor") or 1))
         scale = float(((profile or {}).get("ue_transform") or {}).get("scale_to_cm", 0.1) or 0.1)
         canonical_z = float(data.get("canonical_z") or 0.0)
-        ok, info = apply_writeback(project_store, instance_id, {
-            "tx": float(ue_xy[0]),
-            "ty": float(ue_xy[1]),
-            "tz": canonical_z * scale,
-            "rx": float(raw.get("rotation_x", 0.0) or 0.0),
-            "ry": float(raw.get("rotation_y", 0.0) or 0.0),
-            "rz": float(data.get("rotation") or 0.0),
-            "sx": float(raw.get("scale_x", 1.0) or 1.0),
-            "sy": float(raw.get("scale_y", 1.0) or 1.0),
-            "sz": float(raw.get("scale_z", 1.0) or 1.0),
-        }, persist=True)
+        try:
+            ok, info = apply_writeback(project_store, instance_id, {
+                "tx": float(ue_xy[0]),
+                "ty": float(ue_xy[1]),
+                "tz": canonical_z * scale,
+                "rx": float(raw.get("rotation_x", 0.0) or 0.0),
+                "ry": float(raw.get("rotation_y", 0.0) or 0.0),
+                "rz": float(data.get("rotation") or 0.0),
+                "sx": float(raw.get("scale_x", 1.0) or 1.0),
+                "sy": float(raw.get("scale_y", 1.0) or 1.0),
+                "sz": float(raw.get("scale_z", 1.0) or 1.0),
+            }, persist=True, expected_project_id=expected)
+        except ProjectMismatch as e:
+            return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
         if not ok:
             return jsonify({"error": info.get("error", "保存失败")}), 404
         return jsonify({"status": "ok", "mode": "free_instance", "writeback": info})
@@ -1195,7 +1199,10 @@ def instance_transform_put(instance_id):
         patch["canonical_z"] = float(data["canonical_z"])
     if not patch:
         return jsonify({"error": "无可更新字段（canonical_xy / canonical_z / rotation / floor）"}), 400
-    project_store.update_component(comp["id"], patch)
+    try:
+        project_store.update_component(comp["id"], patch, expected_project_id=expected)
+    except ProjectMismatch as e:
+        return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
     _rederive_components()
     return jsonify({"status": "ok", "mode": "component_bound"})
 
@@ -2164,16 +2171,24 @@ def spawn_instance():
         "hierarchy_path": data.get("hierarchy_path"),
         "classification_status": data.get("classification_status") or "confirmed",
     }
-    inst = instance_store.spawn(instance_id, object_type_rid, initial_position,
-                                render_config=_build_render_config(object_type_rid),
-                                metadata=metadata)
+    expected = data.get("expected_project_id")
+    try:
+        inst = instance_store.spawn(instance_id, object_type_rid, initial_position,
+                                    render_config=_build_render_config(object_type_rid),
+                                    metadata=metadata, expected_project_id=expected)
+    except ProjectMismatch as e:
+        return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
     return jsonify({"status": "spawned", "instance": inst}), 201
 
 @app.route('/api/v2/instances/<path:instance_id>', methods=['DELETE'])
 @app.route('/api/v2/instances/<path:instance_id>/delete', methods=['POST', 'DELETE'])
 def delete_instance(instance_id):
     """销毁实例"""
-    removed = instance_store.remove(instance_id)
+    expected = (request.get_json(silent=True) or {}).get("expected_project_id")
+    try:
+        removed = instance_store.remove(instance_id, expected_project_id=expected)
+    except ProjectMismatch as e:
+        return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
     if removed:
         return jsonify({"status": "removed", "id": instance_id})
     return jsonify({"error": "Instance not found"}), 404
@@ -2482,7 +2497,12 @@ def writeback_state():
     if not bind_ok:
         return jsonify(bind_info), 403
 
-    ok, info = apply_writeback(instance_store, instance_id, transform, persist=True)
+    expected = data.get("expected_project_id")
+    try:
+        ok, info = apply_writeback(instance_store, instance_id, transform, persist=True,
+                                   expected_project_id=expected)
+    except ProjectMismatch as e:
+        return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
     if not ok:
         return jsonify({"status": "error", **info}), 404
     snap = _build_snapshot(instance_id)

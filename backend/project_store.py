@@ -564,8 +564,11 @@ class ProjectStore:
         """兼容旧 InstanceStore：暴露当前项目实例 dict（app.py 有直接访问处）。"""
         return self._current["instances"] if self._current else {}
 
-    def spawn(self, instance_id, object_type_rid, initial_position=None, render_config=None, metadata=None):
+    def spawn(self, instance_id, object_type_rid, initial_position=None, render_config=None, metadata=None,
+              expected_project_id=None):
         with self._lock:
+            if expected_project_id is not None and self._active_id != expected_project_id:
+                raise ProjectMismatch(expected_project_id, self._active_id)
             if not self._current:
                 return None
             ot = (self._current["object_types"] or {}).get(object_type_rid, {})
@@ -584,8 +587,10 @@ class ProjectStore:
             self._save_current()
             return rec
 
-    def remove(self, instance_id):
+    def remove(self, instance_id, expected_project_id=None):
         with self._lock:
+            if expected_project_id is not None and self._active_id != expected_project_id:
+                raise ProjectMismatch(expected_project_id, self._active_id)
             inst = self._inst().pop(instance_id, None)
             if inst is not None:
                 self._save_current()
@@ -779,9 +784,11 @@ class ProjectStore:
                     return c
             return None
 
-    def update_component(self, component_id, patch):
+    def update_component(self, component_id, patch, expected_project_id=None):
         """局部更新单个构件字段（如 canonical_xy / ue_xy / rotation），落盘。"""
         with self._lock:
+            if expected_project_id is not None and self._active_id != expected_project_id:
+                raise ProjectMismatch(expected_project_id, self._active_id)
             comp = self._comps().get(component_id)
             if not comp:
                 return False

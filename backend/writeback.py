@@ -31,7 +31,7 @@ def _f(transform, key):
         return _DEFAULTS[key]
 
 
-def apply_writeback(store, instance_id, transform, persist=True):
+def apply_writeback(store, instance_id, transform, persist=True, expected_project_id=None):
     """
     落库一次 UE 空间回写。
 
@@ -63,7 +63,8 @@ def apply_writeback(store, instance_id, transform, persist=True):
 
     # ── 自由实例：raw_state 即真源，直接写 ────────────────────────────────
     if comp is None:
-        store.update_raw_state(instance_id, raw_patch, persist=persist)
+        store.update_raw_state(instance_id, raw_patch, persist=persist,
+                               expected_project_id=expected_project_id)
         return True, {"mode": "free", "instance_id": instance_id}
 
     # ── 绑定实例：回写到规范系真源，并同步派生 ─────────────────────────────
@@ -86,8 +87,9 @@ def apply_writeback(store, instance_id, transform, persist=True):
         "rotation": rz,               # 构件旋转沿用 UE Yaw
         "ue_xy": [tx, ty],            # 同步派生，保持与真源一致
         "ue_z": tz,
-    })
-    store.update_raw_state(instance_id, raw_patch, persist=persist)
+    }, expected_project_id=expected_project_id)
+    store.update_raw_state(instance_id, raw_patch, persist=persist,
+                           expected_project_id=expected_project_id)
     return True, {
         "mode": "bound",
         "instance_id": instance_id,

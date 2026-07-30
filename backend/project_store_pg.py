@@ -276,8 +276,8 @@ class ProjectStorePG(ProjectStore):
                         (pid,),
                     )
 
-    def remove(self, instance_id):
-        inst = super().remove(instance_id)
+    def remove(self, instance_id, expected_project_id=None):
+        inst = super().remove(instance_id, expected_project_id=expected_project_id)
         if inst is not None and self._current:
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:

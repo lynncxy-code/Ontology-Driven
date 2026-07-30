@@ -95,3 +95,11 @@ def test_404_other_still_not_found():
         "get_route", 404,
         '{"error":"overlay_target_not_found"}', {"error": "overlay_target_not_found"})
     assert e.code == "NEXUS_NOT_FOUND"
+
+
+def test_409_active_project_changed_maps_project_changed():
+    e = map_response_error(
+        "assign_zones", 409,
+        '{"error":"active_project_changed"}', {"error": "active_project_changed"})
+    assert e.code == "NEXUS_PROJECT_CHANGED"
+    assert e.http_status == 409

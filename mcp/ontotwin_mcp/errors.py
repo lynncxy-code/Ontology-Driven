@@ -41,7 +41,8 @@ def map_response_error(operation, status, body_text, parsed_json):
         # 后端要么带 expected/actual 字段，要么 error == "project changed"。
         # 其它 409（如 create_empty_project 重名 name_duplicated）映射 NEXUS_CONFLICT，
         # 透传后端 error 文本，避免误导为「激活项目已变」。
-        if "expected" in pj or "actual" in pj or berr == "project changed":
+        if ("expected" in pj or "actual" in pj
+                or berr == "project changed" or berr == "active_project_changed"):
             exp = pj.get("expected"); act = pj.get("actual")
             return NexusError("NEXUS_PROJECT_CHANGED", 409, operation, berr, False,
                               f"当前激活项目已变（expected={exp} actual={act}），请重新确认后再写")

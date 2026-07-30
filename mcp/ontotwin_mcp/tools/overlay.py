@@ -5,8 +5,8 @@
 存/清实例覆盖、批量覆盖、存媒体策略。
 
 并发：写前先用 get_overlay_context 拿 revision，改结构后带 expected_revision 写回；
-遇 NEXUS_REVISION_CONFLICT 重新读后重写。revision 绑定当前激活项目的这份配置，
-项目切走则旧 revision 必对不上 → 409，故本域无需再透传 expected_project_id。
+遇 NEXUS_REVISION_CONFLICT 重新读后重写。各写工具另有可选 expected_project_id，
+非空时把写操作绑定到指定项目身份，后端据此校验当前激活项目是否一致。
 """
 from typing import Optional
 from urllib.parse import quote
@@ -61,55 +61,84 @@ def register(mcp, client, registry):
 
     @mcp.tool()
     def save_overlay_type_config(object_type_rid: str, config: dict,
-                                 expected_revision: int) -> dict:
+                                 expected_revision: int,
+                                 expected_project_id: str = "") -> dict:
         """本操作会修改当前激活项目：保存类型级信息面板配置。
 
         expected_revision 取自 get_overlay_context 的 type_config.revision；
         冲突返回 NEXUS_REVISION_CONFLICT，重读后再写。
+        expected_project_id 非空时把本次写绑定到指定项目身份。
         """
+        body = {"config": config, "expected_revision": expected_revision}
+        if expected_project_id:
+            body["expected_project_id"] = expected_project_id
         return client.put_json(
             "save_overlay_type_config",
             f"/api/v2/overlays/object-types/{quote(object_type_rid, safe='/')}",
-            json={"config": config, "expected_revision": expected_revision})
+            json=body)
 
     @mcp.tool()
     def save_overlay_instance_override(instance_id: str, override: dict,
-                                       expected_revision: int) -> dict:
+                                       expected_revision: int,
+                                       expected_project_id: str = "") -> dict:
         """本操作会修改当前激活项目：保存实例级面板覆盖。
 
         expected_revision 取自 get_overlay_context 的 instance_override.revision。
+        expected_project_id 非空时把本次写绑定到指定项目身份。
         """
+        body = {"override": override, "expected_revision": expected_revision}
+        if expected_project_id:
+            body["expected_project_id"] = expected_project_id
         return client.put_json(
             "save_overlay_instance_override",
             f"/api/v2/overlays/instances/{quote(instance_id, safe='/')}",
-            json={"override": override, "expected_revision": expected_revision})
+            json=body)
 
     @mcp.tool()
-    def clear_overlay_instance_override(instance_id: str, expected_revision: int) -> dict:
-        """本操作会修改当前激活项目：清除实例覆盖，恢复继承类型配置。"""
+    def clear_overlay_instance_override(instance_id: str, expected_revision: int,
+                                        expected_project_id: str = "") -> dict:
+        """本操作会修改当前激活项目：清除实例覆盖，恢复继承类型配置。
+
+        expected_project_id 非空时把本次写绑定到指定项目身份。
+        """
+        body = {"expected_revision": expected_revision}
+        if expected_project_id:
+            body["expected_project_id"] = expected_project_id
         return client.delete_json(
             "clear_overlay_instance_override",
             f"/api/v2/overlays/instances/{quote(instance_id, safe='/')}",
-            json={"expected_revision": expected_revision})
+            json=body)
 
     @mcp.tool()
     def batch_overlay_instance_override(object_type_rid: str, instance_ids: list,
-                                        merge_patch: dict, expected_revisions: dict) -> dict:
+                                        merge_patch: dict, expected_revisions: dict,
+                                        expected_project_id: str = "") -> dict:
         """本操作会修改当前激活项目：给一批实例合并同一份覆盖补丁。
 
         expected_revisions 为 {instance_id: revision} 映射，逐实例乐观并发校验。
+        expected_project_id 非空时把本次写绑定到指定项目身份。
         """
+        body = {"object_type_rid": object_type_rid, "instance_ids": instance_ids,
+                "merge_patch": merge_patch, "expected_revisions": expected_revisions}
+        if expected_project_id:
+            body["expected_project_id"] = expected_project_id
         return client.post_json(
             "batch_overlay_instance_override", "/api/v2/overlays/instances/batch",
-            json={"object_type_rid": object_type_rid, "instance_ids": instance_ids,
-                  "merge_patch": merge_patch, "expected_revisions": expected_revisions})
+            json=body)
 
     @mcp.tool()
-    def save_overlay_media_policy(policy: dict, expected_revision: int) -> dict:
-        """本操作会修改当前激活项目：保存媒体域名策略。"""
+    def save_overlay_media_policy(policy: dict, expected_revision: int,
+                                  expected_project_id: str = "") -> dict:
+        """本操作会修改当前激活项目：保存媒体域名策略。
+
+        expected_project_id 非空时把本次写绑定到指定项目身份。
+        """
+        body = {"policy": policy, "expected_revision": expected_revision}
+        if expected_project_id:
+            body["expected_project_id"] = expected_project_id
         return client.put_json(
             "save_overlay_media_policy", "/api/v2/overlays/media/policy",
-            json={"policy": policy, "expected_revision": expected_revision})
+            json=body)
 
     for f in (list_overlay_templates, get_overlay_context, preview_overlay,
               get_overlay_media_policy, enable_info_panel, save_overlay_type_config,

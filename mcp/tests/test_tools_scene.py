@@ -76,6 +76,27 @@ def test_set_default_route_post_body():
     assert body == {"expected_revision": 4}
 
 
+def test_save_roaming_config_threads_expected():
+    c = C(); mcp = build_server(c)
+    _t(mcp, "save_roaming_config")({"spawn": {}}, 7, expected_project_id="p1")
+    body = c.calls[-1][2]
+    assert body == {"config": {"spawn": {}}, "expected_revision": 7,
+                    "expected_project_id": "p1"}
+
+
+def test_save_roaming_config_omits_empty_expected():
+    c = C(); mcp = build_server(c)
+    _t(mcp, "save_roaming_config")({"spawn": {}}, 7)
+    assert "expected_project_id" not in c.calls[-1][2]
+
+
+def test_delete_route_threads_expected():
+    c = C(); mcp = build_server(c)
+    _t(mcp, "delete_route")("r1", 5, expected_project_id="p1")
+    body = c.calls[-1][2]
+    assert body == {"expected_revision": 5, "expected_project_id": "p1"}
+
+
 def test_scene_tools_registered():
     c = C(); mcp = build_server(c)
     expected = {

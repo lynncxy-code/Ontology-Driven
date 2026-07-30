@@ -69,6 +69,27 @@ def test_batch_overlay_instance_override_body():
                     "merge_patch": {"slots": {}}, "expected_revisions": {"i1": 1, "i2": 3}}
 
 
+def test_save_overlay_type_config_threads_expected():
+    c = C(); mcp = build_server(c)
+    _t(mcp, "save_overlay_type_config")("rid.a", {"slots": {}}, 4, expected_project_id="p1")
+    body = c.calls[-1][2]
+    assert body == {"config": {"slots": {}}, "expected_revision": 4,
+                    "expected_project_id": "p1"}
+
+
+def test_save_overlay_type_config_omits_empty_expected():
+    c = C(); mcp = build_server(c)
+    _t(mcp, "save_overlay_type_config")("rid.a", {"slots": {}}, 4)
+    assert "expected_project_id" not in c.calls[-1][2]
+
+
+def test_clear_overlay_instance_override_threads_expected():
+    c = C(); mcp = build_server(c)
+    _t(mcp, "clear_overlay_instance_override")("i1", 2, expected_project_id="p1")
+    body = c.calls[-1][2]
+    assert body == {"expected_revision": 2, "expected_project_id": "p1"}
+
+
 def test_overlay_tools_registered():
     c = C(); mcp = build_server(c)
     expected = {

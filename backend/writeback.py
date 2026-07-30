@@ -81,6 +81,9 @@ def apply_writeback(store, instance_id, transform, persist=True, expected_projec
     scale = float(ut.get("scale_to_cm", 0.1) or 0.1)
     canon_z = tz / scale if scale else 0.0              # ue_z = canon_z * scale 的逆
 
+    # 下面两次写各自独立加锁（非单一事务）：若两次取锁之间激活项目被切换，
+    # 第二次 update_raw_state 会在第一次已落盘后抛 ProjectMismatch（409）——
+    # 一处窄窗口的部分写，符合既有多锁设计，且守卫仍会拒绝第二次写入。
     store.update_component(comp["id"], {
         "canonical_xy": [round(canon_xy[0], 3), round(canon_xy[1], 3)],
         "canonical_z": round(canon_z, 3),

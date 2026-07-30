@@ -56,3 +56,24 @@ def test_writeback_endpoint_expected_mismatch_409(client, store):
         "instance_id": "DW-WB", "transform": {"tx": 0, "ty": 0, "tz": 0},
         "expected_project_id": "p_other"})
     assert r.status_code == 409
+
+
+def test_spawn_endpoint_expected_mismatch_409(client, store, monkeypatch):
+    # spawn 端点在触达 store 守卫前先校验 object_type 已挂载 injected_interfaces，
+    # 而 fixture 的 PE16A 无接口（会 400）。故先给 app._object_types 里的 PE16A
+    # 挂一个非空 injected_interfaces，再用错的 expected_project_id 触发 409。
+    import app as app_module
+    monkeypatch.setitem(app_module._object_types, "PE16A", {
+        "rid": "PE16A", "name": "溶铜槽", "injected_interfaces": ["I3D_Representable"]})
+    r = client.post("/api/v2/instances", json={
+        "instance_id": "DW-SP", "object_type_rid": "PE16A",
+        "expected_project_id": "p_other"})
+    assert r.status_code == 409
+    assert r.get_json().get("expected") == "p_other"
+
+
+def test_transform_endpoint_expected_mismatch_409(client, store):
+    store.spawn("DW-TF", "PE16A")  # 自由实例（无绑定构件）
+    r = client.put("/api/v2/instances/DW-TF/transform", json={
+        "canonical_xy": [1, 2], "expected_project_id": "p_other"})
+    assert r.status_code == 409

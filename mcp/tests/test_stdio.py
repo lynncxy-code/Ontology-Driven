@@ -164,3 +164,20 @@ async def test_ontology_edit_tools_listed_and_callable():
     assert new_tools <= names, f"缺工具: {new_tools - names}"
     assert len(names) >= 73, f"工具总数应 ≥73（66+7），实际 {len(names)}"
     assert res.isError is False
+
+
+async def test_floor_pulse_tools_listed_and_callable():
+    """M6 floor_pulse 5 工具全部注册；挑一个只读工具走真 call_tool。"""
+    routes = {"/api/v2/floor_pulse/health": {"status": "ok"}}
+    mcp = build_server(FakeClient(routes))
+    async with create_connected_server_and_client_session(mcp._mcp_server) as session:
+        names = {t.name for t in (await session.list_tools()).tools}
+        res = await session.call_tool("get_floor_pulse_health", {})
+
+    new_tools = {
+        "toggle_floor_pulse_mock", "move_floor_pulse_mock",
+        "get_floor_pulse_snapshot", "get_floor_pulse_events", "get_floor_pulse_health",
+    }
+    assert new_tools <= names, f"缺工具: {new_tools - names}"
+    assert len(names) >= 78, f"工具总数应 ≥78（73+5），实际 {len(names)}"
+    assert res.isError is False

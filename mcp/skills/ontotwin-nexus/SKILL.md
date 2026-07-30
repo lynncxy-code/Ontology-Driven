@@ -155,3 +155,18 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 - 「给货架类型挂上 I3D_Representable 和 I3D_Spatial」
 - 「看看有哪些能力接口可以挂」
 - 「从本体图库重建暂存图并发布成新数据集」
+
+## 外部数据监控（floor_pulse）
+
+**看外部现场数据**（代理中转站中间件）
+- `get_floor_pulse_health()` 先看中转站通不通 → `get_floor_pulse_snapshot()` 拉当前快照 → `get_floor_pulse_events(after_event_id=…)` 拉增量事件。
+- 中间件（如 5001）未部署时这三个返回 `NEXUS_DEGRADED`——是**数据源离线**，非工具故障。
+
+**模拟演示**（无中转站时自造数据，mock 链路不依赖中间件）
+- `toggle_floor_pulse_mock(True)` 开 → `move_floor_pulse_mock(instance_id, workstation_id, workstation_name)` 注入移动事件（WS-00=休息区→idle，其它→working；会进快照/事件流）→ `toggle_floor_pulse_mock(False)` 关并清空。
+- 注：`move` 前必须先 `toggle(True)`，否则后端 400。
+
+**触发示例**
+- 「看看中转站健康吗」
+- 「开模拟，把 human-01 移到 WS-03（焊接工位）」
+- 「拉一下最新的现场快照 / 从事件 42 之后的增量」

@@ -28,7 +28,7 @@ for t in [
     "get_active_project", "list_projects", "list_object_types",
     "get_import_staging_graph", "list_instances", "get_state_snapshots",
     "list_components", "list_roster", "get_spatial_profile", "get_ue_binding_status",
-    "list_overlay_templates", "get_overlay_context", "get_scene_catalog",
+    "list_overlay_templates", "get_overlay_media_policy", "get_scene_catalog",
     "get_roaming_config", "list_routes",
 ]:
     run(t)

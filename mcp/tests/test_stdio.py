@@ -198,3 +198,21 @@ async def test_cad_calibration_tools_listed_and_callable():
     assert new_tools <= names, f"缺工具: {new_tools - names}"
     assert len(names) >= 84, f"工具总数应 ≥84（78+6），实际 {len(names)}"
     assert res.isError is False
+
+
+async def test_spatial_write_tools_listed_and_callable():
+    """M5b 系统一 spatial 写 7 工具全部注册；挑一个只读工具走真 call_tool。"""
+    routes = {"/api/v2/coord/mapping": {"BLK-1": "assets/a.glb"}}
+    mcp = build_server(FakeClient(routes))
+    async with create_connected_server_and_client_session(mcp._mcp_server) as session:
+        names = {t.name for t in (await session.list_tools()).tools}
+        res = await session.call_tool("get_block_asset_mapping", {})
+
+    new_tools = {
+        "set_spatial_profile", "upsert_spatial_frame", "calibrate_spatial_frame",
+        "preview_spatial_transform", "export_cad_scene", "get_block_asset_mapping",
+        "save_block_asset_mapping",
+    }
+    assert new_tools <= names, f"缺工具: {new_tools - names}"
+    assert len(names) >= 91, f"工具总数应 ≥91（84+7），实际 {len(names)}"
+    assert res.isError is False

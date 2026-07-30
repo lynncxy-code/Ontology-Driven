@@ -188,3 +188,18 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 **触发示例**
 - 「扫一下这个 DXF 有哪些设备类型」
 - 「把这批设备按标定矩阵投产，先 dry-run 看看有没有冲突」
+
+## 坐标规范系 / 场景导出（系统一 spatial）
+
+> 这是系统一 `/spatial/*`（坐标规范系），别与 M2 的系统二底图参考帧（`reference_frame`）混。
+
+- **规范剖面**：`get_spatial_profile()` 看当前 → `set_spatial_profile(profile, expected_project_id=…)` 改（⚠️ **会触发全场景重算**，高危；`profile` 含 `canonical_origin`/`floor_table`/`ue_transform` 子集）。
+- **坐标帧**：`upsert_spatial_frame({"id":..., "kind":"custom", ...}, expected_project_id=…)` 建/改；`calibrate_spatial_frame(frame_id, anchors, expected_project_id=…)` 用锚点拟合；`preview_spatial_transform(points, floor)` 预览规范→UE（不落库）。
+- **导出 / 映射**：`export_cad_scene(transform_matrix, entities, polylines)` 出 UE 场景 JSON；`get_block_asset_mapping()` / `save_block_asset_mapping({块名:资产路径})` 读写**全局**映射（非项目数据、无 expected）。
+
+**金规**：spatial 写带 `expected_project_id`（从 `get_active_project` 取）；`set_spatial_profile` 会全场重算，改前想清楚。
+
+**触发示例**
+- 「把规范原点设成 (1,1)」
+- 「用这几组锚点标定 world 帧」
+- 「导出当前 CAD 场景 JSON」

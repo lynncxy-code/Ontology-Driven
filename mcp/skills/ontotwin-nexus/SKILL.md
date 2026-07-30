@@ -170,3 +170,21 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 - 「看看中转站健康吗」
 - 「开模拟，把 human-01 移到 WS-03（焊接工位）」
 - 「拉一下最新的现场快照 / 从事件 42 之后的增量」
+
+## CAD 一键成模（交互标定链）
+
+这条链**服务器端无状态**——中间产物（扫描候选、标定矩阵）由你（AI）持有并逐步回传。
+
+**四段流程**
+1. `scan_cad_types("路径/xxx.dxf")` → 拿候选类型（AI 按需补每个候选的 `asset_id`）。（`preview_cad` 可先看几何预览。）
+2. `check_type_conflicts([rid, ...])` 看是否撞已有数据集的类型。
+3. `commit_cad_types(items, mode="publish", publish_options={"name":"厂区A"})` 建类型数据集（或 `mode="merge", merge_options={"target_dataset_id":...}` 合并）。
+4. `calibrate_coordinates(anchors)`（基础层）得 `transform_matrix` → `spawn_cad_instances(items, transform_matrix, commit=False)` **先 dry-run** 看 summary（to_create/conflicts/errors）→ 确认 → `commit=True, expected_project_id=<get_active_project 的 project_id>` 真投产。
+
+**金规**
+- spawn 是高危批量写：**务必先 `commit=False` dry-run**；真写带 `expected_project_id`；遇 `NEXUS_PROJECT_CHANGED` 说明激活项目被切走，重新确认后再投。
+- `items` 结构以 `scan_cad_types` 返回为准（`block_name`/`cad_xy`/`rotation`/`attribs`/可选 `instance_id`/`asset_id`）。
+
+**触发示例**
+- 「扫一下这个 DXF 有哪些设备类型」
+- 「把这批设备按标定矩阵投产，先 dry-run 看看有没有冲突」

@@ -181,3 +181,20 @@ async def test_floor_pulse_tools_listed_and_callable():
     assert new_tools <= names, f"缺工具: {new_tools - names}"
     assert len(names) >= 78, f"工具总数应 ≥78（73+5），实际 {len(names)}"
     assert res.isError is False
+
+
+async def test_cad_calibration_tools_listed_and_callable():
+    """M5a CAD 交互标定链 6 工具全部注册；挑一个只读工具走真 call_tool。"""
+    routes = {"/api/v2/coord/types/check_coverage": {"total": 0, "covered": 0, "missing": 0}}
+    mcp = build_server(FakeClient(routes))
+    async with create_connected_server_and_client_session(mcp._mcp_server) as session:
+        names = {t.name for t in (await session.list_tools()).tools}
+        res = await session.call_tool("check_type_coverage", {"block_names": []})
+
+    new_tools = {
+        "preview_cad", "scan_cad_types", "check_type_conflicts",
+        "check_type_coverage", "commit_cad_types", "spawn_cad_instances",
+    }
+    assert new_tools <= names, f"缺工具: {new_tools - names}"
+    assert len(names) >= 84, f"工具总数应 ≥84（78+6），实际 {len(names)}"
+    assert res.isError is False

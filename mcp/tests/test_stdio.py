@@ -128,3 +128,21 @@ async def test_spatial_zones_tools_listed_and_callable():
     assert new_tools <= names, f"缺工具: {new_tools - names}"
     assert len(names) >= 57, f"工具总数应 ≥57（50+7），实际 {len(names)}"
     assert res.isError is False
+
+
+async def test_lifecycle_model_binding_tools_listed_and_callable():
+    """M3 生命周期/换模型 9 工具全部注册；挑一个只读工具走真 call_tool。"""
+    routes = {"/api/v2/instances/i1/model-binding": {"instance_id": "i1"}}
+    mcp = build_server(FakeClient(routes))
+    async with create_connected_server_and_client_session(mcp._mcp_server) as session:
+        names = {t.name for t in (await session.list_tools()).tools}
+        res = await session.call_tool("get_model_binding", {"instance_id": "i1"})
+
+    new_tools = {
+        "create_instance", "delete_instance", "set_instance_transform",
+        "writeback_instance_transform", "get_model_binding", "set_model_binding",
+        "clear_model_binding", "clear_type_model_default", "promote_model_binding",
+    }
+    assert new_tools <= names, f"缺工具: {new_tools - names}"
+    assert len(names) >= 66, f"工具总数应 ≥66（57+9），实际 {len(names)}"
+    assert res.isError is False

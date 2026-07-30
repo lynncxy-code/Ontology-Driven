@@ -116,3 +116,24 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 **触发示例**
 - 「上传这张一楼底图作空间参考帧，楼层填 1」
 - 「把这批实例划到 A 区」 / 「解除这些实例的分区」
+
+## 实例生命周期 / 换模型
+
+这些是**高危写**（尤其 delete 不可逆）。并发多写带 `expected_project_id`（从 `get_active_project` 的 `project_id` 取）；遇 `NEXUS_PROJECT_CHANGED` 说明激活项目被切走，重新确认后再写。
+
+**建 / 删实例**
+- `create_instance(instance_id, object_type_rid, initial_position={"x":..,"y":..,"z":..})`。前提：类型已注入三维接口（否则 400），id 不得重复（否则 409）。
+- `delete_instance(instance_id, expected_project_id=…)`。
+
+**改位置**
+- `set_instance_transform(instance_id, {"canonical_xy":[x,y], "canonical_z":z, "rotation":deg, "floor":n})` — 规范坐标微调。
+- `writeback_instance_transform(instance_id, {"tx":..,"ty":..,"tz":..,"rx":..,"ry":..,"rz":..,"sx":..,"sy":..,"sz":..})` — UE cm 回写。
+
+**换模型**
+- `get_model_binding(instance_id)` 看现状 → `set_model_binding(instance_id, selection, expected_project_id=…)` 换模型 → `clear_model_binding(instance_id)` 恢复类型默认。
+- 类型级：`clear_type_model_default(rid)`、`promote_model_binding(rid, source_asset_path)`（把迁移模型提为默认，source_asset_path 必须属于该类型历史实例模型）。
+
+**触发示例**
+- 「在当前项目建一个货架实例 shelf-A3，放在规范坐标 (1200, 800)」
+- 「把 shelf-A3 挪到 (1500, 900)」
+- 「给 shelf-A3 换成高精模型」/「把 shelf-A3 恢复成类型默认模型」

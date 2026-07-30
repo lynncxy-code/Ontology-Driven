@@ -73,3 +73,28 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 - **Demo 只读**（`kind=demo`、`writable=false`）：内置演示数据集不可写。先 `activate_project` 换到真实项目再写，别对着 demo 试。
 - **图库降级**：本体图 / 语义相关调用报「语义图库暂不可达（Neo4j）」时，如实说明该能力暂降级，**不要**一律承诺「不影响主功能」——本体导入/图谱确实受影响；坐标/绑定/运行态可能仍可用，逐项确认而非笼统安抚。
 - **后端不可达 / 超时**：连接或读超时 → 报「Nexus 后端暂不可达」，检查 `NEXUS_BASE_URL`。**非幂等写**（`upload_roster` / `save_*` / `mint_*` / `bind_*` / `activate_*` / `set_instance_state`）超时后**禁止自动重试**（结果状态不确定）；只读 / 纯计算可有限次退避重试。CAD 解析超时后先查是否实际已完成再决定，别贸然重解析。
+
+## 场景配置（信息面板 / 人物漫游 / 漫游路线）
+
+三块配置都走「读活配置 → 改 → 带 revision 写回」，后端 validator 兜底。
+
+**金规**
+1. **写前必先读**：`get_overlay_context` / `get_roaming_config` / `get_route` 返回里带 revision，写工具的 `expected_revision` 必填，取自刚读到的值。
+2. **遇 `NEXUS_REVISION_CONFLICT`**：配置被他处改过 → 重新读 → 合并意图 → 重写。
+3. **config 结构以读到的活配置为准**，不臆造字段；结构非法后端返回 `NEXUS_VALIDATION`，按 `fields` 里的 path/message 纠正。
+4. **类型首次配面板**先 `enable_info_panel(object_type_rid)` 注入能力，再 `save_overlay_type_config`。
+
+**信息面板 config 速查**（详细字段以 `get_overlay_context` 返回为准）
+- 槽位 slots：`body`（正文）/`status`（状态灯+文案）/`media`（视频）/`metrics`（指标）。
+- 绑定源 4 种：`literal`（固定值）/`instance`（实例信息）/`object_type`（类型信息）/`raw_state`（实时数据，如 `status`/`capacity`）。
+- 状态分级配色：`slots.status.appearance[level] = {label, color}`，level 取 `statusLevelOptions`。
+
+**典型流程**
+- 改某类型面板的状态配色：`enable_info_panel(rid)` →（若已启用可跳过）`get_overlay_context(object_type_rid=rid)` → 改 `config.slots.status.appearance` → `save_overlay_type_config(rid, config, expected_revision)`。
+- 批量给一批实例覆盖标签：`get_overlay_context(object_type_rid=rid)` 拿各实例 `override_revision` → `batch_overlay_instance_override(rid, ids, merge_patch, expected_revisions)`。
+- 新建漫游路线并设默认：`list_routes()` 拿集合 revision → `create_route(route, expected_revision)` → `set_default_route(new_id, expected_revision)`。
+
+**触发示例**
+- 「把货架类型信息面板的『缺货』状态配成红色」
+- 「给这批 AGV 实例的面板标题统一改成设备编号」
+- 「新建一条从入口到 A 区的巡检漫游路线，并设为默认」

@@ -88,3 +88,25 @@ async def test_call_tool_readonly_get_active_project():
     payload = json.loads(res.content[0].text)
     assert payload["writable"] is True
     assert payload["project_id"] == "p1"
+
+
+async def test_scene_config_tools_listed_and_callable():
+    """场景配置 20 工具全部注册；挑一个只读工具走真 call_tool。"""
+    routes = {"/api/v2/overlays/templates": {"templates": []}}
+    mcp = build_server(FakeClient(routes))
+    async with create_connected_server_and_client_session(mcp._mcp_server) as session:
+        names = {t.name for t in (await session.list_tools()).tools}
+        res = await session.call_tool("list_overlay_templates", {})
+
+    new_tools = {
+        "list_overlay_templates", "get_overlay_context", "preview_overlay",
+        "get_overlay_media_policy", "enable_info_panel", "save_overlay_type_config",
+        "save_overlay_instance_override", "clear_overlay_instance_override",
+        "batch_overlay_instance_override", "save_overlay_media_policy",
+        "get_scene_catalog", "get_roaming_config", "list_routes", "get_route",
+        "save_roaming_config", "create_route", "update_route", "delete_route",
+        "review_route", "set_default_route",
+    }
+    assert new_tools <= names, f"缺工具: {new_tools - names}"
+    assert len(names) >= 50, f"工具总数应 ≥50（30+20），实际 {len(names)}"
+    assert res.isError is False

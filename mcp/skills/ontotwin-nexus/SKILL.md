@@ -80,7 +80,7 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 
 **金规**
 1. **写前必先读**：`get_overlay_context` / `get_roaming_config` / `get_route` 返回里带 revision，写工具的 `expected_revision` 必填，取自刚读到的值。
-2. **遇 `NEXUS_REVISION_CONFLICT`**：配置被他处改过 → 重新读 → 合并意图 → 重写。
+2. **遇 `NEXUS_REVISION_CONFLICT`**：配置被他处改过 → 重新读 → 合并意图 → 重写。注意漫游/路线共享**同一个 scene revision 计数器**（roaming 配置、每条路线、评审、设默认全在这一份文档上），**每次写都会把它 +1**；连续多步写时，每步的 `expected_revision` 必须用上一步返回的最新值，不能复用最初读到的那个。
 3. **config 结构以读到的活配置为准**，不臆造字段；结构非法后端返回 `NEXUS_VALIDATION`，按 `fields` 里的 path/message 纠正。
 4. **类型首次配面板**先 `enable_info_panel(object_type_rid)` 注入能力，再 `save_overlay_type_config`。
 
@@ -92,9 +92,12 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 **典型流程**
 - 改某类型面板的状态配色：`enable_info_panel(rid)` →（若已启用可跳过）`get_overlay_context(object_type_rid=rid)` → 改 `config.slots.status.appearance` → `save_overlay_type_config(rid, config, expected_revision)`。
 - 批量给一批实例覆盖标签：`get_overlay_context(object_type_rid=rid)` 拿各实例 `override_revision` → `batch_overlay_instance_override(rid, ids, merge_patch, expected_revisions)`。
-- 新建漫游路线并设默认：`list_routes()` 拿集合 revision → `create_route(route, expected_revision)` → `set_default_route(new_id, expected_revision)`。
+- 新建漫游路线并设默认：`list_routes()` 拿集合 revision → `create_route(route, expected_revision)`（**用它返回的新 revision**）→ `review_route(new_id, <上一步返回的 revision>)` 使其变为 ready → `set_default_route(new_id, <再上一步返回的 revision>)`。**每一步都用上一步返回的最新 revision**，别复用旧值，否则必撞 `NEXUS_REVISION_CONFLICT`；且未 `review_route` 变 ready、未启用的路线，`set_default_route` 会 422。
 
 **触发示例**
 - 「把货架类型信息面板的『缺货』状态配成红色」
 - 「给这批 AGV 实例的面板标题统一改成设备编号」
 - 「新建一条从入口到 A 区的巡检漫游路线，并设为默认」
+
+**已知限制**
+- 漫游路线的「路线不存在」(bad route_id) 目前会被后端用与「无激活项目」相同的错误码返回，MCP 侧因而报成 `NEXUS_NO_ACTIVE_PROJECT`。若你确信项目已激活却收到该错误，多半是 route_id 不存在，请核对 `list_routes()`。（根因在后端错误码复用，待后续版本区分。）

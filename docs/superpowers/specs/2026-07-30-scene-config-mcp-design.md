@@ -89,7 +89,7 @@
 - `create_route` / `update_route` → `{route, expected_revision}`
 - `delete_route` / `review_route` / `set_default_route` → `{expected_revision}`
 
-> URL 路径参数（`object_type_rid` / `instance_id` / `route_id`）一律 `quote(..., safe="")` 编码，与基础层一致。
+> URL 路径参数（`object_type_rid` / `instance_id` / `route_id`）一律 `quote(..., safe='/')` 编码，与基础层一致。
 
 ---
 

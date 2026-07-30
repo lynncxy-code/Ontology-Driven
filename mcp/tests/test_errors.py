@@ -53,3 +53,45 @@ def test_503_neo4j_no_overpromise():
 def test_timeout_retryable_only_for_reads():
     e = map_transport_error("list_instances", httpx.ReadTimeout("t"))
     assert e.code == "NEXUS_TIMEOUT" and "NEXUS_BASE_URL" in str(e)
+
+
+def test_422_validation_carries_fields():
+    e = map_response_error(
+        "save_overlay_type_config", 422,
+        '{"error":"overlay_validation_failed","fields":[{"path":"slots.status","message":"缺少绑定"}]}',
+        {"error": "overlay_validation_failed",
+         "fields": [{"path": "slots.status", "message": "缺少绑定"}]})
+    assert e.code == "NEXUS_VALIDATION"
+    assert e.http_status == 422
+    assert "slots.status" in str(e)
+
+
+def test_409_revision_conflict_distinct_from_project_changed():
+    e = map_response_error(
+        "save_roaming_config", 409,
+        '{"error":"scene_interaction_revision_conflict"}',
+        {"error": "scene_interaction_revision_conflict"})
+    assert e.code == "NEXUS_REVISION_CONFLICT"
+    assert e.http_status == 409
+
+
+def test_409_project_changed_still_wins_over_revision():
+    e = map_response_error(
+        "save_roaming_config", 409,
+        '{"error":"project changed","expected":"a","actual":"b"}',
+        {"error": "project changed", "expected": "a", "actual": "b"})
+    assert e.code == "NEXUS_PROJECT_CHANGED"
+
+
+def test_404_active_project_not_found_maps_no_active():
+    e = map_response_error(
+        "get_roaming_config", 404,
+        '{"error":"active_project_not_found"}', {"error": "active_project_not_found"})
+    assert e.code == "NEXUS_NO_ACTIVE_PROJECT"
+
+
+def test_404_other_still_not_found():
+    e = map_response_error(
+        "get_route", 404,
+        '{"error":"overlay_target_not_found"}', {"error": "overlay_target_not_found"})
+    assert e.code == "NEXUS_NOT_FOUND"

@@ -32,6 +32,9 @@ def map_response_error(operation, status, body_text, parsed_json):
     if status == 403:
         return NexusError("NEXUS_FORBIDDEN", 403, operation, berr, False, "项目/UE 绑定不匹配")
     if status == 404:
+        if berr == "active_project_not_found":
+            return NexusError("NEXUS_NO_ACTIVE_PROJECT", 404, operation, berr, False,
+                              "请先用 activate_project 激活一个项目")
         return NexusError("NEXUS_NOT_FOUND", 404, operation, berr, False)
     if status == 409:
         # 只有确属「激活项目并发漂移」才映射 NEXUS_PROJECT_CHANGED：
@@ -42,8 +45,18 @@ def map_response_error(operation, status, body_text, parsed_json):
             exp = pj.get("expected"); act = pj.get("actual")
             return NexusError("NEXUS_PROJECT_CHANGED", 409, operation, berr, False,
                               f"当前激活项目已变（expected={exp} actual={act}），请重新确认后再写")
+        # 配置乐观锁冲突：overlay_/scene_interaction_revision_conflict
+        if isinstance(berr, str) and berr.endswith("revision_conflict"):
+            return NexusError("NEXUS_REVISION_CONFLICT", 409, operation, berr, False,
+                              "配置已被他处修改，请重新 GET 拿最新 revision 后重写")
         return NexusError("NEXUS_CONFLICT", 409, operation, berr, False,
                           "后端返回冲突（非激活项目漂移），请检查上述 error")
+    if status == 422:
+        fields = pj.get("fields") if isinstance(pj.get("fields"), list) else []
+        hint = "；".join(
+            f"{f.get('path')}: {f.get('message')}" for f in fields if isinstance(f, dict)
+        )[:300] or "配置结构校验失败"
+        return NexusError("NEXUS_VALIDATION", 422, operation, berr, False, hint)
     if status == 413:
         return NexusError("NEXUS_TOO_LARGE", 413, operation, berr, False)
     if status == 503:

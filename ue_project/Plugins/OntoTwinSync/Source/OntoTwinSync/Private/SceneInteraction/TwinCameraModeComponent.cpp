@@ -223,14 +223,14 @@ bool UTwinCameraModeComponent::Cycle(
     ATwinGodViewAnchor* StartAnchor,
     FString& OutError)
 {
-    ETwinRoamingCameraMode NextMode = ETwinRoamingCameraMode::FirstPerson;
-    if (Mode == ETwinRoamingCameraMode::FirstPerson)
+    ETwinRoamingCameraMode NextMode = ETwinRoamingCameraMode::God;
+    if (Mode == ETwinRoamingCameraMode::God)
     {
         NextMode = ETwinRoamingCameraMode::NearFollow;
     }
     else if (Mode == ETwinRoamingCameraMode::NearFollow)
     {
-        NextMode = ETwinRoamingCameraMode::God;
+        NextMode = ETwinRoamingCameraMode::FirstPerson;
     }
     return ActivateMode(NextMode, PlayerController, StartAnchor, OutError, false);
 }

@@ -22,6 +22,7 @@ def roaming_config():
     return {
         "enabled": True,
         "auto_enter": True,
+        "minimap": {"enabled": False},
         "character_id": "character.observer.base",
         "allowed_skin_ids": ["skin.observer.gray", "skin.observer.green"],
         "default_skin_id": "skin.observer.gray",
@@ -134,7 +135,7 @@ class SceneInteractionTestCase(unittest.TestCase):
 
     def test_catalog_has_mvp_resources(self):
         catalog = self.service.catalog_snapshot()
-        self.assertEqual("2026.07.8", catalog["catalog_version"])
+        self.assertEqual("2026.07.9", catalog["catalog_version"])
         self.assertEqual(7, len(catalog["characters"]))
         self.assertGreaterEqual(len(catalog["skins"]), 8)
         self.assertEqual(1, len(catalog["spawn_anchors"]))
@@ -224,6 +225,12 @@ class SceneInteractionTestCase(unittest.TestCase):
             "look_sensitivity": 1,
         }, saved["config"]["camera"]["first_person"])
 
+    def test_legacy_camera_defaults_to_god_view(self):
+        config = roaming_config()
+        config["camera"].pop("default_mode")
+        saved = self.service.save_roaming(config, 0)
+        self.assertEqual("god", saved["config"]["camera"]["default_mode"])
+
     def test_first_person_camera_range_is_validated(self):
         config = roaming_config()
         config["camera"]["first_person"]["fov_deg"] = 120
@@ -232,6 +239,48 @@ class SceneInteractionTestCase(unittest.TestCase):
         self.assertIn(
             "camera.first_person.fov_deg",
             [item["path"] for item in invalid.exception.errors],
+        )
+
+    def test_minimap_defaults_off_and_projects_when_enabled(self):
+        legacy = roaming_config()
+        legacy.pop("minimap")
+        saved = self.service.save_roaming(legacy, 0)
+        self.assertEqual({"enabled": False}, saved["config"]["minimap"])
+
+        enabled = copy.deepcopy(saved["config"])
+        enabled["minimap"]["enabled"] = True
+        saved = self.service.save_roaming(enabled, saved["revision"])
+        runtime = self.service.runtime_projection({"mode": "matched"})
+        self.assertEqual({"enabled": True}, saved["config"]["minimap"])
+        self.assertEqual({"enabled": True}, runtime["config"]["minimap"])
+
+    def test_minimap_rejects_non_boolean_enabled(self):
+        config = roaming_config()
+        config["minimap"] = {"enabled": "yes"}
+        with self.assertRaises(Exception) as invalid:
+            self.service.save_roaming(config, 0)
+        self.assertIn(
+            "minimap.enabled",
+            [item["path"] for item in invalid.exception.errors],
+        )
+
+    def test_legacy_stored_roaming_is_read_with_minimap_default(self):
+        legacy = roaming_config()
+        legacy.pop("minimap")
+
+        def inject_legacy(working):
+            scene = working.setdefault("scene_interactions", {})
+            scene["revision"] = 1
+            scene["roaming"] = copy.deepcopy(legacy)
+
+        self.store.transact_active(inject_legacy)
+        self.assertEqual(
+            {"enabled": False},
+            self.service.get_roaming()["config"]["minimap"],
+        )
+        self.assertEqual(
+            {"enabled": False},
+            self.service.runtime_projection({"mode": "matched"})["config"]["minimap"],
         )
 
     def test_runtime_projection_contains_ue_anchor(self):
@@ -305,6 +354,40 @@ class SceneInteractionTestCase(unittest.TestCase):
         self.assertEqual([20.0, 40.0, 20.0], runtime["runtime_route"]["waypoints_ue_cm"][0])
         self.assertEqual("project_route", runtime["resources"]["route"]["kind"])
         self.assertEqual(saved["revision"], runtime["revision"])
+
+    def test_runtime_projection_lists_all_enabled_ready_routes(self):
+        first = self.service.create_route(project_route_payload(), 0)
+        second_payload = project_route_payload()
+        second_payload["name"] = "东进西出"
+        second_payload["waypoints"] = [
+            {"id": "wp-3", "source_px": [120.0, 220.0]},
+            {"id": "wp-4", "source_px": [340.0, 220.0]},
+        ]
+        second = self.service.create_route(second_payload, first["revision"])
+        defaulted = self.service.set_default_route(
+            first["route"]["id"], second["revision"],
+        )
+        config = roaming_config()
+        config["route"]["route_id"] = first["route"]["id"]
+        self.service.save_roaming(config, defaulted["revision"])
+
+        runtime = self.service.runtime_projection({"mode": "matched"})
+        routes = runtime["available_routes"]
+        self.assertEqual(2, len(routes))
+        self.assertEqual(
+            {first["route"]["id"], second["route"]["id"]},
+            {item["route_id"] for item in routes},
+        )
+        self.assertEqual(
+            [first["route"]["id"]],
+            [item["route_id"] for item in routes if item["is_default"]],
+        )
+        self.assertEqual(
+            "东进西出",
+            next(item["display_name"] for item in routes
+                 if item["route_id"] == second["route"]["id"]),
+        )
+        self.assertTrue(all(len(item["waypoints_ue_cm"]) >= 2 for item in routes))
 
     def test_ready_project_route_supplies_spawn_without_manual_point(self):
         created = self.service.create_route(project_route_payload(), 0)
@@ -533,6 +616,29 @@ class SceneInteractionTestCase(unittest.TestCase):
                 "position": {"x": 1, "y": 2, "z": 3},
             }, {"id": "ue-project-a", "name": "UE Project A"})
 
+    def test_runtime_status_validates_minimap_state(self):
+        status = self.service.report_runtime({
+            "runtime_state": "manual",
+            "applied_revision": 1,
+            "minimap_state": "anchor_missing",
+            "degraded_features": ["minimap_anchor_missing"],
+        }, {"id": "ue-project-a", "name": "UE Project A"})
+        self.assertEqual(
+            "anchor_missing",
+            status["runtime_status"]["minimap_state"],
+        )
+
+        with self.assertRaises(Exception) as invalid:
+            self.service.report_runtime({
+                "runtime_state": "manual",
+                "applied_revision": 1,
+                "minimap_state": "broken",
+            }, {"id": "ue-project-a", "name": "UE Project A"})
+        self.assertIn(
+            "minimap_state",
+            [item["path"] for item in invalid.exception.errors],
+        )
+
     def test_http_binding_policy_and_heartbeat(self):
         app = Flask(__name__)
         register_scene_interaction_routes(app, self.store)
@@ -568,11 +674,13 @@ class SceneInteractionTestCase(unittest.TestCase):
             "camera_mode": "near_follow",
             "route_state": "following",
             "active_skin_id": "skin.observer.gray",
+            "minimap_state": "ready",
             "degraded_features": [],
             "error": None,
         })
         self.assertEqual(200, heartbeat.status_code)
         self.assertTrue(heartbeat.get_json()["runtime_status"]["online"])
+        self.assertEqual("ready", heartbeat.get_json()["runtime_status"]["minimap_state"])
 
     def test_packaged_runtime_rejects_unbound_project(self):
         dataset = self.store.get_active_dataset().copy()

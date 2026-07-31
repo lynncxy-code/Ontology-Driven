@@ -1,0 +1,110 @@
+.hud-context-code {
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--hud-ink-3);
+  font-size: var(--hud-t-xs);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-records {
+  display: grid;
+  gap: var(--hud-s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hud-record,
+.hud-record-button {
+  width: 100%;
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--hud-s3);
+  padding: var(--hud-s3);
+  border: 1px solid var(--hud-line);
+  border-left-width: 2px;
+  border-radius: var(--hud-r-md);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--hud-ink);
+  text-align: left;
+}
+
+.hud-record-button {
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.hud-record-button:hover {
+  border-color: var(--hud-line-strong);
+  background: var(--hud-surface-hover);
+}
+
+.hud-record-button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 2px;
+}
+
+.hud-record[data-level="warning"],
+.hud-record-button[data-level="warning"] { border-left-color: var(--hud-warning); }
+.hud-record[data-level="critical"],
+.hud-record-button[data-level="critical"] { border-left-color: var(--hud-critical); }
+.hud-record[data-level="info"],
+.hud-record-button[data-level="info"] { border-left-color: var(--hud-info); }
+.hud-record[data-level="normal"],
+.hud-record-button[data-level="normal"] { border-left-color: var(--hud-ok); }
+
+.hud-record__title {
+  display: block;
+  overflow: hidden;
+  color: var(--hud-ink);
+  font-size: var(--hud-t-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-record__meta {
+  display: block;
+  margin-top: var(--hud-s1);
+  color: var(--hud-ink-3);
+  font-size: var(--hud-t-xs);
+}
+
+.hud-record__value {
+  color: var(--hud-ink-2);
+  font-size: var(--hud-t-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hud-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hud-s2);
+}
+
+.hud-tag {
+  padding: 4px 8px;
+  border: 1px solid var(--hud-line);
+  border-radius: 999px;
+  color: var(--hud-ink-2);
+  font-size: var(--hud-t-xs);
+}
+
+.hud-actionbar:empty {
+  display: none;
+}
+
+body[data-page="event-workbench"] {
+  --hud-left-width: clamp(360px, 24vw, 480px);
+}
+
+@media (max-width: 1180px) {
+  body[data-page="event-workbench"] {
+    --hud-left-width: 320px;
+  }
+}

@@ -21,6 +21,11 @@ $engine = [System.IO.Path]::GetFullPath($EngineRoot)
 $archive = [System.IO.Path]::GetFullPath($ArchiveDirectory)
 $uat = Join-Path $engine "Engine\Build\BatchFiles\RunUAT.bat"
 $projectName = [System.IO.Path]::GetFileNameWithoutExtension($project)
+$projectRoot = [System.IO.Path]::GetDirectoryName($project)
+$dynamicGeometryRelativePath = "Content\AVIC_Show\Art\A03_ParkLevel\AVIC_0706\Geometries"
+$dynamicGeometryCookPath = "/Game/AVIC_Show/Art/A03_ParkLevel/AVIC_0706/Geometries"
+$dynamicGeometrySource = Join-Path $projectRoot $dynamicGeometryRelativePath
+$packagingConfig = Join-Path $projectRoot "Config\DefaultGame.ini"
 
 if (-not (Test-Path -LiteralPath $project -PathType Leaf)) {
     throw "Unreal project was not found: $project"
@@ -30,6 +35,17 @@ if ($projectName -ne $TargetName) {
 }
 if (-not (Test-Path -LiteralPath $uat -PathType Leaf)) {
     throw "RunUAT.bat was not found: $uat"
+}
+if (-not (Test-Path -LiteralPath $dynamicGeometrySource -PathType Container)) {
+    throw "Dynamic geometry source directory was not found: $dynamicGeometrySource"
+}
+if (-not (Test-Path -LiteralPath $packagingConfig -PathType Leaf)) {
+    throw "Project packaging configuration was not found: $packagingConfig"
+}
+$packagingConfigText = Get-Content -LiteralPath $packagingConfig -Raw
+$requiredCookSetting = "+DirectoriesToAlwaysCook=(Path=`"$dynamicGeometryCookPath`")"
+if (-not $packagingConfigText.Contains($requiredCookSetting)) {
+    throw "Dynamic geometry cook rule is missing from ${packagingConfig}: $requiredCookSetting"
 }
 if (Test-Path -LiteralPath $archive) {
     if (@(Get-ChildItem -LiteralPath $archive -Force).Count -gt 0) {
@@ -76,6 +92,52 @@ $projectRuntime = Join-Path $runtime $projectName
 if (-not (Test-Path -LiteralPath $projectRuntime -PathType Container)) {
     throw "Shipping runtime identity directory is missing: $projectRuntime"
 }
+$ufsManifest = Join-Path $runtime "Manifest_UFSFiles_Win64.txt"
+if (-not (Test-Path -LiteralPath $ufsManifest -PathType Leaf)) {
+    throw "Shipping UFS manifest is missing: $ufsManifest"
+}
+$packagedPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($line in [System.IO.File]::ReadLines($ufsManifest, [System.Text.UTF8Encoding]::new($false))) {
+    $manifestPath = ($line -split "`t", 2)[0].Replace('\', '/')
+    if (-not [string]::IsNullOrWhiteSpace($manifestPath)) {
+        [void]$packagedPaths.Add($manifestPath)
+    }
+}
+$dynamicGeometryAssets = @(
+    Get-ChildItem -LiteralPath $dynamicGeometrySource -Recurse -File -Filter "*.uasset" |
+        Sort-Object FullName
+)
+if ($dynamicGeometryAssets.Count -eq 0) {
+    throw "Dynamic geometry source directory did not contain any .uasset files: $dynamicGeometrySource"
+}
+$missingDynamicGeometry = @(
+    foreach ($asset in $dynamicGeometryAssets) {
+        $relativePath = $asset.FullName.Substring($projectRoot.Length + 1).Replace('\', '/')
+        $expectedManifestPath = "$projectName/$relativePath"
+        if (-not $packagedPaths.Contains($expectedManifestPath)) {
+            $expectedManifestPath
+        }
+    }
+)
+$cookAudit = [ordered]@{
+    schema_version = 1
+    source_directory = $dynamicGeometrySource
+    cook_path = $dynamicGeometryCookPath
+    required_uasset_count = $dynamicGeometryAssets.Count
+    packaged_uasset_count = $dynamicGeometryAssets.Count - $missingDynamicGeometry.Count
+    missing_uasset_count = $missingDynamicGeometry.Count
+    missing_paths = $missingDynamicGeometry
+    generated_at = (Get-Date).ToString("o")
+}
+[System.IO.File]::WriteAllText(
+    (Join-Path $runtime "ontotwin-cook-audit.json"),
+    ($cookAudit | ConvertTo-Json -Depth 4),
+    [System.Text.UTF8Encoding]::new($false))
+if ($missingDynamicGeometry.Count -gt 0) {
+    $sample = ($missingDynamicGeometry | Select-Object -First 20) -join "`n"
+    throw "Shipping dynamic geometry cook audit failed: $($missingDynamicGeometry.Count) of $($dynamicGeometryAssets.Count) required .uasset files are missing from the UFS manifest. First missing paths:`n$sample"
+}
+Write-Host "Dynamic geometry cook audit passed: $($dynamicGeometryAssets.Count)/$($dynamicGeometryAssets.Count) assets packaged." -ForegroundColor Green
 $sourceMaps = @(
     Get-ChildItem -LiteralPath (Join-Path ([System.IO.Path]::GetDirectoryName($project)) "Content") `
         -Recurse -File -Filter "*.umap" | Sort-Object FullName | ForEach-Object {

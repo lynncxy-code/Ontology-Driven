@@ -8,6 +8,8 @@
     <script src="/vendor/axios-1.7.9.min.js"></script>
     <script src="/spatial_canvas.js"></script>
     <link rel="stylesheet" href="/nexus_titlebar.css">
+    <link rel="stylesheet" href="/web_interaction_workbench.css">
+    <script src="/web_interaction_workbench.js"></script>
     <style>
         :root{
             --ink:#1a1a1a;--ink-2:#5c5c5c;--ink-3:#8a8a8a;--line:#e8e8e8;--line-2:#d4d4d4;
@@ -259,12 +261,15 @@
             <p class="nexus-titlebar__subtitle">{{ featureMeta.subtitle }}</p>
         </div>
         <div class="top-actions nexus-titlebar__actions">
-            <span v-if="feature==='overlay'?(dirty||mediaPolicy.dirty):(feature==='roaming'?roaming.dirty:routeEditor.dirty)" class="dirty">有未保存修改</span>
+            <span v-if="feature==='overlay'?(dirty||mediaPolicy.dirty):(feature==='roaming'?roaming.dirty:(feature==='routes'?routeEditor.dirty:webDirty))" class="dirty">有未保存修改</span>
             <button class="btn btn-ghost btn-sm" @click="goBack">返回来源页</button>
         </div>
     </header>
 
     <main v-if="loading" class="loading">正在加载工作台...</main>
+    <main v-else-if="feature==='web'" class="web-workspace">
+        <web-workbench @dirty-change="webDirty=$event" @toast="toast"></web-workbench>
+    </main>
     <main v-else-if="feature==='overlay'" class="workspace">
         <aside class="rail">
             <section class="section">
@@ -566,8 +571,9 @@
                 <div class="form-stack">
                     <label class="check-row"><input type="checkbox" v-model="roaming.draft.enabled" @change="markRoamingDirty">启用人物漫游</label>
                     <label class="check-row"><input type="checkbox" v-model="roaming.draft.auto_enter" @change="markRoamingDirty">运行时自动进入</label>
+                    <label class="check-row"><input type="checkbox" v-model="roaming.draft.minimap.enabled" :disabled="!roaming.draft.enabled" @change="markRoamingDirty">启用小地图</label>
                 </div>
-                <p class="hint">关闭自动进入时，可通过 UE 默认 F7 或项目入口进入。升级项目默认不会抢占原 Pawn。</p>
+                <p class="hint">关闭自动进入时，可通过 UE 默认 F7 或项目入口进入。小地图默认关闭；开启后由 UE 场景中的独立地图视角决定取景范围。</p>
             </section>
 
             <section class="section">
@@ -674,8 +680,9 @@
                     <div class="runtime-line"><span>已应用 Revision</span><strong>{{ roaming.context.runtime_status?.applied_revision ?? '--' }}</strong></div>
                     <div class="runtime-line"><span>当前视角</span><strong>{{ cameraModeLabel }}</strong></div>
                     <div class="runtime-line"><span>当前皮肤</span><strong>{{ roaming.context.runtime_status?.active_skin_id || '--' }}</strong></div>
+                    <div class="runtime-line"><span>小地图</span><strong><span class="dot" :class="minimapStateDot"></span> {{ minimapStateLabel }}</strong></div>
                 </div>
-                <div v-if="roaming.context.runtime_status?.degraded_features?.length" class="notice warn">降级项：{{ roaming.context.runtime_status.degraded_features.join('、') }}</div>
+                <div v-if="degradedFeatureLabels.length" class="notice warn">降级项：{{ degradedFeatureLabels.join('、') }}</div>
             </section>
 
             <section class="section">
@@ -691,7 +698,7 @@
             <section class="section">
                 <h2 class="section-title">视角</h2>
                 <div class="form-stack">
-                    <div class="form-row"><label class="label">默认视角</label><select class="field" v-model="roaming.draft.camera.default_mode" @change="markRoamingDirty"><option value="near_follow">过肩视角</option><option value="first_person">第一人称</option><option value="god">全局视角</option></select></div>
+                    <div class="form-row"><label class="label">默认视角</label><select class="field" v-model="roaming.draft.camera.default_mode" @change="markRoamingDirty"><option value="god">上帝视角</option><option value="near_follow">过肩视角</option><option value="first_person">第一人称</option></select></div>
                     <div class="grid-2">
                         <div class="form-row"><label class="label">第一人称视点高度（cm）</label><input class="field" type="number" min="120" max="210" v-model.number="roaming.draft.camera.first_person.eye_height_cm" @input="markRoamingDirty"></div>
                         <div class="form-row"><label class="label">第一人称视野角（°）</label><input class="field" type="number" min="60" max="110" v-model.number="roaming.draft.camera.first_person.fov_deg" @input="markRoamingDirty"></div>
@@ -702,7 +709,7 @@
                         <div class="form-row"><label class="label">过肩高度（cm）</label><input class="field" type="number" min="-50" max="250" v-model.number="roaming.draft.camera.near_follow.height_cm" @input="markRoamingDirty"></div>
                     </div>
                     <div class="form-row"><label class="label">过肩观察灵敏度</label><input class="field" type="number" min="0.1" max="5" step="0.1" v-model.number="roaming.draft.camera.near_follow.look_sensitivity" @input="markRoamingDirty"></div>
-                    <div class="form-row"><label class="label">全局视角出生相机</label><select class="field" v-model="roaming.draft.camera.god.camera_id" @change="markRoamingDirty"><option v-for="item in roaming.catalog.god_cameras" :key="item.id" :value="item.id">{{ item.display_name }}</option></select></div>
+                    <div class="form-row"><label class="label">上帝视角出生相机</label><select class="field" v-model="roaming.draft.camera.god.camera_id" @change="markRoamingDirty"><option v-for="item in roaming.catalog.god_cameras" :key="item.id" :value="item.id">{{ item.display_name }}</option></select></div>
                     <div class="grid-2">
                         <div class="form-row"><label class="label">相机速度（cm/s）</label><input class="field" type="number" min="100" max="10000" v-model.number="roaming.draft.camera.god.move_speed_cm_s" @input="markRoamingDirty"></div>
                         <div class="form-row"><label class="label">观察灵敏度</label><input class="field" type="number" min="0.1" max="5" step="0.1" v-model.number="roaming.draft.camera.god.look_sensitivity" @input="markRoamingDirty"></div>
@@ -835,17 +842,18 @@ const {createApp,ref,reactive,computed,nextTick}=Vue;
 const SpatialCanvas=window.OntoTwinSpatialCanvas;
 createApp({
     setup(){
-        const loading=ref(true),saving=ref(false),dirty=ref(false),typeSearch=ref('');
+        const loading=ref(true),saving=ref(false),dirty=ref(false),webDirty=ref(false),typeSearch=ref('');
         const objectTypes=ref([]),templates=ref([]),context=ref(null),draft=ref({});
         const selectedTypeRid=ref(''),selectedInstanceId=ref(''),previewInstanceId=ref('');
         const scope=ref('type'),overrideFields=ref([]),batchIds=ref([]),batchRestore=ref(false);
         const preview=ref(null),previewLoading=ref(false),previewError=ref(''),toasts=ref([]);
         const requestedFeature=new URLSearchParams(location.search).get('feature');
-        const feature=ref(['roaming','routes'].includes(requestedFeature)?requestedFeature:'overlay');
+        const feature=ref(['roaming','routes','web'].includes(requestedFeature)?requestedFeature:'overlay');
         const featureMeta=computed(()=>({
             overlay:{title:'信息面板',subtitle:'为设备类型和实例配置标准化信息面板，绑定真实字段并预览展示效果'},
             roaming:{title:'人物漫游',subtitle:'配置项目级观察者人物、皮肤、出生点、移动参数与运行视角'},
             routes:{title:'漫游路线',subtitle:'基于已发布空间底图编辑多点漫游路线，并由 UE 客户端动态执行'},
+            web:{title:'Web 交互',subtitle:'配置页面资源、业务管理与固定触发绑定，并发布给 UE 单例网页宿主'},
         })[feature.value]);
         document.title=`${featureMeta.value.title} | OntoTwin Nexus`;
         const roamingCanvas=ref(null);
@@ -856,7 +864,7 @@ createApp({
             routePreview:{loading:false,error:'',route:null},
             catalog:{catalog_version:'',characters:[],skins:[],spawn_anchors:[],routes:[],god_cameras:[]},
             context:{catalog_version:'',runtime_status:null,calibration_state:{state:'missing'},calibration_context:{frames:[]}},
-            draft:{enabled:false,auto_enter:false,allowed_skin_ids:[],spawn:{mode:'ue_anchor',anchor_id:''},movement:{},camera:{first_person:{},near_follow:{},god:{}},route:{}},
+            draft:{enabled:false,auto_enter:false,minimap:{enabled:false},allowed_skin_ids:[],spawn:{mode:'ue_anchor',anchor_id:''},movement:{},camera:{first_person:{},near_follow:{},god:{}},route:{}},
         });
         const routeEditor=reactive({
             saving:false,dirty:false,revision:0,defaultRouteId:'',frames:[],items:[],selectedId:'',frameId:'',
@@ -1031,11 +1039,27 @@ createApp({
             const status=roaming.context?.runtime_status;
             if(!status)return '未连接';
             if(status.online===false)return '离线';
-            return {disabled:'未启用',available:'可进入',starting:'正在启动',auto_route:'自动路线',manual:'人工接管',god_view:'全局视角',ui_interaction:'界面操作',reload_required:'等待重载',degraded:'降级运行',blocked:'已阻断',offline:'离线'}[status.runtime_state]||status.runtime_state||'未知';
+            return {disabled:'未启用',available:'可进入',starting:'正在启动',auto_route:'自动路线',manual:'人工接管',god_view:'上帝视角',ui_interaction:'界面操作',reload_required:'等待重载',degraded:'降级运行',blocked:'已阻断',offline:'离线'}[status.runtime_state]||status.runtime_state||'未知';
         });
         const cameraModeLabel=computed(()=>{
             const mode=roaming.context.runtime_status?.camera_mode;
-            return {first_person:'第一人称',near_follow:'过肩视角',god:'全局视角'}[mode]||mode||'--';
+            return {first_person:'第一人称',near_follow:'过肩视角',god:'上帝视角'}[mode]||mode||'--';
+        });
+        const minimapStateLabel=computed(()=>{
+            const status=roaming.context?.runtime_status;
+            if(!status||status.online===false)return '等待 UE';
+            const state=status.minimap_state||'disabled';
+            return {disabled:'未开启',waiting:'等待 UE',capturing:'捕获中',ready:'已生效',anchor_missing:'缺少地图视角',anchor_ambiguous:'地图视角重复',capture_failed:'捕获失败'}[state]||state;
+        });
+        const minimapStateDot=computed(()=>{
+            const status=roaming.context?.runtime_status;
+            if(!status||status.online===false)return 'dot-muted';
+            const state=status.minimap_state||'disabled';
+            return state==='ready'?'dot-ok':state==='capturing'?'dot-info':state==='anchor_missing'||state==='anchor_ambiguous'?'dot-warn':state==='capture_failed'?'dot-err':'dot-muted';
+        });
+        const degradedFeatureLabels=computed(()=>{
+            const labels={minimap_anchor_missing:'小地图缺少场景锚点',minimap_anchor_ambiguous:'小地图场景锚点重复',minimap_capture_failed:'小地图生成失败'};
+            return (roaming.context?.runtime_status?.degraded_features||[]).map(item=>labels[item]||item);
         });
 
         function toast(message,type=''){const id=++toastId;toasts.value.push({id,message,type});setTimeout(()=>{toasts.value=toasts.value.filter(item=>item.id!==id)},2600)}
@@ -1043,7 +1067,7 @@ createApp({
         function closeModal(){modal.open=false;modal.action=null}
         function confirmModal(){const action=modal.action;closeModal();if(typeof action==='function')action()}
         function goBack(){
-            const hasDirty=feature.value==='overlay'?(dirty.value||mediaPolicy.dirty):(feature.value==='roaming'?roaming.dirty:routeEditor.dirty);
+            const hasDirty=feature.value==='overlay'?(dirty.value||mediaPolicy.dirty):(feature.value==='roaming'?roaming.dirty:(feature.value==='routes'?routeEditor.dirty:webDirty.value));
             const leave=()=>{suppressBeforeUnload=true;history.length>1?history.back():location.assign('/nexus')};
             if(!hasDirty){leave();return}
             openModal({title:`离开${featureMeta.value.title}`,body:'当前页还有未保存修改。离开后这些修改不会保存。',confirmText:'放弃并离开',action:leave});
@@ -1232,12 +1256,13 @@ createApp({
             return {
                 enabled:Boolean(config.enabled),
                 auto_enter:Boolean(config.auto_enter),
+                minimap:{enabled:config.minimap?.enabled===true},
                 character_id:characterId,
                 allowed_skin_ids:allowed,
                 default_skin_id:defaultSkin,
                 spawn:normalizedSpawn,
                 camera:{
-                    default_mode:config.camera?.default_mode||'near_follow',
+                    default_mode:config.camera?.default_mode||'god',
                     first_person:{
                         eye_height_cm:Number(config.camera?.first_person?.eye_height_cm??165),
                         fov_deg:Number(config.camera?.first_person?.fov_deg??85),
@@ -1289,7 +1314,7 @@ createApp({
                         else if(frame.calibration_fingerprint&&item.spawn.calibration_fingerprint!==frame.calibration_fingerprint)errors.push('空间底图标定已变化，请重新放置人物出生点');
                     }
                 }
-                if(!item.camera?.god?.camera_id)errors.push('请选择全局视角出生相机');
+                if(!item.camera?.god?.camera_id)errors.push('请选择上帝视角出生相机');
                 const first=item.camera?.first_person||{};
                 if(!Number.isFinite(Number(first.eye_height_cm))||Number(first.eye_height_cm)<120||Number(first.eye_height_cm)>210)errors.push('第一人称视点高度应在 120–210 cm');
                 if(!Number.isFinite(Number(first.fov_deg))||Number(first.fov_deg)<60||Number(first.fov_deg)>110)errors.push('第一人称视野角应在 60–110°');
@@ -1799,7 +1824,7 @@ createApp({
                     selectedTypeRid.value=rid&&objectTypes.value.some(item=>item.rid===rid)?rid:(objectTypes.value[0]?.rid||'');
                     if(selectedTypeRid.value){if(target==='instance'&&instanceId){selectedInstanceId.value=instanceId;scope.value='instance';await loadContext({instanceId})}else await loadContext()}
                 }else if(feature.value==='roaming')await loadRoaming();
-                else{routeEditor.frameId=query.get('frame_id')||'';await loadRoutes(query.get('route_id')||'')}
+                else if(feature.value==='routes'){routeEditor.frameId=query.get('frame_id')||'';await loadRoutes(query.get('route_id')||'')}
             }catch(error){toast(error.response?.data?.message||'工作台加载失败','err')}
             finally{
                 loading.value=false;await nextTick();if(feature.value==='overlay')schedulePreview();
@@ -1809,12 +1834,12 @@ createApp({
                     if(event.key==='Escape'&&modal.open){closeModal();return}
                     if(feature.value==='routes'&&event.key==='Delete'&&routeEditor.selectedPoint>=0&&!['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))removeRoutePoint(routeEditor.selectedPoint);
                 });
-                window.addEventListener('beforeunload',event=>{if(!suppressBeforeUnload&&(dirty.value||mediaPolicy.dirty||roaming.dirty||routeEditor.dirty)){event.preventDefault();event.returnValue=''}});
+                window.addEventListener('beforeunload',event=>{if(!suppressBeforeUnload&&(dirty.value||mediaPolicy.dirty||roaming.dirty||routeEditor.dirty||webDirty.value)){event.preventDefault();event.returnValue=''}});
             }
         }
         init();
         return {
-            loading,saving,dirty,feature,featureMeta,roaming,roamingCanvas,roamingFrames,roamingSkins,roamingRouteOptions,selectedRoamingRoute,routeProjectReady,catalogRouteActive,routeSpawnBlocked,routeSpawnBlockMessage,manualSpawnRequired,roamingPointCaption,roamingCanvasFrameCaption,roamingCanvasEmptyText,calibrationLabel,calibrationDot,runtimeStateLabel,cameraModeLabel,modal,mediaPolicy,
+            loading,saving,dirty,webDirty,feature,featureMeta,roaming,roamingCanvas,roamingFrames,roamingSkins,roamingRouteOptions,selectedRoamingRoute,routeProjectReady,catalogRouteActive,routeSpawnBlocked,routeSpawnBlockMessage,manualSpawnRequired,roamingPointCaption,roamingCanvasFrameCaption,roamingCanvasEmptyText,calibrationLabel,calibrationDot,runtimeStateLabel,cameraModeLabel,minimapStateLabel,minimapStateDot,degradedFeatureLabels,modal,mediaPolicy,
             routeEditor,routeCanvas,currentRouteFrame,routeFloorZLabel,routeGroundZLabel,routeLevelLabel,
             typeSearch,filteredTypes,templates,context,draft,selectedTypeRid,selectedInstanceId,previewInstanceId,scope,scopeText,overrideFields,batchIds,batchRestore,preview,previewLoading,previewError,toasts,statusLevels,statusLevelOptions,statusColorOptions,textSlots,currentRevision,
             qualityOptions,isPresentationLocked,requestedQualityLabel,presentationSourceText,previewGauge,
@@ -1822,7 +1847,8 @@ createApp({
             markRoamingDirty,markRoamingDirtyAndDraw,selectRoamingCharacter,isRoamingSkinAllowed,toggleRoamingSkin,setDefaultRoamingSkin,roamingRouteEnabledChanged,roamingRouteChanged,goEditRoamingRoute,roamingFrameChanged,roamingCanonicalChanged,roamingPointerDown,roamingPointerMove,roamingPointerUp,roamingWheel,roamingZoom,roamingFitView,toggleRoamingGrid,refreshRoamingStatus,saveRoaming,
             routeStateLabel,routeStateDot,waypointRole,goCoordinateWorkbench,routeFrameChanged,newRoute,selectRoute,selectRoutePoint,moveRoutePoint,removeRoutePoint,routePointerDown,routePointerMove,routePointerUp,routeWheel,routeZoom,routeFitView,toggleRouteGrid,toggleRouteSnap,toggleRouteOrtho,markRouteDirty,saveRoute,setDefaultRoute,confirmDeleteRoute,
         };
-    }
+    },
+    components:{WebWorkbench:window.OntoTwinWebWorkbench},
 }).mount('#app');
 </script>
 </body>

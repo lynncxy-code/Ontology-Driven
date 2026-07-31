@@ -455,6 +455,13 @@ void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool 
         TwinDisplayName = SnapshotDisplayName;
     }
 
+    const TSharedPtr<FJsonObject>* RuntimeEditorObj = nullptr;
+    if (Snapshot->TryGetObjectField(TEXT("runtimeEditor"), RuntimeEditorObj) && RuntimeEditorObj)
+    {
+        (*RuntimeEditorObj)->TryGetBoolField(TEXT("spatialEditable"), bRuntimeSpatialEditable);
+        (*RuntimeEditorObj)->TryGetStringField(TEXT("stateHash"), RuntimeEditStateHash);
+    }
+
     const TSharedPtr<FJsonObject>* InterfacesObj;
     if (!Snapshot->TryGetObjectField(TEXT("interfaces"), InterfacesObj))
     {
@@ -1588,7 +1595,24 @@ void ATwinInstance::ApplyRepresentableFromSnapshot(const TSharedPtr<FJsonObject>
     bool bVisible = true;
     RepObj->TryGetBoolField(TEXT("is_visible"), bVisible);
 
-    if (bHasRenderParts)
+    if (!bRuntimeEditorLoadedOverride)
+    {
+        bRuntimeLoaded = bVisible;
+    }
+    ApplyRuntimeLoadedVisibility(bRuntimeEditorLoadedOverride ? bRuntimeLoaded : bVisible);
+
+    // ── 旧版单 Mesh 资产热更换 ───────────────────────────────────────────
+    if (!bHasRenderParts && bAssetChanged && bInitialized && bRuntimeLoaded)
+    {
+        LoadMeshFromPath(AssetPath);
+    }
+}
+
+void ATwinInstance::ApplyRuntimeLoadedVisibility(bool bVisible)
+{
+    bRuntimeLoaded = bVisible;
+
+    if (bAssemblyRenderActive)
     {
         // 复合实例保留已加载的部件资产，只切换组件显隐；再次可见时无需整组重建。
         for (int32 PartIndex = 0; PartIndex < RenderPartComponents.Num(); ++PartIndex)
@@ -1618,12 +1642,17 @@ void ATwinInstance::ApplyRepresentableFromSnapshot(const TSharedPtr<FJsonObject>
         UE_LOG(LogTemp, Log, TEXT("[孪生体] 重新加载进入场景: %s"), *InstanceId);
     }
     // 强制把原先在这的 SetActorHiddenInGame 移除，交由 I3D_Visual 去处理纯粹的显隐
+}
 
-    // ── 旧版单 Mesh 资产热更换 ───────────────────────────────────────────
-    if (!bHasRenderParts && bAssetChanged && bInitialized)
-    {
-        LoadMeshFromPath(AssetPath);
-    }
+void ATwinInstance::SetRuntimeEditorLoadedOverride(bool bLoaded)
+{
+    bRuntimeEditorLoadedOverride = true;
+    ApplyRuntimeLoadedVisibility(bLoaded);
+}
+
+void ATwinInstance::ClearRuntimeEditorLoadedOverride()
+{
+    bRuntimeEditorLoadedOverride = false;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

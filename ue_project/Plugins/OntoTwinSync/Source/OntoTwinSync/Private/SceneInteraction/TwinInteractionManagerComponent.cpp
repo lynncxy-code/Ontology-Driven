@@ -1,6 +1,7 @@
 #include "SceneInteraction/TwinInteractionManagerComponent.h"
 
 #include "SceneInteraction/OntoTwinCrosshairWidget.h"
+#include "SceneInteraction/Minimap/TwinMinimapAnchor.h"
 #include "SceneInteraction/OntoTwinRoamingHUDWidget.h"
 #include "SceneInteraction/TwinCameraModeComponent.h"
 #include "SceneInteraction/TwinGodViewPawn.h"
@@ -14,19 +15,25 @@
 
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
+#include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/LightComponent.h"
+#include "Components/SceneCaptureComponent2D.h"
 #include "Components/SplineComponent.h"
 #include "Dom/JsonValue.h"
 #include "Engine/AssetManager.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/Level.h"
+#include "Engine/Light.h"
 #include "Engine/OverlapResult.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
 #include "HttpModule.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
@@ -34,10 +41,13 @@
 #include "InputModifiers.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Kismet/GameplayStatics.h"
+#include "PixelFormat.h"
+#include "SceneView.h"
 #include "Widgets/Layout/Anchors.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "TimerManager.h"
 
 namespace
 {
@@ -85,6 +95,77 @@ FString NormalizeLevelPackageName(FString Value)
     return Prefix + Leaf;
 }
 
+bool ParseRuntimeRouteObject(
+    const TSharedPtr<FJsonObject>& Object,
+    FTwinRoamingRuntimeRoute& OutRoute)
+{
+    if (!Object.IsValid()) return false;
+    OutRoute.RouteId = StringOr(Object, TEXT("route_id"));
+    OutRoute.DisplayName = StringOr(
+        Object, TEXT("display_name"), OutRoute.RouteId);
+    OutRoute.bDefault = BoolOr(Object, TEXT("is_default"), false);
+    OutRoute.Revision = FMath::Max(
+        0, FMath::RoundToInt(NumberOr(Object, TEXT("route_revision"), 0.0)));
+    OutRoute.Level = NormalizeLevelPackageName(StringOr(Object, TEXT("ue_level")));
+    OutRoute.GroundZHintCm = NumberOr(
+        Object, TEXT("floor_ground_z_hint_cm"), 0.0);
+    OutRoute.SpeedCmS = NumberOr(Object, TEXT("speed_cm_s"), 180.0);
+    OutRoute.bLoop = BoolOr(Object, TEXT("loop"), false);
+
+    const TArray<TSharedPtr<FJsonValue>>* Waypoints = nullptr;
+    if (OutRoute.RouteId.IsEmpty()
+        || !Object->TryGetArrayField(TEXT("waypoints_ue_cm"), Waypoints)
+        || !Waypoints || Waypoints->Num() < 2)
+    {
+        return false;
+    }
+    for (const TSharedPtr<FJsonValue>& Value : *Waypoints)
+    {
+        if (!Value.IsValid() || Value->Type != EJson::Array) return false;
+        const TArray<TSharedPtr<FJsonValue>>& Coordinates = Value->AsArray();
+        if (Coordinates.Num() < 3
+            || !Coordinates[0].IsValid() || Coordinates[0]->Type != EJson::Number
+            || !Coordinates[1].IsValid() || Coordinates[1]->Type != EJson::Number
+            || !Coordinates[2].IsValid() || Coordinates[2]->Type != EJson::Number)
+        {
+            return false;
+        }
+        const FVector Point(
+            Coordinates[0]->AsNumber(),
+            Coordinates[1]->AsNumber(),
+            Coordinates[2]->AsNumber());
+        if (Point.ContainsNaN()) return false;
+        OutRoute.Points.Add(Point);
+    }
+    return true;
+}
+
+void ApplyRuntimeRouteToConfig(
+    FTwinRoamingRuntimeConfig& Config,
+    const FTwinRoamingRuntimeRoute& Route)
+{
+    Config.bRouteEnabled = true;
+    Config.bHasRuntimeRoute = true;
+    Config.RouteId = Route.RouteId;
+    Config.RouteDisplayName = Route.DisplayName;
+    Config.RuntimeRouteRevision = Route.Revision;
+    Config.RuntimeRouteLevel = Route.Level;
+    Config.RuntimeRouteGroundZHintCm = Route.GroundZHintCm;
+    Config.Movement.AutoRouteSpeedCmS = Route.SpeedCmS;
+    Config.bRouteLoop = Route.bLoop;
+    Config.RuntimeRoutePoints = Route.Points;
+}
+
+const FTwinRoamingRuntimeRoute* FindRuntimeRoute(
+    const TArray<FTwinRoamingRuntimeRoute>& Routes,
+    const FString& RouteId)
+{
+    return Routes.FindByPredicate([&RouteId](const FTwinRoamingRuntimeRoute& Route)
+    {
+        return Route.RouteId == RouteId;
+    });
+}
+
 FString CameraModeId(ETwinRoamingCameraMode Mode)
 {
     if (Mode == ETwinRoamingCameraMode::FirstPerson) return TEXT("first_person");
@@ -95,7 +176,7 @@ FString CameraModeId(ETwinRoamingCameraMode Mode)
 FString CameraModeLabel(ETwinRoamingCameraMode Mode)
 {
     if (Mode == ETwinRoamingCameraMode::FirstPerson) return TEXT("第一人称");
-    if (Mode == ETwinRoamingCameraMode::God) return TEXT("全局视角");
+    if (Mode == ETwinRoamingCameraMode::God) return TEXT("上帝视角");
     return TEXT("过肩视角");
 }
 
@@ -130,6 +211,7 @@ void UTwinInteractionManagerComponent::BeginPlay()
         return;
     }
     SetupInput();
+    ApplyStartupView();
     PollRuntimeProjection();
 }
 
@@ -151,7 +233,11 @@ void UTwinInteractionManagerComponent::TickComponent(
     if (!PlayerController)
     {
         PlayerController = UGameplayStatics::GetPlayerController(this, 0);
-        if (PlayerController) SetupInput();
+        if (PlayerController)
+        {
+            SetupInput();
+            ApplyStartupView();
+        }
     }
 
     PollAccumulator += DeltaTime;
@@ -181,6 +267,7 @@ void UTwinInteractionManagerComponent::TickComponent(
         TickFallbackInput(DeltaTime);
     }
     UpdateCrosshairTarget();
+    UpdateMinimapMarker(DeltaTime);
     RefreshHud();
 }
 
@@ -285,6 +372,8 @@ bool UTwinInteractionManagerComponent::ParseRuntimeConfig(
     if (!Config.IsValid()) return false;
     OutConfig.bEnabled = BoolOr(Config, TEXT("enabled"), false);
     OutConfig.bAutoEnter = BoolOr(Config, TEXT("auto_enter"), false);
+    const TSharedPtr<FJsonObject> Minimap = GetObject(Config, TEXT("minimap"));
+    OutConfig.bMinimapEnabled = BoolOr(Minimap, TEXT("enabled"), false);
     OutConfig.CharacterId = StringOr(Config, TEXT("character_id"));
     OutConfig.DefaultSkinId = StringOr(Config, TEXT("default_skin_id"));
 
@@ -318,7 +407,7 @@ bool UTwinInteractionManagerComponent::ParseRuntimeConfig(
     }
     else
     {
-        OutConfig.DefaultCameraMode = ETwinRoamingCameraMode::NearFollow;
+        OutConfig.DefaultCameraMode = ETwinRoamingCameraMode::God;
     }
     const TSharedPtr<FJsonObject> FirstPerson = GetObject(Camera, TEXT("first_person"));
     OutConfig.FirstPersonCamera.EyeHeightCm = NumberOr(
@@ -369,42 +458,43 @@ bool UTwinInteractionManagerComponent::ParseRuntimeConfig(
     const TSharedPtr<FJsonObject> RuntimeRoute = GetObject(Payload, TEXT("runtime_route"));
     if (OutConfig.bRouteEnabled && RuntimeRoute.IsValid())
     {
-        OutConfig.RouteId = StringOr(RuntimeRoute, TEXT("route_id"), OutConfig.RouteId);
-        OutConfig.RuntimeRouteRevision = FMath::Max(
-            0, FMath::RoundToInt(NumberOr(RuntimeRoute, TEXT("route_revision"), 0.0)));
-        OutConfig.RuntimeRouteLevel = NormalizeLevelPackageName(
-            StringOr(RuntimeRoute, TEXT("ue_level")));
-        OutConfig.RuntimeRouteGroundZHintCm = NumberOr(
-            RuntimeRoute, TEXT("floor_ground_z_hint_cm"), 0.0);
-        OutConfig.bRouteLoop = BoolOr(RuntimeRoute, TEXT("loop"), OutConfig.bRouteLoop);
-        OutConfig.Movement.AutoRouteSpeedCmS = NumberOr(
-            RuntimeRoute, TEXT("speed_cm_s"), OutConfig.Movement.AutoRouteSpeedCmS);
+        FTwinRoamingRuntimeRoute DefaultRoute;
+        if (!ParseRuntimeRouteObject(RuntimeRoute, DefaultRoute)) return false;
+        DefaultRoute.DisplayName = OutConfig.RouteDisplayName.IsEmpty()
+            ? DefaultRoute.DisplayName : OutConfig.RouteDisplayName;
+        DefaultRoute.bDefault = true;
+        ApplyRuntimeRouteToConfig(OutConfig, DefaultRoute);
+    }
 
-        const TArray<TSharedPtr<FJsonValue>>* Waypoints = nullptr;
-        if (!RuntimeRoute->TryGetArrayField(TEXT("waypoints_ue_cm"), Waypoints)
-            || !Waypoints || Waypoints->Num() < 2)
+    const TArray<TSharedPtr<FJsonValue>>* AvailableRoutes = nullptr;
+    if (Payload->TryGetArrayField(TEXT("available_routes"), AvailableRoutes)
+        && AvailableRoutes)
+    {
+        for (const TSharedPtr<FJsonValue>& Value : *AvailableRoutes)
         {
-            return false;
-        }
-        for (const TSharedPtr<FJsonValue>& Value : *Waypoints)
-        {
-            if (!Value.IsValid() || Value->Type != EJson::Array) return false;
-            const TArray<TSharedPtr<FJsonValue>>& Coordinates = Value->AsArray();
-            if (Coordinates.Num() < 3
-                || !Coordinates[0].IsValid() || Coordinates[0]->Type != EJson::Number
-                || !Coordinates[1].IsValid() || Coordinates[1]->Type != EJson::Number
-                || !Coordinates[2].IsValid() || Coordinates[2]->Type != EJson::Number)
+            const TSharedPtr<FJsonObject> RouteObject =
+                Value.IsValid() ? Value->AsObject() : nullptr;
+            FTwinRoamingRuntimeRoute Route;
+            if (ParseRuntimeRouteObject(RouteObject, Route))
             {
-                return false;
+                OutConfig.AvailableRoutes.Add(MoveTemp(Route));
             }
-            const FVector Point(
-                Coordinates[0]->AsNumber(),
-                Coordinates[1]->AsNumber(),
-                Coordinates[2]->AsNumber());
-            if (Point.ContainsNaN()) return false;
-            OutConfig.RuntimeRoutePoints.Add(Point);
         }
-        OutConfig.bHasRuntimeRoute = true;
+    }
+    if (OutConfig.bHasRuntimeRoute
+        && !FindRuntimeRoute(OutConfig.AvailableRoutes, OutConfig.RouteId))
+    {
+        FTwinRoamingRuntimeRoute DefaultRoute;
+        DefaultRoute.RouteId = OutConfig.RouteId;
+        DefaultRoute.DisplayName = OutConfig.RouteDisplayName;
+        DefaultRoute.bDefault = true;
+        DefaultRoute.Revision = OutConfig.RuntimeRouteRevision;
+        DefaultRoute.Level = OutConfig.RuntimeRouteLevel;
+        DefaultRoute.GroundZHintCm = OutConfig.RuntimeRouteGroundZHintCm;
+        DefaultRoute.SpeedCmS = OutConfig.Movement.AutoRouteSpeedCmS;
+        DefaultRoute.bLoop = OutConfig.bRouteLoop;
+        DefaultRoute.Points = OutConfig.RuntimeRoutePoints;
+        OutConfig.AvailableRoutes.Insert(MoveTemp(DefaultRoute), 0);
     }
     const TSharedPtr<FJsonObject> CameraResource = GetObject(Resources, TEXT("god_camera"));
     OutConfig.GodCamera.CameraId = StringOr(
@@ -431,6 +521,20 @@ void UTwinInteractionManagerComponent::HandleRuntimeProjection(const TSharedPtr<
     BindingWarning = BindingMode == TEXT("unbound_dev")
         ? StringOr(Binding, TEXT("warning"), TEXT("当前项目尚未绑定 UE 工程")) : FString();
 
+    if (Incoming.bEnabled && !SessionSelectedRouteId.IsEmpty())
+    {
+        const FTwinRoamingRuntimeRoute* SessionRoute = FindRuntimeRoute(
+            Incoming.AvailableRoutes, SessionSelectedRouteId);
+        if (SessionRoute && IsRuntimeRouteForCurrentLevel(*SessionRoute))
+        {
+            ApplyRuntimeRouteToConfig(Incoming, *SessionRoute);
+        }
+        else
+        {
+            SessionSelectedRouteId.Reset();
+        }
+    }
+
     CatalogVersion = IncomingCatalogVersion;
     if (!Incoming.bEnabled)
     {
@@ -438,6 +542,7 @@ void UTwinInteractionManagerComponent::HandleRuntimeProjection(const TSharedPtr<
         AppliedRevision = Revision;
         RuntimeToken = Token;
         if (bRoamingActive) ExitRoaming();
+        else ApplyMinimapConfig(false);
         RuntimeState = BlockedReason.IsEmpty() ? TEXT("disabled") : TEXT("blocked");
         LastError = BlockedReason;
         return;
@@ -450,6 +555,7 @@ void UTwinInteractionManagerComponent::HandleRuntimeProjection(const TSharedPtr<
         RuntimeToken = Token;
         RuntimeState = TEXT("available");
         LastError.Reset();
+        ApplyMinimapConfig(CurrentConfig.bMinimapEnabled);
         if (Incoming.bAutoEnter && !bDefaultModeApplied)
         {
             FString Error;
@@ -500,6 +606,7 @@ bool UTwinInteractionManagerComponent::IsStructuralChange(
 void UTwinInteractionManagerComponent::ApplyHotConfig(const FTwinRoamingRuntimeConfig& Config)
 {
     bTakeoverEnabled = Config.bTakeoverEnabled;
+    ApplyMinimapConfig(Config.bMinimapEnabled);
     if (!RoamingCharacter) return;
     RoamingCharacter->ApplyMovementSettings(Config.Movement);
     RoamingCharacter->CameraMode->Configure(
@@ -813,6 +920,17 @@ ATwinRoamingRoute* UTwinInteractionManagerComponent::BuildRuntimeRoute(FString& 
     return RuntimeRouteActor;
 }
 
+bool UTwinInteractionManagerComponent::IsRuntimeRouteForCurrentLevel(
+    const FTwinRoamingRuntimeRoute& Route) const
+{
+    if (!GetWorld() || !GetWorld()->PersistentLevel) return false;
+    const FString CurrentLevel = NormalizeLevelPackageName(
+        GetWorld()->PersistentLevel->GetOutermost()->GetName());
+    const FString RequiredLevel = NormalizeLevelPackageName(Route.Level);
+    return !RequiredLevel.IsEmpty()
+        && CurrentLevel.Equals(RequiredLevel, ESearchCase::CaseSensitive);
+}
+
 void UTwinInteractionManagerComponent::DestroyRuntimeRoute()
 {
     if (ActiveRoute == RuntimeRouteActor) ActiveRoute = nullptr;
@@ -840,6 +958,327 @@ ATwinGodViewAnchor* UTwinInteractionManagerComponent::FindGodViewAnchor(const FS
     return nullptr;
 }
 
+void UTwinInteractionManagerComponent::ApplyStartupView(bool bForce)
+{
+    if (!PlayerController || (!bForce && bRoamingActive)
+        || StartupViewCameraId.IsEmpty())
+    {
+        return;
+    }
+    if (!StartupViewAnchor || !IsValid(StartupViewAnchor)
+        || StartupViewAnchor->CameraId != StartupViewCameraId)
+    {
+        StartupViewAnchor = FindGodViewAnchor(StartupViewCameraId);
+    }
+    if (!StartupViewAnchor) return;
+    if (PlayerController->GetViewTarget() != StartupViewAnchor)
+    {
+        PlayerController->SetViewTarget(StartupViewAnchor);
+    }
+}
+
+ATwinMinimapAnchor* UTwinInteractionManagerComponent::FindMinimapAnchor(
+    FString& OutState) const
+{
+    OutState = TEXT("anchor_missing");
+    if (!GetWorld()) return nullptr;
+
+    ATwinMinimapAnchor* Match = nullptr;
+    int32 MatchCount = 0;
+    for (TActorIterator<ATwinMinimapAnchor> It(GetWorld()); It; ++It)
+    {
+        if (It->MinimapId != TEXT("minimap.default")) continue;
+        Match = *It;
+        ++MatchCount;
+    }
+    if (MatchCount == 1) return Match;
+    if (MatchCount > 1) OutState = TEXT("anchor_ambiguous");
+    return nullptr;
+}
+
+void UTwinInteractionManagerComponent::SetMinimapState(const FString& State)
+{
+    MinimapState = State;
+    DegradedFeatures.Remove(TEXT("minimap_anchor_missing"));
+    DegradedFeatures.Remove(TEXT("minimap_anchor_ambiguous"));
+    DegradedFeatures.Remove(TEXT("minimap_capture_failed"));
+    if (State == TEXT("anchor_missing"))
+    {
+        DegradedFeatures.AddUnique(TEXT("minimap_anchor_missing"));
+    }
+    else if (State == TEXT("anchor_ambiguous"))
+    {
+        DegradedFeatures.AddUnique(TEXT("minimap_anchor_ambiguous"));
+    }
+    else if (State == TEXT("capture_failed"))
+    {
+        DegradedFeatures.AddUnique(TEXT("minimap_capture_failed"));
+    }
+}
+
+void UTwinInteractionManagerComponent::ShutdownMinimap(bool bResetState)
+{
+    if (RoamingHUD) RoamingHUD->ClearMinimap();
+    if (MinimapCapture)
+    {
+        MinimapCapture->TextureTarget = nullptr;
+        if (AActor* OwnerActor = GetOwner())
+        {
+            OwnerActor->RemoveInstanceComponent(MinimapCapture);
+        }
+        MinimapCapture->DestroyComponent();
+    }
+    MinimapCapture = nullptr;
+    MinimapRenderTarget = nullptr;
+    MinimapAnchor = nullptr;
+    MinimapViewProjection = FMatrix::Identity;
+    MinimapCaptureSize = FIntPoint::ZeroValue;
+    MinimapMarkerAccumulator = 0.0f;
+    if (bResetState) SetMinimapState(TEXT("disabled"));
+}
+
+void UTwinInteractionManagerComponent::ApplyMinimapConfig(bool bEnabled)
+{
+    if (!bEnabled || !CurrentConfig.bEnabled)
+    {
+        ShutdownMinimap(true);
+        return;
+    }
+    if (!bRoamingActive || !RoamingCharacter || !RoamingHUD)
+    {
+        ShutdownMinimap(false);
+        SetMinimapState(TEXT("waiting"));
+        return;
+    }
+    if (MinimapState == TEXT("ready")
+        && MinimapAnchor && MinimapRenderTarget && MinimapCapture)
+    {
+        return;
+    }
+
+    ShutdownMinimap(false);
+    FString Error;
+    if (!InitializeMinimap(Error))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("OntoTwin minimap unavailable: %s"), *Error);
+    }
+}
+
+bool UTwinInteractionManagerComponent::InitializeMinimap(FString& OutError)
+{
+    SetMinimapState(TEXT("capturing"));
+    FString AnchorState;
+    MinimapAnchor = FindMinimapAnchor(AnchorState);
+    if (!MinimapAnchor)
+    {
+        SetMinimapState(AnchorState);
+        OutError = AnchorState == TEXT("anchor_ambiguous")
+            ? TEXT("Multiple minimap.default anchors exist in the current world")
+            : TEXT("TwinMinimapAnchor minimap.default is missing in the current world");
+        return false;
+    }
+
+    UCameraComponent* AnchorCamera = MinimapAnchor->GetCameraComponent();
+    AActor* OwnerActor = GetOwner();
+    if (!AnchorCamera || !OwnerActor || !GetWorld())
+    {
+        SetMinimapState(TEXT("capture_failed"));
+        OutError = TEXT("Minimap camera or owner is unavailable");
+        return false;
+    }
+
+    MinimapCaptureSize.X = FMath::Clamp(MinimapAnchor->CaptureWidth, 256, 2048);
+    MinimapCaptureSize.Y = FMath::Clamp(MinimapAnchor->CaptureHeight, 256, 2048);
+    MinimapRenderTarget = NewObject<UTextureRenderTarget2D>(
+        this, NAME_None, RF_Transient);
+    if (!MinimapRenderTarget)
+    {
+        SetMinimapState(TEXT("capture_failed"));
+        OutError = TEXT("Minimap render target could not be created");
+        return false;
+    }
+    MinimapRenderTarget->ClearColor = FLinearColor::Black;
+    MinimapRenderTarget->InitCustomFormat(
+        MinimapCaptureSize.X,
+        MinimapCaptureSize.Y,
+        PF_B8G8R8A8,
+        false);
+    MinimapRenderTarget->UpdateResourceImmediate(true);
+    if (!MinimapRenderTarget->GameThread_GetRenderTargetResource())
+    {
+        ShutdownMinimap(false);
+        SetMinimapState(TEXT("capture_failed"));
+        OutError = TEXT("Minimap render target resource is unavailable");
+        return false;
+    }
+
+    MinimapCapture = NewObject<USceneCaptureComponent2D>(
+        OwnerActor, NAME_None, RF_Transient);
+    if (!MinimapCapture)
+    {
+        ShutdownMinimap(false);
+        SetMinimapState(TEXT("capture_failed"));
+        OutError = TEXT("Minimap scene capture could not be created");
+        return false;
+    }
+    OwnerActor->AddInstanceComponent(MinimapCapture);
+    MinimapCapture->SetWorldTransform(MinimapAnchor->GetActorTransform());
+    MinimapCapture->TextureTarget = MinimapRenderTarget;
+    MinimapCapture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+    MinimapCapture->bCaptureEveryFrame = false;
+    MinimapCapture->bCaptureOnMovement = false;
+    MinimapCapture->bAlwaysPersistRenderingState = false;
+    MinimapCapture->ProjectionType = AnchorCamera->ProjectionMode;
+    MinimapCapture->FOVAngle = AnchorCamera->FieldOfView;
+    MinimapCapture->OrthoWidth = AnchorCamera->OrthoWidth;
+    MinimapCapture->bAutoCalculateOrthoPlanes = AnchorCamera->bAutoCalculateOrthoPlanes;
+    MinimapCapture->AutoPlaneShift = AnchorCamera->AutoPlaneShift;
+    MinimapCapture->bUpdateOrthoPlanes = AnchorCamera->bUpdateOrthoPlanes;
+    MinimapCapture->bUseCameraHeightAsViewTarget = AnchorCamera->bUseCameraHeightAsViewTarget;
+    MinimapCapture->PostProcessSettings = AnchorCamera->PostProcessSettings;
+    MinimapCapture->PostProcessBlendWeight = AnchorCamera->PostProcessBlendWeight;
+    MinimapCapture->HiddenActors.Add(RoamingCharacter);
+    if (RoamingCharacter->CameraMode)
+    {
+        if (ATwinGodViewPawn* GodPawn = RoamingCharacter->CameraMode->GetGodPawn())
+        {
+            MinimapCapture->HiddenActors.Add(GodPawn);
+        }
+    }
+
+    FMinimalViewInfo ViewInfo;
+    AnchorCamera->GetCameraView(0.0f, ViewInfo);
+    const float VisibleFraction = 1.0f - 2.0f * FMath::Clamp(
+        MinimapAnchor->CropFractionPerEdge, 0.0f, 0.45f);
+    if (ViewInfo.ProjectionMode == ECameraProjectionMode::Perspective)
+    {
+        const float HalfFovRadians = FMath::DegreesToRadians(
+            FMath::Clamp(ViewInfo.FOV, 5.0f, 170.0f)) * 0.5f;
+        ViewInfo.FOV = FMath::RadiansToDegrees(
+            2.0f * FMath::Atan(FMath::Tan(HalfFovRadians) * VisibleFraction));
+        MinimapCapture->FOVAngle = ViewInfo.FOV;
+    }
+    else
+    {
+        ViewInfo.OrthoWidth *= VisibleFraction;
+        MinimapCapture->OrthoWidth = ViewInfo.OrthoWidth;
+    }
+    ViewInfo.AspectRatio = static_cast<float>(MinimapCaptureSize.X)
+        / static_cast<float>(MinimapCaptureSize.Y);
+    ViewInfo.bConstrainAspectRatio = false;
+    MinimapCapture->bUseCustomProjectionMatrix = true;
+    MinimapCapture->CustomProjectionMatrix = ViewInfo.CalculateProjectionMatrix();
+    const FMatrix ProjectionMatrix = AdjustProjectionMatrixForRHI(
+        MinimapCapture->CustomProjectionMatrix);
+    const FMatrix ViewRotationMatrix = FInverseRotationMatrix(ViewInfo.Rotation) * FMatrix(
+        FPlane(0, 0, 1, 0),
+        FPlane(1, 0, 0, 0),
+        FPlane(0, 1, 0, 0),
+        FPlane(0, 0, 0, 1));
+    const FMatrix ViewMatrix = FTranslationMatrix(-ViewInfo.Location) * ViewRotationMatrix;
+    MinimapViewProjection = ViewMatrix * ProjectionMatrix;
+
+    MinimapCapture->RegisterComponent();
+
+    TArray<TWeakObjectPtr<ULightComponent>> SuppressedLights;
+    if (!MinimapAnchor->CaptureSuppressedLightTag.IsNone())
+    {
+        for (TActorIterator<ALight> It(GetWorld()); It; ++It)
+        {
+            ALight* LightActor = *It;
+            ULightComponent* LightComponent = LightActor
+                ? LightActor->GetLightComponent()
+                : nullptr;
+            if (LightActor
+                && LightActor->ActorHasTag(MinimapAnchor->CaptureSuppressedLightTag)
+                && LightComponent
+                && LightComponent->IsVisible())
+            {
+                SuppressedLights.Add(LightComponent);
+                LightComponent->SetVisibility(false);
+            }
+        }
+    }
+
+    MinimapCapture->CaptureScene();
+
+    // CaptureScene pushes the hidden-light state before submitting this one-shot capture.
+    // Restore immediately so the main viewport never inherits the minimap-only lighting.
+    for (const TWeakObjectPtr<ULightComponent>& LightComponent : SuppressedLights)
+    {
+        if (LightComponent.IsValid())
+        {
+            LightComponent->SetVisibility(true);
+        }
+    }
+
+    RoamingHUD->SetMinimapTexture(MinimapRenderTarget, MinimapCaptureSize);
+    SetMinimapState(TEXT("ready"));
+    MinimapMarkerAccumulator = 1000.0f;
+    return true;
+}
+
+bool UTwinInteractionManagerComponent::ProjectMinimapPoint(
+    const FVector& WorldPoint,
+    FVector2D& OutUV) const
+{
+    if (MinimapState != TEXT("ready")
+        || MinimapCaptureSize.X <= 0 || MinimapCaptureSize.Y <= 0)
+    {
+        return false;
+    }
+    FVector2D Pixel;
+    const FIntRect ViewRect(0, 0, MinimapCaptureSize.X, MinimapCaptureSize.Y);
+    if (!FSceneView::ProjectWorldToScreen(
+        WorldPoint, ViewRect, MinimapViewProjection, Pixel))
+    {
+        return false;
+    }
+    OutUV.X = Pixel.X / static_cast<float>(MinimapCaptureSize.X);
+    OutUV.Y = Pixel.Y / static_cast<float>(MinimapCaptureSize.Y);
+    return FMath::IsFinite(OutUV.X) && FMath::IsFinite(OutUV.Y);
+}
+
+void UTwinInteractionManagerComponent::UpdateMinimapMarker(float DeltaTime)
+{
+    if (MinimapState != TEXT("ready") || !RoamingHUD
+        || !RoamingCharacter || !IsValid(RoamingCharacter))
+    {
+        return;
+    }
+    MinimapMarkerAccumulator += DeltaTime;
+    if (MinimapMarkerAccumulator < 0.05f) return;
+    MinimapMarkerAccumulator = 0.0f;
+
+    float CapsuleHalfHeight = 0.0f;
+    if (const UCapsuleComponent* Capsule = RoamingCharacter->GetCapsuleComponent())
+    {
+        CapsuleHalfHeight = Capsule->GetScaledCapsuleHalfHeight();
+    }
+    const FVector FootLocation = RoamingCharacter->GetActorLocation()
+        - FVector(0.0f, 0.0f, CapsuleHalfHeight);
+    const FVector Forward = RoamingCharacter->GetActorForwardVector().GetSafeNormal2D();
+    FVector2D UV;
+    FVector2D ForwardUV;
+    if (!ProjectMinimapPoint(FootLocation, UV)
+        || !ProjectMinimapPoint(FootLocation + Forward * 100.0f, ForwardUV))
+    {
+        RoamingHUD->HideMinimapMarker();
+        return;
+    }
+
+    const bool bOffMap = UV.X < 0.0f || UV.X > 1.0f || UV.Y < 0.0f || UV.Y > 1.0f;
+    const FVector2D MarkerUV(
+        FMath::Clamp(UV.X, 0.05f, 0.95f),
+        FMath::Clamp(UV.Y, 0.05f, 0.95f));
+    FVector2D Direction = bOffMap ? UV - MarkerUV : ForwardUV - UV;
+    if (Direction.IsNearlyZero()) Direction = FVector2D(1.0f, 0.0f);
+    Direction.Normalize();
+    const float AngleDegrees = FMath::RadiansToDegrees(
+        FMath::Atan2(Direction.Y, Direction.X));
+    RoamingHUD->SetMinimapMarker(MarkerUV, AngleDegrees, bOffMap);
+}
+
 bool UTwinInteractionManagerComponent::GetGodViewTransform(FTransform& OutTransform) const
 {
     const FString CameraId = CurrentConfig.GodCamera.CameraId.IsEmpty()
@@ -851,6 +1290,23 @@ bool UTwinInteractionManagerComponent::GetGodViewTransform(FTransform& OutTransf
     if (!Anchor) return false;
 
     OutTransform = Anchor->GetActorTransform();
+    return true;
+}
+
+bool UTwinInteractionManagerComponent::GetGodViewLookSensitivity(float& OutSensitivity) const
+{
+    if (AppliedRevision < 0)
+    {
+        return false;
+    }
+
+    const float Sensitivity = CurrentConfig.GodCamera.LookSensitivity;
+    if (!FMath::IsFinite(Sensitivity) || Sensitivity <= 0.0f)
+    {
+        return false;
+    }
+
+    OutSensitivity = FMath::Clamp(Sensitivity, 0.1f, 5.0f);
     return true;
 }
 
@@ -959,6 +1415,7 @@ bool UTwinInteractionManagerComponent::EnterRoaming(FString& OutError)
     ActivateRoamingInput();
     bDefaultModeApplied = true;
     CreateHud();
+    ApplyMinimapConfig(CurrentConfig.bMinimapEnabled);
 
     if (ActiveRoute && CurrentConfig.bRouteAutoStart)
     {
@@ -1017,12 +1474,17 @@ void UTwinInteractionManagerComponent::RestoreOriginalPawn()
         PlayerController->UnPossess();
     }
     OriginalPawn = nullptr;
+    ApplyStartupView(true);
 }
 
 void UTwinInteractionManagerComponent::ExitRoaming()
 {
+    CancelRuntimeRouteSwitch(true);
     if (!bRoamingActive && !RoamingCharacter)
     {
+        ShutdownMinimap(false);
+        SetMinimapState(CurrentConfig.bEnabled && CurrentConfig.bMinimapEnabled
+            ? TEXT("waiting") : TEXT("disabled"));
         DeactivateRoamingInput();
         DestroyHud();
         DestroyRuntimeRoute();
@@ -1031,6 +1493,7 @@ void UTwinInteractionManagerComponent::ExitRoaming()
     SetHudInteraction(false);
     DeactivateRoamingInput();
     if (SceneManager) SceneManager->ClearOverlayFromSceneInteraction();
+    ShutdownMinimap(false);
     if (RoamingCharacter && IsValid(RoamingCharacter))
     {
         RoamingCharacter->CameraMode->Shutdown(PlayerController);
@@ -1046,6 +1509,8 @@ void UTwinInteractionManagerComponent::ExitRoaming()
     GodViewAnchor = nullptr;
     bRoamingActive = false;
     bHudInteraction = false;
+    SetMinimapState(CurrentConfig.bEnabled && CurrentConfig.bMinimapEnabled
+        ? TEXT("waiting") : TEXT("disabled"));
     DestroyHud();
     RuntimeState = CurrentConfig.bEnabled
         ? (bBackendOnline ? TEXT("available") : TEXT("offline"))
@@ -1197,6 +1662,144 @@ void UTwinInteractionManagerComponent::RestartRoute()
         DegradedFeatures.Remove(TEXT("route_join_rejected"));
     }
     RefreshHud();
+}
+
+bool UTwinInteractionManagerComponent::SelectRuntimeRoute(const FString& RouteId)
+{
+    if (!bRoamingActive || !RoamingCharacter || bRouteSwitchInProgress)
+    {
+        return false;
+    }
+    const FTwinRoamingRuntimeRoute* Route = FindRuntimeRoute(
+        CurrentConfig.AvailableRoutes, RouteId);
+    if (!Route)
+    {
+        LastError = TEXT("所选漫游路线当前不可用");
+        RefreshHud();
+        return false;
+    }
+    if (!IsRuntimeRouteForCurrentLevel(*Route))
+    {
+        LastError = TEXT("所选漫游路线不属于当前 UE 关卡");
+        RefreshHud();
+        return false;
+    }
+    if (RouteId == CurrentConfig.RouteId)
+    {
+        return true;
+    }
+
+    RoamingCharacter->RouteFollower->PauseByUser();
+    PendingRouteSwitchId = RouteId;
+    bRouteSwitchInProgress = true;
+    LastError.Reset();
+    SetHudInteraction(false);
+
+    if (PlayerController && PlayerController->PlayerCameraManager)
+    {
+        PlayerController->PlayerCameraManager->StartCameraFade(
+            0.0f, 1.0f, 0.20f, FLinearColor::Black, false, true);
+    }
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().SetTimer(
+            RouteSwitchTimer,
+            this,
+            &UTwinInteractionManagerComponent::CompleteRuntimeRouteSwitch,
+            0.20f,
+            false);
+    }
+    else
+    {
+        CompleteRuntimeRouteSwitch();
+    }
+    RefreshHud();
+    return true;
+}
+
+void UTwinInteractionManagerComponent::CompleteRuntimeRouteSwitch()
+{
+    const FTwinRoamingRuntimeConfig PreviousConfig = CurrentConfig;
+    const FTwinRoamingRuntimeRoute* Route = FindRuntimeRoute(
+        CurrentConfig.AvailableRoutes, PendingRouteSwitchId);
+    FString Error;
+    bool bSucceeded = Route && IsRuntimeRouteForCurrentLevel(*Route)
+        && RoamingCharacter && IsValid(RoamingCharacter);
+    if (bSucceeded)
+    {
+        ApplyRuntimeRouteToConfig(CurrentConfig, *Route);
+        ActiveRoute = BuildRuntimeRoute(Error);
+        bSucceeded = ActiveRoute != nullptr;
+    }
+    if (bSucceeded)
+    {
+        RoamingCharacter->ApplyMovementSettings(CurrentConfig.Movement);
+        RoamingCharacter->RouteFollower->Configure(
+            ActiveRoute,
+            CurrentConfig.Movement.AutoRouteSpeedCmS,
+            CurrentConfig.bRouteLoop,
+            false);
+        bSucceeded = RoamingCharacter->RouteFollower->RestartFromBeginning(Error);
+    }
+    if (bSucceeded)
+    {
+        const FVector StartDirection = ActiveRoute->Spline->GetDirectionAtSplinePoint(
+            0, ESplineCoordinateSpace::World);
+        if (!StartDirection.IsNearlyZero())
+        {
+            RoamingCharacter->SetActorRotation(FRotator(
+                0.0f, StartDirection.Rotation().Yaw, 0.0f));
+        }
+        SessionSelectedRouteId = CurrentConfig.RouteId;
+        RuntimeState = TEXT("auto_route");
+        LastError.Reset();
+        DegradedFeatures.Remove(TEXT("route_missing"));
+        DegradedFeatures.Remove(TEXT("runtime_route_start_rejected"));
+    }
+    else
+    {
+        if (CurrentConfig.RouteId != PreviousConfig.RouteId)
+        {
+            CurrentConfig = PreviousConfig;
+            FString RestoreError;
+            ActiveRoute = BuildRuntimeRoute(RestoreError);
+            if (ActiveRoute && RoamingCharacter)
+            {
+                RoamingCharacter->ApplyMovementSettings(CurrentConfig.Movement);
+                RoamingCharacter->RouteFollower->Configure(
+                    ActiveRoute,
+                    CurrentConfig.Movement.AutoRouteSpeedCmS,
+                    CurrentConfig.bRouteLoop,
+                    false);
+                RoamingCharacter->RouteFollower->TryResume(RestoreError);
+            }
+        }
+        LastError = Error.IsEmpty() ? TEXT("漫游路线切换失败") : Error;
+        RuntimeState = TEXT("manual");
+    }
+
+    PendingRouteSwitchId.Reset();
+    bRouteSwitchInProgress = false;
+    if (PlayerController && PlayerController->PlayerCameraManager)
+    {
+        PlayerController->PlayerCameraManager->StartCameraFade(
+            1.0f, 0.0f, 0.20f, FLinearColor::Black, false, false);
+    }
+    RefreshHud();
+}
+
+void UTwinInteractionManagerComponent::CancelRuntimeRouteSwitch(bool bRestoreView)
+{
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(RouteSwitchTimer);
+    }
+    PendingRouteSwitchId.Reset();
+    bRouteSwitchInProgress = false;
+    if (bRestoreView && PlayerController && PlayerController->PlayerCameraManager)
+    {
+        PlayerController->PlayerCameraManager->StopCameraFade();
+    }
 }
 
 void UTwinInteractionManagerComponent::ApplyPendingReload()
@@ -1764,6 +2367,7 @@ void UTwinInteractionManagerComponent::SendHeartbeat()
     Payload->SetStringField(TEXT("camera_mode"), CameraMode);
     Payload->SetStringField(TEXT("route_state"), RouteState);
     Payload->SetStringField(TEXT("active_skin_id"), ActiveSkin);
+    Payload->SetStringField(TEXT("minimap_state"), MinimapState);
     TArray<TSharedPtr<FJsonValue>> DegradedValues;
     for (const FString& Feature : DegradedFeatures)
     {
@@ -1911,6 +2515,23 @@ void UTwinInteractionManagerComponent::GetHudShortcutItems(
     AddShortcut(ToggleViewKey.ToString(), TEXT("切换视角"));
     AddShortcut(ToggleHudKey.ToString(), TEXT("更多操作"));
     AddShortcut(ToggleRoamingKey.ToString(), TEXT("退出漫游"));
+}
+
+void UTwinInteractionManagerComponent::GetAvailableRuntimeRoutes(
+    TArray<FString>& OutRouteIds,
+    TArray<FString>& OutDisplayNames,
+    TArray<bool>& OutDefaultFlags) const
+{
+    OutRouteIds.Reset();
+    OutDisplayNames.Reset();
+    OutDefaultFlags.Reset();
+    for (const FTwinRoamingRuntimeRoute& Route : CurrentConfig.AvailableRoutes)
+    {
+        if (!IsRuntimeRouteForCurrentLevel(Route)) continue;
+        OutRouteIds.Add(Route.RouteId);
+        OutDisplayNames.Add(Route.DisplayName.IsEmpty() ? Route.RouteId : Route.DisplayName);
+        OutDefaultFlags.Add(Route.bDefault);
+    }
 }
 
 FString UTwinInteractionManagerComponent::GetHudDetailText() const

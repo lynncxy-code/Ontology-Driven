@@ -2,9 +2,17 @@
 
 This directory contains transparent, standalone Web pages intended for an Unreal Engine 5.6 Screen Space WebBrowser host.
 
-## First implemented page
+## Independent pages
 
-- `pages/s3-building.html?space_id=SF.SB.M01`
+| Page | Purpose | Example URL |
+| --- | --- | --- |
+| `s3-building.html` | S3 building overview | `/ue_hud/pages/s3-building.html?space_id=SF.SB.M01` |
+| `s4-zone.html` | S4 zone overview | `/ue_hud/pages/s4-zone.html?zone_id=SF.SB.M01.ZA` |
+| `s5-workstation.html` | S5 workstation detail | `/ue_hud/pages/s5-workstation.html?instance_id=WS-M01-A01` |
+| `event-workbench.html` | park-wide event workbench | `/ue_hud/pages/event-workbench.html?project_id=ueproj_test0316` |
+| `event-detail.html` | single event detail | `/ue_hud/pages/event-detail.html?event_id=EVT-M01-012` |
+| `energy-overview.html` | E1/E2 energy overview | `/ue_hud/pages/energy-overview.html?zone_id=SF.SB.M01` |
+| `energy-device.html` | E3 energy device detail | `/ue_hud/pages/energy-device.html?instance_id=AHU-M01-02` |
 
 The Flask app serves `frontend/` at the site root, so the page is available at:
 
@@ -22,9 +30,9 @@ http://localhost:5000/ue_hud/pages/s3-building.html?space_id=SF.SB.M01
 ## Input boundary
 
 - The page root is `pointer-events: none`.
-- Real controls and panel surfaces use `data-ue-interactive` and accept input.
+- Real controls and panel surfaces use `data-ontotwin-interactive` and accept input; the bridge still reads legacy `data-ue-interactive` markers.
 - `window.OntoTwinHUD.getInteractiveRegions()` returns the current interactive rectangles for future UE host hit-test routing.
-- `window.OntoTwinHUD.emitAction(action, payload)` emits `ontotwin:hud-action` and calls a bound `window.ue.ontotwinHud.onAction(...)` object when available.
+- `window.OntoTwinBridge.post(type, payload)` implements Web Bridge 1.0 through `window.ue.ontotwinwebbridge.onmessage(...)`.
 
 Visual alpha does not by itself make a full-screen WebBrowser pass pointer input through to the 3D scene. The UE host still needs to route input according to these interactive regions.
 

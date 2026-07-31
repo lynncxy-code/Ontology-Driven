@@ -1,0 +1,18 @@
+{
+  "page": {"title":"动力支路压力异常","heading":"事件详情","level":"事件对象","path_label":"事件台账 / 能源与动力 / EVT-M01-012","context_query":"event_id","context_id":"EVT-M01-012","status_label":"严重","status_level":"critical","description":"展示单条事件的状态、位置、影响和推荐处置入口。","revision":"event-detail-r1"},
+  "metrics": [
+    {"label":"当前压力","display_value":"0.31 MPa","note":"低于正常范围"},
+    {"label":"持续时间","display_value":"8 min","note":"仍未恢复"},
+    {"label":"影响设备","display_value":"3 台","note":"B 区动力支路"},
+    {"label":"处置状态","display_value":"待确认","note":"尚未派单"}
+  ],
+  "primary_groups": [
+    {"title":"事件信息","items":[{"title":"发生位置","meta":"M01 / B 区 / 环廊 2F","value":"已定位"},{"title":"事件类别","meta":"能源与动力","value":"压力异常"},{"title":"首次发生","meta":"2026-07-29 10:22:16","value":"8 分钟前"}]},
+    {"title":"处置建议","items":[{"title":"检查动力泵运行状态","meta":"确认启停状态与电流","value":"步骤 1"},{"title":"检查支路阀门开度","meta":"排除异常关闭或堵塞","value":"步骤 2"}]}
+  ],
+  "secondary_groups": [
+    {"title":"关联对象","items":[{"title":"动力泵 PUMP-B02","meta":"主要告警设备","value":"选择","level":"critical","action":{"type":"select_instance","payload":{"instance_id":"PUMP-M01-B02"}}},{"title":"B 区动力支路","meta":"事件影响范围","value":"聚焦","level":"warning","action":{"type":"request_open_scope","payload":{"scope_type":"zone","zone_id":"SF.SB.M01.ZB"}}}]},
+    {"title":"处理记录","items":[{"title":"系统检测到压力越限","meta":"10:22:16","value":"自动"},{"title":"事件进入待确认队列","meta":"10:22:18","value":"系统"}]}
+  ],
+  "actions": [{"label":"定位关联设备","type":"select_instance","payload":{"instance_id":"PUMP-M01-B02"}},{"label":"进入能源详情","primary":true,"type":"request_open_page","payload":{"page_id":"page.energy-device","instance_id":"PUMP-M01-B02"}}]
+}

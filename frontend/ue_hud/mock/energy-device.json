@@ -1,0 +1,18 @@
+{
+  "page": {"title":"空调机组 AHU-02","heading":"能源设备详情","level":"E3 设备对象","path_label":"能源管控 / 暖通空调 / AHU-02","context_query":"instance_id","context_id":"AHU-M01-02","status_label":"注意","status_level":"warning","description":"展示单台能源设备的运行状态、测点、上下游关系和关联事件。","revision":"energy-device-r1"},
+  "metrics": [
+    {"label":"送风温度","display_value":"18.6 °C","note":"设定 17.0 °C"},
+    {"label":"回风温度","display_value":"29.4 °C","note":"偏高"},
+    {"label":"实时功率","display_value":"42.8 kW","note":"负载率 76%"},
+    {"label":"运行时长","display_value":"6.4 h","note":"今日累计"}
+  ],
+  "primary_groups": [
+    {"title":"运行测点","items":[{"title":"风机状态","meta":"变频运行","value":"46 Hz","level":"normal"},{"title":"过滤器压差","meta":"接近维护阈值","value":"186 Pa","level":"warning"},{"title":"阀门开度","meta":"冷水阀","value":"68%"}]},
+    {"title":"设备档案","items":[{"title":"设备编码","meta":"暖通空调机组","value":"AHU-M01-02"},{"title":"安装位置","meta":"M01 / 环廊 2F","value":"B 区"},{"title":"维护周期","meta":"下次维护 2026-08-12","value":"14 天"}]}
+  ],
+  "secondary_groups": [
+    {"title":"能源拓扑","items":[{"title":"上游：屋顶冷源 CHILLER-01","meta":"冷冻水供给","value":"选择","level":"normal","action":{"type":"select_instance","payload":{"instance_id":"CHILLER-M01-01"}}},{"title":"下游：A区-01 装配站位","meta":"环境保障范围","value":"聚焦","level":"info","action":{"type":"request_open_scope","payload":{"scope_type":"instance","instance_id":"WS-M01-A01"}}}]},
+    {"title":"关联事件","items":[{"title":"回风温度接近上限","meta":"2 分钟前 · 未确认","value":"查看","level":"warning","action":{"type":"request_open_page","payload":{"page_id":"page.event-detail","event_id":"EVT-M01-007"}}}]}
+  ],
+  "actions": [{"label":"选择设备","type":"select_instance","payload":{"instance_id":"$context"}},{"label":"查看关联事件","primary":true,"type":"request_open_page","payload":{"page_id":"page.event-detail","event_id":"EVT-M01-007"}}]
+}

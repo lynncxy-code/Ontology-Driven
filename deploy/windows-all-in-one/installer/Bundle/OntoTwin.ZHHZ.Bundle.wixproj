@@ -5,6 +5,7 @@
     <DefineConstants>
       BundleVersion=$(BundleVersion);
       PayloadVersion=$(PayloadVersion);
+      LauncherIconPath=$(LauncherIconPath);
       EnvironmentBootstrapperPath=$(EnvironmentBootstrapperPath);
       EnableHyperVScriptPath=$(EnableHyperVScriptPath);
       PayloadInstallerPath=$(PayloadInstallerPath);

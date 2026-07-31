@@ -1,0 +1,18 @@
+{
+  "page": {"title":"M01 能源管控","heading":"能源管控总览","level":"E1 / E2 业务视图","path_label":"能源管控 / M01 总装厂房","context_query":"zone_id","context_id":"SF.SB.M01","status_label":"运行中","status_level":"normal","description":"展示当前空间的供能状态、专业系统、区域分布与能源事件。","revision":"energy-demo-r1"},
+  "metrics": [
+    {"label":"实时功率","display_value":"1.42 MW","note":"较昨日 +2.1%"},
+    {"label":"今日用能","display_value":"8.7 MWh","note":"预算内"},
+    {"label":"在网设备","display_value":"24 / 25","note":"1 台告警"},
+    {"label":"碳排估算","display_value":"4.8 t","note":"今日累计"}
+  ],
+  "primary_groups": [
+    {"title":"专业系统","hint":"E1","items":[{"title":"暖通空调","meta":"12 台设备 · 1 项告警","value":"注意","level":"warning"},{"title":"动力系统","meta":"8 台设备 · 1 项严重事件","value":"严重","level":"critical"},{"title":"照明系统","meta":"5 个控制回路","value":"正常","level":"normal"}]},
+    {"title":"分区用能","hint":"E2","items":[{"title":"A 区","meta":"当前 420 kW","value":"29.6%"},{"title":"B 区","meta":"当前 510 kW","value":"35.9%"},{"title":"C / D 区","meta":"当前 490 kW","value":"34.5%"}]}
+  ],
+  "secondary_groups": [
+    {"title":"能源设备","hint":"进入 E3","items":[{"title":"空调机组 AHU-02","meta":"环廊 2F · 温度偏高","value":"查看","level":"warning","action":{"type":"request_open_page","payload":{"page_id":"page.energy-device","instance_id":"AHU-M01-02"}}},{"title":"动力泵 PUMP-B02","meta":"B 区 · 压力异常","value":"查看","level":"critical","action":{"type":"request_open_page","payload":{"page_id":"page.energy-device","instance_id":"PUMP-M01-B02"}}},{"title":"屋顶冷源 CHILLER-01","meta":"屋顶管廊","value":"正常","level":"normal","action":{"type":"select_instance","payload":{"instance_id":"CHILLER-M01-01"}}}]},
+    {"title":"能源事件","items":[{"title":"动力支路压力异常","meta":"8 分钟前","value":"严重","level":"critical","action":{"type":"request_open_page","payload":{"page_id":"page.event-detail","event_id":"EVT-M01-012"}}}]}
+  ],
+  "actions": [{"label":"聚焦能源范围","type":"request_open_scope","payload":{"scope_type":"zone","zone_id":"$context"}},{"label":"选择异常设备","primary":true,"type":"select_instance","payload":{"instance_id":"PUMP-M01-B02"}}]
+}

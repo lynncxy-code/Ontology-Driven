@@ -1,0 +1,19 @@
+{
+  "page": {"title":"A区-01 装配站位","heading":"站位详情","level":"S5 空间对象","path_label":"M01 / A 区 / A区-01 装配站位","context_query":"instance_id","context_id":"WS-M01-A01","status_label":"注意","status_level":"warning","description":"展示站位实时状态、关联设备、作业信息和事件。","revision":"station-demo-r1"},
+  "metrics": [
+    {"label":"当前温度","display_value":"36.8 °C","note":"接近运行上限"},
+    {"label":"设备在线率","display_value":"92%","note":"11 / 12 在线"},
+    {"label":"本班完成","display_value":"18 / 24","note":"计划任务"},
+    {"label":"节拍偏差","display_value":"+3.2%","note":"较计划"}
+  ],
+  "primary_groups": [{"title":"关联设备","hint":"可聚焦","items":[
+    {"title":"调姿平台 TP-01","meta":"核心生产设备","value":"运行","level":"normal","action":{"type":"select_instance","payload":{"instance_id":"TP-M01-A01"}}},
+    {"title":"空调机组 AHU-02","meta":"环境保障设备","value":"告警","level":"warning","action":{"type":"select_instance","payload":{"instance_id":"AHU-M01-02"}}},
+    {"title":"视频设备 CAM-07","meta":"现场视频","value":"在线","level":"normal","action":{"type":"select_instance","payload":{"instance_id":"CAM-M01-07"}}}
+  ]}],
+  "secondary_groups": [
+    {"title":"当前作业","items":[{"title":"部段对接与调姿","meta":"工单 WO-M01-2407","value":"执行中","level":"info"},{"title":"责任班组","meta":"总装一班","value":"6 人"},{"title":"预计完成","meta":"当前班次","value":"16:40"}]},
+    {"title":"关联事件","items":[{"title":"站位温度接近上限","meta":"2 分钟前","value":"查看","level":"warning","action":{"type":"request_open_page","payload":{"page_id":"page.event-detail","event_id":"EVT-M01-007"}}}]}
+  ],
+  "actions": [{"label":"选择站位","type":"select_instance","payload":{"instance_id":"$context"}},{"label":"打开能源设备","primary":true,"type":"request_open_page","payload":{"page_id":"page.energy-device","instance_id":"AHU-M01-02"}}]
+}

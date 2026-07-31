@@ -29,7 +29,7 @@ _DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 _PROJECTS_DIR = os.path.join(_DATA_DIR, "projects")
 _ACTIVE_FILE = os.path.join(_DATA_DIR, "active.json")
 
-CURRENT_SCHEMA_VERSION = 5
+CURRENT_SCHEMA_VERSION = 6
 
 
 def _default_media_policy():
@@ -39,6 +39,29 @@ def _default_media_policy():
         "mode": "inherit_platform",
         "allowed_hosts": [],
         "http_exceptions": [],
+    }
+
+
+def _empty_web_config(base_revision=None):
+    value = {
+        "pages": [],
+        "business_views": [],
+        "bindings": [],
+        "web_policy": {"allowed_hosts": []},
+    }
+    if base_revision is not None:
+        value["base_revision"] = int(base_revision)
+    return value
+
+
+def _default_web_interactions():
+    """Project-level Web interaction draft/publish container (OntoTwin 3.8)."""
+    return {
+        "schema_version": 1,
+        "revision": 0,
+        "published": _empty_web_config(),
+        "draft": _empty_web_config(0),
+        "previous_published": None,
     }
 
 
@@ -142,6 +165,15 @@ def migrate_project_schema(proj):
         proj.setdefault("media_policy", _default_media_policy())
         proj["schema_version"] = 5
         version = 5
+        changed = True
+
+    if version == 5:
+        # v6 adds explicit Zone definitions and the independently versioned Web
+        # interaction container. Existing instance zone_id values stay untouched.
+        proj.setdefault("zones", {})
+        proj.setdefault("web_interactions", _default_web_interactions())
+        proj["schema_version"] = 6
+        version = 6
         changed = True
 
     if proj.get("schema_version") != CURRENT_SCHEMA_VERSION:
@@ -288,6 +320,8 @@ class ProjectStore:
             proj.setdefault("instance_roster", [])
             proj.setdefault("scene_interactions", _default_scene_interactions())
             proj.setdefault("media_policy", _default_media_policy())
+            proj.setdefault("zones", {})
+            proj.setdefault("web_interactions", _default_web_interactions())
         return proj
 
     def _read_project(self, pid):
@@ -378,6 +412,8 @@ class ProjectStore:
                 "frames": [],              # 3.1：通用帧注册表（CAD 帧标定后写入）
                 "scene_interactions": _default_scene_interactions(),  # 4.0：场景交互能力
                 "media_policy": _default_media_policy(),  # 3.7.x：视频来源安全策略
+                "zones": {},              # 3.8：显式 Zone 层级定义
+                "web_interactions": _default_web_interactions(),  # 3.8：Web 交互
             }
             self._write_json(self._path(pid), proj)
             self._current = proj
@@ -535,6 +571,26 @@ class ProjectStore:
                 )
                 self._save_current()
 
+    # ── Web 交互（3.8：独立草稿/发布版本） ──────────────────────
+    def get_web_interactions(self):
+        with self._lock:
+            if not self._current:
+                return _default_web_interactions()
+            value = self._current.get("web_interactions")
+            if not isinstance(value, dict):
+                value = _default_web_interactions()
+                self._current["web_interactions"] = value
+                self._save_current()
+            return copy.deepcopy(value)
+
+    def set_web_interactions(self, web_interactions):
+        with self._lock:
+            if self._current:
+                self._current["web_interactions"] = copy.deepcopy(
+                    web_interactions or _default_web_interactions()
+                )
+                self._save_current()
+
     # ── 媒体策略（3.7.x：项目级低频安全配置） ───────────────────
     def get_media_policy(self):
         with self._lock:
@@ -621,6 +677,27 @@ class ProjectStore:
             else:
                 self._dirty = True
             return True
+
+    def run_atomic_update(self, updater):
+        """Run one in-memory mutation and persist it once, rolling back on failure."""
+        with self._lock:
+            if not self._current:
+                return False, {"error": "no active project"}
+
+            before = copy.deepcopy(self._current)
+            dirty_before = self._dirty
+            try:
+                ok, result = updater()
+                if not ok:
+                    self._current = before
+                    self._dirty = dirty_before
+                    return False, result
+                self._save_current()
+                return True, result
+            except Exception:
+                self._current = before
+                self._dirty = dirty_before
+                raise
 
     def touch(self, instance_id):
         with self._lock:
@@ -789,8 +866,8 @@ class ProjectStore:
                     return c
             return None
 
-    def update_component(self, component_id, patch, expected_project_id=None):
-        """局部更新单个构件字段（如 canonical_xy / ue_xy / rotation），落盘。"""
+    def update_component(self, component_id, patch, persist=True, expected_project_id=None):
+        """局部更新单个构件字段；支持项目一致性校验和延迟落盘。"""
         with self._lock:
             if expected_project_id is not None and self._active_id != expected_project_id:
                 raise ProjectMismatch(expected_project_id, self._active_id)
@@ -798,8 +875,20 @@ class ProjectStore:
             if not comp:
                 return False
             comp.update(patch or {})
-            self._save_current()
+            if persist:
+                self._save_current()
+            else:
+                self._dirty = True
             return True
+
+    def remove_component(self, component_id):
+        """删除单个构件及其绑定关系，不级联删除已经铸造的实例。"""
+        with self._lock:
+            removed = self._comps().pop(component_id, None)
+            if removed is None:
+                return None
+            self._save_current()
+            return removed
 
     # ── 空间剖面 / 帧（3.1） ──────────────────────────────────
     def get_spatial_profile(self):

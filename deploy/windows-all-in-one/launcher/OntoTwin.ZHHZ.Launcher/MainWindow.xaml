@@ -1,0 +1,160 @@
+<Window x:Class="OntoTwin.ZHHZ.Launcher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="灵云智 · OntoTwin ZHHZ"
+        Icon="LingYunZhi.ico"
+        Width="1080" Height="720" MinWidth="940" MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource PageBackgroundBrush}"
+        FontFamily="Microsoft YaHei UI">
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="236" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+
+    <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+      <Grid Margin="24,28,24,22">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="26" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel Grid.Row="0">
+          <Border Width="62" Height="62" CornerRadius="15" Background="#E8F3FF" HorizontalAlignment="Left">
+            <Image Source="logo-flat.png" Width="48" Height="48" Stretch="Uniform" />
+          </Border>
+          <TextBlock Text="灵云智" FontSize="25" FontWeight="Bold" Margin="0,16,0,2" />
+          <TextBlock Text="OntoTwin · ZHHZ" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2">
+          <TextBlock Text="系统概览" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,10" />
+          <Border Background="{DynamicResource SurfaceSecondaryBrush}" CornerRadius="9" Padding="13,12" Margin="0,0,0,9">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <Ellipse x:Name="BackendDot" Width="9" Height="9" Fill="#94A3B8" VerticalAlignment="Center" Margin="0,0,10,0" />
+              <StackPanel Grid.Column="1">
+                <TextBlock Text="后台服务" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock x:Name="BackendStatusText" Text="检查中" FontSize="13" FontWeight="SemiBold" />
+              </StackPanel>
+            </Grid>
+          </Border>
+          <Border Background="{DynamicResource SurfaceSecondaryBrush}" CornerRadius="9" Padding="13,12" Margin="0,0,0,9">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <Ellipse x:Name="RuntimeDot" Width="9" Height="9" Fill="#94A3B8" VerticalAlignment="Center" Margin="0,0,10,0" />
+              <StackPanel Grid.Column="1">
+                <TextBlock Text="ZHHZ 运行时" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock x:Name="RuntimeStatusText" Text="检查中" FontSize="13" FontWeight="SemiBold" />
+              </StackPanel>
+            </Grid>
+          </Border>
+          <Border Background="{DynamicResource SurfaceSecondaryBrush}" CornerRadius="9" Padding="13,12">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <Ellipse Width="9" Height="9" Fill="#0066CC" VerticalAlignment="Center" Margin="0,0,10,0" />
+              <StackPanel Grid.Column="1">
+                <TextBlock Text="本地控制台" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock Text="127.0.0.1:5000" FontSize="13" FontWeight="SemiBold" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </StackPanel>
+
+        <StackPanel Grid.Row="4">
+          <Button x:Name="ThemeButton" Content="切换深色模式" Style="{StaticResource SecondaryButtonStyle}" FontSize="12" Padding="12,8" Click="ThemeButton_Click" />
+          <TextBlock Text="一体化客户版 · RC10.2" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="2,14,0,0" />
+          <TextBlock Text="无需 WSL / Docker Desktop" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="2,4,0,0" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Column="1" Margin="30,25,30,24">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="18" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="16" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="16" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+
+      <Grid Grid.Row="0">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <StackPanel>
+          <TextBlock Text="系统控制中心" FontSize="27" FontWeight="Bold" />
+          <TextBlock Text="启动 ZHHZ、后台设备与 OntoTwin 控制台" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,5,0,0" />
+        </StackPanel>
+        <Button Grid.Column="1" x:Name="RefreshButton" Content="刷新状态" Style="{StaticResource SecondaryButtonStyle}" Padding="16,9" VerticalAlignment="Center" Click="RefreshButton_Click" />
+      </Grid>
+
+      <Border Grid.Row="2" Style="{StaticResource CardStyle}" BorderBrush="#B8D8F7">
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <StackPanel>
+            <StackPanel Orientation="Horizontal">
+              <Border x:Name="StatusBadge" Background="#FFF4E5" CornerRadius="999" Padding="10,5">
+                <StackPanel Orientation="Horizontal">
+                  <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="#D97706" Margin="0,0,7,0" VerticalAlignment="Center" />
+                  <TextBlock x:Name="StatusBadgeText" Text="正在检查" Foreground="#9A5705" FontSize="12" FontWeight="SemiBold" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+            <TextBlock x:Name="StatusLabel" Text="正在确认系统状态…" FontSize="19" FontWeight="SemiBold" Margin="0,14,0,5" />
+            <TextBlock x:Name="StatusDetailText" Text="首次启动可能需要 10–20 分钟，后续启动会明显更快。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+          </StackPanel>
+          <Button Grid.Column="1" x:Name="StartButton" Content="启动系统" Style="{StaticResource PrimaryButtonStyle}" MinWidth="142" Margin="24,0,0,0" VerticalAlignment="Center" Click="StartButton_Click" />
+        </Grid>
+      </Border>
+
+      <Grid Grid.Row="4">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="12" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="12" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Button x:Name="ConsoleButton" Grid.Column="0" Content="打开控制台" Style="{StaticResource SecondaryButtonStyle}" Click="ConsoleButton_Click" />
+        <Button x:Name="BackupButton" Grid.Column="2" Content="立即备份" Style="{StaticResource SecondaryButtonStyle}" Click="BackupButton_Click" />
+        <Button x:Name="StopButton" Grid.Column="4" Content="停止系统" Style="{StaticResource SecondaryButtonStyle}" Foreground="{DynamicResource ErrorBrush}" Click="StopButton_Click" />
+      </Grid>
+
+      <Grid Grid.Row="6">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="12" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Border Grid.Row="0" Style="{StaticResource CardStyle}" Padding="19,16">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" HorizontalAlignment="Center"><Border x:Name="Step1" Width="26" Height="26" CornerRadius="13" Background="#0066CC"><TextBlock Text="1" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" /></Border><TextBlock Text="环境检查" FontSize="11" Margin="0,7,0,0" /></StackPanel>
+            <StackPanel Grid.Column="1" HorizontalAlignment="Center"><Border x:Name="Step2" Width="26" Height="26" CornerRadius="13" Background="#CBD5E1"><TextBlock Text="2" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" /></Border><TextBlock Text="后台设备" FontSize="11" Margin="0,7,0,0" /></StackPanel>
+            <StackPanel Grid.Column="2" HorizontalAlignment="Center"><Border x:Name="Step3" Width="26" Height="26" CornerRadius="13" Background="#CBD5E1"><TextBlock Text="3" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" /></Border><TextBlock Text="服务就绪" FontSize="11" Margin="0,7,0,0" /></StackPanel>
+            <StackPanel Grid.Column="3" HorizontalAlignment="Center"><Border x:Name="Step4" Width="26" Height="26" CornerRadius="13" Background="#CBD5E1"><TextBlock Text="4" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" /></Border><TextBlock Text="启动 ZHHZ" FontSize="11" Margin="0,7,0,0" /></StackPanel>
+            <StackPanel Grid.Column="4" HorizontalAlignment="Center"><Border x:Name="Step5" Width="26" Height="26" CornerRadius="13" Background="#CBD5E1"><TextBlock Text="5" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" /></Border><TextBlock Text="打开控制台" FontSize="11" Margin="0,7,0,0" /></StackPanel>
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="2" Style="{StaticResource CardStyle}" Padding="18,12">
+          <Expander IsExpanded="True">
+            <Expander.Header>
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="运行记录" FontWeight="SemiBold" />
+                <TextBlock Text="  ·  出现问题时将日志交给技术支持" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Expander.Header>
+            <TextBox x:Name="LogBox" Margin="0,10,0,0" MinHeight="116" MaxHeight="205" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Background="{DynamicResource LogBackgroundBrush}" Foreground="{DynamicResource LogForegroundBrush}" BorderThickness="0" Padding="12" FontFamily="Consolas" FontSize="12" />
+          </Expander>
+        </Border>
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

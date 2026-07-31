@@ -6,6 +6,7 @@
       MsiVersion=$(MsiVersion);
       PayloadVersion=$(PayloadVersion);
       LauncherPath=$(LauncherPath);
+      LauncherIconPath=$(LauncherIconPath);
       ServicePath=$(ServicePath);
       HostScriptPath=$(HostScriptPath);
       PayloadInstallerPath=$(PayloadInstallerPath);

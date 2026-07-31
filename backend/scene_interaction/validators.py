@@ -11,7 +11,21 @@ class SceneInteractionValidationError(ValueError):
 
 
 def default_roaming_config():
-    return {"enabled": False, "auto_enter": False}
+    return {
+        "enabled": False,
+        "auto_enter": False,
+        "minimap": {"enabled": False},
+    }
+
+
+def roaming_config_with_defaults(config):
+    """Return a read-only compatible shape for configs saved by older clients."""
+    result = copy.deepcopy(config) if isinstance(config, dict) else default_roaming_config()
+    minimap = result.get("minimap")
+    if not isinstance(minimap, dict):
+        minimap = {}
+    result["minimap"] = {"enabled": minimap.get("enabled") is True}
+    return result
 
 
 def _error(errors, path, message):
@@ -81,6 +95,16 @@ def validate_roaming_config(config, catalog, project_routes=None):
     result = copy.deepcopy(config)
     result["enabled"] = _bool(config.get("enabled"), "enabled", errors, False)
     result["auto_enter"] = _bool(config.get("auto_enter"), "auto_enter", errors, False)
+
+    minimap = config.get("minimap")
+    if minimap is None:
+        minimap = {}
+    elif not isinstance(minimap, dict):
+        _error(errors, "minimap", "必须是对象")
+        minimap = {}
+    result["minimap"] = {
+        "enabled": _bool(minimap.get("enabled"), "minimap.enabled", errors, False),
+    }
 
     character_id, character = _resource(
         catalog, "characters", config.get("character_id"), "character_id", errors,
@@ -196,10 +220,10 @@ def validate_roaming_config(config, catalog, project_routes=None):
         _error(errors, "camera", "启用人物漫游前必须配置视角")
     elif isinstance(camera, dict):
         normalized_camera = copy.deepcopy(camera)
-        default_mode = str(camera.get("default_mode") or "near_follow")
+        default_mode = str(camera.get("default_mode") or "god")
         if default_mode not in ("near_follow", "first_person", "god"):
             _error(errors, "camera.default_mode", "只支持 near_follow、first_person 或 god")
-            default_mode = "near_follow"
+            default_mode = "god"
         normalized_camera["default_mode"] = default_mode
 
         first_person = camera.get("first_person") or {}
@@ -294,6 +318,10 @@ ALLOWED_REALTIME_CONNECTION_STATES = {
     "disabled", "connecting", "connected", "reconnecting", "disconnected", "error",
 }
 ALLOWED_REALTIME_ACTIVE_SOURCES = {"none", "http_snapshot", "websocket"}
+ALLOWED_MINIMAP_STATES = {
+    "disabled", "waiting", "capturing", "ready",
+    "anchor_missing", "anchor_ambiguous", "capture_failed",
+}
 
 
 def _validate_realtime_channel(value, errors):
@@ -411,6 +439,9 @@ def validate_runtime_status(payload):
         _error(errors, "error", "必须是对象或 null")
         error = None
     realtime_channel = _validate_realtime_channel(payload.get("realtime_channel"), errors)
+    minimap_state = str(payload.get("minimap_state") or "disabled").strip().lower()
+    if minimap_state not in ALLOWED_MINIMAP_STATES:
+        _error(errors, "minimap_state", "未知小地图运行状态")
     if errors:
         raise SceneInteractionValidationError(errors)
     return {
@@ -424,4 +455,5 @@ def validate_runtime_status(payload):
         "degraded_features": list(dict.fromkeys(degraded)),
         "error": copy.deepcopy(error),
         "realtime_channel": realtime_channel,
+        "minimap_state": minimap_state,
     }

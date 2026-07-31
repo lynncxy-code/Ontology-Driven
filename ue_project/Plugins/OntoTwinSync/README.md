@@ -13,6 +13,40 @@ OntoTwin Nexus 的 UE5 数字孪生同步插件。把整个 `OntoTwinSync/` 文�
 
 > 工程是纯蓝图工程也可以——放入 C++ 插件后 UE 会自动转为代码工程并要求装 VS 工具链。
 
+## 3.9 只读小地图接入
+
+1. 在 Web“人物漫游 > 运行开关”中开启“启用小地图”，保存并应用。
+2. 在目标 UE 关卡放置插件 Actor `TwinMinimapAnchor`，实例命名为 `TwinMinimapAnchor_All`。
+3. 保持 `MinimapId = minimap.default`，再通过继承的 Camera Component 调整位置、旋转、透视/正交模式及取景范围。
+4. `CaptureWidth` / `CaptureHeight` 默认 `1024 × 768`，可在 `256–2048` 范围内调整。
+5. 运行并进入人物漫游。小地图会出现在右上角；第一人称、过肩和全局视角共用同一个人物标记。
+
+插件只在进入漫游或运行中从关闭切到开启时捕获一次场景，随后停止地图画面更新，仅以 20 Hz 更新人物位置和方向。小地图不接收输入；缺少或重复 `minimap.default` 锚点时只关闭小地图，不会阻断人物漫游。
+
+Web“UE 运行状态”会显示小地图当前状态。若显示“缺少地图视角”或“地图视角重复”，检查当前关卡是否恰好只有一个 `MinimapId = minimap.default` 的 `TwinMinimapAnchor`。
+
+当前关卡的三个相机锚点职责如下：
+
+- `TwinMinimapAnchor_All`：`MinimapId = minimap.default`，只提供一次性小地图取景。
+- `TwinGodViewAnchor`：`CameraId = camera.god.default`，同时用于开局固定视角、F7 进入漫游的默认上帝视角，以及退出漫游后的恢复视角。
+- `TwinGodViewAnchor_All`：旧的独立开局视角锚点；当前运行时不再自动选择，可保留作为项目备用相机。
+
+漫游默认视角为上帝视角；按 `V` 依次按“上帝视角 → 过肩视角 → 第一人称 → 上帝视角”循环。`F7` 仍只负责进入或退出漫游。
+
+小地图默认从锚点视野的四边各裁剪 20%，玩家方向标记使用最高 70% 不透明度的红色呼吸三角。运行时右上角地图按钮可将面板在约 220ms 内折叠为图标或重新展开；第一人称模式下先按 Tab 进入 HUD 交互。
+
+## 编辑器鼠标世界坐标工具
+
+插件自带 Editor Utility Widget：`/OntoTwinSync/EUW_MouseWorldCoord`。
+
+1. 在内容浏览器设置中开启“显示插件内容”。
+2. 打开 `OntoTwinSync Content`。
+3. 右键 `EUW_MouseWorldCoord`，选择“运行编辑器工具控件”。
+
+Widget 通过 `Get Cursor World Location (Editor)` 读取当前关卡编辑器视口的鼠标世界坐标、表面法线、命中 Actor 和视图类型。正交视图未命中物体时，可用指定轴深度计算坐标。
+
+该能力属于插件内的 `DigitalFactoryBaseEditor` Editor-only 模块，只在 UE 编辑器中加载，不进入 PIE Runtime 逻辑或 Shipping 可执行文件。
+
 ## 包含的三个类与对应前端页面
 
 | 类 | 对接后端 API | 对应前端页面 | 用法 |

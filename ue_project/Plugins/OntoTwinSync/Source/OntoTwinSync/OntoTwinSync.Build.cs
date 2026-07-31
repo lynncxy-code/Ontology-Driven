@@ -39,6 +39,7 @@ public class OntoTwinSync : ModuleRules
 			"Renderer",
 			"Slate",
 			"SlateCore",
+			"WebUI",
 			"WebSockets"
 		});
 

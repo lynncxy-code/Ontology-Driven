@@ -27,6 +27,7 @@ from project_store import (
     _default_media_policy,
     _default_scene_interactions,
     _default_spatial_profile,
+    _default_web_interactions,
     apply_instance_metadata,
     migrate_project_schema,
 )
@@ -83,7 +84,7 @@ class ProjectStorePG(ProjectStore):
                 cur.execute(
                     """SELECT id, name, created_at, dataset, calibration, spatial_profile,
                               components, instance_roster, frames, schema_version,
-                              scene_interactions, media_policy
+                              scene_interactions, media_policy, web_interactions
                        FROM project WHERE id = %s AND deleted_at IS NULL""",
                     (pid,),
                 )
@@ -103,6 +104,8 @@ class ProjectStorePG(ProjectStore):
                     "frames": row[8] or [],
                     "scene_interactions": row[10] or _default_scene_interactions(),
                     "media_policy": row[11] or _default_media_policy(),
+                    "web_interactions": row[12] or _default_web_interactions(),
+                    "zones": {},
                     "object_types": {},
                     "instances": {},
                 }
@@ -112,6 +115,21 @@ class ProjectStorePG(ProjectStore):
                 )
                 for rid, data in cur.fetchall():
                     proj["object_types"][rid] = data or {}
+
+                cur.execute(
+                    """SELECT zone_id, name, ue_level, streaming, parent_zone_id, level
+                       FROM zone WHERE project_id = %s AND deleted_at IS NULL""",
+                    (pid,),
+                )
+                for zone_id, name, ue_level, streaming, parent_zone_id, level in cur.fetchall():
+                    proj["zones"][zone_id] = {
+                        "zone_id": zone_id,
+                        "name": name or zone_id,
+                        "ue_level": ue_level or "",
+                        "streaming": streaming or {},
+                        "parent_zone_id": parent_zone_id,
+                        "level": level or "custom",
+                    }
 
                 cur.execute(
                     """SELECT id, object_type_rid, object_type_name, zone_id, component_id,
@@ -169,9 +187,9 @@ class ProjectStorePG(ProjectStore):
                     cur.execute(
                         """INSERT INTO project
                              (id, name, created_at, dataset, calibration, spatial_profile,
-                               schema_version, scene_interactions, media_policy,
+                               schema_version, scene_interactions, media_policy, web_interactions,
                                components, instance_roster, frames, deleted_at)
-                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, NULL)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, NULL)
                            ON CONFLICT (id) DO UPDATE SET
                              name=EXCLUDED.name, created_at=EXCLUDED.created_at,
                              dataset=EXCLUDED.dataset, calibration=EXCLUDED.calibration,
@@ -179,6 +197,7 @@ class ProjectStorePG(ProjectStore):
                              schema_version=EXCLUDED.schema_version,
                              scene_interactions=EXCLUDED.scene_interactions,
                              media_policy=EXCLUDED.media_policy,
+                             web_interactions=EXCLUDED.web_interactions,
                              components=EXCLUDED.components,
                              instance_roster=EXCLUDED.instance_roster,
                              frames=EXCLUDED.frames, deleted_at=NULL""",
@@ -189,11 +208,28 @@ class ProjectStorePG(ProjectStore):
                             proj.get("schema_version", CURRENT_SCHEMA_VERSION),
                             Jsonb(proj.get("scene_interactions") or _default_scene_interactions()),
                             Jsonb(proj.get("media_policy") or _default_media_policy()),
+                            Jsonb(proj.get("web_interactions") or _default_web_interactions()),
                             Jsonb(proj.get("components") or {}),
                             Jsonb(proj.get("instance_roster") or []),
                             Jsonb(proj.get("frames") or []),
                         ),
                     )
+
+                    # Explicit Zone catalog. Instance zone_id remains the leaf binding.
+                    cur.execute("DELETE FROM zone WHERE project_id = %s", (pid,))
+                    for zone_id, zone in (proj.get("zones") or {}).items():
+                        zone = zone or {}
+                        cur.execute(
+                            """INSERT INTO zone
+                                 (project_id, zone_id, name, ue_level, streaming,
+                                  parent_zone_id, level, deleted_at)
+                               VALUES (%s,%s,%s,%s,%s,%s,%s,NULL)""",
+                            (
+                                pid, zone_id, zone.get("name") or zone_id,
+                                zone.get("ue_level") or "", Jsonb(zone.get("streaming") or {}),
+                                zone.get("parent_zone_id"), zone.get("level") or "custom",
+                            ),
+                        )
 
                     # 2) 本体：整表替换（set_object_types 语义即整体替换，量小）
                     cur.execute("DELETE FROM object_type WHERE project_id = %s", (pid,))
@@ -363,6 +399,8 @@ class ProjectStorePG(ProjectStore):
                 "frames": [],
                 "scene_interactions": _default_scene_interactions(),
                 "media_policy": _default_media_policy(),
+                "web_interactions": _default_web_interactions(),
+                "zones": {},
             }
             self._current = proj
             self._active_id = pid

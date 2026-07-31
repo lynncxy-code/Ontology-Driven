@@ -1,0 +1,24 @@
+{
+  "page": {"title":"全园区事件台账","heading":"事件台账","level":"全局业务服务","path_label":"沈北园区 / 待处置事件","context_query":"project_id","context_id":"ueproj_test0316","status_label":"22 项在管","status_level":"warning","description":"聚合展示全园区事件；页面与当前三维空间导航相互独立。","revision":"event-demo-r1"},
+  "metrics": [
+    {"label":"待处置","display_value":"22","note":"全部未闭环事件"},
+    {"label":"高告警","display_value":"7","note":"需优先处置"},
+    {"label":"已确认","display_value":"9","note":"等待闭环"},
+    {"label":"今日闭环","display_value":"31","note":"平均 18 分钟"}
+  ],
+  "primary_groups": [
+    {"title":"严重事件","hint":"按时间排序","items":[
+      {"title":"动力支路压力异常","meta":"M01 · B 区 · 8 分钟前","value":"严重","level":"critical","action":{"type":"request_open_page","payload":{"page_id":"page.event-detail","event_id":"EVT-M01-012"}}},
+      {"title":"消防回路通信中断","meta":"B02 · 3F · 14 分钟前","value":"严重","level":"critical","action":{"type":"request_open_page","payload":{"page_id":"page.event-detail","event_id":"EVT-B02-004"}}}
+    ]},
+    {"title":"一般事件","hint":"能源 / 环境 / 视频","items":[
+      {"title":"装配站位温度接近上限","meta":"M01 · A区-01 · 2 分钟前","value":"注意","level":"warning","action":{"type":"request_open_page","payload":{"page_id":"page.event-detail","event_id":"EVT-M01-007"}}},
+      {"title":"视频设备短时离线","meta":"M01 · C 区 · 16 分钟前","value":"提示","level":"info","action":{"type":"request_open_page","payload":{"page_id":"page.event-detail","event_id":"EVT-M01-018"}}}
+    ]}
+  ],
+  "secondary_groups": [
+    {"title":"分类聚合","items":[{"title":"能源与动力","meta":"高告警 3 项","value":"8 项","level":"warning"},{"title":"生产与齐套","meta":"高告警 2 项","value":"6 项","level":"warning"},{"title":"安全与消防","meta":"高告警 2 项","value":"5 项","level":"critical"},{"title":"视频与系统","meta":"无高告警","value":"3 项","level":"info"}]},
+    {"title":"当前筛选","items":[{"title":"空间范围","meta":"沈北园区全部空间","value":"全部"},{"title":"严重级别","meta":"所有级别","value":"全部"},{"title":"时间范围","meta":"最近 24 小时","value":"24h"}]}
+  ],
+  "actions": [{"label":"清除三维选择","type":"clear_selection","payload":{}},{"label":"聚焦首条高告警","primary":true,"type":"request_open_scope","payload":{"scope_type":"instance","instance_id":"PUMP-M01-B02"}}]
+}

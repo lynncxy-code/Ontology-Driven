@@ -28,9 +28,10 @@ function Get-ReleaseDescriptor {
     $productVersion = $Matches.product
     $releaseNumber = $Matches.release
     $candidateMajor = [int]$Matches.candidateMajor
-    $candidateMinor = if ($Matches.candidateMinor) { [int]$Matches.candidateMinor } else { 0 }
+    $hasCandidateMinor = $Matches.ContainsKey('candidateMinor') -and -not [string]::IsNullOrWhiteSpace([string]$Matches['candidateMinor'])
+    $candidateMinor = if ($hasCandidateMinor) { [int]$Matches['candidateMinor'] } else { 0 }
     if ($candidateMinor -gt 99) { throw "The RC minor revision must be between 0 and 99: $Version" }
-    $candidateNumber = if ($Matches.candidateMinor) { "$candidateMajor.$candidateMinor" } else { "$candidateMajor" }
+    $candidateNumber = if ($hasCandidateMinor) { "$candidateMajor.$candidateMinor" } else { "$candidateMajor" }
     $numericRevision = ($candidateMajor * 100) + $candidateMinor
     if ($numericRevision -gt 65535) { throw "The RC revision is too large for a Windows binary version: $Version" }
     $msiParts = $productVersion.Split('.')

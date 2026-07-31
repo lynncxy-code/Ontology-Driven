@@ -14,6 +14,8 @@
         Schedule="afterInstallInitialize"
         DowngradeErrorMessage="已安装更新版本的 OntoTwin ZHHZ。" />
     <MediaTemplate EmbedCab="yes" />
+    <Icon Id="LingYunZhi.ico" SourceFile="$(var.LauncherIconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="LingYunZhi.ico" />
 
     <util:CloseApplication
         Id="CloseOntoTwinLauncher"
@@ -69,10 +71,7 @@
   <Fragment>
     <ComponentGroup Id="ProductComponents">
       <Component Id="LauncherComponent" Directory="LauncherFolder" Guid="8A440A15-D0E4-4DAE-A426-861BE7DE19B4">
-        <File Id="LauncherExe" Source="$(var.LauncherPath)" KeyPath="yes">
-          <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="启动 OntoTwin ZHHZ" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
-          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuProductFolder" Name="OntoTwin ZHHZ 控制中心" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
-        </File>
+        <File Id="LauncherExe" Source="$(var.LauncherPath)" KeyPath="yes" />
       </Component>
 
       <Component Id="HostServiceComponent" Directory="ServiceFolder" Guid="C8C12A03-B205-4C80-B1A4-E64B66560307">
@@ -119,6 +118,8 @@
       </Component>
 
       <Component Id="StartMenuFolderComponent" Directory="ProgramMenuProductFolder" Guid="04646D5F-E5D7-45CC-8D9E-B2BB6C04B611">
+        <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="灵云智" Target="[#LauncherExe]" WorkingDirectory="LauncherFolder" Advertise="no" />
+        <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuProductFolder" Name="灵云智 · OntoTwin ZHHZ" Target="[#LauncherExe]" WorkingDirectory="LauncherFolder" Advertise="no" />
         <RemoveFolder Id="RemoveProgramMenuProductFolder" On="uninstall" />
         <RegistryValue Root="HKCU" Key="Software\OntoTwin\ZHHZ" Name="StartMenuInstalled" Value="1" Type="integer" KeyPath="yes" />
       </Component>

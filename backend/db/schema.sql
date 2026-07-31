@@ -31,12 +31,14 @@ CREATE TABLE IF NOT EXISTS project (
     frames           JSONB DEFAULT '[]',  -- 3.1 帧注册表
     scene_interactions JSONB NOT NULL DEFAULT '{}', -- 4.0/4.0.1 人物与路线配置；图片元数据仍在 frames
     media_policy     JSONB NOT NULL DEFAULT '{}', -- 3.7.x 视频来源白名单与 HTTP 例外
+    web_interactions JSONB NOT NULL DEFAULT '{}', -- 3.8 Web 页面、业务视图与绑定
     deleted_at       TIMESTAMPTZ
 );
 
 ALTER TABLE project ADD COLUMN IF NOT EXISTS schema_version INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE project ADD COLUMN IF NOT EXISTS scene_interactions JSONB NOT NULL DEFAULT '{}';
 ALTER TABLE project ADD COLUMN IF NOT EXISTS media_policy JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE project ADD COLUMN IF NOT EXISTS web_interactions JSONB NOT NULL DEFAULT '{}';
 
 -- ── 本体（项目级类型注册表）────────────────────────────────────────────────
 -- data 存完整类型记录；rid/name/source 提列便于查询与迁移归类。
@@ -57,9 +59,14 @@ CREATE TABLE IF NOT EXISTS zone (
     name        TEXT,
     ue_level    TEXT,                      -- UE 子关卡/地图路径
     streaming   JSONB DEFAULT '{}',        -- 流送信息（预留：加载策略等）
+    parent_zone_id TEXT,                   -- 3.8 父 Zone；空表示项目根级
+    level       TEXT NOT NULL DEFAULT 'custom', -- building/floor/room/area/custom
     deleted_at  TIMESTAMPTZ,
     PRIMARY KEY (project_id, zone_id)
 );
+
+ALTER TABLE zone ADD COLUMN IF NOT EXISTS parent_zone_id TEXT;
+ALTER TABLE zone ADD COLUMN IF NOT EXISTS level TEXT NOT NULL DEFAULT 'custom';
 
 -- ── 实例（高频变；raw_state/render_config 用 JSONB）────────────────────────
 CREATE TABLE IF NOT EXISTS instance (

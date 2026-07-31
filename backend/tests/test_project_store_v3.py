@@ -56,7 +56,7 @@ class ProjectStoreSchemaTestCase(unittest.TestCase):
         })
         self.assertTrue(self.store.activate("v2_project"))
         project = self.store.get_active_copy()
-        self.assertEqual(5, project["schema_version"])
+        self.assertEqual(CURRENT_SCHEMA_VERSION, project["schema_version"])
         self.assertEqual({"enabled": False, "auto_enter": False}, project["scene_interactions"]["roaming"])
         self.assertEqual([], project["scene_interactions"]["routes"])
         self.assertNotIn("character_id", project["scene_interactions"]["roaming"])
@@ -68,7 +68,7 @@ class ProjectStoreSchemaTestCase(unittest.TestCase):
         self.store.set_scene_interactions(project["scene_interactions"])
         with open(path, "r", encoding="utf-8") as handle:
             persisted = json.load(handle)
-        self.assertEqual(5, persisted["schema_version"])
+        self.assertEqual(CURRENT_SCHEMA_VERSION, persisted["schema_version"])
 
     def test_v3_project_adds_empty_routes_and_unconfirmed_ground_height(self):
         path = self._write_project("v3_project", {
@@ -89,7 +89,7 @@ class ProjectStoreSchemaTestCase(unittest.TestCase):
         })
         self.assertTrue(self.store.activate("v3_project"))
         project = self.store.get_active_copy()
-        self.assertEqual(5, project["schema_version"])
+        self.assertEqual(CURRENT_SCHEMA_VERSION, project["schema_version"])
         self.assertEqual([], project["scene_interactions"]["routes"])
         floor = project["spatial_profile"]["floor_table"][0]
         self.assertEqual("floor-1", floor["floor_id"])
@@ -112,7 +112,7 @@ class ProjectStoreSchemaTestCase(unittest.TestCase):
         })
         self.assertTrue(self.store.activate("v4_project"))
         project = self.store.get_active_copy()
-        self.assertEqual(5, project["schema_version"])
+        self.assertEqual(CURRENT_SCHEMA_VERSION, project["schema_version"])
         self.assertEqual("inherit_platform", project["media_policy"]["mode"])
         self.assertEqual([], project["media_policy"]["allowed_hosts"])
         with open(path, "r", encoding="utf-8") as handle:
@@ -172,6 +172,28 @@ class ProjectStoreSchemaTestCase(unittest.TestCase):
         self.assertTrue(datasets[0]["created_at"])
         self.assertEqual(1, datasets[0]["node_count"])
         self.assertEqual(0, datasets[0]["link_count"])
+
+    def test_remove_component_preserves_minted_instance(self):
+        self.store.create_project(
+            "Component Delete",
+            object_types={"test.rotor": {"rid": "test.rotor", "name": "旋翼航空器"}},
+            project_id="component_delete",
+        )
+        self.store.set_components({
+            "cmp_test": {
+                "id": "cmp_test",
+                "object_type_rid": "test.rotor",
+                "bound_instance_id": "vehicle_01",
+            }
+        })
+        self.store.spawn("vehicle_01", "test.rotor")
+
+        removed = self.store.remove_component("cmp_test")
+
+        self.assertEqual("vehicle_01", removed["bound_instance_id"])
+        self.assertEqual({}, self.store.get_components())
+        self.assertEqual(["vehicle_01"], [item["id"] for item in self.store.list_all()])
+        self.assertIsNone(self.store.remove_component("cmp_test"))
 
     def test_newer_schema_is_rejected_without_writeback(self):
         path = self._write_project("future", {

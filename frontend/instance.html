@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/vendor/vue-3.3.4.global.prod.js" integrity="sha384-QLgwzsuau/sa8LhRgjRzkvQS0LyUzCM2B8FPwVoSu1KDel940/orifPaumNXp9hK" crossorigin="anonymous"></script>
     <script src="/vendor/axios-1.7.9.min.js" integrity="sha384-jLwhcmGu/RL8PSTUEl/559f8QVLL4QqM+HBvoZlt4F7XCdsdoDGAwW4nPFfoM7lU" crossorigin="anonymous"></script>
+    <script src="/hierarchy_menu.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.3.2/bin/jsencrypt.min.js" integrity="sha384-FwzUI3CDdHbj2MEKbnjj0eCvB+gYurE3x3pW/udNFOVUbrCrl3REWMQ1FBTolvoj" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="/nexus_titlebar.css" />
     <style>
@@ -87,19 +88,32 @@
                 <div class="p-5 space-y-3 bg-white">
                     <div class="flex items-center gap-3">
                         <label class="w-12 text-xs font-medium text-gray-500 shrink-0">类型</label>
-                        <select v-model="spawnForm.objectTypeRid" @change="spawnForm.instanceId = ''" 
+                        <select v-model="spawnForm.objectTypeRid" aria-label="投产设备类型"
                                 class="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition">
-                            <option value="">-- 选择 ObjectType --</option>
+                            <option value="">-- 选择设备类型 --</option>
                             <option v-for="ot in readyTypes" :key="ot.rid" :value="ot.rid">{{ ot.name }}</option>
                         </select>
                     </div>
                     <div class="flex items-center gap-3">
-                        <label class="w-12 text-xs font-medium text-gray-500 shrink-0">实体 ID</label>
-                        <select v-model="spawnForm.instanceId" :disabled="!spawnForm.objectTypeRid"
-                                class="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition disabled:bg-gray-50 disabled:text-gray-400">
-                            <option value="">-- 选择可用编号 --</option>
-                            <option v-for="id in availableInstanceIds" :key="id" :value="id">{{ id }}</option>
+                        <label class="w-12 text-xs font-medium text-gray-500 shrink-0">实例编号</label>
+                        <select v-if="spawnIdMode === 'roster'" v-model="spawnRosterSelection"
+                                @change="handleSpawnIdSelection" aria-label="待投产实例编号"
+                                class="flex-1 min-w-0 border border-gray-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition">
+                            <option value="">-- 选择待投产编号 --</option>
+                            <option v-for="entry in availableRosterEntries" :key="entry.instance_id"
+                                    :value="entry.instance_id">{{ entry.instance_id }} · {{ rosterEntryLabel(entry) }}</option>
+                            <option value="__manual__">-- 手输新编号 --</option>
                         </select>
+                        <input v-else v-model.trim="spawnForm.instanceId" @input="applySpawnRosterEntry"
+                               type="text" aria-label="手输实例编号" placeholder="输入新实例编号"
+                               class="flex-1 min-w-0 border border-gray-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
+                    </div>
+                    <div class="ml-[60px] flex items-start justify-between gap-3 text-[10px] leading-relaxed">
+                        <span :class="spawnIdConflict ? 'text-red-600' : 'text-gray-400'">{{ spawnIdHint }}</span>
+                        <button v-if="spawnIdMode === 'manual'" type="button" @click="returnToRosterSelection"
+                                class="shrink-0 text-gray-600 underline underline-offset-2 hover:text-gray-950 transition">
+                            改从清单选择
+                        </button>
                     </div>
                     <div>
                         <div class="text-[10px] text-gray-400 mb-1.5 ml-[60px]">初始位置坐标 (厘米)</div>
@@ -113,14 +127,14 @@
                         </div>
                     </div>
                     <div class="pt-2">
-                        <button @click="spawnInstance" :disabled="!spawnForm.objectTypeRid || !spawnForm.instanceId.trim() || spawning"
+                        <button @click="spawnInstance" :disabled="!spawnForm.objectTypeRid || !spawnForm.instanceId.trim() || !!spawnIdConflict || spawning"
                                 class="w-full text-sm font-bold bg-gray-900 text-white rounded-md py-2.5 hover:bg-gray-800 disabled:opacity-50 transition border border-gray-900 shadow-sm flex items-center justify-center gap-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                             {{ spawning ? '投产分配中...' : '确认投产上线' }}
                         </button>
                     </div>
                     <div v-if="readyTypes.length === 0" class="text-xs text-yellow-600 bg-yellow-50 border border-yellow-200 p-2 rounded mt-2">
-                        请先前往 [本体注入中心] 配置含有 I3D_Representable 能力的 ObjectType。
+                        请先前往本体配置中心，为设备类型启用三维表现能力。
                     </div>
                 </div>
             </div>
@@ -145,6 +159,8 @@
                 </div>
                 <!-- Type and zone filters for instance list -->
                 <div class="flex-shrink-0 px-4 py-2 border-b border-gray-100 bg-white grid grid-cols-2 gap-2">
+                    <input v-model.trim="instanceSearch" type="text" placeholder="搜索实例" aria-label="搜索存活实例"
+                           class="col-span-2 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-gray-900 focus:ring-2 focus:ring-gray-100" />
                     <label class="space-y-1">
                         <span class="block text-[10px] font-medium text-gray-400">设备类型</span>
                         <select v-model="instanceTypeFilter" class="w-full text-xs border border-gray-300 rounded-md px-2 py-1.5 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100 transition bg-white">
@@ -162,44 +178,53 @@
                     </label>
                 </div>
                 <div class="flex-1 overflow-y-auto p-4 space-y-2">
-                    <div v-if="filteredInstances.length === 0" class="text-center text-sm text-gray-400 py-10">当前无实例在役</div>
-                    <div v-for="group in instanceTreeGroups" :key="group.key" class="space-y-2">
-                        <div class="flex items-center justify-between text-[10px] font-semibold text-gray-500 uppercase tracking-wide px-1 pt-1">
-                            <span class="truncate">{{ group.label }}</span>
-                            <span class="font-mono text-gray-400">{{ group.items.length }}</span>
-                        </div>
-                        <div v-for="inst in group.items" :key="inst.id"
-                             @click="selectInstance(inst)"
-                             :class="[
-                                'p-3 border rounded-lg cursor-pointer transition flex items-center gap-3',
-                                selectedInst?.id === inst.id ? 'border-gray-900 bg-gray-50 shadow-sm' : 'border-gray-200 hover:border-gray-400'
-                             ]">
-                            <div :class="[
-                                'w-2.5 h-2.5 rounded-full flex-shrink-0',
-                                inst.status === 'online' ? 'bg-green-500 shadow-[0_0_0_2px_rgba(34,197,94,0.2)]' : 'bg-red-500 shadow-[0_0_0_2px_rgba(239,68,68,0.2)]'
-                            ]"></div>
-                            <div class="flex-1 min-w-0">
-                                <div class="font-mono text-sm font-bold text-gray-900 truncate">{{ inst.display_name || inst.id }}</div>
-                                <div class="text-[11px] text-gray-500 mt-0.5 truncate">{{ inst.object_type_name }}</div>
-                                <div v-if="inst.hierarchy_path?.length" class="text-[10px] text-gray-400 mt-0.5 truncate">{{ inst.hierarchy_path.join(' / ') }}</div>
-                            </div>
-                            <div class="flex flex-col items-end gap-1.5 shrink-0">
-                                <span :class="[
-                                    'text-[9px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wider',
-                                    inst.status === 'online' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
-                                ]" title="OntoTwin 实例状态">{{ inst.status === 'online' ? '在线' : '失联' }}</span>
-                                <span v-if="inst.realtime_channel"
-                                      :class="['text-[9px] font-medium px-1.5 py-0.5 rounded border flex items-center gap-1', realtimeChannelTag(inst.realtime_channel).classes]"
-                                      :title="realtimeChannelTag(inst.realtime_channel).title">
-                                    <span :class="['w-1.5 h-1.5 rounded-full', realtimeChannelTag(inst.realtime_channel).dot]"></span>
-                                    {{ realtimeChannelTag(inst.realtime_channel).label }}
-                                </span>
-                                
-                                <div v-if="pendingDelete === inst.id" class="flex items-center gap-1.5">
-                                    <button @click.stop="deleteInstance(inst.id)" class="text-[10px] px-2 py-0.5 rounded bg-red-600 text-white font-medium hover:bg-red-700 transition">销毁</button>
-                                    <button @click.stop="pendingDelete=null" class="text-[10px] px-2 py-0.5 rounded bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition">取消</button>
+                    <div v-if="filteredInstances.length === 0" class="text-center text-sm text-gray-400 py-10">{{ instances.length ? '没有匹配的实例' : '当前无实例在役' }}</div>
+                    <div v-for="group in instanceTreeGroups" :key="group.key" class="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                        <button type="button"
+                                @click="toggleInstanceMenu(group.key)"
+                                :aria-expanded="isInstanceMenuOpen(group.key)"
+                                class="w-full flex items-center gap-2 px-3 py-2.5 text-left bg-gray-50 hover:bg-gray-100 transition">
+                            <svg :class="['w-3.5 h-3.5 shrink-0 text-gray-500 transition-transform', isInstanceMenuOpen(group.key) ? 'rotate-90' : '']"
+                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                            <span class="flex-1 min-w-0 truncate text-xs font-semibold text-gray-700" :title="group.fullLabel">{{ group.label }}</span>
+                            <span class="font-mono text-[10px] text-gray-400">{{ group.items.length }}</span>
+                        </button>
+                        <div v-show="isInstanceMenuOpen(group.key)" class="p-2 space-y-2 border-t border-gray-100">
+                            <div v-for="inst in group.items" :key="inst.id"
+                                 @click="selectInstance(inst)"
+                                 :class="[
+                                    'p-3 border rounded-lg cursor-pointer transition flex items-center gap-3',
+                                    selectedInst?.id === inst.id ? 'border-gray-900 bg-gray-50 shadow-sm' : 'border-gray-200 hover:border-gray-400'
+                                 ]">
+                                <div :class="[
+                                    'w-2.5 h-2.5 rounded-full flex-shrink-0',
+                                    inst.status === 'online' ? 'bg-green-500 shadow-[0_0_0_2px_rgba(34,197,94,0.2)]' : 'bg-red-500 shadow-[0_0_0_2px_rgba(239,68,68,0.2)]'
+                                ]"></div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="font-mono text-sm font-bold text-gray-900 truncate">{{ inst.display_name || inst.id }}</div>
+                                    <div class="text-[11px] text-gray-500 mt-0.5 truncate">{{ inst.object_type_name }}</div>
+                                    <div v-if="inst.hierarchy_path?.length" class="text-[10px] text-gray-400 mt-0.5 truncate">{{ inst.hierarchy_path.join(' / ') }}</div>
                                 </div>
-                                <button v-else @click.stop="pendingDelete = inst.id" class="text-[10px] text-gray-400 hover:text-red-600 hover:underline transition">移除</button>
+                                <div class="flex flex-col items-end gap-1.5 shrink-0">
+                                    <span :class="[
+                                        'text-[9px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wider',
+                                        inst.status === 'online' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+                                    ]" title="OntoTwin 实例状态">{{ inst.status === 'online' ? '在线' : '失联' }}</span>
+                                    <span v-if="inst.realtime_channel"
+                                          :class="['text-[9px] font-medium px-1.5 py-0.5 rounded border flex items-center gap-1', realtimeChannelTag(inst.realtime_channel).classes]"
+                                          :title="realtimeChannelTag(inst.realtime_channel).title">
+                                        <span :class="['w-1.5 h-1.5 rounded-full', realtimeChannelTag(inst.realtime_channel).dot]"></span>
+                                        {{ realtimeChannelTag(inst.realtime_channel).label }}
+                                    </span>
+
+                                    <div v-if="pendingDelete === inst.id" class="flex items-center gap-1.5">
+                                        <button @click.stop="deleteInstance(inst.id)" class="text-[10px] px-2 py-0.5 rounded bg-red-600 text-white font-medium hover:bg-red-700 transition">销毁</button>
+                                        <button @click.stop="pendingDelete=null" class="text-[10px] px-2 py-0.5 rounded bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition">取消</button>
+                                    </div>
+                                    <button v-else @click.stop="pendingDelete = inst.id" class="text-[10px] text-gray-400 hover:text-red-600 hover:underline transition">移除</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -211,18 +236,6 @@
         <div class="flex-1 flex flex-col min-h-0 bg-gray-50">
             <nav class="shrink-0 bg-white border-b border-gray-200 px-6" role="tablist" aria-label="实例运维工作区">
                 <div class="flex items-end gap-7">
-                    <button id="instance-tab-stream"
-                            type="button"
-                            role="tab"
-                            :aria-selected="activeMonitorTab === 'stream'"
-                            @click="switchMonitorTab('stream')"
-                            :class="[
-                                'relative py-3 px-1 text-sm font-medium transition focus:outline-none focus-visible:bg-gray-100 focus-visible:text-gray-950',
-                                activeMonitorTab === 'stream' ? 'text-gray-950' : 'text-gray-500 hover:text-gray-900'
-                            ]">
-                        实时推流
-                        <span v-if="activeMonitorTab === 'stream'" class="absolute inset-x-0 bottom-0 h-0.5 bg-gray-950"></span>
-                    </button>
                     <button id="instance-tab-control"
                             type="button"
                             role="tab"
@@ -258,6 +271,18 @@
                             ]">
                         端点 JSON
                         <span v-if="activeMonitorTab === 'json'" class="absolute inset-x-0 bottom-0 h-0.5 bg-gray-950"></span>
+                    </button>
+                    <button id="instance-tab-stream"
+                            type="button"
+                            role="tab"
+                            :aria-selected="activeMonitorTab === 'stream'"
+                            @click="switchMonitorTab('stream')"
+                            :class="[
+                                'relative py-3 px-1 text-sm font-medium transition focus:outline-none focus-visible:bg-gray-100 focus-visible:text-gray-950',
+                                activeMonitorTab === 'stream' ? 'text-gray-950' : 'text-gray-500 hover:text-gray-900'
+                            ]">
+                        实时推流
+                        <span v-if="activeMonitorTab === 'stream'" class="absolute inset-x-0 bottom-0 h-0.5 bg-gray-950"></span>
                     </button>
                 </div>
             </nav>
@@ -505,7 +530,7 @@
                                                     @click="overridePatch.is_loaded = vis.val"
                                                     :class="[
                                                         'text-xs font-mono px-3 py-1.5 rounded transition border',
-                                                        (overridePatch.is_loaded !== undefined ? overridePatch.is_loaded : currentSnap.interfaces.I3D_Representable.is_visible) === vis.val
+                                                        (overridePatch.is_loaded !== undefined ? overridePatch.is_loaded : (currentSnap.raw_state?.is_loaded !== false)) === vis.val
                                                             ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
                                                             : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
                                                     ]">
@@ -513,6 +538,22 @@
                                             </button>
                                         </div>
                                     </div>
+                                    <div class="flex items-center gap-3 mt-4">
+                                        <span class="w-20 text-xs text-gray-500">运行时编辑</span>
+                                        <div class="flex flex-wrap gap-2">
+                                            <button v-for="choice in [{label: '允许空间编辑', val: true}, {label: '实时位置只读', val: false}]" :key="choice.label"
+                                                    @click="overridePatch.runtime_spatial_editable = choice.val"
+                                                    :class="[
+                                                        'text-xs px-3 py-1.5 rounded transition border',
+                                                        (overridePatch.runtime_spatial_editable !== undefined ? overridePatch.runtime_spatial_editable : (currentSnap.runtimeEditor?.spatialEditable !== false)) === choice.val
+                                                            ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
+                                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                                                    ]">
+                                                {{ choice.label }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p class="mt-2 ml-[92px] text-[11px] leading-relaxed text-gray-400">实时位置源持续驱动的设备建议设为只读，避免 F8 调整与现场状态互相覆盖。</p>
                                 </div>
 
                                 <!-- Spatial 位置/朝向已移交「微调位置(多坐标)」面板，此处不再热干预 -->
@@ -1213,6 +1254,8 @@ createApp({
     setup() {
         const instances = ref([]);
         const objectTypes = ref([]);
+        const instanceRoster = ref([]);
+        const componentBoundInstanceIds = ref([]);
         const selectedInst = ref(null);
         const currentSnap = ref(null);
         const spawning = ref(false);
@@ -1281,11 +1324,15 @@ createApp({
         let posX = { ueM:[[1,0,0],[0,1,0],[0,0,1]], ueMInv:[[1,0,0],[0,1,0],[0,0,1]], scale:0.1, floorTable:[], frameMats:{} };
 
         const spawnForm = ref({ objectTypeRid: '', instanceId: '', x: 0, y: 0, z: 0 });
+        const spawnIdMode = ref('roster');
+        const spawnRosterSelection = ref('');
 
         // ── Instance list filter ─────────────────────────────────────────
         const UNASSIGNED_ZONE_FILTER = '__unassigned__';
+        const instanceSearch = ref('');
         const instanceTypeFilter = ref('');
         const instanceZoneFilter = ref('');
+        const expandedInstanceMenus = ref(new Set());
 
         const availableZones = computed(() => {
             const counts = new Map();
@@ -1306,32 +1353,36 @@ createApp({
         }
 
         const filteredInstances = computed(() => {
-            return instances.value.filter(inst =>
-                (!instanceTypeFilter.value || inst.object_type_name === instanceTypeFilter.value) &&
-                matchesZone(inst, instanceZoneFilter.value)
-            );
-        });
-
-        const instanceTreeGroups = computed(() => {
-            const map = new Map();
-            for (const inst of filteredInstances.value) {
-                const zoneId = String(inst.zone_id || '').trim();
-                const key = zoneId || UNASSIGNED_ZONE_FILTER;
-                const label = zoneId || '未分区';
-                if (!map.has(key)) map.set(key, { key, label, items: [], unassigned: !zoneId });
-                map.get(key).items.push(inst);
-            }
-            const groups = Array.from(map.values());
-            for (const group of groups) {
-                group.items.sort((a, b) =>
-                    String(a.display_name || a.id).localeCompare(String(b.display_name || b.id), 'zh-Hans-CN')
-                );
-            }
-            return groups.sort((a, b) => {
-                if (a.unassigned !== b.unassigned) return a.unassigned ? 1 : -1;
-                return a.label.localeCompare(b.label, 'zh-Hans-CN');
+            const query = instanceSearch.value.toLowerCase();
+            return instances.value.filter(inst => {
+                const searchText = [
+                    inst.display_name,
+                    inst.id,
+                    inst.object_type_name,
+                    inst.object_type_rid,
+                    ...(inst.hierarchy_path || []),
+                ].filter(Boolean).join(' ').toLowerCase();
+                return (!query || searchText.includes(query)) &&
+                    (!instanceTypeFilter.value || inst.object_type_name === instanceTypeFilter.value) &&
+                    matchesZone(inst, instanceZoneFilter.value);
             });
         });
+
+        const instanceTreeGroups = computed(() => (
+            OntoTwinHierarchyMenu.groupInstances(filteredInstances.value)
+        ));
+
+        function isInstanceMenuOpen(key) {
+            const filtersActive = Boolean(instanceSearch.value || instanceTypeFilter.value || instanceZoneFilter.value);
+            return filtersActive || expandedInstanceMenus.value.has(key);
+        }
+
+        function toggleInstanceMenu(key) {
+            const next = new Set(expandedInstanceMenus.value);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            expandedInstanceMenus.value = next;
+        }
 
         // ── Zone batch assignment ────────────────────────────────────────
         const zoneManagerOpen = ref(false);
@@ -1390,10 +1441,80 @@ createApp({
 
         const readyTypes = computed(() => objectTypes.value.filter(t => t.has_representable));
 
-        const availableInstanceIds = computed(() => {
-            const ot = objectTypes.value.find(t => t.rid === spawnForm.value.objectTypeRid);
-            return ot ? (ot.mock_instances || []) : [];
+        const existingInstanceIdSet = computed(() =>
+            new Set(instances.value.map(inst => String(inst.id || '').trim()).filter(Boolean))
+        );
+        const componentBoundInstanceIdSet = computed(() =>
+            new Set(componentBoundInstanceIds.value.map(id => String(id || '').trim()).filter(Boolean))
+        );
+        const availableRosterEntries = computed(() => {
+            return instanceRoster.value.filter(entry => {
+                const id = String(entry.instance_id || '').trim();
+                return id &&
+                    !componentBoundInstanceIdSet.value.has(id) &&
+                    !existingInstanceIdSet.value.has(id);
+            });
         });
+        const selectedSpawnRosterEntry = computed(() => {
+            const id = String(spawnForm.value.instanceId || '').trim();
+            return instanceRoster.value.find(entry => String(entry.instance_id || '').trim() === id) || null;
+        });
+        const spawnIdConflict = computed(() => {
+            const id = String(spawnForm.value.instanceId || '').trim();
+            if (!id) return '';
+            if (existingInstanceIdSet.value.has(id)) return '该编号已经投产，请换一个编号。';
+            if (componentBoundInstanceIdSet.value.has(id)) return '该编号已绑定构件，应在实例绑定台铸造。';
+            return '';
+        });
+        const spawnIdHint = computed(() => {
+            const id = String(spawnForm.value.instanceId || '').trim();
+            if (!id) {
+                return spawnIdMode.value === 'manual'
+                    ? '请输入新的实例编号；投产成功后会同步加入实例清单。'
+                    : `${availableRosterEntries.value.length} 个清单编号待投产，也可选择手输新编号。`;
+            }
+            if (spawnIdConflict.value) return spawnIdConflict.value;
+            const entry = selectedSpawnRosterEntry.value;
+            if (!entry) return '新编号；投产成功后会同步加入实例清单。';
+            const details = [entry.name, entry.type, entry.area].filter(Boolean);
+            const typeHint = String(entry.type || '').trim();
+            const typeMatched = !typeHint || readyTypes.value.some(type => type.rid === typeHint || type.name === typeHint);
+            return `来自实例清单${details.length ? ` · ${details.join(' · ')}` : ''}${typeMatched ? '' : ' · 清单类型未匹配，请手动选择设备类型'}`;
+        });
+
+        function rosterEntryLabel(entry) {
+            const details = [entry.name, entry.type, entry.area].filter(Boolean);
+            return details.length ? details.join(' · ') : '实例清单待投产';
+        }
+
+        function applySpawnRosterEntry(event) {
+            const rawValue = event?.target ? event.target.value : spawnForm.value.instanceId;
+            const id = String(rawValue || '').trim();
+            const entry = instanceRoster.value.find(
+                item => String(item.instance_id || '').trim() === id
+            );
+            const typeHint = String(entry?.type || '').trim();
+            if (!typeHint) return;
+            const matchedType = readyTypes.value.find(type => type.rid === typeHint || type.name === typeHint);
+            if (matchedType) spawnForm.value.objectTypeRid = matchedType.rid;
+        }
+
+        function handleSpawnIdSelection() {
+            if (spawnRosterSelection.value === '__manual__') {
+                spawnIdMode.value = 'manual';
+                spawnRosterSelection.value = '';
+                spawnForm.value.instanceId = '';
+                return;
+            }
+            spawnForm.value.instanceId = spawnRosterSelection.value;
+            applySpawnRosterEntry();
+        }
+
+        function returnToRosterSelection() {
+            spawnIdMode.value = 'roster';
+            spawnRosterSelection.value = '';
+            spawnForm.value.instanceId = '';
+        }
 
         // Batch: filter instances by selected ObjectTypes (multi-select)
         const batchCandidates = computed(() => {
@@ -1409,12 +1530,14 @@ createApp({
             const fields = [];
             const ifaces = currentSnap.value.interfaces;
             if (ifaces.I3D_Representable) {
-                fields.push({ key: 'is_visible', type: 'text' });
+                fields.push({ key: 'is_loaded', type: 'boolean' });
+                fields.push({ key: 'runtime_spatial_editable', type: 'boolean' });
             }
             // 3.2：I3D_Spatial(位置/朝向)移交「位置编辑(多坐标)」面板(规范坐标，持久)，
             // 不再放进 Override 热干预(其改 UE 坐标会被重算覆盖)。
             if (ifaces.I3D_Visual) {
                 fields.push({ key: 'material_variant', type: 'text' });
+                fields.push({ key: 'is_visible', type: 'boolean' });
             }
             if (ifaces.I3D_Behavioral) {
                 fields.push({ key: 'animation_state', type: 'text' });
@@ -1493,12 +1616,18 @@ createApp({
         }
 
         async function loadInstances() {
-            const [instRes, typeRes] = await Promise.all([
+            const [instRes, typeRes, rosterRes, componentRes] = await Promise.all([
                 axios.get('/api/v2/instances'),
-                axios.get('/api/v2/ontology/types')
+                axios.get('/api/v2/ontology/types'),
+                axios.get('/api/v2/binding/roster'),
+                axios.get('/api/v2/binding/components')
             ]);
             applyInstanceList(instRes.data);
             objectTypes.value = typeRes.data;
+            instanceRoster.value = rosterRes.data.roster || [];
+            componentBoundInstanceIds.value = (componentRes.data.components || [])
+                .map(component => component.bound_instance_id)
+                .filter(Boolean);
         }
 
         function modelModeLabel(mode) {
@@ -2202,16 +2331,39 @@ createApp({
         }
 
         async function spawnInstance() {
-            if (!spawnForm.value.objectTypeRid || !spawnForm.value.instanceId.trim()) return;
+            if (!spawnForm.value.objectTypeRid || !spawnForm.value.instanceId.trim() || spawnIdConflict.value) return;
+            const instanceId = spawnForm.value.instanceId.trim();
+            const rosterEntry = selectedSpawnRosterEntry.value;
+            const selectedType = readyTypes.value.find(type => type.rid === spawnForm.value.objectTypeRid);
+            const displayName = String(rosterEntry?.name || instanceId).trim();
+            const hierarchyPath = [rosterEntry?.area, selectedType?.name].filter(Boolean);
             spawning.value = true;
             try {
                 await axios.post('/api/v2/instances', {
-                    instance_id: spawnForm.value.instanceId.trim(),
+                    instance_id: instanceId,
                     object_type_rid: spawnForm.value.objectTypeRid,
+                    display_name: displayName,
+                    hierarchy_path: hierarchyPath,
                     initial_position: { x: spawnForm.value.x, y: spawnForm.value.y, z: spawnForm.value.z }
                 });
-                toast('ok', `实体标识 [${spawnForm.value.instanceId}] 已投产上线`);
+                let rosterSyncFailed = false;
+                if (!rosterEntry) {
+                    try {
+                        await axios.post('/api/v2/binding/roster', {
+                            instance_id: instanceId,
+                            type: selectedType?.name || '',
+                            name: displayName,
+                            source: 'manual_spawn'
+                        });
+                    } catch (_) {
+                        rosterSyncFailed = true;
+                    }
+                }
+                toast('ok', `实例编号 [${instanceId}] 已投产上线`);
+                if (rosterSyncFailed) toast('err', '实例已投产，但编号未能同步到实例清单');
                 spawnForm.value.instanceId = '';
+                spawnRosterSelection.value = '';
+                spawnIdMode.value = 'roster';
                 await loadInstances();
             } catch (e) {
                 toast('err', e.response?.data?.error || '投产配置无法解析或请求中断');
@@ -2406,8 +2558,10 @@ createApp({
         });
 
         return {
-            instances, objectTypes, readyTypes, availableInstanceIds, selectedInst, currentSnap,
-            spawnForm, spawning, overriding, overrideFields, overridePatch, toasts, pendingDelete,
+            instances, objectTypes, readyTypes, instanceRoster, availableRosterEntries,
+            selectedSpawnRosterEntry, spawnIdConflict, spawnIdHint, selectedInst, currentSnap,
+            spawnForm, spawnIdMode, spawnRosterSelection, spawning, overriding, overrideFields, overridePatch, toasts, pendingDelete,
+            rosterEntryLabel, applySpawnRosterEntry, handleSpawnIdSelection, returnToRosterSelection,
             activeMonitorTab, switchMonitorTab,
             // 3.3.3 instance model binding
             modelBinding, modelBindingLoading, modelBindingError, modelBindingSaving,
@@ -2438,7 +2592,8 @@ createApp({
             posOpen, posSaving, pos, posX, openPos, savePos, posEditCanonical, posEditUE, posEditFrame, posEditFloor,
             posSourceLabel, posSourceHint,
             // instance list filter
-            instanceTypeFilter, instanceZoneFilter, availableZones, filteredInstances, instanceTreeGroups,
+            instanceSearch, instanceTypeFilter, instanceZoneFilter, availableZones, filteredInstances, instanceTreeGroups,
+            expandedInstanceMenus, isInstanceMenuOpen, toggleInstanceMenu,
             // zone management
             zoneManagerOpen, zoneSourceFilter, zoneTypeFilter, zoneSelectedIds, zoneTarget, zoneSaving,
             zoneInputRef, zoneDialogRef, zoneCandidates, zoneAllSelected, zoneSomeSelected, zoneOverwriteCount,

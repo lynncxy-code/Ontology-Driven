@@ -30,6 +30,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);-webkit-font-
 .btn:hover{background:var(--bg-3)}
 .btn-primary{background:var(--ink);color:var(--on-ink);border-color:var(--ink)}
 .btn-primary:hover{background:#000}
+.btn-danger{border-color:var(--danger-line);color:var(--danger);background:var(--danger-bg)}
+.btn-danger:hover{background:#fee4e2}
 .btn-ghost{border-color:transparent;background:transparent;color:var(--ink-2)}
 .btn-ghost:hover{background:var(--bg-3);color:var(--ink)}
 .btn:disabled{opacity:.4;cursor:not-allowed}
@@ -48,16 +50,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);-webkit-font-
 .row:last-child{border-bottom:none}
 .row:hover{background:var(--bg-3)}
 .dot{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
-.dot-ok{background:var(--ok)}.dot-warn{background:var(--warn)}.dot-err{background:var(--danger)}.dot-muted{background:var(--ink-3)}
+.dot-ok{background:var(--ok)}.dot-warn{background:var(--warn)}.dot-err{background:var(--danger)}.dot-info{background:var(--info)}.dot-muted{background:var(--ink-3)}
 .r-main{flex:1;min-width:0}
 .r-title{font-size:var(--t-base);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .r-meta{font-size:var(--t-xs);color:var(--ink-3);margin-top:2px}
 .r-slot{flex:none}
+.r-actions{display:flex;align-items:center;gap:6px;flex:none}
 .pill{display:inline-flex;align-items:center;gap:6px;background:var(--ok-bg);color:var(--ok);font-size:var(--t-sm);padding:4px 8px;border-radius:var(--r-md);font-family:monospace}
-.pill .x{cursor:pointer;font-style:normal;opacity:.7}
-.pill .x:hover{opacity:1}
 .pill .auto{font-family:var(--font);font-size:10px;opacity:.7}
 .tag-ok{font-size:var(--t-xs);color:var(--ok)}
+.tag-warn{font-size:var(--t-xs);color:var(--warn)}
+.tag-info{font-size:var(--t-xs);color:var(--info)}
 .tag-err{font-size:var(--t-xs);color:var(--danger)}
 select.bind{height:32px;font-size:var(--t-sm);max-width:180px;border:1px solid var(--line-2);border-radius:var(--r-sm);background:#fff;color:var(--ink);padding:0 6px}
 .empty{padding:40px 20px;text-align:center;color:var(--ink-3);font-size:var(--t-sm);line-height:1.7}
@@ -129,7 +132,7 @@ select.bind{height:32px;font-size:var(--t-sm);max-width:180px;border:1px solid v
 </div></div>
 
 <script>
-var State = { components: [], roster: [], noProject: false };
+var State = { components: [], roster: [], instances: [], noProject: false };
 
 function toast(msg, type){
   var box = document.getElementById('toast');
@@ -140,25 +143,48 @@ function toast(msg, type){
   setTimeout(function(){ el.remove(); }, 2600);
 }
 var _modalResolve = null;
-function confirmModal(title, bodyHTML, okText){
+var _modalReturnFocus = null;
+function confirmModal(title, bodyHTML, okText, danger){
   document.getElementById('mdTitle').textContent = title;
   document.getElementById('mdBody').innerHTML = bodyHTML;
-  document.getElementById('mdOk').textContent = okText || '确认';
+  var ok = document.getElementById('mdOk');
+  ok.textContent = okText || '确认';
+  ok.className = 'btn btn-sm ' + (danger ? 'btn-danger' : 'btn-primary');
+  _modalReturnFocus = document.activeElement;
   document.getElementById('mask').classList.add('on');
+  setTimeout(function(){ ok.focus(); }, 0);
   return new Promise(function(res){ _modalResolve = res; });
 }
-function closeModal(v){ document.getElementById('mask').classList.remove('on'); if(_modalResolve){ _modalResolve(v); _modalResolve=null; } }
+function closeModal(v){
+  document.getElementById('mask').classList.remove('on');
+  if(_modalResolve){ _modalResolve(v); _modalResolve=null; }
+  if(_modalReturnFocus && _modalReturnFocus.focus) _modalReturnFocus.focus();
+  _modalReturnFocus = null;
+}
+document.getElementById('mask').addEventListener('mousedown', function(e){
+  if(e.target === this) closeModal(false);
+});
+document.addEventListener('keydown', function(e){
+  if(!document.getElementById('mask').classList.contains('on')) return;
+  if(e.key === 'Escape') closeModal(false);
+  if(e.key === 'Enter') document.getElementById('mdOk').click();
+});
 
 function esc(t){ return (''+(t==null?'':t)).replace(/[<>&"]/g, function(m){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[m];}); }
 
 async function loadAll(){
   try{
-    var rc = await fetch('/api/v2/binding/components');
+    var results = await Promise.all([
+      fetch('/api/v2/binding/components'),
+      fetch('/api/v2/binding/roster'),
+      fetch('/api/v2/instances')
+    ]);
+    var rc = results[0];
     if(rc.status === 400){ State.noProject = true; render(); return; }
     State.noProject = false;
     State.components = (await rc.json()).components || [];
-    var rr = await fetch('/api/v2/binding/roster');
-    State.roster = (await rr.json()).roster || [];
+    State.roster = (await results[1].json()).roster || [];
+    State.instances = await results[2].json() || [];
   }catch(e){ toast('加载失败：' + e.message, 'err'); return; }
   render();
 }
@@ -166,6 +192,12 @@ async function loadAll(){
 function takenSet(){
   var s = {};
   State.components.forEach(function(c){ if(c.bound_instance_id) s[c.bound_instance_id] = c.id; });
+  return s;
+}
+
+function deployedSet(){
+  var s = {};
+  State.instances.forEach(function(inst){ if(inst.id) s[inst.id] = inst; });
   return s;
 }
 
@@ -181,6 +213,7 @@ function render(){
     return;
   }
   var taken = takenSet();
+  var deployed = deployedSet();
   var kw = (document.getElementById('searchBox').value || '').trim().toLowerCase();
   var onlyUnbound = document.getElementById('onlyUnbound').checked;
 
@@ -201,17 +234,22 @@ function render(){
     var meta = (eq ? ('EQUIP ' + esc(eq)) : '无编号') + ' · UE(' + (c.ue_xy?c.ue_xy[0].toFixed(1):'?') + ', ' + (c.ue_xy?c.ue_xy[1].toFixed(1):'?') + ')';
     var slot;
     if(c.bound_instance_id){
-      slot = '<span class="pill">' + esc(c.bound_instance_id) + ' <i class="x" data-unbind="'+esc(c.id)+'" title="解绑">✕</i></span>';
+      slot = '<span class="pill">' + esc(c.bound_instance_id) + '</span>'
+        + '<button type="button" class="btn btn-sm btn-ghost" data-unbind="'+esc(c.id)+'">解绑</button>';
     }else{
       var opts = '<option value="">— 选择实例编号 —</option>';
-      State.roster.forEach(function(r){ if(!taken[r.instance_id]) opts += '<option value="'+esc(r.instance_id)+'">'+esc(r.instance_id)+'</option>'; });
-      opts += '<option value="__manual__">+ 手填新号…</option>';
+      State.roster.forEach(function(r){
+        if(!taken[r.instance_id] && !deployed[r.instance_id]){
+          opts += '<option value="'+esc(r.instance_id)+'">'+esc(r.instance_id)+'</option>';
+        }
+      });
       slot = '<select class="bind" data-bind="'+esc(c.id)+'">'+opts+'</select>';
     }
     var dotCls = c.bound_instance_id ? 'dot-ok' : 'dot-warn';
     row.innerHTML = '<span class="dot '+dotCls+'"></span>'
       + '<div class="r-main"><div class="r-title">'+esc(c.type_name)+'</div><div class="r-meta">'+meta+'</div></div>'
-      + '<div class="r-slot">'+slot+'</div>';
+      + '<div class="r-actions"><div class="r-slot">'+slot+'</div>'
+      + '<button type="button" class="btn btn-sm btn-danger" data-delete="'+esc(c.id)+'">删除</button></div>';
     cl.appendChild(row);
   });
 
@@ -222,10 +260,25 @@ function render(){
   }
   State.roster.forEach(function(r){
     var isBound = !!taken[r.instance_id];
+    var isDeployed = !!deployed[r.instance_id];
     var row = document.createElement('div');
     row.className = 'row';
-    var tag = isBound ? '<span class="tag-ok">已绑定</span>' : '<span class="tag-err">悬空·无几何</span>';
-    row.innerHTML = '<span class="dot '+(isBound?'dot-ok':'dot-err')+'"></span>'
+    var tag;
+    var dotCls;
+    if(isBound && isDeployed){
+      tag = '<span class="tag-ok">已绑定·已投产</span>';
+      dotCls = 'dot-ok';
+    }else if(isBound){
+      tag = '<span class="tag-warn">已预留·待铸造</span>';
+      dotCls = 'dot-warn';
+    }else if(isDeployed){
+      tag = '<span class="tag-info">已投产·自由实例</span>';
+      dotCls = 'dot-info';
+    }else{
+      tag = '<span class="tag-warn">待投产</span>';
+      dotCls = 'dot-warn';
+    }
+    row.innerHTML = '<span class="dot '+dotCls+'"></span>'
       + '<span class="r-main" style="font-family:monospace;font-size:var(--t-base)">'+esc(r.instance_id)+'</span>' + tag;
     rl.appendChild(row);
   });
@@ -242,21 +295,50 @@ document.addEventListener('change', async function(e){
   if(!cid) return;
   var v = e.target.value;
   if(!v) return;
-  if(v === '__manual__'){
-    var nid = (prompt('输入实例编号（清单外手填）') || '').trim();
-    if(!nid){ render(); return; }
-    await addRosterEntry(nid);
-    await bind(cid, nid);
-    return;
-  }
   await bind(cid, v);
 });
 document.addEventListener('click', async function(e){
+  var deleteId = e.target.getAttribute && e.target.getAttribute('data-delete');
+  if(deleteId){ await deleteComponent(deleteId, e.target); return; }
   var uid = e.target.getAttribute && e.target.getAttribute('data-unbind');
   if(!uid) return;
-  await fetch('/api/v2/binding/unbind', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({component_id:uid})});
+  var response = await fetch('/api/v2/binding/unbind', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({component_id:uid})});
+  if(!response.ok){
+    var errorData = await response.json().catch(function(){ return {}; });
+    toast('解绑失败：' + (errorData.error || response.status), 'err');
+    return;
+  }
+  toast('已解除构件绑定', 'ok');
   await loadAll();
 });
+
+async function deleteComponent(componentId, trigger){
+  var component = State.components.find(function(c){ return c.id === componentId; });
+  if(!component){ toast('构件不存在或已删除', 'warn'); await loadAll(); return; }
+  var boundId = component.bound_instance_id || '';
+  var isDeployed = !!State.instances.find(function(inst){ return inst.id === boundId; });
+  var consequence = boundId
+    ? '该构件与实例编号 <b>' + esc(boundId) + '</b> 的绑定会一并移除。'
+    : '该构件当前没有绑定实例编号。';
+  if(isDeployed) consequence += '<br>已投产实例 <b>' + esc(boundId) + '</b> 会继续保留，可在实例运维页面单独移除。';
+  consequence += '<br><br>如果坐标标定页面仍保留该标注，再次保存同一来源时会重新生成构件。';
+  var confirmed = await confirmModal('删除构件', consequence, '确认删除', true);
+  if(!confirmed) return;
+  trigger.disabled = true;
+  trigger.textContent = '删除中…';
+  try{
+    var response = await fetch('/api/v2/binding/components/' + encodeURIComponent(componentId), {method:'DELETE'});
+    var data = await response.json().catch(function(){ return {}; });
+    if(!response.ok){ toast('删除失败：' + (data.error || response.status), 'err'); return; }
+    toast('构件已删除' + (isDeployed ? '，已投产实例保持不变' : ''), 'ok');
+    await loadAll();
+  }catch(error){
+    toast('删除失败：' + error.message, 'err');
+  }finally{
+    trigger.disabled = false;
+    trigger.textContent = '删除';
+  }
+}
 
 async function bind(componentId, instanceId){
   var r = await fetch('/api/v2/binding/bind', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({component_id:componentId, instance_id:instanceId})});
@@ -310,6 +392,7 @@ async function mint(){
   var d = await r.json();
   if(!r.ok){ toast('铸造失败：' + (d.error||r.status), 'err'); return; }
   toast('已铸造 ' + d.minted + ' 个实例，可在实例运维 / UE 查看', 'ok');
+  await loadAll();
 }
 
 loadAll();

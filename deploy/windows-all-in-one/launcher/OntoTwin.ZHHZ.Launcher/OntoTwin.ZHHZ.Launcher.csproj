@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>OntoTwin-ZHHZ-Launcher</AssemblyName>
@@ -13,6 +13,11 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishTrimmed>false</PublishTrimmed>
     <DebugType>embedded</DebugType>
-    <Version>3.7.1.16</Version>
+    <Version>3.7.1.1002</Version>
+    <ApplicationIcon>LingYunZhi.ico</ApplicationIcon>
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="logo-flat.png" />
+    <Resource Include="LingYunZhi.ico" />
+  </ItemGroup>
 </Project>

@@ -1,31 +1,47 @@
 {
   "round_id": "w9_equipment_round1",
   "created_at": "2026-07-27T13:37:00+08:00",
-  "status": "candidate_inventory_complete",
+  "status": "ue_preview_passed_awaiting_gate_c_cleanup_approval",
   "scope": "equipment_only",
-  "excluded_scope": ["building", "lighting", "post_process", "system_blueprints", "station_label_widgets"],
+  "excluded_scope": [
+    "building",
+    "lighting",
+    "post_process",
+    "system_blueprints",
+    "station_label_widgets"
+  ],
   "ue": {
     "project_file": "D:\\SCC\\SCC2\\scc2\\scc2.uproject",
     "main_map": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Main",
     "equipment_source_level": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Main",
-    "source_inventory": "D:\\tmp\\digital_twin_aircraft\\migration_runs\\w9_round1_20260727\\00_input\\w9_scene_inventory_round1.json"
+    "source_inventory": "D:\\tmp\\digital_twin_aircraft\\migration_runs\\w9_round1_20260727\\00_input\\w9_scene_inventory_round1.json",
+    "preview_audit": "D:\\tmp\\digital_twin_aircraft\\migration_runs\\w9_equipment_round1_20260727\\06_preview\\preview_audit_round1.json",
+    "preview_passed": true,
+    "preview_transient": true,
+    "level_save_requested": false,
+    "main_map_sha256": "D95B7B1C0B5573D7CF8A64131801691A4AC3FA4448E3283FABE59CB4CD2C4229"
   },
   "ontotwin": {
     "repository": "D:\\tmp\\digital_twin_aircraft",
     "active_dataset_id": "ds_1785130727581",
     "active_dataset_name": "SCC W19",
-    "bound_ue_project": null,
-    "object_type_count": 0,
-    "instance_count": 0
+    "bound_ue_project_id": "ueproj_scc2",
+    "bound_ue_project_name": "scc2",
+    "object_type_count": 6,
+    "instance_count": 6,
+    "render_part_count": 33
   },
-  "proposed_zone": {
+  "zone": {
     "zone_id": "scc_w19_1f_ict",
     "name": "SCC W19 1F ICT设备区",
     "ue_level": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Main"
   },
-  "proposed_partition_root": "生产区/1F/ICT产线",
-  "proposed_object_type_policy": "Create six distinct ObjectTypes. Do not use hierarchy_path as ObjectType identity.",
-  "gate_a_status": "awaiting_user_approval",
-  "database_write_performed": false,
+  "partition_root": "生产区/1F/ICT产线",
+  "object_type_policy": "Create six distinct ObjectTypes. Do not use hierarchy_path as ObjectType identity.",
+  "gate_a_status": "approved",
+  "gate_b_status": "approved",
+  "gate_c_status": "awaiting_user_approval",
+  "database_write_performed": true,
+  "source_actor_cleanup_performed": false,
   "ue_assets_modified": false
 }

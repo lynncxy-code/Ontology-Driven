@@ -1,6 +1,8 @@
+import copy
 from collections import Counter
 
 from project_store import ProjectMismatch
+from web_interaction.validators import ZONE_LEVELS, validate_zone_hierarchy, zone_catalog
 
 
 class ZoneManagementError(ValueError):
@@ -92,16 +94,71 @@ class ZoneManagementService:
                 counts[zone_id] += 1
             else:
                 unassigned_count += 1
-        zones = [
-            {"id": zone_id, "instance_count": count}
-            for zone_id, count in sorted(counts.items(), key=lambda item: item[0].casefold())
-        ]
+        catalog = zone_catalog(project)
+        zones = []
+        for zone_id in sorted(set(catalog) | set(counts), key=str.casefold):
+            item = {"id": zone_id, "instance_count": counts.get(zone_id, 0)}
+            explicit = (project.get("zones") or {}).get(zone_id) if isinstance(project.get("zones"), dict) else None
+            if isinstance(explicit, dict):
+                item.update({
+                    "name": explicit.get("name") or zone_id,
+                    "parent_zone_id": explicit.get("parent_zone_id"),
+                    "level": explicit.get("level") or "custom",
+                    "ue_level": explicit.get("ue_level") or "",
+                    "streaming": copy.deepcopy(explicit.get("streaming") or {}),
+                })
+            zones.append(item)
         return {
             "project_id": project.get("id"),
             "zones": zones,
             "unassigned_count": unassigned_count,
             "total_instances": len(instances),
         }
+
+    def save_catalog(self, payload):
+        if not isinstance(payload, dict) or not isinstance(payload.get("zones"), list):
+            raise ZoneManagementError(
+                "invalid_zone_catalog", "zones 必须是数组",
+                [{"path": "zones", "message": "必须是数组"}],
+            )
+        project = self._active_project()
+        expected_project_id = str(payload.get("expected_project_id") or "").strip()
+        if expected_project_id and expected_project_id != project.get("id"):
+            raise ZoneManagementConflictError("保存期间当前激活项目已切换")
+        normalized = {}
+        for index, raw in enumerate(payload["zones"]):
+            if not isinstance(raw, dict):
+                raise ZoneManagementError("invalid_zone", "Zone 必须是对象", [{"path": f"zones[{index}]", "message": "必须是对象"}])
+            zone_id = _normalize_zone_id(raw.get("zone_id") or raw.get("id"))
+            if not zone_id:
+                raise ZoneManagementError("invalid_zone_id", "Zone ID 不能为空", [{"path": f"zones[{index}].zone_id", "message": "不能为空"}])
+            if zone_id in normalized:
+                raise ZoneManagementError("duplicate_zone_id", "Zone ID 不能重复", [{"path": f"zones[{index}].zone_id", "message": "不能重复"}])
+            level = str(raw.get("level") or "custom").strip()
+            if level not in ZONE_LEVELS:
+                raise ZoneManagementError("invalid_zone_level", "Zone level 不受支持", [{"path": f"zones[{index}].level", "message": "仅支持 building/floor/room/area/custom"}])
+            normalized[zone_id] = {
+                "zone_id": zone_id,
+                "name": str(raw.get("name") or zone_id).strip() or zone_id,
+                "parent_zone_id": _normalize_zone_id(raw.get("parent_zone_id")),
+                "level": level,
+                "ue_level": str(raw.get("ue_level") or "").strip(),
+                "streaming": copy.deepcopy(raw.get("streaming") or {}),
+            }
+        candidate = copy.deepcopy(project)
+        candidate["zones"] = normalized
+        hierarchy_errors = validate_zone_hierarchy(candidate)
+        if hierarchy_errors:
+            raise ZoneManagementError("invalid_zone_hierarchy", "Zone 层级校验失败", hierarchy_errors)
+        project_id = project.get("id")
+
+        def update(working):
+            if working.get("id") != project_id:
+                raise ZoneManagementConflictError("保存期间当前激活项目已切换")
+            working["zones"] = copy.deepcopy(normalized)
+
+        self.store.transact_active(update)
+        return {"status": "ok", "project_id": project_id, "zones": list(normalized.values())}
 
     def assign(self, payload):
         if not isinstance(payload, dict):
@@ -115,6 +172,13 @@ class ZoneManagementService:
 
         instance_ids = _normalize_instance_ids(payload.get("instance_ids"))
         zone_id = _normalize_zone_id(payload.get("zone_id"))
+        if zone_id:
+            catalog = zone_catalog(project)
+            if zone_id in catalog and any(zone.get("parent_zone_id") == zone_id for zone in catalog.values()):
+                raise ZoneManagementError(
+                    "non_leaf_zone", "实例只能绑定叶子 Zone",
+                    [{"path": "zone_id", "message": "该 Zone 仍有子 Zone"}],
+                )
         try:
             result = self.store.assign_zone(
                 instance_ids, zone_id,

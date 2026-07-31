@@ -6,6 +6,7 @@
       Manufacturer="OntoTwin"
       Version="$(var.BundleVersion)"
       UpgradeCode="72592ADE-675B-48E6-B071-EEC6C17A6B22"
+      IconSourceFile="$(var.LauncherIconPath)"
       Compressed="no">
 
     <BootstrapperApplication>

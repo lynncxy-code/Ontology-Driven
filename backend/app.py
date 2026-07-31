@@ -11,7 +11,7 @@ from mapping_store import (
     InstanceStore, MockInstanceSimulator
 )
 from ontology_parser import validate_files, parse_ontology_csvs
-from writeback import apply_writeback          # FR-5：UE→ontotwin 空间回写
+from writeback import apply_batch_writeback, apply_writeback, runtime_edit_state_hash
 from ue_project_binding import bind_active_dataset, check_request_matches_active, request_ue_project
 from realtime_channel import enrich_instances_with_realtime_channel
 from scene_interaction.service import get_runtime_status
@@ -816,8 +816,8 @@ def coord_save_components():
     source_label = (data.get("source_label") or "").strip()
     if mode not in ("dxf", "image"):
         return jsonify({"error": f"未知 mode: {mode}"}), 400
-    if not items:
-        return jsonify({"error": "items 为空"}), 400
+    if not items and not source_label:
+        return jsonify({"error": "清空构件时缺少来源标识"}), 400
     if not matrix:
         return jsonify({"error": "缺少 transform_matrix（请先完成标定）"}), 400
 
@@ -872,6 +872,10 @@ def coord_save_components():
         return (comp_mode, comp.get("source_label") or "")
 
     current_source_key = (mode, source_label)
+    old_source_ids = {
+        cid for cid, comp in old.items()
+        if _source_key(comp) == current_source_key
+    }
     # 只替换当前来源的构件；保留其他 CAD/图片/历史构件，避免多空间源互相冲掉。
     comps = {
         cid: comp for cid, comp in old.items()
@@ -926,6 +930,8 @@ def coord_save_components():
             # 保留已有绑定（按 id 命中旧构件）
             "bound_instance_id": (old.get(cid) or {}).get("bound_instance_id"),
         }
+    source_saved = sum(1 for comp in comps.values() if _source_key(comp) == current_source_key)
+    removed = len(old_source_ids - set(comps))
     # 一次持锁、一次保存：profile + frame + components 组合事务（原子）。
     try:
         project_store.save_component_bundle(
@@ -940,6 +946,8 @@ def coord_save_components():
     return jsonify({
         "status": "ok",
         "saved": len(comps),
+        "source_saved": source_saved,
+        "removed": removed,
         "errors": errors,
         "hint": "构件已保存到当前项目，请前往『实例绑定台』绑定实例编号并铸造实例",
     })
@@ -2436,6 +2444,10 @@ def _build_snapshot(instance_id):
         "sourceAssetPath": inst_meta.get("source_asset_path", ""),
         "classificationStatus": inst_meta.get("classification_status", "confirmed"),
         "classificationKey": inst_meta.get("classification_key", ""),
+        "runtimeEditor": {
+            "spatialEditable": bool(raw.get("runtime_spatial_editable", True)),
+            "stateHash": runtime_edit_state_hash(raw),
+        },
         "timestamp":       now,
         "online":          online,
         "raw_state":       raw,
@@ -2496,7 +2508,7 @@ def override_state():
                 patch[k] = float(v)
             except (ValueError, TypeError):
                 pass
-        if k in ('is_visible', 'is_loaded') and isinstance(v, str):
+        if k in ('is_visible', 'is_loaded', 'runtime_spatial_editable') and isinstance(v, str):
             patch[k] = v.lower() not in ('false', '0', 'no')
 
     expected = data.get("expected_project_id")
@@ -2541,6 +2553,31 @@ def writeback_state():
         return jsonify({"status": "error", **info}), 404
     snap = _build_snapshot(instance_id)
     return jsonify({"status": "ok", "writeback": info, "snapshot": snap})
+
+
+@app.route('/api/v2/state/writeback/batch', methods=['POST'])
+def writeback_state_batch():
+    """原子保存一个 Runtime Editor 会话，最多包含 100 个实例。"""
+    bind_ok, bind_info = check_request_matches_active(project_store, request)
+    if not bind_ok:
+        return jsonify(bind_info), 403
+
+    data = request.json or {}
+    ok, info, status = apply_batch_writeback(instance_store, data.get("changes"), max_changes=100)
+    if not ok:
+        return jsonify({"status": "error", **info}), status
+
+    snapshots = []
+    for change in data.get("changes") or []:
+        snapshot = _build_snapshot(change.get("instance_id"))
+        if snapshot is not None:
+            snapshots.append(snapshot)
+    return jsonify({
+        "status": "ok",
+        "count": info["count"],
+        "writebacks": info["results"],
+        "snapshots": snapshots,
+    })
 
 
 @app.route('/api/v2/scenes', methods=['GET'])
@@ -2595,6 +2632,23 @@ def binding_components():
         return err
     comps = project_store.get_components()
     return jsonify({"components": list(comps.values()), "count": len(comps)})
+
+
+@app.route('/api/v2/binding/components/<path:component_id>', methods=['DELETE'])
+def binding_component_delete(component_id):
+    """删除项目构件及其绑定关系；已经铸造的运行实例保持不变。"""
+    _, err = _require_active_project()
+    if err:
+        return err
+    removed = project_store.remove_component(component_id)
+    if removed is None:
+        return jsonify({"error": "构件不存在或已删除"}), 404
+    return jsonify({
+        "status": "deleted",
+        "component_id": component_id,
+        "bound_instance_id": removed.get("bound_instance_id"),
+        "instance_preserved": True,
+    })
 
 
 @app.route('/api/v2/binding/roster', methods=['GET'])
@@ -4576,6 +4630,9 @@ overlay_service = register_overlay_routes(app, project_store, _refresh_object_ty
 
 from scene_interaction import register_scene_interaction_routes
 register_scene_interaction_routes(app, project_store)
+
+from web_interaction import register_web_interaction_routes
+register_web_interaction_routes(app, project_store)
 
 from zone_management import register_zone_management_routes
 register_zone_management_routes(app, project_store)

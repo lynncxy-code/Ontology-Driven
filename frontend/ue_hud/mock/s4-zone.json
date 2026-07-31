@@ -1,0 +1,22 @@
+{
+  "page": {"title":"A 区总装与调姿","heading":"分区总览","level":"S4 空间对象","path_label":"沈北园区 / M01 总装厂房 / A 区","context_query":"zone_id","context_id":"SF.SB.M01.ZA","status_label":"注意","status_level":"warning","description":"展示当前分区的生产状态、站位与待处置事项。","revision":"zone-demo-r1"},
+  "metrics": [
+    {"label":"在管事件","display_value":"6","note":"2 项需优先处理"},
+    {"label":"站位在线","display_value":"8 / 9","note":"1 个站位离线"},
+    {"label":"计划完成率","display_value":"84%","note":"当前班次"},
+    {"label":"环境合格率","display_value":"97%","note":"过去 1 小时"}
+  ],
+  "primary_groups": [{"title":"下级站位","hint":"进入 S5","items":[
+    {"title":"A区-01 装配站位","meta":"装配与调姿","value":"注意","level":"warning","action":{"type":"request_open_scope","payload":{"scope_type":"instance","instance_id":"WS-M01-A01"}}},
+    {"title":"A区-02 检测站位","meta":"尺寸与姿态检测","value":"正常","level":"normal","action":{"type":"request_open_scope","payload":{"scope_type":"instance","instance_id":"WS-M01-A02"}}},
+    {"title":"A区-03 保障站位","meta":"工具与工装保障","value":"正常","level":"normal","action":{"type":"request_open_scope","payload":{"scope_type":"instance","instance_id":"WS-M01-A03"}}}
+  ]}],
+  "secondary_groups": [
+    {"title":"待处置事件","hint":"当前分区","items":[
+      {"title":"装配站位温度接近上限","meta":"A区-01 · 2 分钟前","value":"查看","level":"warning","action":{"type":"request_open_page","payload":{"page_id":"page.event-detail","event_id":"EVT-M01-007"}}},
+      {"title":"工装校验即将到期","meta":"A区-03 · 35 分钟前","value":"查看","level":"info","action":{"type":"request_open_page","payload":{"page_id":"page.event-detail","event_id":"EVT-M01-021"}}}
+    ]},
+    {"title":"分区档案","items":[{"title":"空间编码","meta":"所属建筑 M01","value":"SF.SB.M01.ZA"},{"title":"主要业务","meta":"总装与调姿","value":"生产"},{"title":"责任班组","meta":"总装一班","value":"在岗"}]}
+  ],
+  "actions": [{"label":"聚焦分区","type":"request_open_scope","payload":{"scope_type":"zone","zone_id":"$context"}},{"label":"打开事件台账","primary":true,"type":"request_open_page","payload":{"page_id":"page.event-workbench"}}]
+}

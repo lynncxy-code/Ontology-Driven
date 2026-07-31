@@ -1,0 +1,14 @@
+{
+  "reason": "UE preview audit found two non-assembly snapshots with zero render parts",
+  "excluded_group_key": "assembly_signature:d41d8cd98f00b204e9800998ecf8427e",
+  "excluded_actor_guids": [
+    "3BC0D93F-46AD-80EA-9CB3-6497DF591B07",
+    "64552A3D-4742-0144-DD49-08A51AA18607"
+  ],
+  "excluded_actor_labels": [
+    "Group2136669597",
+    "3d66Group249"
+  ],
+  "expected_instances_after": 364,
+  "expected_cleanup_guids_after": 8333
+}

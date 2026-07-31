@@ -10,7 +10,16 @@ class SWidget;
 class UButton;
 class UBorder;
 class UCheckBox;
+class USizeBox;
 class UTextBlock;
+class UVerticalBox;
+
+enum class EOntoTwinRuntimePanelConfirmation : uint8
+{
+    None,
+    ExitEditor,
+    CancelAll
+};
 
 enum class EOntoTwinRuntimeToastType : uint8
 {
@@ -29,12 +38,16 @@ public:
     void SetSceneManager(ATwinSceneManager* InSceneManager);
     void RefreshFromManager();
     void ShowToast(const FString& Message, EOntoTwinRuntimeToastType Type);
+    void ShowExitConfirmation();
+    void ShowCancelAllConfirmation();
     bool IsPointerOverPanel() const;
+    bool IsConfirmationOpen() const;
 
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeConstruct() override;
     virtual void NativeDestruct() override;
+    virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
 
 private:
     UPROPERTY()
@@ -42,6 +55,9 @@ private:
 
     UPROPERTY()
     UBorder* PanelBorder = nullptr;
+
+    UPROPERTY()
+    USizeBox* PanelBounds = nullptr;
 
     UPROPERTY()
     UTextBlock* HeaderStateText = nullptr;
@@ -63,6 +79,9 @@ private:
 
     UPROPERTY()
     UTextBlock* YawValueText = nullptr;
+
+    UPROPERTY()
+    UTextBlock* YawLabelText = nullptr;
 
     UPROPERTY()
     UBorder* AccessStatusDot = nullptr;
@@ -89,6 +108,24 @@ private:
     UButton* CloseButton = nullptr;
 
     UPROPERTY()
+    UButton* UndoButton = nullptr;
+
+    UPROPERTY()
+    UButton* RedoButton = nullptr;
+
+    UPROPERTY()
+    UButton* RemoveButton = nullptr;
+
+    UPROPERTY()
+    UButton* PendingToggleButton = nullptr;
+
+    UPROPERTY()
+    UTextBlock* PendingToggleLabel = nullptr;
+
+    UPROPERTY()
+    UVerticalBox* PendingList = nullptr;
+
+    UPROPERTY()
     UCheckBox* WallSnapCheckBox = nullptr;
 
     UPROPERTY()
@@ -103,7 +140,35 @@ private:
     UPROPERTY()
     UTextBlock* ToastText = nullptr;
 
+    UPROPERTY()
+    UBorder* ConfirmationOverlay = nullptr;
+
+    UPROPERTY()
+    UTextBlock* ConfirmationTitleText = nullptr;
+
+    UPROPERTY()
+    UTextBlock* ConfirmationBodyText = nullptr;
+
+    UPROPERTY()
+    UButton* ConfirmationPrimaryButton = nullptr;
+
+    UPROPERTY()
+    UTextBlock* ConfirmationPrimaryLabel = nullptr;
+
+    UPROPERTY()
+    UButton* ConfirmationSecondaryButton = nullptr;
+
+    UPROPERTY()
+    UTextBlock* ConfirmationSecondaryLabel = nullptr;
+
+    UPROPERTY()
+    UButton* ConfirmationContinueButton = nullptr;
+
+    UTextBlock* ConfirmationContinueLabel = nullptr;
+
     FTimerHandle ToastTimerHandle;
+    EOntoTwinRuntimePanelConfirmation ConfirmationMode = EOntoTwinRuntimePanelConfirmation::None;
+    bool bPendingListExpanded = false;
 
     void BuildDefaultLayout();
     UTextBlock* CreateText(const FName Name, const FString& InitialText, int32 FontSize,
@@ -111,6 +176,8 @@ private:
     UButton* CreateButton(const FName Name, const FString& Label, UTextBlock*& OutLabel,
         bool bPrimary) const;
     void HideToast();
+    void HideConfirmation();
+    void RefreshPendingList();
 
     UFUNCTION()
     void HandleAccessActionClicked();
@@ -123,6 +190,27 @@ private:
 
     UFUNCTION()
     void HandleCancelClicked();
+
+    UFUNCTION()
+    void HandleUndoClicked();
+
+    UFUNCTION()
+    void HandleRedoClicked();
+
+    UFUNCTION()
+    void HandleRemoveClicked();
+
+    UFUNCTION()
+    void HandlePendingToggleClicked();
+
+    UFUNCTION()
+    void HandleConfirmationPrimaryClicked();
+
+    UFUNCTION()
+    void HandleConfirmationSecondaryClicked();
+
+    UFUNCTION()
+    void HandleConfirmationContinueClicked();
 
     UFUNCTION()
     void HandleWallSnapChanged(bool bIsChecked);

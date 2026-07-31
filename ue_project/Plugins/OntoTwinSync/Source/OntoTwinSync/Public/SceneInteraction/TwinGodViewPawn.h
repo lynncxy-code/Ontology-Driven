@@ -9,7 +9,7 @@ class UCameraComponent;
 class UFloatingPawnMovement;
 class USceneComponent;
 
-/** 关卡预放置的上帝视角初始锚点。 */
+/** 关卡预放置的稳定相机锚点；CameraId 决定开局或漫游上帝视角职责。 */
 UCLASS(BlueprintType)
 class ONTOTWINSYNC_API ATwinGodViewAnchor : public ACameraActor
 {

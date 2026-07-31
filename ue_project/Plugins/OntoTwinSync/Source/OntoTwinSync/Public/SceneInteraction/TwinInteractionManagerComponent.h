@@ -12,6 +12,7 @@ class APlayerController;
 class APawn;
 class ATwinGodViewAnchor;
 class ATwinInstance;
+class ATwinMinimapAnchor;
 class ATwinRoamingCharacter;
 class ATwinRoamingRoute;
 class ATwinRoamingSpawnAnchor;
@@ -20,6 +21,8 @@ class UInputAction;
 class UInputMappingContext;
 class UOntoTwinCrosshairWidget;
 class UOntoTwinRoamingHUDWidget;
+class USceneCaptureComponent2D;
+class UTextureRenderTarget2D;
 struct FInputActionValue;
 
 /**
@@ -74,6 +77,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|Input")
     FKey ResumeRouteKey = EKeys::R;
 
+    /** Optional fixed camera shown before entering roaming and restored after F7 exit. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|Camera")
+    FString StartupViewCameraId = TEXT("camera.god.default");
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|UI")
     TSubclassOf<UOntoTwinRoamingHUDWidget> RoamingHUDClass;
 
@@ -102,6 +109,9 @@ public:
     void RestartRoute();
 
     UFUNCTION(BlueprintCallable, Category="Scene Interaction")
+    bool SelectRuntimeRoute(const FString& RouteId);
+
+    UFUNCTION(BlueprintCallable, Category="Scene Interaction")
     void ApplyPendingReload();
 
     bool IsRoamingActive() const { return bRoamingActive; }
@@ -110,11 +120,19 @@ public:
     bool IsCameraTransitioning() const;
     ETwinRoamingCameraMode GetCameraMode() const;
     bool GetGodViewTransform(FTransform& OutTransform) const;
+    bool GetGodViewLookSensitivity(float& OutSensitivity) const;
     FString GetHudStatusText() const;
     FString GetHudHintText() const;
     void GetHudShortcutItems(
         TArray<FString>& OutKeys,
         TArray<FString>& OutDescriptions) const;
+    void GetAvailableRuntimeRoutes(
+        TArray<FString>& OutRouteIds,
+        TArray<FString>& OutDisplayNames,
+        TArray<bool>& OutDefaultFlags) const;
+    FString GetActiveRuntimeRouteId() const { return CurrentConfig.RouteId; }
+    bool IsRouteSwitching() const { return bRouteSwitchInProgress; }
+    FString GetMinimapState() const { return MinimapState; }
     FString GetHudDetailText() const;
     void NotifyRuntimeEditorBlocked();
 
@@ -139,6 +157,18 @@ private:
 
     UPROPERTY()
     ATwinGodViewAnchor* GodViewAnchor = nullptr;
+
+    UPROPERTY()
+    ATwinGodViewAnchor* StartupViewAnchor = nullptr;
+
+    UPROPERTY()
+    ATwinMinimapAnchor* MinimapAnchor = nullptr;
+
+    UPROPERTY()
+    USceneCaptureComponent2D* MinimapCapture = nullptr;
+
+    UPROPERTY()
+    UTextureRenderTarget2D* MinimapRenderTarget = nullptr;
 
     UPROPERTY()
     UOntoTwinRoamingHUDWidget* RoamingHUD = nullptr;
@@ -189,6 +219,9 @@ private:
     FString RuntimeState = TEXT("disabled");
     FString LastError;
     FString BindingWarning;
+    FString SessionSelectedRouteId;
+    FString PendingRouteSwitchId;
+    FString MinimapState = TEXT("disabled");
     TArray<FString> DegradedFeatures;
     bool bBackendOnline = false;
     bool bRuntimeRequestInFlight = false;
@@ -201,9 +234,14 @@ private:
     bool bTakeoverEnabled = true;
     bool bDefaultModeApplied = false;
     bool bCrosshairInteractive = false;
+    bool bRouteSwitchInProgress = false;
     float PollAccumulator = 1000.0f;
     float HeartbeatAccumulator = 0.0f;
+    float MinimapMarkerAccumulator = 0.0f;
     int32 ConsecutiveFailures = 0;
+    FTimerHandle RouteSwitchTimer;
+    FMatrix MinimapViewProjection = FMatrix::Identity;
+    FIntPoint MinimapCaptureSize = FIntPoint::ZeroValue;
 
     void PollRuntimeProjection();
     void HandleRuntimeProjection(const TSharedPtr<FJsonObject>& Payload);
@@ -225,10 +263,21 @@ private:
     ATwinRoamingRoute* FindRoute(const FString& RouteId) const;
     ATwinRoamingRoute* BuildRuntimeRoute(FString& OutError);
     void DestroyRuntimeRoute();
+    void CompleteRuntimeRouteSwitch();
+    void CancelRuntimeRouteSwitch(bool bRestoreView);
+    bool IsRuntimeRouteForCurrentLevel(const FTwinRoamingRuntimeRoute& Route) const;
     bool ProjectRuntimeRoutePointToGround(
         const FVector& Source, FVector& OutGroundPoint, FString& OutError, int32 PointIndex) const;
     ATwinRoamingSpawnAnchor* FindSpawnAnchor(const FString& SpawnId) const;
     ATwinGodViewAnchor* FindGodViewAnchor(const FString& CameraId) const;
+    void ApplyStartupView(bool bForce = false);
+    ATwinMinimapAnchor* FindMinimapAnchor(FString& OutState) const;
+    void ApplyMinimapConfig(bool bEnabled);
+    bool InitializeMinimap(FString& OutError);
+    void ShutdownMinimap(bool bResetState);
+    void SetMinimapState(const FString& State);
+    void UpdateMinimapMarker(float DeltaTime);
+    bool ProjectMinimapPoint(const FVector& WorldPoint, FVector2D& OutUV) const;
     void CreateHud();
     void DestroyHud();
     void RefreshHud();

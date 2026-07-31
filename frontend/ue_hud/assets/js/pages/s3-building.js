@@ -26,7 +26,7 @@
     const escape = global.OntoTwinPageRuntime.escapeHtml;
     return [
       '<li>',
-      '<button class="hud-list-button" type="button" data-ue-interactive="zone-', escape(zone.id), '" data-action="open-zone" data-id="', escape(zone.id), '">',
+      '<button class="hud-list-button" type="button" data-ontotwin-interactive="zone-', escape(zone.id), '" data-action="open-zone" data-id="', escape(zone.id), '">',
       '<span><span class="hud-list-button__title">', escape(zone.name), '</span>',
       '<span class="hud-list-button__meta">', escape(zone.summary || "暂无摘要"), '</span></span>',
       '<span class="hud-count">', escape(zone.event_count === undefined ? "—" : zone.event_count), '</span>',
@@ -40,7 +40,7 @@
     return [
       '<li class="hud-event" data-level="', escape(event.level || "unknown"), '">',
       '<div class="hud-event__head"><span class="hud-event__title">', escape(event.name), '</span>',
-      '<button class="hud-button" type="button" data-ue-interactive="event-', escape(event.id), '" data-action="open-event" data-id="', escape(event.id), '">查看</button></div>',
+      '<button class="hud-button" type="button" data-ontotwin-interactive="event-', escape(event.id), '" data-action="open-event" data-id="', escape(event.id), '">查看</button></div>',
       '<div class="hud-event__meta">', escape(event.location || "未定位"), ' · ', escape(event.display_time || "时间未知"), '</div>',
       '</li>'
     ].join("");
@@ -75,7 +75,7 @@
     const floorHost = document.getElementById("floor-segment");
     if (floorHost) floorHost.innerHTML = floors.length
       ? floors.map((floor, index) => [
-        '<button class="hud-segment__button" type="button" data-ue-interactive="floor-', runtime.escapeHtml(floor.id), '" data-action="select-floor" data-id="',
+        '<button class="hud-segment__button" type="button" data-ontotwin-interactive="floor-', runtime.escapeHtml(floor.id), '" data-action="select-floor" data-id="',
         runtime.escapeHtml(floor.id), '" aria-pressed="', index === 0 ? "true" : "false", '">',
         runtime.escapeHtml(floor.name), '</button>'
       ].join("")).join("")
@@ -113,6 +113,9 @@
     }
 
     global.OntoTwinHUD.emitAction(action, { id });
+    if ((action === "select-floor" || action === "open-zone") && id) {
+      global.OntoTwinBridge.post("request_open_scope", { scope_type: "zone", zone_id: id });
+    }
   });
 
   runtime.load();

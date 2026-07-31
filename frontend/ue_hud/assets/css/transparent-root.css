@@ -55,6 +55,7 @@ button {
 }
 
 .hud-surface,
+[data-ontotwin-interactive],
 [data-ue-interactive] {
   pointer-events: auto;
 }

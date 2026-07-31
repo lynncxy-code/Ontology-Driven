@@ -57,7 +57,7 @@
       '<div class="hud-page-state">',
       '<h2 class="hud-page-state__title">', escapeHtml(title), '</h2>',
       '<p class="hud-page-state__copy">', escapeHtml(copy), '</p>',
-      kind === "error" ? '<button class="hud-button" id="state-retry" type="button" data-ue-interactive="retry">重试</button>' : '',
+      kind === "error" ? '<button class="hud-button" id="state-retry" type="button" data-ontotwin-interactive="retry">重试</button>' : '',
       '</div>'
     ].join("");
   }

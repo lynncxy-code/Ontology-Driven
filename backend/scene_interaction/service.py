@@ -16,6 +16,7 @@ from .validators import (
     SceneInteractionValidationError,
     default_roaming_config,
     project_route_provides_spawn,
+    roaming_config_with_defaults,
     validate_roaming_config,
     validate_runtime_status,
 )
@@ -95,7 +96,9 @@ class SceneInteractionService:
     def get_roaming(self):
         project = self._project()
         scene = self._scene(project)
-        config = copy.deepcopy(scene.get("roaming") or default_roaming_config())
+        config = roaming_config_with_defaults(
+            scene.get("roaming") or default_roaming_config()
+        )
         calibration = calibration_state(project, config.get("spawn"))
         return {
             "project_id": project.get("id"),
@@ -379,7 +382,9 @@ class SceneInteractionService:
         project = self._project()
         scene = self._scene(project)
         revision = int(scene.get("revision") or 0)
-        config = copy.deepcopy(scene.get("roaming") or default_roaming_config())
+        config = roaming_config_with_defaults(
+            scene.get("roaming") or default_roaming_config()
+        )
         projection = build_runtime_projection(project, config, self.catalog, revision)
         return {
             "project_id": project.get("id"),

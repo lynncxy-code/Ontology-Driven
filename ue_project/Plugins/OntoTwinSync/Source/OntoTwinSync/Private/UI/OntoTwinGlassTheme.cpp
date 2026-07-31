@@ -151,26 +151,26 @@ FLinearColor FOntoTwinGlassTheme::ScreenTint(const EOntoTwinGlassQuality Quality
 {
 	if (Quality == EOntoTwinGlassQuality::High)
 	{
-		return FLinearColor(0.025f, 0.045f, 0.060f, 0.34f);
+		return FLinearColor(0.045f, 0.045f, 0.045f, 0.34f);
 	}
 	if (Quality == EOntoTwinGlassQuality::Balanced)
 	{
-		return FLinearColor(0.025f, 0.045f, 0.060f, 0.48f);
+		return FLinearColor(0.045f, 0.045f, 0.045f, 0.48f);
 	}
-	return FLinearColor(0.025f, 0.040f, 0.052f, 0.82f);
+	return FLinearColor(0.040f, 0.040f, 0.040f, 0.82f);
 }
 
 FLinearColor FOntoTwinGlassTheme::WorldTint(const EOntoTwinGlassQuality Quality)
 {
 	if (Quality == EOntoTwinGlassQuality::High)
 	{
-		return FLinearColor(0.025f, 0.045f, 0.060f, 0.62f);
+		return FLinearColor(0.045f, 0.045f, 0.045f, 0.62f);
 	}
 	if (Quality == EOntoTwinGlassQuality::Balanced)
 	{
-		return FLinearColor(0.025f, 0.040f, 0.052f, 0.72f);
+		return FLinearColor(0.040f, 0.040f, 0.040f, 0.72f);
 	}
-	return FLinearColor(0.020f, 0.030f, 0.040f, 0.88f);
+	return FLinearColor(0.030f, 0.030f, 0.030f, 0.88f);
 }
 
 FLinearColor FOntoTwinGlassTheme::StatusAccent(const FString& Level)

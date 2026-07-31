@@ -19,6 +19,11 @@
 			"Name": "OntoTwinSyncEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "DigitalFactoryBaseEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [
@@ -44,6 +49,10 @@
 			"PlatformAllowList": [
 				"Win64"
 			]
+		},
+		{
+			"Name": "WebUI",
+			"Enabled": true
 		}
 	]
 }

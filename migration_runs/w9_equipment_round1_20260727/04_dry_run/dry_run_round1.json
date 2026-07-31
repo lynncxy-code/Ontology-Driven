@@ -1,0 +1,21 @@
+{
+  "status": "passed",
+  "target_project_id": "ds_1785130727581",
+  "target_project_name": "SCC W19",
+  "zone_id": "scc_w19_1f_ict",
+  "stats": {
+    "new": 6,
+    "updated": 0,
+    "matched": 6,
+    "legacy": 0,
+    "skipped": 0,
+    "blocked": 0
+  },
+  "export_actor_count": 6,
+  "render_part_count": 33,
+  "unique_source_actor_guid_count": 34,
+  "duplicate_robotic_arm_excluded": "0D3B2DF7-427B-4EE8-B5ED-DC82A5FA4273",
+  "database_write_performed": false,
+  "approved_for_formal_write_by_user": true,
+  "approval_date": "2026-07-29"
+}

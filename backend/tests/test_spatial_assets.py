@@ -147,6 +147,33 @@ class SpatialAssetTestCase(unittest.TestCase):
         self.assertEqual(422, response.status_code)
         self.assertEqual("floor_reference_required", response.get_json()["error"])
 
+    def test_publish_accepts_perspective_tolerance(self):
+        frame = self._create_frame()
+        anchors = self._anchors()
+        anchors[3]["ue_world_cm"][0] += 160
+        draft = self.client.put(
+            f"/api/v2/spatial-frames/{frame['id']}/draft",
+            json={
+                "expected_draft_revision": 0,
+                "floor": 1,
+                "floor_id": "floor-1",
+                "ue_level": "/Game/Maps/Main",
+                "floor_reference_anchor_id": "a1",
+                "anchors": anchors,
+            },
+        )
+        self.assertEqual(200, draft.status_code, draft.get_json())
+        metrics = draft.get_json()["frame"]["transform"]["metrics"]
+        self.assertGreater(metrics["rmse_cm"], 20.0)
+        self.assertLessEqual(metrics["rmse_cm"], 50.0)
+
+        published = self.client.post(
+            f"/api/v2/spatial-frames/{frame['id']}/publish",
+            json={"expected_draft_revision": 1},
+        )
+        self.assertEqual(200, published.status_code, published.get_json())
+        self.assertEqual("published", published.get_json()["frame"]["status"])
+
     def test_draft_rejects_non_raw_image_coordinates(self):
         frame = self._create_frame()
         anchors = self._anchors()

@@ -41,6 +41,7 @@ class UMediaTexture;
 class UOntoTwinRuntimeEditorPanel;
 class UOntoTwinOverlayWidget;
 class UTwinInteractionManagerComponent;
+class UOntoTwinWebInteractionComponent;
 enum class EOntoTwinOverlayMediaAction : uint8;
 
 UENUM(BlueprintType)
@@ -171,6 +172,10 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="场景交互")
     UTwinInteractionManagerComponent* InteractionManager;
 
+    /** 3.8 Web 配置轮询、单例浏览器、Bridge 与场景显隐。 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="场景交互|Web")
+    UOntoTwinWebInteractionComponent* WebInteractionManager;
+
     // ═══════════════════════════════════════════════════════════════════════
     // Runtime Editor（打包 exe 内的轻量场景编辑入口）
     // ═══════════════════════════════════════════════════════════════════════
@@ -216,8 +221,9 @@ public:
     float RuntimeEditorCameraMoveSpeedCmS = 2400.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|相机",
-              meta=(DisplayName="右键观察灵敏度", ClampMin="0.05", ClampMax="5.0"))
-    float RuntimeEditorCameraLookSensitivity = 0.18f;
+              meta=(DisplayName="右键观察灵敏度回退值", ClampMin="0.1", ClampMax="5.0",
+                    ToolTip="F7 上帝视角运行配置尚未就绪时使用的回退灵敏度"))
+    float RuntimeEditorCameraLookSensitivity = 1.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|吸附",
               meta=(DisplayName="启用靠墙吸附"))
@@ -239,6 +245,18 @@ public:
               meta=(DisplayName="墙体Tag"))
     FName WallTag = TEXT("OntoTwinWall");
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|批量",
+              meta=(DisplayName="单次最多选择实例", ClampMin="1", ClampMax="100"))
+    int32 RuntimeEditorMaxSelection = 20;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|批量",
+              meta=(DisplayName="会话最多待保存实例", ClampMin="1", ClampMax="500"))
+    int32 RuntimeEditorMaxPending = 100;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|批量",
+              meta=(DisplayName="最多撤销步数", ClampMin="1", ClampMax="200"))
+    int32 RuntimeEditorMaxHistory = 50;
+
     UFUNCTION(BlueprintCallable, Category="Runtime Editor")
     void ToggleRuntimeEditMode();
 
@@ -247,6 +265,21 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Runtime Editor")
     void CancelRuntimeEdit();
+
+    UFUNCTION(BlueprintCallable, Category="Runtime Editor")
+    void UndoRuntimeEdit();
+
+    UFUNCTION(BlueprintCallable, Category="Runtime Editor")
+    void RedoRuntimeEdit();
+
+    UFUNCTION(BlueprintCallable, Category="Runtime Editor")
+    void RemoveRuntimeSelectionFromScene();
+
+    UFUNCTION(BlueprintCallable, Category="Runtime Editor")
+    void SaveAndExitRuntimeEdit();
+
+    UFUNCTION(BlueprintCallable, Category="Runtime Editor")
+    void DiscardAndExitRuntimeEdit();
 
     UFUNCTION(BlueprintCallable, Category="Runtime Editor")
     void BindCurrentRuntimeProject();
@@ -274,7 +307,14 @@ public:
     bool CanRetryRuntimeBindingStatus() const;
     bool CanSaveRuntimeEdit() const;
     bool CanCancelRuntimeEdit() const;
+    bool CanUndoRuntimeEdit() const;
+    bool CanRedoRuntimeEdit() const;
+    bool CanRemoveRuntimeSelection() const;
     bool HasRuntimeEditSelection() const;
+    int32 GetRuntimeEditSelectionCount() const;
+    int32 GetRuntimeEditPendingCount() const;
+    void GetRuntimeEditPendingLines(TArray<FString>& OutLines) const;
+    bool IsRuntimeSelectionMultiple() const { return RuntimeSelectedInstances.Num() > 1; }
     bool IsRuntimeEditDirty() const { return bRuntimeEditDirty; }
     bool IsRuntimeEditSaving() const { return bRuntimeEditSaving; }
     bool IsRuntimeWallSnapEnabled() const { return bEnableWallSnap; }
@@ -284,6 +324,11 @@ public:
     /** 共享选择入口：人物模块只产生选择事件，Overlay 仍负责内容与 Widget 生命周期。 */
     void SelectOverlayFromSceneInteraction(ATwinInstance* Instance);
     void ClearOverlayFromSceneInteraction();
+
+    /** Web 交互组件只读访问当前运行时实例注册表。 */
+    ATwinInstance* FindManagedInstance(const FString& InstanceId) const;
+    void GetManagedInstances(TArray<ATwinInstance*>& OutInstances) const;
+    void FocusManagedInstance(ATwinInstance* Instance) const;
 
     /** 将屏幕坐标解析为当前可见的 always Overlay，供漫游和语义输入共用。 */
     UFUNCTION(BlueprintCallable, Category="场景交互")
@@ -408,6 +453,9 @@ private:
     ATwinInstance* RuntimeSelectedInstance = nullptr;
 
     UPROPERTY()
+    TArray<ATwinInstance*> RuntimeSelectedInstances;
+
+    UPROPERTY()
     AOntoTwinRuntimeGizmo* RuntimeGizmo = nullptr;
 
     UPROPERTY()
@@ -476,12 +524,17 @@ private:
     bool bRuntimeCameraRotating = false;
     bool bRuntimePreviousMouseCursor = false;
     bool bRuntimePreviousAnimRunning = false;
+    bool bRuntimeExitAfterSave = false;
     float RuntimeLastToggleInputTime = -1000.0f;
     FString RuntimePreviousAnimState;
     FString RuntimeBindingMode = TEXT("unknown");
     FString RuntimeStatusMessage = TEXT("F8/F10: Runtime Editor");
     FTransform RuntimeEditBaseline = FTransform::Identity;
     FTransform RuntimeDragStartTransform = FTransform::Identity;
+    FBox RuntimeEditLocalBounds = FBox(ForceInit);
+    FVector RuntimeEditPivotLocal = FVector::ZeroVector;
+    FVector RuntimeDragPivotWorld = FVector::ZeroVector;
+    FVector RuntimeDragStartPivotWorld = FVector::ZeroVector;
     FVector RuntimeDragStartPoint = FVector::ZeroVector;
     FVector RuntimeZDragStartPoint = FVector::ZeroVector;
     FPlane RuntimeZDragPlane = FPlane(FVector::ZeroVector, FVector::ForwardVector);
@@ -489,13 +542,51 @@ private:
     float RuntimeDragPlaneZ = 0.0f;
     float RuntimeDragStartAngleDeg = 0.0f;
     float RuntimeDragStartYaw = 0.0f;
-    enum class ERuntimeDragPart : uint8 { None, MoveXY, MoveZ, RotateYaw };
+    enum class ERuntimeDragPart : uint8 { None, MoveX, MoveY, MoveZ, MoveXY, RotateYaw };
     enum class ERuntimeSnapFeedback : uint8 { None, Grid, Wall };
     ERuntimeDragPart RuntimeHoverPart = ERuntimeDragPart::None;
     ERuntimeDragPart RuntimeDragPart = ERuntimeDragPart::None;
     ERuntimeSnapFeedback RuntimeSnapFeedback = ERuntimeSnapFeedback::None;
     FVector RuntimeSnapFeedbackPoint = FVector::ZeroVector;
     FVector2D RuntimeCameraCursorRestorePosition = FVector2D::ZeroVector;
+
+    struct FRuntimeEditInstanceState
+    {
+        TWeakObjectPtr<ATwinInstance> Instance;
+        FTransform BaselineTransform = FTransform::Identity;
+        bool bBaselineLoaded = true;
+        FString BaselineStateHash;
+        FString PreviousAnimState;
+        bool bPreviousAnimRunning = false;
+        bool bTransformDirty = false;
+        bool bLoadedDirty = false;
+        bool bConflict = false;
+    };
+
+    struct FRuntimeEditValue
+    {
+        TWeakObjectPtr<ATwinInstance> Instance;
+        FTransform Transform = FTransform::Identity;
+        bool bLoaded = true;
+    };
+
+    struct FRuntimeEditCommand
+    {
+        FString Label;
+        TArray<FRuntimeEditValue> Before;
+        TArray<FRuntimeEditValue> After;
+    };
+
+    TMap<FString, FRuntimeEditInstanceState> RuntimeEditStates;
+    TArray<FRuntimeEditCommand> RuntimeUndoStack;
+    TArray<FRuntimeEditCommand> RuntimeRedoStack;
+    TMap<FString, FTransform> RuntimeDragStartTransforms;
+    TArray<FRuntimeEditValue> RuntimeDragBeforeValues;
+    TArray<FBox> RuntimeSelectionLocalBounds;
+    FBox RuntimeSelectionWorldBounds = FBox(ForceInit);
+    FVector RuntimeSelectionPivotWorld = FVector::ZeroVector;
+    float RuntimeSelectionYawDelta = 0.0f;
+    float RuntimeDragStartGroupYawDelta = 0.0f;
 
     // ── 内部方法 ─────────────────────────────────────────────────────────
 
@@ -604,14 +695,39 @@ private:
     void EnsureRuntimeGizmo();
     void UpdateRuntimeEditorPanel();
     void CheckRuntimeBindingStatus();
-    void SelectRuntimeInstance(ATwinInstance* Instance);
+    void SelectRuntimeInstance(ATwinInstance* Instance, bool bToggleSelection = false);
     void ClearRuntimeSelection(bool bRestoreBaseline);
+    FRuntimeEditInstanceState& EnsureRuntimeEditState(ATwinInstance* Instance);
+    void ReleaseRuntimeEditState(const FString& InstanceId, bool bRestoreBaseline);
+    void ReleaseCleanUnselectedRuntimeStates();
+    void RefreshRuntimeEditDirtyState();
+    void UpdateRuntimeSelectionGeometry(bool bKeepDragPivot = false);
+    bool CanStageRuntimeSelection() const;
+    void RecordRuntimeCommand(FRuntimeEditCommand&& Command);
+    void ApplyRuntimeCommand(const FRuntimeEditCommand& Command, bool bUseAfter);
+    FRuntimeEditValue CaptureRuntimeValue(ATwinInstance* Instance) const;
+    void ApplyRuntimeValue(const FRuntimeEditValue& Value);
+    void ApplyRuntimeGroupTransform(const FVector& NewPivot, float YawDeltaDegrees);
+    float CalculateRuntimeSelectionRadiusAlongNormal(
+        const FVector& WorldNormal,
+        float YawDeltaDegrees) const;
+    void ApplyRuntimeGroupSnaps(FVector& InOutPivot, float& InOutYawDelta);
+    void FinishExitRuntimeEditMode();
+    bool CalculateRuntimeEditLocalBounds(AActor* Actor, FBox& OutLocalBounds) const;
+    FVector CalculateRuntimeActorLocationForPivot(
+        const FVector& PivotWorld,
+        const FRotator& Rotation,
+        const FVector& Scale) const;
+    float CalculateRuntimeBoundsRadiusAlongNormal(
+        const FVector& WorldNormal,
+        const FRotator& Rotation,
+        const FVector& Scale) const;
     bool TraceRuntimeCursor(FHitResult& OutHit) const;
     bool GetRuntimeCursorPointOnPlane(const FPlane& Plane, FVector& OutPoint) const;
     bool GetRuntimeCursorPlanePoint(FVector& OutPoint) const;
     void BeginRuntimeGizmoDrag(ERuntimeDragPart Part);
     void UpdateRuntimeGizmoDrag();
-    void EndRuntimeGizmoDrag();
+    void EndRuntimeGizmoDrag(bool bCommit = true);
     void SetRuntimeCameraLookSuppressed(bool bSuppress);
     void ApplyRuntimeSnaps(FVector& InOutLocation, FRotator& InOutRotation);
     void MarkRuntimeDirtyFromTransform();

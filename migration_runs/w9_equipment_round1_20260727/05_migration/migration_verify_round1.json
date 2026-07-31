@@ -1,0 +1,41 @@
+{
+  "status": "passed",
+  "verified_at": "2026-07-29",
+  "project": {
+    "id": "ds_1785130727581",
+    "name": "SCC W19"
+  },
+  "ue_binding": {
+    "id": "ueproj_SCC_W19",
+    "name": "SCC W19",
+    "mode": "matched"
+  },
+  "counts": {
+    "object_types": 6,
+    "instances": 6,
+    "render_parts": 33,
+    "instances_in_expected_zone": 6,
+    "unassigned_instances": 0,
+    "blocked_instances": 0,
+    "legacy_instances": 0
+  },
+  "zone": {
+    "zone_id": "scc_w19_1f_ict",
+    "name": "SCC W19 1F ICT设备区",
+    "level": "area",
+    "ue_level": "/Game/SCC_W9/Art/Maps/L_SCC_W9_Main",
+    "instance_count": 6
+  },
+  "instances": [
+    {"display_name": "1号自动上板机", "object_type_rid": "scc_w19.auto_board_loader_l460", "render_part_count": 2, "hierarchy_path": ["生产区", "1F", "ICT产线", "产线_01", "工位_01_自动上板"]},
+    {"display_name": "2号机器人上下料单元", "object_type_rid": "scc_w19.robot_loading_unit", "render_part_count": 4, "hierarchy_path": ["生产区", "1F", "ICT产线", "产线_01", "工位_02_机器人上下料"]},
+    {"display_name": "3号ICT测试机", "object_type_rid": "scc_w19.ict_tester_tr5001e", "render_part_count": 4, "hierarchy_path": ["生产区", "1F", "ICT产线", "产线_01", "工位_03_ICT测试"]},
+    {"display_name": "4号自动分板机", "object_type_rid": "scc_w19.online_board_separator_er7000", "render_part_count": 2, "hierarchy_path": ["生产区", "1F", "ICT产线", "产线_01", "工位_04_自动分板"]},
+    {"display_name": "5号机器人下料单元", "object_type_rid": "scc_w19.robot_unloading_unit", "render_part_count": 6, "hierarchy_path": ["生产区", "1F", "ICT产线", "产线_01", "工位_05_机器人下料"]},
+    {"display_name": "2号ICT整线装配", "object_type_rid": "scc_w19.ict_line_assembly_sm_cit", "render_part_count": 15, "hierarchy_path": ["生产区", "1F", "ICT产线", "产线_02", "整线装配"]}
+  ],
+  "verification_sources": ["OntoTwin API", "PostgreSQL"],
+  "ue_source_actors_deleted": false,
+  "ue_map_saved": false,
+  "next_gate": "Gate C: UE preview approval before any source cleanup"
+}

@@ -18,6 +18,10 @@ from .validators import (
 )
 
 
+IMAGE_CALIBRATION_PUBLISH_RMSE_CM = 50.0
+IMAGE_CALIBRATION_PUBLISH_MAX_RESIDUAL_CM = 75.0
+
+
 class SpatialFrameNotFoundError(LookupError):
     pass
 
@@ -263,7 +267,10 @@ class SpatialFrameService:
             [finite_number(item.get("residual_cm"), "metrics.per_anchor_residuals", 0) for item in residuals]
             or [rmse]
         )
-        if rmse > 20.0 or max_residual > 50.0:
+        if (
+            rmse > IMAGE_CALIBRATION_PUBLISH_RMSE_CM
+            or max_residual > IMAGE_CALIBRATION_PUBLISH_MAX_RESIDUAL_CM
+        ):
             raise SpatialFrameValidationError(
                 "calibration_residual_too_high",
                 f"标定误差超过发布门槛（RMSE {rmse:.2f} cm，最大 {max_residual:.2f} cm）",

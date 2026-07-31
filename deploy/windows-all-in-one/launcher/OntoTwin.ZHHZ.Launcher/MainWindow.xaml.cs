@@ -1,53 +1,45 @@
 using System.Diagnostics;
-using System.Drawing;
+using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using Microsoft.Win32;
 
 namespace OntoTwin.ZHHZ.Launcher;
 
-internal static class Program
-{
-    [STAThread]
-    private static void Main()
-    {
-        Application.EnableVisualStyles();
-        Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new LauncherForm());
-    }
-}
-
-internal sealed class LauncherForm : Form
+public partial class MainWindow : Window
 {
     private const int ControlPort = 48073;
-    private readonly Label _statusLabel;
-    private readonly TextBox _logBox;
+    private static readonly SolidColorBrush Blue = Brush("#0066CC");
+    private static readonly SolidColorBrush Green = Brush("#00A383");
+    private static readonly SolidColorBrush Amber = Brush("#D97706");
+    private static readonly SolidColorBrush Red = Brush("#DC2626");
+    private static readonly SolidColorBrush Muted = Brush("#94A3B8");
+
     private readonly Button[] _operationButtons;
+    private readonly Border[] _steps;
     private readonly string _installRoot;
     private readonly string _diagnosticLogPath;
     private bool _busy;
+    private bool _darkTheme;
 
-    public LauncherForm()
+    public MainWindow()
     {
-        Text = "OntoTwin ZHHZ 控制中心";
-        StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(780, 520);
-        Size = new Size(920, 640);
-        Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
-        BackColor = Color.FromArgb(245, 247, 250);
-
+        InitializeComponent();
+        _operationButtons = [StartButton, StopButton, ConsoleButton, BackupButton, RefreshButton];
+        _steps = [Step1, Step2, Step3, Step4, Step5];
         _installRoot = ResolveInstallRoot();
-        var dataRoot = ResolveDataRoot();
-        var logDirectory = Path.Combine(dataRoot, "Logs");
+
+        var logDirectory = Path.Combine(ResolveDataRoot(), "Logs");
         try
         {
             Directory.CreateDirectory(logDirectory);
         }
         catch
         {
-            // Keep the control center usable so it can show the service error
-            // even when the configured data volume is temporarily unavailable.
             logDirectory = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "OntoTwin-ZHHZ",
@@ -55,78 +47,39 @@ internal sealed class LauncherForm : Form
             Directory.CreateDirectory(logDirectory);
         }
         _diagnosticLogPath = Path.Combine(logDirectory, "launcher.log");
-
-        var title = new Label
-        {
-            Text = "OntoTwin · ZHHZ",
-            AutoSize = true,
-            Font = new Font(Font.FontFamily, 22F, FontStyle.Bold),
-            ForeColor = Color.FromArgb(24, 32, 47),
-            Location = new Point(28, 24)
-        };
-        var subtitle = new Label
-        {
-            Text = "一体化客户版 · 无需 WSL 或 Docker Desktop · 实时 WebSocket 已关闭",
-            AutoSize = true,
-            ForeColor = Color.FromArgb(91, 101, 119),
-            Location = new Point(31, 68)
-        };
-        _statusLabel = new Label
-        {
-            Text = "状态：正在检查…",
-            AutoSize = true,
-            Font = new Font(Font.FontFamily, 11F, FontStyle.Bold),
-            ForeColor = Color.FromArgb(130, 85, 0),
-            Location = new Point(31, 105)
-        };
-
-        var startButton = CreateButton("启动系统", 31, Color.FromArgb(20, 122, 78));
-        var stopButton = CreateButton("停止系统", 177, Color.FromArgb(176, 50, 50));
-        var consoleButton = CreateButton("打开控制台", 323, Color.FromArgb(42, 91, 160));
-        var backupButton = CreateButton("立即备份", 469, Color.FromArgb(103, 75, 155));
-        var refreshButton = CreateButton("刷新状态", 615, Color.FromArgb(80, 91, 108));
-        _operationButtons = [startButton, stopButton, consoleButton, backupButton, refreshButton];
-
-        startButton.Click += async (_, _) => await StartSystemAsync();
-        stopButton.Click += async (_, _) => await StopSystemAsync();
-        consoleButton.Click += (_, _) => OpenConsole();
-        backupButton.Click += async (_, _) => await RunServiceOperationAsync("backup", "备份数据");
-        refreshButton.Click += async (_, _) => await RefreshStatusAsync();
-
-        _logBox = new TextBox
-        {
-            Multiline = true,
-            ReadOnly = true,
-            ScrollBars = ScrollBars.Both,
-            WordWrap = false,
-            BackColor = Color.FromArgb(22, 29, 39),
-            ForeColor = Color.FromArgb(215, 223, 235),
-            BorderStyle = BorderStyle.FixedSingle,
-            Font = new Font("Consolas", 9.5F),
-            Location = new Point(31, 176),
-            Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
-            Size = new Size(840, 385)
-        };
-
-        Controls.AddRange([
-            title, subtitle, _statusLabel,
-            startButton, stopButton, consoleButton, backupButton, refreshButton,
-            _logBox
-        ]);
-        Shown += async (_, _) => await RefreshStatusAsync();
+        Loaded += async (_, _) => await RefreshStatusAsync();
     }
 
-    private Button CreateButton(string text, int left, Color color) => new()
+    private async void StartButton_Click(object sender, RoutedEventArgs e) => await StartSystemAsync();
+    private async void StopButton_Click(object sender, RoutedEventArgs e) => await StopSystemAsync();
+    private async void BackupButton_Click(object sender, RoutedEventArgs e) => await RunServiceOperationAsync("backup", "备份数据");
+    private async void RefreshButton_Click(object sender, RoutedEventArgs e) => await RefreshStatusAsync();
+    private void ConsoleButton_Click(object sender, RoutedEventArgs e) => OpenConsole();
+
+    private void ThemeButton_Click(object sender, RoutedEventArgs e)
     {
-        Text = text,
-        Location = new Point(left, 132),
-        Size = new Size(128, 34),
-        FlatStyle = FlatStyle.Flat,
-        BackColor = color,
-        ForeColor = Color.White,
-        Cursor = Cursors.Hand,
-        UseVisualStyleBackColor = false
-    };
+        _darkTheme = !_darkTheme;
+        SetResource("PageBackgroundBrush", _darkTheme ? "#000000" : "#EFF6FF");
+        SetResource("SurfaceBrush", _darkTheme ? "#0F1E3C" : "#FFFFFF");
+        SetResource("SurfaceSecondaryBrush", _darkTheme ? "#1E293B" : "#F8FAFC");
+        SetResource("TextPrimaryBrush", _darkTheme ? "#F8FAFC" : "#0F172A");
+        SetResource("TextSecondaryBrush", _darkTheme ? "#94A3B8" : "#64748B");
+        SetResource("BorderBrush", _darkTheme ? "#243A59" : "#D7E3F1");
+        ThemeButton.Content = _darkTheme ? "切换浅色模式" : "切换深色模式";
+    }
+
+    private static void SetResource(string key, string color) =>
+        CurrentApp.Resources[key] = Brush(color);
+
+    private static Application CurrentApp => Application.Current;
+
+    private static SolidColorBrush Brush(string color)
+    {
+        var value = (Color)ColorConverter.ConvertFromString(color);
+        var brush = new SolidColorBrush(value);
+        brush.Freeze();
+        return brush;
+    }
 
     private static string ResolveInstallRoot()
     {
@@ -158,10 +111,17 @@ internal sealed class LauncherForm : Form
 
     private async Task StartSystemAsync()
     {
+        SetSteps(1);
         var response = await RunServiceOperationAsync("start", "启动后台", refreshAfter: false);
-        if (response is null || !response.Ok) { await RefreshStatusAsync(); return; }
+        if (response is null || !response.Ok)
+        {
+            await RefreshStatusAsync();
+            return;
+        }
+
         try
         {
+            SetSteps(3);
             var runtimePath = ResolveRuntimePath();
             if (!File.Exists(runtimePath)) throw new FileNotFoundException("ZHHZ 程序文件缺失。", runtimePath);
             var existing = FindRuntimeProcesses();
@@ -179,14 +139,20 @@ internal sealed class LauncherForm : Form
                 Process.Start(startInfo);
                 AppendLog("ZHHZ 已启动。");
             }
-            else AppendLog("ZHHZ 已经在运行。");
+            else
+            {
+                existing.ForEach(process => process.Dispose());
+                AppendLog("ZHHZ 已经在运行。");
+            }
+            SetSteps(4);
             OpenConsole();
+            SetSteps(5);
         }
         catch (Exception exception)
         {
             WriteDiagnostic(exception);
             AppendLog("ZHHZ 启动失败：" + exception.Message);
-            MessageBox.Show(this, exception.Message, "ZHHZ 启动失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, exception.Message, "ZHHZ 启动失败", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         await RefreshStatusAsync();
     }
@@ -226,7 +192,7 @@ internal sealed class LauncherForm : Form
     private async Task<ControlResponse?> RunServiceOperationAsync(string action, string title, bool refreshAfter = true)
     {
         if (_busy) return null;
-        SetBusy(true, $"状态：正在{title}…");
+        SetBusy(true, $"正在{title}…");
         AppendLog($"> {title}");
         try
         {
@@ -236,21 +202,22 @@ internal sealed class LauncherForm : Form
             AppendLog(response.Message);
             AppendLog(response.Output);
             if (!response.Ok)
-                MessageBox.Show(this, response.Message, "操作失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, response.Message, "操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
             return response;
         }
         catch (Exception exception)
         {
             WriteDiagnostic(exception);
             AppendLog("后台服务连接失败：" + exception.Message);
+            SetStatus("后台服务不可用", "无法连接后台管理服务", "请重试；若仍失败，请将诊断日志交给技术支持。", StatusKind.Error);
             MessageBox.Show(this,
                 $"OntoTwin 后台管理服务暂时不可用。控制中心已尝试自动重连。若仍失败，请把诊断日志交给技术支持：\n{_diagnosticLogPath}\n\n{exception.Message}",
-                "后台服务不可用", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                "后台服务不可用", MessageBoxButton.OK, MessageBoxImage.Error);
             return null;
         }
         finally
         {
-            SetBusy(false, "状态：检查中…");
+            SetBusy(false, StatusLabel.Text);
             if (refreshAfter) await RefreshStatusAsync();
         }
     }
@@ -263,9 +230,6 @@ internal sealed class LauncherForm : Form
         {
             try
             {
-                // Provisioning can include a system-disk refresh (about 2 GB),
-                // a 10-minute guest bootstrap window and a final health check.
-                // Keep the UI request above that bounded server-side maximum.
                 var operation = SendRequestAsync("start", TimeSpan.FromMinutes(20));
                 while (true)
                 {
@@ -280,7 +244,8 @@ internal sealed class LauncherForm : Form
                         progress = ExtractBootstrapProgress(status.Output) ?? progress;
                     }
                     catch { }
-                    _statusLabel.Text = $"状态：{progress}（{elapsed.Minutes:D2}:{elapsed.Seconds:D2}）";
+                    SetStatus("启动中", progress, $"已等待 {elapsed.Minutes:D2}:{elapsed.Seconds:D2}，请保持窗口开启。", StatusKind.Warning);
+                    SetSteps(2);
                     AppendLog($"{progress}，已等待 {elapsed.Minutes:D2}:{elapsed.Seconds:D2}");
                 }
             }
@@ -332,36 +297,51 @@ internal sealed class LauncherForm : Form
     private async Task RefreshStatusAsync()
     {
         if (_busy) return;
-        SetBusy(true, "状态：正在检查…");
+        SetBusy(true, "正在检查系统状态…");
         try
         {
             var response = await SendRequestAsync("status", TimeSpan.FromSeconds(20));
             var runtimeRunning = FindRuntimeProcesses();
             var hasRuntime = runtimeRunning.Count > 0;
             runtimeRunning.ForEach(process => process.Dispose());
+
+            BackendDot.Fill = response.BackendReady ? Green : response.VmState == "Running" ? Amber : Muted;
+            BackendStatusText.Text = response.BackendReady ? "已就绪" : response.VmState == "Running" ? "准备中" : "未启动";
+            RuntimeDot.Fill = hasRuntime ? Green : Muted;
+            RuntimeStatusText.Text = hasRuntime ? "运行中" : "未运行";
+
             if (response.BackendReady && hasRuntime)
             {
-                _statusLabel.Text = "状态：系统运行正常";
-                _statusLabel.ForeColor = Color.FromArgb(20, 122, 78);
+                SetStatus("运行正常", "系统已就绪", "ZHHZ 与 OntoTwin 后台均在运行。", StatusKind.Success);
+                SetSteps(5);
             }
             else if (response.BackendReady)
             {
-                _statusLabel.Text = "状态：后台已就绪，ZHHZ 未运行";
-                _statusLabel.ForeColor = Color.FromArgb(130, 85, 0);
+                SetStatus("待启动", "后台已就绪，ZHHZ 未运行", "点击“启动系统”继续。", StatusKind.Warning);
+                SetSteps(3);
+            }
+            else if (response.VmState == "Running")
+            {
+                SetStatus("准备中", "后台设备正在准备", "首次初始化需要较长时间，请耐心等待。", StatusKind.Warning);
+                SetSteps(2);
             }
             else
             {
-                _statusLabel.Text = response.VmState == "Running" ? "状态：后台正在准备" : "状态：系统未启动";
-                _statusLabel.ForeColor = Color.FromArgb(91, 101, 119);
+                SetStatus("未启动", "系统尚未启动", "点击“启动系统”，控制中心会自动完成全部步骤。", StatusKind.Neutral);
+                SetSteps(1);
             }
         }
         catch (Exception exception)
         {
             AppendLog(exception.Message);
-            _statusLabel.Text = "状态：后台管理服务不可用";
-            _statusLabel.ForeColor = Color.FromArgb(176, 50, 50);
+            BackendDot.Fill = Red;
+            BackendStatusText.Text = "不可用";
+            RuntimeDot.Fill = Muted;
+            RuntimeStatusText.Text = "未知";
+            SetStatus("需要处理", "后台管理服务不可用", "请稍后重试；若持续失败，请联系技术支持。", StatusKind.Error);
+            SetSteps(0);
         }
-        finally { SetBusy(false, _statusLabel.Text); }
+        finally { SetBusy(false, StatusLabel.Text); }
     }
 
     private static async Task<ControlResponse> SendRequestAsync(string action, TimeSpan timeout)
@@ -378,10 +358,8 @@ internal sealed class LauncherForm : Form
             ?? throw new InvalidDataException("后台服务返回了无效响应。");
     }
 
-    private static void OpenConsole()
-    {
+    private static void OpenConsole() =>
         Process.Start(new ProcessStartInfo("http://127.0.0.1:5000/nexus") { UseShellExecute = true });
-    }
 
     private string ResolveRuntimePath() =>
         Path.Combine(ResolveAppRoot(_installRoot), "ZHHZ", "ZHHZ.exe");
@@ -389,20 +367,43 @@ internal sealed class LauncherForm : Form
     private void SetBusy(bool busy, string status)
     {
         _busy = busy;
-        _statusLabel.Text = status;
-        foreach (var button in _operationButtons) button.Enabled = !busy;
-        UseWaitCursor = busy;
+        if (!string.IsNullOrWhiteSpace(status)) StatusLabel.Text = status;
+        foreach (var button in _operationButtons) button.IsEnabled = !busy;
+        Cursor = busy ? System.Windows.Input.Cursors.Wait : null;
+    }
+
+    private void SetStatus(string badge, string title, string detail, StatusKind kind)
+    {
+        StatusBadgeText.Text = badge;
+        StatusLabel.Text = title;
+        StatusDetailText.Text = detail;
+        var (dot, background, foreground) = kind switch
+        {
+            StatusKind.Success => (Green, Brush("#E5F7F3"), Brush("#007A63")),
+            StatusKind.Warning => (Amber, Brush("#FFF4E5"), Brush("#9A5705")),
+            StatusKind.Error => (Red, Brush("#FDECEC"), Brush("#B91C1C")),
+            StatusKind.Info => (Blue, Brush("#E8F3FF"), Brush("#0058B0")),
+            _ => (Muted, Brush("#F1F5F9"), Brush("#475569"))
+        };
+        StatusDot.Fill = dot;
+        StatusBadge.Background = background;
+        StatusBadgeText.Foreground = foreground;
+    }
+
+    private void SetSteps(int completed)
+    {
+        for (var index = 0; index < _steps.Length; index++)
+            _steps[index].Background = index < completed ? (index == completed - 1 ? Blue : Green) : Muted;
     }
 
     private void AppendLog(string? message)
     {
-        if (!string.IsNullOrWhiteSpace(message))
-        {
-            var line = $"[{DateTime.Now:HH:mm:ss}] {message.TrimEnd()}";
-            _logBox.AppendText(line + Environment.NewLine);
-            try { File.AppendAllText(_diagnosticLogPath, line + Environment.NewLine, new UTF8Encoding(false)); }
-            catch { }
-        }
+        if (string.IsNullOrWhiteSpace(message)) return;
+        var line = $"[{DateTime.Now:HH:mm:ss}] {message.TrimEnd()}";
+        LogBox.AppendText(line + Environment.NewLine);
+        LogBox.ScrollToEnd();
+        try { File.AppendAllText(_diagnosticLogPath, line + Environment.NewLine, new UTF8Encoding(false)); }
+        catch { }
     }
 
     private void WriteDiagnostic(Exception exception)
@@ -414,6 +415,8 @@ internal sealed class LauncherForm : Form
         }
         catch { }
     }
+
+    private enum StatusKind { Neutral, Info, Success, Warning, Error }
 }
 
 internal sealed record ControlRequest(string Action);

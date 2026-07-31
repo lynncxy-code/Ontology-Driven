@@ -83,6 +83,16 @@ public:
               meta=(DisplayName="实例显示名"))
     FString TwinDisplayName;
 
+    /** OntoTwin 数据侧是否允许 F8 修改空间状态；缺失时兼容为允许。 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体|同步控制",
+              meta=(DisplayName="允许运行时空间编辑"))
+    bool bRuntimeSpatialEditable = true;
+
+    /** Runtime Editor 可写字段的后端摘要，用于原子保存时检测并发冲突。 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体|同步控制",
+              meta=(DisplayName="运行时编辑状态摘要"))
+    FString RuntimeEditStateHash;
+
     /** UE 资产路径（/Game/...） */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|标识",
               meta=(DisplayName="UE资产路径"))
@@ -174,6 +184,12 @@ public:
     /** 获取后端实例显示名；为空时回退到实例 ID。 */
     FString GetTwinDisplayName() const { return TwinDisplayName.IsEmpty() ? InstanceId : TwinDisplayName; }
 
+    bool IsRuntimeSpatialEditable() const { return bRuntimeSpatialEditable; }
+    const FString& GetRuntimeEditStateHash() const { return RuntimeEditStateHash; }
+    bool IsRuntimeLoaded() const { return bRuntimeLoaded; }
+    void SetRuntimeEditorLoadedOverride(bool bLoaded);
+    void ClearRuntimeEditorLoadedOverride();
+
     /** assembly_v1 预览审计：当前已实际创建的静态网格部件数。 */
     int32 GetRenderPartComponentCount() const { return RenderPartComponents.Num(); }
 
@@ -256,6 +272,9 @@ private:
     /** 当前是否由 I3D_Representable.render_parts 驱动。 */
     bool bAssemblyRenderActive = false;
 
+    bool bRuntimeLoaded = true;
+    bool bRuntimeEditorLoadedOverride = false;
+
     /** 防止 500ms 快照轮询重复销毁/重建相同的复合部件。 */
     FString CurrentAssemblySignature;
 
@@ -311,6 +330,7 @@ private:
     void ApplyVisualFromSnapshot(const TSharedPtr<FJsonObject>& VisualObj);
     void ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& BehaviorObj);
     void ApplyRepresentableFromSnapshot(const TSharedPtr<FJsonObject>& RepObj);
+    void ApplyRuntimeLoadedVisibility(bool bVisible);
     void ApplyOverlayFromSnapshot(const TSharedPtr<FJsonObject>& OverlayObj);
     void UpdateWorldOverlayRenderTarget();
     void ClearOverlay();

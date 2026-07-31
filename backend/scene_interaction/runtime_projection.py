@@ -174,6 +174,23 @@ def _route_start_spawn(project, route, projected_route):
     }
 
 
+def _available_runtime_routes(project, default_route_id):
+    result = []
+    for route in (project.get("scene_interactions") or {}).get("routes") or []:
+        if not isinstance(route, dict) or not route.get("enabled", True):
+            continue
+        projected, state = runtime_route_projection(project, route)
+        if projected is None or state != "ready":
+            continue
+        item = copy.deepcopy(projected)
+        item.update({
+            "display_name": str(route.get("name") or route.get("id") or "漫游路线"),
+            "is_default": route.get("id") == default_route_id,
+        })
+        result.append(item)
+    return result
+
+
 def build_runtime_projection(project, config, catalog, revision):
     result = copy.deepcopy(config)
     spawn = config.get("spawn") or {}
@@ -265,6 +282,8 @@ def build_runtime_projection(project, config, catalog, revision):
         result.pop("spawn_ue", None)
     result.pop("spawn", None)
 
+    available_routes = _available_runtime_routes(project, route_id)
+
     token_material = {
         "project_id": project.get("id"),
         "revision": int(revision),
@@ -278,6 +297,10 @@ def build_runtime_projection(project, config, catalog, revision):
         "route_id": route_config.get("route_id"),
         "route_revision": (projected_route or {}).get("route_revision"),
         "route_state": route_state,
+        "available_routes": [
+            [item.get("route_id"), item.get("route_revision")]
+            for item in available_routes
+        ],
     }
     token_json = json.dumps(token_material, sort_keys=True, separators=(",", ":"))
     token = "sha256:" + hashlib.sha256(token_json.encode("utf-8")).hexdigest()[:20]
@@ -288,4 +311,5 @@ def build_runtime_projection(project, config, catalog, revision):
         "config": result,
         "resources": _selected_resources(project, config, catalog, projected_route),
         "runtime_route": projected_route,
+        "available_routes": available_routes,
     }

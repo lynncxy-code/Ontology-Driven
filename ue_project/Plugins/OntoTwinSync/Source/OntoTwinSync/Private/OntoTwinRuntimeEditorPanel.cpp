@@ -12,11 +12,15 @@
 #include "Components/GridSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
+#include "Components/ScrollBox.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
 #include "Framework/Application/SlateApplication.h"
+#include "InputCoreTypes.h"
 #include "Styling/CoreStyle.h"
 #include "Styling/SlateColor.h"
 #include "Styling/SlateTypes.h"
@@ -83,6 +87,7 @@ TSharedRef<SWidget> UOntoTwinRuntimeEditorPanel::RebuildWidget()
 void UOntoTwinRuntimeEditorPanel::NativeConstruct()
 {
     Super::NativeConstruct();
+    SetIsFocusable(true);
 
     if (AccessActionButton)
     {
@@ -93,6 +98,26 @@ void UOntoTwinRuntimeEditorPanel::NativeConstruct()
     {
         CloseButton->OnClicked.RemoveAll(this);
         CloseButton->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandleCloseClicked);
+    }
+    if (UndoButton)
+    {
+        UndoButton->OnClicked.RemoveAll(this);
+        UndoButton->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandleUndoClicked);
+    }
+    if (RedoButton)
+    {
+        RedoButton->OnClicked.RemoveAll(this);
+        RedoButton->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandleRedoClicked);
+    }
+    if (RemoveButton)
+    {
+        RemoveButton->OnClicked.RemoveAll(this);
+        RemoveButton->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandleRemoveClicked);
+    }
+    if (PendingToggleButton)
+    {
+        PendingToggleButton->OnClicked.RemoveAll(this);
+        PendingToggleButton->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandlePendingToggleClicked);
     }
     if (SaveButton)
     {
@@ -114,8 +139,35 @@ void UOntoTwinRuntimeEditorPanel::NativeConstruct()
         GridSnapCheckBox->OnCheckStateChanged.RemoveAll(this);
         GridSnapCheckBox->OnCheckStateChanged.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandleGridSnapChanged);
     }
+    if (ConfirmationPrimaryButton)
+    {
+        ConfirmationPrimaryButton->OnClicked.RemoveAll(this);
+        ConfirmationPrimaryButton->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandleConfirmationPrimaryClicked);
+    }
+    if (ConfirmationSecondaryButton)
+    {
+        ConfirmationSecondaryButton->OnClicked.RemoveAll(this);
+        ConfirmationSecondaryButton->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandleConfirmationSecondaryClicked);
+    }
+    if (ConfirmationContinueButton)
+    {
+        ConfirmationContinueButton->OnClicked.RemoveAll(this);
+        ConfirmationContinueButton->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandleConfirmationContinueClicked);
+    }
 
     RefreshFromManager();
+}
+
+FReply UOntoTwinRuntimeEditorPanel::NativeOnKeyDown(
+    const FGeometry& InGeometry,
+    const FKeyEvent& InKeyEvent)
+{
+    if (InKeyEvent.GetKey() == EKeys::Escape && IsConfirmationOpen())
+    {
+        HideConfirmation();
+        return FReply::Handled();
+    }
+    return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
 }
 
 void UOntoTwinRuntimeEditorPanel::NativeDestruct()
@@ -135,9 +187,10 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     WidgetTree->RootWidget = Root;
 
-    USizeBox* PanelBounds = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("PanelBounds"));
-    PanelBounds->SetWidthOverride(400.0f);
-    PanelBounds->SetMinDesiredHeight(306.0f);
+    PanelBounds = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("PanelBounds"));
+    PanelBounds->SetWidthOverride(440.0f);
+    PanelBounds->SetMinDesiredHeight(420.0f);
+    PanelBounds->SetMaxDesiredHeight(720.0f);
 
     PanelBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("PanelBorder"));
     PanelBorder->SetPadding(FMargin(16.0f));
@@ -159,22 +212,36 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     UVerticalBoxSlot* HeaderSlot = Stack->AddChildToVerticalBox(Header);
     HeaderSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
 
-    UTextBlock* TitleText = CreateText(TEXT("TitleText"), TEXT("Runtime Editor"), 16, PrimaryText, true);
+    UTextBlock* TitleText = CreateText(TEXT("TitleText"), TEXT("运行时编辑器"), 16, PrimaryText, true);
     UHorizontalBoxSlot* TitleSlot = Header->AddChildToHorizontalBox(TitleText);
     TitleSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     TitleSlot->SetVerticalAlignment(VAlign_Center);
 
-    HeaderStateText = CreateText(TEXT("HeaderStateText"), TEXT("Editing"), 11, SecondaryText, true);
+    HeaderStateText = CreateText(TEXT("HeaderStateText"), TEXT("编辑中"), 11, SecondaryText, true);
     UHorizontalBoxSlot* HeaderStateSlot = Header->AddChildToHorizontalBox(HeaderStateText);
-    HeaderStateSlot->SetPadding(FMargin(8.0f, 0.0f, 8.0f, 0.0f));
+    HeaderStateSlot->SetPadding(FMargin(8.0f, 0.0f, 6.0f, 0.0f));
     HeaderStateSlot->SetVerticalAlignment(VAlign_Center);
 
+    UTextBlock* UndoLabel = nullptr;
+    UndoButton = CreateButton(TEXT("UndoButton"), TEXT("撤销"), UndoLabel, false);
+    UndoButton->SetToolTipText(FText::FromString(TEXT("撤销上一步（Ctrl+Z）")));
+    UHorizontalBoxSlot* UndoSlot = Header->AddChildToHorizontalBox(UndoButton);
+    UndoSlot->SetPadding(FMargin(0.0f, 0.0f, 4.0f, 0.0f));
+    UndoSlot->SetVerticalAlignment(VAlign_Center);
+
+    UTextBlock* RedoLabel = nullptr;
+    RedoButton = CreateButton(TEXT("RedoButton"), TEXT("重做"), RedoLabel, false);
+    RedoButton->SetToolTipText(FText::FromString(TEXT("重做（Ctrl+Y）")));
+    UHorizontalBoxSlot* RedoSlot = Header->AddChildToHorizontalBox(RedoButton);
+    RedoSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 0.0f));
+    RedoSlot->SetVerticalAlignment(VAlign_Center);
+
     UTextBlock* CloseLabel = nullptr;
-    CloseButton = CreateButton(TEXT("CloseButton"), TEXT("X"), CloseLabel, false);
-    CloseButton->SetToolTipText(FText::FromString(TEXT("Close editor")));
+    CloseButton = CreateButton(TEXT("CloseButton"), TEXT("×"), CloseLabel, false);
+    CloseButton->SetToolTipText(FText::FromString(TEXT("退出编辑器")));
     USizeBox* CloseBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("CloseBox"));
-    CloseBox->SetWidthOverride(24.0f);
-    CloseBox->SetHeightOverride(24.0f);
+    CloseBox->SetWidthOverride(30.0f);
+    CloseBox->SetHeightOverride(28.0f);
     CloseBox->AddChild(CloseButton);
     UHorizontalBoxSlot* CloseSlot = Header->AddChildToHorizontalBox(CloseBox);
     CloseSlot->SetVerticalAlignment(VAlign_Center);
@@ -187,22 +254,51 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     UVerticalBoxSlot* DividerSlot = Stack->AddChildToVerticalBox(DividerBox);
     DividerSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
 
-    UTextBlock* DeviceLabel = CreateText(TEXT("DeviceLabel"), TEXT("DEVICE"), 10, MutedText, true);
-    Stack->AddChildToVerticalBox(DeviceLabel);
+    UScrollBox* BodyScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("BodyScroll"));
+    BodyScroll->SetScrollBarVisibility(ESlateVisibility::Visible);
+    UVerticalBoxSlot* BodyScrollSlot = Stack->AddChildToVerticalBox(BodyScroll);
+    BodyScrollSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 
-    DisplayNameText = CreateText(TEXT("DisplayNameText"), TEXT("No instance selected"), 14, PrimaryText, true);
-    UVerticalBoxSlot* DisplayNameSlot = Stack->AddChildToVerticalBox(DisplayNameText);
-    DisplayNameSlot->SetPadding(FMargin(0.0f, 1.0f, 0.0f, 0.0f));
+    UVerticalBox* Body = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("Body"));
+    BodyScroll->AddChild(Body);
 
+    UTextBlock* DeviceLabel = CreateText(TEXT("DeviceLabel"), TEXT("选中对象"), 10, MutedText, true);
+    Body->AddChildToVerticalBox(DeviceLabel);
+
+    UGridPanel* IdentityGrid = WidgetTree->ConstructWidget<UGridPanel>(UGridPanel::StaticClass(), TEXT("IdentityGrid"));
+    IdentityGrid->SetColumnFill(1, 1.0f);
+    UVerticalBoxSlot* IdentitySlot = Body->AddChildToVerticalBox(IdentityGrid);
+    IdentitySlot->SetPadding(FMargin(0.0f, 4.0f, 6.0f, 4.0f));
+
+    UTextBlock* NameLabel = CreateText(TEXT("NameLabel"), TEXT("实例名称"), 11, MutedText, true);
+    UGridSlot* NameLabelSlot = IdentityGrid->AddChildToGrid(NameLabel, 0, 0);
+    NameLabelSlot->SetPadding(FMargin(0.0f, 2.0f, 12.0f, 2.0f));
+    DisplayNameText = CreateText(TEXT("DisplayNameText"), TEXT("未选择实例"), 12, PrimaryText, true);
+    DisplayNameText->SetAutoWrapText(true);
+    DisplayNameText->SetWrapTextAt(280.0f);
+    UGridSlot* DisplayNameSlot = IdentityGrid->AddChildToGrid(DisplayNameText, 0, 1);
+    DisplayNameSlot->SetPadding(FMargin(0.0f, 2.0f));
+    DisplayNameSlot->SetHorizontalAlignment(HAlign_Right);
+
+    UTextBlock* IdLabel = CreateText(TEXT("IdLabel"), TEXT("实例 ID"), 11, MutedText, true);
+    UGridSlot* IdLabelSlot = IdentityGrid->AddChildToGrid(IdLabel, 1, 0);
+    IdLabelSlot->SetPadding(FMargin(0.0f, 2.0f, 12.0f, 2.0f));
     InstanceIdText = CreateText(TEXT("InstanceIdText"), TEXT("-"), 11, SecondaryText);
-    UVerticalBoxSlot* InstanceIdSlot = Stack->AddChildToVerticalBox(InstanceIdText);
-    InstanceIdSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 7.0f));
+    UGridSlot* InstanceIdSlot = IdentityGrid->AddChildToGrid(InstanceIdText, 1, 1);
+    InstanceIdSlot->SetPadding(FMargin(0.0f, 2.0f));
+    InstanceIdSlot->SetHorizontalAlignment(HAlign_Right);
+
+    UTextBlock* RemoveLabel = nullptr;
+    RemoveButton = CreateButton(TEXT("RemoveButton"), TEXT("从场景移除"), RemoveLabel, false);
+    RemoveButton->SetToolTipText(FText::FromString(TEXT("立即隐藏所选实例，保存后可在 Web 端重新加载")));
+    UVerticalBoxSlot* RemoveSlot = Body->AddChildToVerticalBox(RemoveButton);
+    RemoveSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 10.0f));
 
     UGridPanel* TransformGrid = WidgetTree->ConstructWidget<UGridPanel>(UGridPanel::StaticClass(), TEXT("TransformGrid"));
     TransformGrid->SetColumnFill(1, 1.0f);
     TransformGrid->SetColumnFill(3, 1.0f);
-    UVerticalBoxSlot* TransformGridSlot = Stack->AddChildToVerticalBox(TransformGrid);
-    TransformGridSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+    UVerticalBoxSlot* TransformGridSlot = Body->AddChildToVerticalBox(TransformGrid);
+    TransformGridSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 10.0f));
 
     auto AddTransformCell = [this, TransformGrid](const FName LabelName, const FString& Label,
         UTextBlock*& ValueText, const FName ValueName, int32 Row, int32 Column)
@@ -222,14 +318,15 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     AddTransformCell(TEXT("XLabel"), TEXT("X"), XValueText, TEXT("XValue"), 0, 0);
     AddTransformCell(TEXT("YLabel"), TEXT("Y"), YValueText, TEXT("YValue"), 0, 2);
     AddTransformCell(TEXT("ZLabel"), TEXT("Z"), ZValueText, TEXT("ZValue"), 1, 0);
-    AddTransformCell(TEXT("YawLabel"), TEXT("Yaw"), YawValueText, TEXT("YawValue"), 1, 2);
+    AddTransformCell(TEXT("YawLabel"), TEXT("偏航"), YawValueText, TEXT("YawValue"), 1, 2);
+    YawLabelText = Cast<UTextBlock>(WidgetTree->FindWidget(TEXT("YawLabel")));
 
-    UTextBlock* AccessLabel = CreateText(TEXT("AccessLabel"), TEXT("DATASET ACCESS"), 10, MutedText, true);
-    Stack->AddChildToVerticalBox(AccessLabel);
+    UTextBlock* AccessLabel = CreateText(TEXT("AccessLabel"), TEXT("数据集访问"), 10, MutedText, true);
+    Body->AddChildToVerticalBox(AccessLabel);
 
     UHorizontalBox* AccessRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AccessRow"));
-    UVerticalBoxSlot* AccessRowSlot = Stack->AddChildToVerticalBox(AccessRow);
-    AccessRowSlot->SetPadding(FMargin(0.0f, 2.0f, 0.0f, 7.0f));
+    UVerticalBoxSlot* AccessRowSlot = Body->AddChildToVerticalBox(AccessRow);
+    AccessRowSlot->SetPadding(FMargin(0.0f, 2.0f, 6.0f, 9.0f));
 
     AccessStatusDot = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("AccessStatusDot"));
     AccessStatusDot->SetBrush(FSlateRoundedBoxBrush(MutedText, 3.0f));
@@ -241,19 +338,19 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     AccessDotSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
     AccessDotSlot->SetVerticalAlignment(VAlign_Center);
 
-    AccessStatusText = CreateText(TEXT("AccessStatusText"), TEXT("Checking access"), 12, PrimaryText);
+    AccessStatusText = CreateText(TEXT("AccessStatusText"), TEXT("正在检查"), 12, PrimaryText);
     UHorizontalBoxSlot* AccessTextSlot = AccessRow->AddChildToHorizontalBox(AccessStatusText);
     AccessTextSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     AccessTextSlot->SetVerticalAlignment(VAlign_Center);
 
-    AccessActionButton = CreateButton(TEXT("AccessActionButton"), TEXT("Checking..."), AccessActionLabel, false);
+    AccessActionButton = CreateButton(TEXT("AccessActionButton"), TEXT("检查中..."), AccessActionLabel, false);
     UHorizontalBoxSlot* AccessActionSlot = AccessRow->AddChildToHorizontalBox(AccessActionButton);
     AccessActionSlot->SetPadding(FMargin(8.0f, 0.0f, 0.0f, 0.0f));
     AccessActionSlot->SetVerticalAlignment(VAlign_Center);
 
     UHorizontalBox* Toggles = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("SnapToggles"));
-    UVerticalBoxSlot* TogglesSlot = Stack->AddChildToVerticalBox(Toggles);
-    TogglesSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 9.0f));
+    UVerticalBoxSlot* TogglesSlot = Body->AddChildToVerticalBox(Toggles);
+    TogglesSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 10.0f));
 
     auto AddSnapToggle = [this, Toggles](const FName CheckName, const FString& Label, UCheckBox*& OutCheckBox)
     {
@@ -265,19 +362,36 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
         ToggleSlot->SetVerticalAlignment(VAlign_Center);
     };
 
-    AddSnapToggle(TEXT("WallSnapCheckBox"), TEXT("Wall snap"), WallSnapCheckBox);
-    AddSnapToggle(TEXT("GridSnapCheckBox"), TEXT("Grid snap"), GridSnapCheckBox);
+    AddSnapToggle(TEXT("WallSnapCheckBox"), TEXT("靠墙吸附"), WallSnapCheckBox);
+    AddSnapToggle(TEXT("GridSnapCheckBox"), TEXT("网格吸附"), GridSnapCheckBox);
+
+    PendingToggleButton = CreateButton(TEXT("PendingToggleButton"), TEXT("待保存修改（0）"), PendingToggleLabel, false);
+    UVerticalBoxSlot* PendingToggleSlot = Body->AddChildToVerticalBox(PendingToggleButton);
+    PendingToggleSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 4.0f));
+
+    PendingList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("PendingList"));
+    PendingList->SetVisibility(ESlateVisibility::Collapsed);
+    UVerticalBoxSlot* PendingListSlot = Body->AddChildToVerticalBox(PendingList);
+    PendingListSlot->SetPadding(FMargin(8.0f, 0.0f, 12.0f, 10.0f));
+
+    UBorder* FooterDivider = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("FooterDivider"));
+    FooterDivider->SetBrushColor(DividerColor);
+    USizeBox* FooterDividerBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("FooterDividerBox"));
+    FooterDividerBox->SetHeightOverride(1.0f);
+    FooterDividerBox->AddChild(FooterDivider);
+    UVerticalBoxSlot* FooterDividerSlot = Stack->AddChildToVerticalBox(FooterDividerBox);
+    FooterDividerSlot->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 10.0f));
 
     UHorizontalBox* Footer = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("Footer"));
     Stack->AddChildToVerticalBox(Footer);
 
     UTextBlock* CancelLabel = nullptr;
-    CancelButton = CreateButton(TEXT("CancelButton"), TEXT("Cancel"), CancelLabel, false);
+    CancelButton = CreateButton(TEXT("CancelButton"), TEXT("取消全部修改"), CancelLabel, false);
     UHorizontalBoxSlot* CancelSlot = Footer->AddChildToHorizontalBox(CancelButton);
     CancelSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     CancelSlot->SetPadding(FMargin(0.0f, 0.0f, 4.0f, 0.0f));
 
-    SaveButton = CreateButton(TEXT("SaveButton"), TEXT("Save changes"), SaveButtonLabel, true);
+    SaveButton = CreateButton(TEXT("SaveButton"), TEXT("保存全部修改"), SaveButtonLabel, true);
     UHorizontalBoxSlot* SaveSlot = Footer->AddChildToHorizontalBox(SaveButton);
     SaveSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     SaveSlot->SetPadding(FMargin(4.0f, 0.0f, 0.0f, 0.0f));
@@ -316,6 +430,45 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     UHorizontalBoxSlot* ToastTextSlot = ToastRow->AddChildToHorizontalBox(ToastTextBox);
     ToastTextSlot->SetPadding(FMargin(12.0f, 9.0f, 14.0f, 9.0f));
     ToastTextSlot->SetVerticalAlignment(VAlign_Center);
+
+    ConfirmationOverlay = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("ConfirmationOverlay"));
+    ConfirmationOverlay->SetBrushColor(FLinearColor(0.0f, 0.0f, 0.0f, 0.58f));
+    ConfirmationOverlay->SetHorizontalAlignment(HAlign_Center);
+    ConfirmationOverlay->SetVerticalAlignment(VAlign_Center);
+    ConfirmationOverlay->SetVisibility(ESlateVisibility::Collapsed);
+    UCanvasPanelSlot* ConfirmationSlot = Root->AddChildToCanvas(ConfirmationOverlay);
+    if (ConfirmationSlot)
+    {
+        ConfirmationSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+        ConfirmationSlot->SetOffsets(FMargin(0.0f));
+    }
+
+    USizeBox* DialogBounds = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("DialogBounds"));
+    DialogBounds->SetWidthOverride(380.0f);
+    UBorder* DialogBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("DialogBorder"));
+    DialogBorder->SetPadding(FMargin(18.0f));
+    DialogBorder->SetBrush(FSlateRoundedBoxBrush(FLinearColor(0.07f, 0.07f, 0.07f, 0.99f), 6.0f));
+    DialogBounds->AddChild(DialogBorder);
+    ConfirmationOverlay->SetContent(DialogBounds);
+
+    UVerticalBox* DialogStack = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("DialogStack"));
+    DialogBorder->SetContent(DialogStack);
+    ConfirmationTitleText = CreateText(TEXT("ConfirmationTitleText"), TEXT("确认操作"), 15, PrimaryText, true);
+    DialogStack->AddChildToVerticalBox(ConfirmationTitleText);
+    ConfirmationBodyText = CreateText(TEXT("ConfirmationBodyText"), TEXT(""), 12, SecondaryText);
+    ConfirmationBodyText->SetAutoWrapText(true);
+    ConfirmationBodyText->SetWrapTextAt(338.0f);
+    UVerticalBoxSlot* ConfirmationBodySlot = DialogStack->AddChildToVerticalBox(ConfirmationBodyText);
+    ConfirmationBodySlot->SetPadding(FMargin(0.0f, 6.0f, 0.0f, 14.0f));
+
+    ConfirmationPrimaryButton = CreateButton(TEXT("ConfirmationPrimaryButton"), TEXT("确认"), ConfirmationPrimaryLabel, true);
+    UVerticalBoxSlot* ConfirmationPrimarySlot = DialogStack->AddChildToVerticalBox(ConfirmationPrimaryButton);
+    ConfirmationPrimarySlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 6.0f));
+    ConfirmationSecondaryButton = CreateButton(TEXT("ConfirmationSecondaryButton"), TEXT("放弃"), ConfirmationSecondaryLabel, false);
+    UVerticalBoxSlot* ConfirmationSecondarySlot = DialogStack->AddChildToVerticalBox(ConfirmationSecondaryButton);
+    ConfirmationSecondarySlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 6.0f));
+    ConfirmationContinueButton = CreateButton(TEXT("ConfirmationContinueButton"), TEXT("继续编辑"), ConfirmationContinueLabel, false);
+    DialogStack->AddChildToVerticalBox(ConfirmationContinueButton);
 }
 
 UTextBlock* UOntoTwinRuntimeEditorPanel::CreateText(const FName Name, const FString& InitialText,
@@ -383,14 +536,109 @@ void UOntoTwinRuntimeEditorPanel::ShowToast(const FString& Message, EOntoTwinRun
     }
 }
 
+void UOntoTwinRuntimeEditorPanel::ShowExitConfirmation()
+{
+    if (!ConfirmationOverlay) return;
+
+    ConfirmationMode = EOntoTwinRuntimePanelConfirmation::ExitEditor;
+    if (ConfirmationTitleText) ConfirmationTitleText->SetText(FText::FromString(TEXT("退出运行时编辑器？")));
+    if (ConfirmationBodyText)
+    {
+        ConfirmationBodyText->SetText(FText::FromString(
+            FString::Printf(TEXT("当前有 %d 个实例包含未保存修改。"),
+                SceneManager ? SceneManager->GetRuntimeEditPendingCount() : 0)));
+    }
+    if (ConfirmationPrimaryLabel) ConfirmationPrimaryLabel->SetText(FText::FromString(TEXT("保存并退出")));
+    if (ConfirmationSecondaryLabel) ConfirmationSecondaryLabel->SetText(FText::FromString(TEXT("放弃修改并退出")));
+    if (ConfirmationContinueLabel) ConfirmationContinueLabel->SetText(FText::FromString(TEXT("继续编辑")));
+    if (ConfirmationSecondaryButton) ConfirmationSecondaryButton->SetVisibility(ESlateVisibility::Visible);
+    ConfirmationOverlay->SetVisibility(ESlateVisibility::Visible);
+    SetKeyboardFocus();
+}
+
+void UOntoTwinRuntimeEditorPanel::ShowCancelAllConfirmation()
+{
+    if (!ConfirmationOverlay) return;
+
+    ConfirmationMode = EOntoTwinRuntimePanelConfirmation::CancelAll;
+    if (ConfirmationTitleText) ConfirmationTitleText->SetText(FText::FromString(TEXT("取消全部修改？")));
+    if (ConfirmationBodyText)
+    {
+        ConfirmationBodyText->SetText(FText::FromString(
+            FString::Printf(TEXT("将恢复本次编辑会话中 %d 个实例的全部修改，此操作不能通过重做恢复。"),
+                SceneManager ? SceneManager->GetRuntimeEditPendingCount() : 0)));
+    }
+    if (ConfirmationPrimaryLabel) ConfirmationPrimaryLabel->SetText(FText::FromString(TEXT("确认取消全部修改")));
+    if (ConfirmationContinueLabel) ConfirmationContinueLabel->SetText(FText::FromString(TEXT("继续编辑")));
+    if (ConfirmationSecondaryButton) ConfirmationSecondaryButton->SetVisibility(ESlateVisibility::Collapsed);
+    ConfirmationOverlay->SetVisibility(ESlateVisibility::Visible);
+    SetKeyboardFocus();
+}
+
+bool UOntoTwinRuntimeEditorPanel::IsConfirmationOpen() const
+{
+    return ConfirmationMode != EOntoTwinRuntimePanelConfirmation::None &&
+        ConfirmationOverlay && ConfirmationOverlay->GetVisibility() != ESlateVisibility::Collapsed;
+}
+
 bool UOntoTwinRuntimeEditorPanel::IsPointerOverPanel() const
 {
+    if (IsConfirmationOpen())
+    {
+        return true;
+    }
     if (!PanelBorder || !PanelBorder->IsVisible() || !FSlateApplication::IsInitialized())
     {
         return false;
     }
 
     return PanelBorder->GetCachedGeometry().IsUnderLocation(FSlateApplication::Get().GetCursorPos());
+}
+
+void UOntoTwinRuntimeEditorPanel::HideConfirmation()
+{
+    ConfirmationMode = EOntoTwinRuntimePanelConfirmation::None;
+    if (ConfirmationOverlay)
+    {
+        ConfirmationOverlay->SetVisibility(ESlateVisibility::Collapsed);
+    }
+}
+
+void UOntoTwinRuntimeEditorPanel::RefreshPendingList()
+{
+    if (!SceneManager || !PendingList || !PendingToggleLabel) return;
+
+    TArray<FString> PendingLines;
+    SceneManager->GetRuntimeEditPendingLines(PendingLines);
+    bool bContainsConflict = false;
+    for (const FString& Line : PendingLines)
+    {
+        bContainsConflict |= Line.Contains(TEXT("冲突"));
+    }
+    if (bContainsConflict)
+    {
+        bPendingListExpanded = true;
+    }
+
+    PendingToggleLabel->SetText(FText::FromString(FString::Printf(
+        TEXT("%s 待保存修改（%d）"),
+        bPendingListExpanded ? TEXT("收起") : TEXT("展开"),
+        PendingLines.Num())));
+    PendingList->ClearChildren();
+    for (const FString& Line : PendingLines)
+    {
+        const FName LineName = MakeUniqueObjectName(WidgetTree, UTextBlock::StaticClass(), TEXT("PendingLine"));
+        UTextBlock* LineText = CreateText(LineName, Line, 11,
+            Line.Contains(TEXT("冲突")) ? ErrorColor : SecondaryText);
+        LineText->SetAutoWrapText(true);
+        LineText->SetWrapTextAt(380.0f);
+        UVerticalBoxSlot* LineSlot = PendingList->AddChildToVerticalBox(LineText);
+        LineSlot->SetPadding(FMargin(0.0f, 2.0f));
+    }
+    PendingList->SetVisibility(
+        bPendingListExpanded && PendingLines.Num() > 0
+            ? ESlateVisibility::SelfHitTestInvisible
+            : ESlateVisibility::Collapsed);
 }
 
 void UOntoTwinRuntimeEditorPanel::HideToast()
@@ -404,6 +652,16 @@ void UOntoTwinRuntimeEditorPanel::HideToast()
 void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
 {
     if (!SceneManager) return;
+
+    if (PanelBounds && GEngine && GEngine->GameViewport)
+    {
+        FVector2D ViewportSize = FVector2D::ZeroVector;
+        GEngine->GameViewport->GetViewportSize(ViewportSize);
+        if (ViewportSize.Y > 0.0f)
+        {
+            PanelBounds->SetMaxDesiredHeight(FMath::Max(420.0f, ViewportSize.Y * 0.70f));
+        }
+    }
 
     if (HeaderStateText)
     {
@@ -428,10 +686,15 @@ void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
     if (YValueText) YValueText->SetText(FText::FromString(bHasTransform ? FString::Printf(TEXT("%.1f"), Location.Y) : TEXT("-")));
     if (ZValueText) ZValueText->SetText(FText::FromString(bHasTransform ? FString::Printf(TEXT("%.1f"), Location.Z) : TEXT("-")));
     if (YawValueText) YawValueText->SetText(FText::FromString(bHasTransform ? FString::Printf(TEXT("%.1f"), Yaw) : TEXT("-")));
+    if (YawLabelText)
+    {
+        YawLabelText->SetText(FText::FromString(
+            SceneManager->IsRuntimeSelectionMultiple() ? TEXT("偏航增量") : TEXT("偏航")));
+    }
 
     const EOntoTwinRuntimeAccessState AccessState = SceneManager->GetRuntimeEditorAccessState();
     FLinearColor AccessColor = MutedText;
-    FString AccessText = TEXT("Unable to verify");
+    FString AccessText = TEXT("无法验证");
     FString ActionText;
     bool bShowAccessAction = false;
     bool bEnableAccessAction = false;
@@ -439,30 +702,30 @@ void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
     switch (AccessState)
     {
     case EOntoTwinRuntimeAccessState::Checking:
-        AccessText = TEXT("Checking access");
-        ActionText = TEXT("Checking...");
+        AccessText = TEXT("正在检查");
+        ActionText = TEXT("检查中...");
         bShowAccessAction = true;
         break;
     case EOntoTwinRuntimeAccessState::Ready:
         AccessColor = ReadyColor;
-        AccessText = TEXT("Ready");
+        AccessText = TEXT("已就绪");
         break;
     case EOntoTwinRuntimeAccessState::Unbound:
         AccessColor = WarningColor;
-        AccessText = TEXT("Not bound");
-        ActionText = TEXT("Bind active dataset");
+        AccessText = TEXT("尚未绑定");
+        ActionText = TEXT("绑定当前数据集");
         bShowAccessAction = true;
         bEnableAccessAction = SceneManager->CanBindRuntimeProject();
         break;
     case EOntoTwinRuntimeAccessState::Mismatch:
         AccessColor = ErrorColor;
-        AccessText = TEXT("Bound to another UE project");
+        AccessText = TEXT("已绑定其他 UE 工程");
         break;
     case EOntoTwinRuntimeAccessState::Error:
     default:
         AccessColor = ErrorColor;
-        AccessText = TEXT("Unable to verify");
-        ActionText = TEXT("Retry");
+        AccessText = TEXT("无法验证");
+        ActionText = TEXT("重试");
         bShowAccessAction = true;
         bEnableAccessAction = SceneManager->CanRetryRuntimeBindingStatus();
         break;
@@ -488,11 +751,15 @@ void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
 
     if (SaveButtonLabel)
     {
-        SaveButtonLabel->SetText(FText::FromString(SceneManager->IsRuntimeEditSaving() ? TEXT("Saving...") : TEXT("Save changes")));
+        SaveButtonLabel->SetText(FText::FromString(
+            SceneManager->IsRuntimeEditSaving() ? TEXT("正在保存...") : TEXT("保存全部修改")));
     }
     if (SaveButton) SaveButton->SetIsEnabled(SceneManager->CanSaveRuntimeEdit());
     if (CancelButton) CancelButton->SetIsEnabled(SceneManager->CanCancelRuntimeEdit());
     if (CloseButton) CloseButton->SetIsEnabled(!SceneManager->IsRuntimeEditSaving());
+    if (UndoButton) UndoButton->SetIsEnabled(SceneManager->CanUndoRuntimeEdit());
+    if (RedoButton) RedoButton->SetIsEnabled(SceneManager->CanRedoRuntimeEdit());
+    if (RemoveButton) RemoveButton->SetIsEnabled(SceneManager->CanRemoveRuntimeSelection());
 
     if (WallSnapCheckBox && WallSnapCheckBox->IsChecked() != SceneManager->IsRuntimeWallSnapEnabled())
     {
@@ -502,6 +769,8 @@ void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
     {
         GridSnapCheckBox->SetIsChecked(SceneManager->IsRuntimeGridSnapEnabled());
     }
+
+    RefreshPendingList();
 }
 
 void UOntoTwinRuntimeEditorPanel::HandleAccessActionClicked()
@@ -530,7 +799,66 @@ void UOntoTwinRuntimeEditorPanel::HandleSaveClicked()
 
 void UOntoTwinRuntimeEditorPanel::HandleCancelClicked()
 {
-    if (SceneManager) SceneManager->CancelRuntimeEdit();
+    if (SceneManager && SceneManager->CanCancelRuntimeEdit())
+    {
+        ShowCancelAllConfirmation();
+    }
+}
+
+void UOntoTwinRuntimeEditorPanel::HandleUndoClicked()
+{
+    if (SceneManager) SceneManager->UndoRuntimeEdit();
+}
+
+void UOntoTwinRuntimeEditorPanel::HandleRedoClicked()
+{
+    if (SceneManager) SceneManager->RedoRuntimeEdit();
+}
+
+void UOntoTwinRuntimeEditorPanel::HandleRemoveClicked()
+{
+    if (SceneManager) SceneManager->RemoveRuntimeSelectionFromScene();
+}
+
+void UOntoTwinRuntimeEditorPanel::HandlePendingToggleClicked()
+{
+    bPendingListExpanded = !bPendingListExpanded;
+    RefreshPendingList();
+}
+
+void UOntoTwinRuntimeEditorPanel::HandleConfirmationPrimaryClicked()
+{
+    if (!SceneManager)
+    {
+        HideConfirmation();
+        return;
+    }
+
+    const EOntoTwinRuntimePanelConfirmation Action = ConfirmationMode;
+    HideConfirmation();
+    if (Action == EOntoTwinRuntimePanelConfirmation::ExitEditor)
+    {
+        SceneManager->SaveAndExitRuntimeEdit();
+    }
+    else if (Action == EOntoTwinRuntimePanelConfirmation::CancelAll)
+    {
+        SceneManager->CancelRuntimeEdit();
+    }
+}
+
+void UOntoTwinRuntimeEditorPanel::HandleConfirmationSecondaryClicked()
+{
+    const EOntoTwinRuntimePanelConfirmation Action = ConfirmationMode;
+    HideConfirmation();
+    if (SceneManager && Action == EOntoTwinRuntimePanelConfirmation::ExitEditor)
+    {
+        SceneManager->DiscardAndExitRuntimeEdit();
+    }
+}
+
+void UOntoTwinRuntimeEditorPanel::HandleConfirmationContinueClicked()
+{
+    HideConfirmation();
 }
 
 void UOntoTwinRuntimeEditorPanel::HandleWallSnapChanged(bool bIsChecked)

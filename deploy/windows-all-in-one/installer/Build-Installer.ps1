@@ -22,9 +22,10 @@ function Get-ReleaseDescriptor {
     $productVersion = $Matches.product
     $releaseNumber = $Matches.release
     $candidateMajor = [int]$Matches.candidateMajor
-    $candidateMinor = if ($Matches.candidateMinor) { [int]$Matches.candidateMinor } else { 0 }
+    $hasCandidateMinor = $Matches.ContainsKey('candidateMinor') -and -not [string]::IsNullOrWhiteSpace([string]$Matches['candidateMinor'])
+    $candidateMinor = if ($hasCandidateMinor) { [int]$Matches['candidateMinor'] } else { 0 }
     if ($candidateMinor -gt 99) { throw "The RC minor revision must be between 0 and 99: $Version" }
-    $candidateNumber = if ($Matches.candidateMinor) { "$candidateMajor.$candidateMinor" } else { "$candidateMajor" }
+    $candidateNumber = if ($hasCandidateMinor) { "$candidateMajor.$candidateMinor" } else { "$candidateMajor" }
     $numericRevision = ($candidateMajor * 100) + $candidateMinor
     if ($numericRevision -gt 65535) { throw "The RC revision is too large for a Windows binary version: $Version" }
     $msiParts = $productVersion.Split('.')
@@ -265,7 +266,7 @@ function Assert-DataRootContract {
     $sourcePaths = [ordered]@{
         PayloadInstaller = Join-Path $DeployRoot "installer\PayloadInstaller\Program.cs"
         HostService = Join-Path $DeployRoot "host-service\OntoTwin.ZHHZ.HostService\Program.cs"
-        Launcher = Join-Path $DeployRoot "launcher\OntoTwin.ZHHZ.Launcher\Program.cs"
+        Launcher = Join-Path $DeployRoot "launcher\OntoTwin.ZHHZ.Launcher\MainWindow.xaml.cs"
         HostControl = Join-Path $DeployRoot "hyperv\host\HostControl.ps1"
     }
     $sourceText = @{}
@@ -875,6 +876,18 @@ if (-not $bundleText.Contains('$(var.PayloadVersion)') -or -not $bundleText.Cont
 if (-not $msiText.Contains('$(var.MsiVersion)')) {
     throw "Package.wxs must consume the MsiVersion build variable."
 }
+foreach ($shortcutId in @('DesktopShortcut', 'StartMenuShortcut')) {
+    if ($msiText -notmatch ('(?s)<Shortcut\s+Id="' + [regex]::Escape($shortcutId) + '"[^>]*Advertise="no"[^>]*/>')) {
+        throw "Package.wxs must create $shortcutId as a direct, non-advertised executable shortcut."
+    }
+}
+if ($msiText -match '(?s)<Shortcut\s+[^>]*Advertise="yes"') {
+    throw "Package.wxs must not create advertised shortcuts; they can appear as blank, non-launching desktop files."
+}
+if ($msiText -notmatch '(?s)<Shortcut\s+Id="DesktopShortcut"[^>]*WorkingDirectory="LauncherFolder"' -or
+    $msiText -notmatch '(?s)<Shortcut\s+Id="StartMenuShortcut"[^>]*WorkingDirectory="LauncherFolder"') {
+    throw "OntoTwin shortcuts must use LauncherFolder as their working directory."
+}
 foreach ($requiredMsiLifecycleFragment in @(
     'FileRef="PayloadInstallerExe"',
     'ExeCommand="uninstall &quot;$(var.PayloadVersion)&quot;"',
@@ -973,6 +986,7 @@ try {
         "-p:MsiVersion=$($releaseDescriptor.MsiVersion)" `
         "-p:PayloadVersion=$releaseVersion" `
         "-p:LauncherPath=$(Join-Path $launcherOutput 'OntoTwin-ZHHZ-Launcher.exe')" `
+        "-p:LauncherIconPath=$(Join-Path $deployRoot 'launcher\OntoTwin.ZHHZ.Launcher\LingYunZhi.ico')" `
         "-p:ServicePath=$(Join-Path $serviceOutput 'OntoTwin-ZHHZ-HostService.exe')" `
         "-p:HostScriptPath=$(Join-Path $deployRoot 'hyperv\host\HostControl.ps1')" `
         "-p:PayloadInstallerPath=$(Join-Path $payloadInstallerOutput 'OntoTwin-ZHHZ-PayloadInstaller.exe')" `
@@ -988,6 +1002,7 @@ try {
     & dotnet build $bundleProject -c Release -t:Rebuild --nologo `
         "-p:BundleVersion=$($releaseDescriptor.BundleVersion)" `
         "-p:PayloadVersion=$releaseVersion" `
+        "-p:LauncherIconPath=$(Join-Path $deployRoot 'launcher\OntoTwin.ZHHZ.Launcher\LingYunZhi.ico')" `
         "-p:EnvironmentBootstrapperPath=$(Join-Path $environmentOutput 'OntoTwin-ZHHZ-Environment.exe')" `
         "-p:EnableHyperVScriptPath=$(Join-Path $deployRoot 'hyperv\host\Enable-HyperV.ps1')" `
         "-p:PayloadInstallerPath=$(Join-Path $payloadInstallerOutput 'OntoTwin-ZHHZ-PayloadInstaller.exe')" `

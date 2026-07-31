@@ -1,5 +1,6 @@
 #include "SceneInteraction/OntoTwinRoamingHUDWidget.h"
 
+#include "SceneInteraction/Minimap/OntoTwinMinimapWidget.h"
 #include "SceneInteraction/TwinInteractionManagerComponent.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
@@ -8,6 +9,7 @@
 #include "Components/ButtonSlot.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
+#include "Components/ComboBoxString.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Overlay.h"
@@ -30,6 +32,85 @@ const FLinearColor SecondaryText(0.80f, 0.80f, 0.80f, 0.96f);
 const FLinearColor TextShadow(0.0f, 0.0f, 0.0f, 0.58f);
 const FLinearColor ActiveButton(0.34f, 0.34f, 0.34f, 0.58f);
 const FLinearColor InactiveButton(0.14f, 0.14f, 0.14f, 0.30f);
+
+FComboBoxStyle BuildRouteSelectorStyle()
+{
+    FComboBoxStyle Style =
+        FCoreStyle::Get().GetWidgetStyle<FComboBoxStyle>(TEXT("ComboBox"));
+    FComboButtonStyle ComboButton = Style.ComboButtonStyle;
+
+    FButtonStyle ButtonStyle = ComboButton.ButtonStyle;
+    ButtonStyle
+        .SetNormal(FSlateRoundedBoxBrush(
+            FLinearColor(0.10f, 0.10f, 0.10f, 0.34f),
+            7.0f,
+            FLinearColor(0.90f, 0.90f, 0.90f, 0.16f),
+            1.0f))
+        .SetHovered(FSlateRoundedBoxBrush(
+            FLinearColor(0.18f, 0.18f, 0.18f, 0.48f),
+            7.0f,
+            FLinearColor(0.96f, 0.96f, 0.96f, 0.30f),
+            1.0f))
+        .SetPressed(FSlateRoundedBoxBrush(
+            FLinearColor(0.24f, 0.24f, 0.24f, 0.58f),
+            7.0f,
+            FLinearColor(0.98f, 0.98f, 0.98f, 0.38f),
+            1.0f))
+        .SetDisabled(FSlateRoundedBoxBrush(
+            FLinearColor(0.08f, 0.08f, 0.08f, 0.24f),
+            7.0f,
+            FLinearColor(0.80f, 0.80f, 0.80f, 0.10f),
+            1.0f));
+
+    FSlateBrush ArrowBrush = ComboButton.DownArrowImage;
+    ArrowBrush.TintColor = FSlateColor(PrimaryText);
+    ComboButton
+        .SetButtonStyle(ButtonStyle)
+        .SetDownArrowImage(ArrowBrush)
+        .SetMenuBorderBrush(FSlateRoundedBoxBrush(
+            FLinearColor(0.055f, 0.055f, 0.055f, 0.96f),
+            8.0f,
+            FLinearColor(0.94f, 0.94f, 0.94f, 0.20f),
+            1.0f))
+        .SetMenuBorderPadding(FMargin(4.0f))
+        .SetDownArrowPadding(FMargin(8.0f, 0.0f, 8.0f, 0.0f));
+
+    return Style
+        .SetComboButtonStyle(ComboButton)
+        .SetMenuRowPadding(FMargin(8.0f, 5.0f));
+}
+
+FTableRowStyle BuildRouteSelectorRowStyle()
+{
+    const FSlateRoundedBoxBrush ClearRow(FLinearColor::Transparent, 5.0f);
+    const FSlateRoundedBoxBrush HoveredRow(
+        FLinearColor(0.94f, 0.94f, 0.94f, 0.10f), 5.0f);
+    const FSlateRoundedBoxBrush SelectedRow(
+        FLinearColor(0.94f, 0.94f, 0.94f, 0.16f),
+        5.0f,
+        FLinearColor(0.98f, 0.98f, 0.98f, 0.22f),
+        1.0f);
+    const FSlateRoundedBoxBrush SelectedHoveredRow(
+        FLinearColor(0.98f, 0.98f, 0.98f, 0.22f),
+        5.0f,
+        FLinearColor(1.0f, 1.0f, 1.0f, 0.30f),
+        1.0f);
+
+    FTableRowStyle Style =
+        FCoreStyle::Get().GetWidgetStyle<FTableRowStyle>(TEXT("ComboBox.Row"));
+    return Style
+        .SetSelectorFocusedBrush(SelectedHoveredRow)
+        .SetActiveHoveredBrush(SelectedHoveredRow)
+        .SetActiveBrush(SelectedRow)
+        .SetInactiveHoveredBrush(SelectedHoveredRow)
+        .SetInactiveBrush(SelectedRow)
+        .SetEvenRowBackgroundHoveredBrush(HoveredRow)
+        .SetEvenRowBackgroundBrush(ClearRow)
+        .SetOddRowBackgroundHoveredBrush(HoveredRow)
+        .SetOddRowBackgroundBrush(ClearRow)
+        .SetTextColor(FSlateColor(PrimaryText))
+        .SetSelectedTextColor(FSlateColor(PrimaryText));
+}
 }
 
 TSharedRef<SWidget> UOntoTwinRoamingHUDWidget::RebuildWidget()
@@ -78,6 +159,15 @@ void UOntoTwinRoamingHUDWidget::BuildDefaultLayout()
         UCanvasPanel::StaticClass(), TEXT("HUDCanvas"));
     Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     WidgetTree->RootWidget = Root;
+
+    MinimapWidget = WidgetTree->ConstructWidget<UOntoTwinMinimapWidget>(
+        UOntoTwinMinimapWidget::StaticClass(), TEXT("MinimapWidget"));
+    MinimapWidget->SetVisibility(ESlateVisibility::Collapsed);
+    UCanvasPanelSlot* MinimapSlot = Root->AddChildToCanvas(MinimapWidget);
+    MinimapSlot->SetAnchors(FAnchors(1.0f, 0.0f));
+    MinimapSlot->SetAlignment(FVector2D(1.0f, 0.0f));
+    MinimapSlot->SetPosition(FVector2D(-24.0f, 24.0f));
+    MinimapSlot->SetAutoSize(true);
 
     // Bottom-center status is direct content without a backing plate.
     UHorizontalBox* StatusRow = WidgetTree->ConstructWidget<UHorizontalBox>(
@@ -184,14 +274,46 @@ void UOntoTwinRoamingHUDWidget::BuildDefaultLayout()
     UVerticalBoxSlot* DetailTextSlot = DrawerStack->AddChildToVerticalBox(DetailText);
     DetailTextSlot->SetPadding(FMargin(0.0f, 2.0f, 0.0f, 8.0f));
 
+    UHorizontalBox* RouteRow = WidgetTree->ConstructWidget<UHorizontalBox>(
+        UHorizontalBox::StaticClass(), TEXT("RouteSelectorRow"));
+    RouteRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    UVerticalBoxSlot* RouteRowSlot = DrawerStack->AddChildToVerticalBox(RouteRow);
+    RouteRowSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+
+    UTextBlock* RouteLabel = WidgetTree->ConstructWidget<UTextBlock>(
+        UTextBlock::StaticClass(), TEXT("RouteSelectorLabel"));
+    RouteLabel->SetText(FText::FromString(TEXT("运行线路")));
+    RouteLabel->SetColorAndOpacity(SecondaryText);
+    RouteLabel->SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9));
+    RouteLabel->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    UHorizontalBoxSlot* RouteLabelSlot = RouteRow->AddChildToHorizontalBox(RouteLabel);
+    RouteLabelSlot->SetVerticalAlignment(VAlign_Center);
+    RouteLabelSlot->SetPadding(FMargin(0.0f, 0.0f, 10.0f, 0.0f));
+
+    USizeBox* RouteSelectorBounds = WidgetTree->ConstructWidget<USizeBox>(
+        USizeBox::StaticClass(), TEXT("RouteSelectorBounds"));
+    RouteSelectorBounds->SetWidthOverride(360.0f);
+    RouteSelector = WidgetTree->ConstructWidget<UComboBoxString>(
+        UComboBoxString::StaticClass(), TEXT("RouteSelector"));
+    RouteSelector->SetWidgetStyle(BuildRouteSelectorStyle());
+    RouteSelector->SetItemStyle(BuildRouteSelectorRowStyle());
+    RouteSelector->SetContentPadding(FMargin(10.0f, 6.0f));
+    RouteSelector->SetMaxListHeight(260.0f);
+    RouteSelector->OnGenerateWidgetEvent.BindDynamic(
+        this, &UOntoTwinRoamingHUDWidget::GenerateRouteOptionWidget);
+    RouteSelector->OnSelectionChanged.AddDynamic(
+        this, &UOntoTwinRoamingHUDWidget::OnRouteSelected);
+    RouteSelectorBounds->AddChild(RouteSelector);
+    RouteRow->AddChildToHorizontalBox(RouteSelectorBounds);
+
     UHorizontalBox* ViewModes = WidgetTree->ConstructWidget<UHorizontalBox>(
         UHorizontalBox::StaticClass(), TEXT("ViewModes"));
     UVerticalBoxSlot* ViewModesSlot = DrawerStack->AddChildToVerticalBox(ViewModes);
     ViewModesSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
-    FirstPersonButton = AddActionButton(nullptr, TEXT("FirstPersonButton"), TEXT("第一人称"));
+    GlobalButton = AddActionButton(nullptr, TEXT("GlobalButton"), TEXT("上帝视角"));
     ShoulderButton = AddActionButton(nullptr, TEXT("ShoulderButton"), TEXT("过肩视角"));
-    GlobalButton = AddActionButton(nullptr, TEXT("GlobalButton"), TEXT("全局视角"));
-    for (UButton* Button : {FirstPersonButton, ShoulderButton, GlobalButton})
+    FirstPersonButton = AddActionButton(nullptr, TEXT("FirstPersonButton"), TEXT("第一人称"));
+    for (UButton* Button : {GlobalButton, ShoulderButton, FirstPersonButton})
     {
         UHorizontalBoxSlot* ViewSlot = ViewModes->AddChildToHorizontalBox(Button);
         ViewSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
@@ -220,6 +342,19 @@ void UOntoTwinRoamingHUDWidget::BuildDefaultLayout()
     RefreshShortcutList();
 }
 
+UWidget* UOntoTwinRoamingHUDWidget::GenerateRouteOptionWidget(FString Item)
+{
+    UTextBlock* Text = WidgetTree->ConstructWidget<UTextBlock>(
+        UTextBlock::StaticClass());
+    Text->SetText(FText::FromString(Item));
+    Text->SetColorAndOpacity(PrimaryText);
+    Text->SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9));
+    Text->SetShadowOffset(FVector2D(1.0f, 1.0f));
+    Text->SetShadowColorAndOpacity(TextShadow);
+    Text->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    return Text;
+}
+
 void UOntoTwinRoamingHUDWidget::RefreshShortcutList()
 {
     if (!Manager || !HintList) return;
@@ -239,6 +374,67 @@ void UOntoTwinRoamingHUDWidget::RefreshShortcutList()
     {
         AddShortcutRow(Index, Keys[Index], Descriptions[Index]);
     }
+}
+
+void UOntoTwinRoamingHUDWidget::RefreshRouteSelector()
+{
+    if (!Manager || !RouteSelector) return;
+    TArray<FString> RouteIds;
+    TArray<FString> DisplayNames;
+    TArray<bool> DefaultFlags;
+    Manager->GetAvailableRuntimeRoutes(RouteIds, DisplayNames, DefaultFlags);
+
+    FString NextSignature = Manager->GetActiveRuntimeRouteId();
+    NextSignature += Manager->IsRouteSwitching() ? TEXT("|switching") : TEXT("|ready");
+    for (int32 Index = 0; Index < RouteIds.Num(); ++Index)
+    {
+        NextSignature += TEXT("|") + RouteIds[Index];
+        if (DisplayNames.IsValidIndex(Index)) NextSignature += TEXT(":") + DisplayNames[Index];
+        if (DefaultFlags.IsValidIndex(Index) && DefaultFlags[Index]) NextSignature += TEXT(":default");
+    }
+    if (NextSignature == RouteSignature) return;
+
+    RouteSignature = NextSignature;
+    RouteOptionIds.Reset();
+    RouteOptionLabels.Reset();
+    bRefreshingRouteSelector = true;
+    RouteSelector->ClearOptions();
+    for (int32 Index = 0; Index < RouteIds.Num(); ++Index)
+    {
+        const FString RouteId = RouteIds[Index];
+        FString Label = DisplayNames.IsValidIndex(Index) && !DisplayNames[Index].IsEmpty()
+            ? DisplayNames[Index] : RouteId;
+        if (DefaultFlags.IsValidIndex(Index) && DefaultFlags[Index])
+        {
+            Label += TEXT("（默认）");
+        }
+        if (RouteOptionLabels.Contains(Label))
+        {
+            Label += FString::Printf(TEXT("（%s）"), *RouteId);
+        }
+        RouteOptionIds.Add(RouteId);
+        RouteOptionLabels.Add(Label);
+        RouteSelector->AddOption(Label);
+    }
+
+    if (RouteOptionIds.IsEmpty())
+    {
+        const FString EmptyLabel = TEXT("当前没有可切换路线");
+        RouteOptionLabels.Add(EmptyLabel);
+        RouteOptionIds.Add(FString());
+        RouteSelector->AddOption(EmptyLabel);
+        RouteSelector->SetSelectedIndex(0);
+        RouteSelector->SetIsEnabled(false);
+    }
+    else
+    {
+        const int32 ActiveIndex = RouteOptionIds.IndexOfByKey(
+            Manager->GetActiveRuntimeRouteId());
+        RouteSelector->SetSelectedIndex(ActiveIndex == INDEX_NONE ? 0 : ActiveIndex);
+        RouteSelector->SetIsEnabled(
+            RouteOptionIds.Num() > 1 && !Manager->IsRouteSwitching());
+    }
+    bRefreshingRouteSelector = false;
 }
 
 void UOntoTwinRoamingHUDWidget::AddShortcutRow(
@@ -318,6 +514,7 @@ void UOntoTwinRoamingHUDWidget::RefreshFromManager()
     if (!Manager || !StatusText) return;
     StatusText->SetText(FText::FromString(Manager->GetHudStatusText()));
     RefreshShortcutList();
+    RefreshRouteSelector();
     DetailText->SetText(FText::FromString(Manager->GetHudDetailText()));
 
     const ETwinRoamingCameraMode Mode = Manager->GetCameraMode();
@@ -344,12 +541,38 @@ void UOntoTwinRoamingHUDWidget::RefreshFromManager()
 
 void UOntoTwinRoamingHUDWidget::SetInteractionOpen(bool bOpen)
 {
+    if (bOpen) RefreshRouteSelector();
     if (DetailPanel)
     {
         DetailPanel->SetVisibility(
             bOpen ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
     }
     SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+}
+
+void UOntoTwinRoamingHUDWidget::SetMinimapTexture(
+    UTextureRenderTarget2D* Texture,
+    const FIntPoint& CaptureSize)
+{
+    if (MinimapWidget) MinimapWidget->SetMapTexture(Texture, CaptureSize);
+}
+
+void UOntoTwinRoamingHUDWidget::SetMinimapMarker(
+    const FVector2D& UV,
+    float AngleDegrees,
+    bool bOffMap)
+{
+    if (MinimapWidget) MinimapWidget->SetMarker(UV, AngleDegrees, bOffMap);
+}
+
+void UOntoTwinRoamingHUDWidget::HideMinimapMarker()
+{
+    if (MinimapWidget) MinimapWidget->HideMarker();
+}
+
+void UOntoTwinRoamingHUDWidget::ClearMinimap()
+{
+    if (MinimapWidget) MinimapWidget->ClearMap();
 }
 
 void UOntoTwinRoamingHUDWidget::OnCycleSkin() { if (Manager) Manager->CycleSkin(); }
@@ -367,4 +590,19 @@ void UOntoTwinRoamingHUDWidget::OnShoulder()
 void UOntoTwinRoamingHUDWidget::OnGlobal()
 {
     if (Manager) Manager->SetCameraMode(ETwinRoamingCameraMode::God);
+}
+
+void UOntoTwinRoamingHUDWidget::OnRouteSelected(
+    FString SelectedItem,
+    ESelectInfo::Type SelectionType)
+{
+    (void)SelectionType;
+    if (bRefreshingRouteSelector || !Manager) return;
+    const int32 Index = RouteOptionLabels.IndexOfByKey(SelectedItem);
+    if (!RouteOptionIds.IsValidIndex(Index) || RouteOptionIds[Index].IsEmpty()) return;
+    if (!Manager->SelectRuntimeRoute(RouteOptionIds[Index]))
+    {
+        RouteSignature.Reset();
+        RefreshRouteSelector();
+    }
 }

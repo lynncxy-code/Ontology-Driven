@@ -94,10 +94,24 @@ struct ONTOTWINSYNC_API FTwinGodCameraSettings
 };
 
 /** 后端 /runtime 的 UE 精简投影；不包含业务实例或人物位置。 */
+struct ONTOTWINSYNC_API FTwinRoamingRuntimeRoute
+{
+    FString RouteId;
+    FString DisplayName;
+    bool bDefault = false;
+    int32 Revision = 0;
+    FString Level;
+    float GroundZHintCm = 0.0f;
+    float SpeedCmS = 180.0f;
+    bool bLoop = false;
+    TArray<FVector> Points;
+};
+
 struct ONTOTWINSYNC_API FTwinRoamingRuntimeConfig
 {
     bool bEnabled = false;
     bool bAutoEnter = false;
+    bool bMinimapEnabled = false;
     FString CharacterId;
     FString CharacterDisplayName;
     FString CharacterPrimaryAssetId;
@@ -114,7 +128,7 @@ struct ONTOTWINSYNC_API FTwinRoamingRuntimeConfig
     FTwinFirstPersonCameraSettings FirstPersonCamera;
     FTwinNearCameraSettings NearCamera;
     FTwinGodCameraSettings GodCamera;
-    ETwinRoamingCameraMode DefaultCameraMode = ETwinRoamingCameraMode::NearFollow;
+    ETwinRoamingCameraMode DefaultCameraMode = ETwinRoamingCameraMode::God;
     bool bRouteEnabled = false;
     bool bRouteAutoStart = true;
     bool bRouteLoop = false;
@@ -126,6 +140,7 @@ struct ONTOTWINSYNC_API FTwinRoamingRuntimeConfig
     FString RuntimeRouteLevel;
     float RuntimeRouteGroundZHintCm = 0.0f;
     TArray<FVector> RuntimeRoutePoints;
+    TArray<FTwinRoamingRuntimeRoute> AvailableRoutes;
 };
 
 /**

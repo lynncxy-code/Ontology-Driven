@@ -1,5 +1,5 @@
 {
-  "catalog_version": "2026.07.8",
+  "catalog_version": "2026.07.9",
   "characters": [
     {
       "id": "character.observer.base",
@@ -22,7 +22,7 @@
     },
     {
       "id": "character.renderpeople.carla",
-      "display_name": "穿黑西装的女士",
+      "display_name": "黑西装女士",
       "thumbnail_url": "/assets/scene-interaction/character-renderpeople-carla.png",
       "ue_primary_asset_id": "TwinCharacter:RenderPeopleCarla",
       "skeleton_id": "skeleton.renderpeople.ue4.v1",
@@ -41,7 +41,7 @@
     },
     {
       "id": "character.renderpeople.claudia",
-      "display_name": "穿白衬衫的女士",
+      "display_name": "白衬衫女士",
       "thumbnail_url": "/assets/scene-interaction/character-renderpeople-claudia.png",
       "ue_primary_asset_id": "TwinCharacter:RenderPeopleClaudia",
       "skeleton_id": "skeleton.renderpeople.ue4.v1",
@@ -60,7 +60,7 @@
     },
     {
       "id": "character.renderpeople.eric",
-      "display_name": "穿西装马甲的男士",
+      "display_name": "西装马甲男士",
       "thumbnail_url": "/assets/scene-interaction/character-renderpeople-eric.png",
       "ue_primary_asset_id": "TwinCharacter:RenderPeopleEric",
       "skeleton_id": "skeleton.renderpeople.ue4.v1",
@@ -79,7 +79,7 @@
     },
     {
       "id": "character.renderpeople.manuel",
-      "display_name": "穿灰色T恤的青年",
+      "display_name": "灰T恤青年",
       "thumbnail_url": "/assets/scene-interaction/character-renderpeople-manuel.png",
       "ue_primary_asset_id": "TwinCharacter:RenderPeopleManuel",
       "skeleton_id": "skeleton.renderpeople.ue4.v1",
@@ -98,7 +98,7 @@
     },
     {
       "id": "character.renderpeople.nathan",
-      "display_name": "穿浅蓝T恤的男士",
+      "display_name": "浅蓝T恤男士",
       "thumbnail_url": "/assets/scene-interaction/character-renderpeople-nathan.png",
       "ue_primary_asset_id": "TwinCharacter:RenderPeopleNathan",
       "skeleton_id": "skeleton.renderpeople.ue4.v1",
@@ -117,7 +117,7 @@
     },
     {
       "id": "character.renderpeople.sophia",
-      "display_name": "穿白色无袖上衣的女士",
+      "display_name": "白色无袖女士",
       "thumbnail_url": "/assets/scene-interaction/character-renderpeople-sophia.png",
       "ue_primary_asset_id": "TwinCharacter:RenderPeopleSophia",
       "skeleton_id": "skeleton.renderpeople.ue4.v1",

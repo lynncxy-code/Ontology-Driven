@@ -35,7 +35,7 @@ http://localhost:5000/ue_hud/pages/s3-building.html?space_id=SF.SB.M01
 - `TwinInteractionManagerComponent` 已轮询 `/api/v2/scene-interactions/runtime`。
 - UE 已具备实例 `select / clear_selection` 能力。
 - UE 插件已有 WebSockets 客户端依赖，但当前用于空间目标实时数据，不是 Web 配置广播。
-- `WebBrowserWidget` 尚未加入插件依赖，也没有共享 Web 页面宿主。
+- 项目已有 WebUI 浏览器插件，但尚未有 OntoTwin 共享 Web 页面宿主；不得同时启用 UE 内置 `WebBrowserWidget`，否则会与 WebUI 的 CEF 产生重复链接。
 - Zone 已有 `zone_id`、`ue_level`、`streaming` 预留字段；实例已有 `zone_id`。
 - UE 当前具备实例显隐能力，但尚未实现按 Zone 的关卡加载/卸载。
 - 场景交互配置是项目级低频 JSONB；ProjectStore 也有 JSON 文件兼容模式。
@@ -930,7 +930,7 @@ UE 发现新 revision 后立即重新解析当前上下文：
 
 ### 20.5 打包
 
-- [ ] `WebBrowserWidget` 与所需资源在目标构建中启用并 Cook。
+- [ ] 项目 WebUI 浏览器插件与所需资源在目标构建中启用并 Cook，且不同时链接第二套 CEF。
 - [ ] PIE、Standalone、Development、Shipping 均通过。
 - [ ] High 失败时只降级到 Balanced，再到 Performance。
 - [ ] Performance 始终可读，不出现透明空白。

@@ -888,6 +888,10 @@ if ($msiText -notmatch '(?s)<Shortcut\s+Id="DesktopShortcut"[^>]*WorkingDirector
     $msiText -notmatch '(?s)<Shortcut\s+Id="StartMenuShortcut"[^>]*WorkingDirectory="LauncherFolder"') {
     throw "OntoTwin shortcuts must use LauncherFolder as their working directory."
 }
+if ($msiText -notmatch '(?s)<Shortcut\s+Id="DesktopShortcut"[^>]*Target="\[LauncherFolder\]OntoTwin-ZHHZ-Launcher\.exe"' -or
+    $msiText -notmatch '(?s)<Shortcut\s+Id="StartMenuShortcut"[^>]*Target="\[LauncherFolder\]OntoTwin-ZHHZ-Launcher\.exe"') {
+    throw "OntoTwin shortcuts must target the installed launcher executable directly."
+}
 foreach ($requiredMsiLifecycleFragment in @(
     'FileRef="PayloadInstallerExe"',
     'ExeCommand="uninstall &quot;$(var.PayloadVersion)&quot;"',

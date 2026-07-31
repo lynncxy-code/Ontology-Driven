@@ -118,8 +118,8 @@
       </Component>
 
       <Component Id="StartMenuFolderComponent" Directory="ProgramMenuProductFolder" Guid="04646D5F-E5D7-45CC-8D9E-B2BB6C04B611">
-        <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="灵云智" Target="[#LauncherExe]" WorkingDirectory="LauncherFolder" Advertise="no" />
-        <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuProductFolder" Name="灵云智 · OntoTwin ZHHZ" Target="[#LauncherExe]" WorkingDirectory="LauncherFolder" Advertise="no" />
+        <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="灵云智" Target="[LauncherFolder]OntoTwin-ZHHZ-Launcher.exe" WorkingDirectory="LauncherFolder" Advertise="no" />
+        <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuProductFolder" Name="灵云智 · OntoTwin ZHHZ" Target="[LauncherFolder]OntoTwin-ZHHZ-Launcher.exe" WorkingDirectory="LauncherFolder" Advertise="no" />
         <RemoveFolder Id="RemoveProgramMenuProductFolder" On="uninstall" />
         <RegistryValue Root="HKCU" Key="Software\OntoTwin\ZHHZ" Name="StartMenuInstalled" Value="1" Type="integer" KeyPath="yes" />
       </Component>

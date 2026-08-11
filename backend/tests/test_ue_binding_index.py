@@ -134,6 +134,53 @@ class UeBindingIndexTest(unittest.TestCase):
         old = self.ps.read_project(p1["id"])
         self.assertEqual((old.get("dataset") or {}).get("bound_ue_project_id", ""), "")
 
+    def test_bind_write_failure_rolls_back_old_binding(self):
+        """新绑定写失败时，旧项目的绑定应被回滚到原状。"""
+        p1 = self.ps.create_project("P1", dataset={"id": "p1", "name": "P1"})
+        ub.bind_active_dataset(self.ps, "ue_gamma", "ue_gamma")
+        self.ps.deactivate()
+        p2 = self.ps.create_project("P2", dataset={"id": "p2", "name": "P2"})
+
+        # 让新绑定写失败：patch set_dataset 抛错
+        original_set = self.ps.set_dataset
+        def boom(*a, **kw):
+            raise RuntimeError("simulated write failure")
+        self.ps.set_dataset = boom
+
+        ok, info = ub.bind_active_dataset(self.ps, "ue_gamma", "ue_gamma", force=True)
+        self.ps.set_dataset = original_set
+
+        self.assertFalse(ok)
+        self.assertEqual(info["error"], "write_binding_failed")
+        # 索引未更新 → 仍指向旧项目
+        self.assertEqual(ub.index_lookup("ue_gamma"), p1["id"])
+        # 旧项目的 dataset 绑定应被回滚回原值
+        p1_after = self.ps.read_project(p1["id"])
+        ds = p1_after.get("dataset") or {}
+        self.assertEqual(ds.get("bound_ue_project_id"), "ue_gamma")
+
+    def test_bind_clear_previous_failure_aborts(self):
+        """清旧项目绑定失败时应中止，索引不动。"""
+        p1 = self.ps.create_project("P1", dataset={"id": "p1", "name": "P1"})
+        ub.bind_active_dataset(self.ps, "ue_delta", "ue_delta")
+        self.ps.deactivate()
+        p2 = self.ps.create_project("P2", dataset={"id": "p2", "name": "P2"})
+
+        original_write = self.ps.write_project
+        def boom_write(pid, proj):
+            if pid == p1["id"]:
+                raise RuntimeError("simulated clear failure")
+            return original_write(pid, proj)
+        self.ps.write_project = boom_write
+
+        ok, info = ub.bind_active_dataset(self.ps, "ue_delta", "ue_delta", force=True)
+        self.ps.write_project = original_write
+
+        self.assertFalse(ok)
+        self.assertEqual(info["error"], "clear_previous_binding_failed")
+        # 索引未变
+        self.assertEqual(ub.index_lookup("ue_delta"), p1["id"])
+
 
 if __name__ == "__main__":
     unittest.main()

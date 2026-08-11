@@ -19,6 +19,7 @@ X-OntoTwin-UE-Project-Id / X-OntoTwin-UE-Project-Name。
 """
 
 import threading
+from contextlib import nullcontext
 
 UE_ID_HEADER = "X-OntoTwin-UE-Project-Id"
 UE_NAME_HEADER = "X-OntoTwin-UE-Project-Name"
@@ -193,84 +194,113 @@ def check_request_matches_active(store, request):
 def bind_active_dataset(store, ue_project_id, ue_project_name, force=False):
     """把当前激活项目绑到指定 UE-ID。
     互斥：同一 UE-ID 只能绑一个项目；已绑他处需 force=True 才能迁移。
-    整个流程持 _index_lock：检查/清旧/写新/更新索引原子。
+    锁序：_index_lock（外）→ store._lock（内），全流程原子；
+    重要节点做失败回滚，避免"清了旧但没写新"造成索引与真源不一致。
     """
     if not ue_project_id:
         return False, {"error": "ue_project_id is required"}
-    active = store.get_active() if hasattr(store, "get_active") else None
-    if not active:
-        return False, {"error": "no active project"}
-    active_pid = active.get("id")
 
+    store_lock = getattr(store, "_lock", None) or nullcontext()
     with _index_lock:
-        existing_pid = _ue_index.get(str(ue_project_id))
-        if existing_pid and existing_pid != active_pid and not force:
-            return False, {
-                "error": "ue_project_already_bound",
-                "message": f"该 UE 已绑到另一项目 {existing_pid}；先在那边解绑或加 force=1 迁移",
-                "bound_to": existing_pid,
-            }
+        with store_lock:
+            # 在锁内重读激活态：避免另一线程正好切换激活导致我们写错项目
+            active = store.get_active() if hasattr(store, "get_active") else None
+            if not active:
+                return False, {"error": "no active project"}
+            active_pid = active.get("id")
 
-        # 若强制迁移：先清旧项目的 dataset 绑定字段；异常则中止不动索引
-        if existing_pid and existing_pid != active_pid and force:
-            try:
-                _clear_binding_on_project(store, existing_pid)
-            except Exception as e:
+            existing_pid = _ue_index.get(str(ue_project_id))
+            if existing_pid and existing_pid != active_pid and not force:
                 return False, {
-                    "error": "clear_previous_binding_failed",
-                    "message": f"清理旧项目 {existing_pid} 的绑定失败：{e}",
+                    "error": "ue_project_already_bound",
+                    "message": f"该 UE 已绑到另一项目 {existing_pid}；先在那边解绑或加 force=1 迁移",
                     "bound_to": existing_pid,
                 }
 
-        ds = active_dataset(store)
-        if not ds:
-            ds = {
-                "id": active.get("id"),
-                "name": active.get("name"),
-                "created_at": active.get("created_at"),
-                "node_count": len(active.get("object_types") or {}),
-                "link_count": 0,
-                "graph_data": {"nodes": [], "links": [], "categories": []},
-            }
-        ds = dict(ds)
-        ds["bound_ue_project_id"] = ue_project_id
-        ds["bound_ue_project_name"] = ue_project_name or ue_project_id
-        try:
-            if hasattr(store, "set_dataset"):
-                store.set_dataset(ds)
-            else:
-                active["dataset"] = ds
-        except Exception as e:
-            return False, {"error": "write_binding_failed", "message": str(e)}
+            # force 迁移：先快照旧项目绑定用于回滚；再清空旧项目绑定（失败则终止）
+            old_snapshot = None
+            if existing_pid and existing_pid != active_pid and force:
+                try:
+                    old_proj = store.read_project(existing_pid) if hasattr(store, "read_project") else None
+                    if isinstance(old_proj, dict):
+                        old_ds = old_proj.get("dataset") or {}
+                        old_snapshot = (
+                            existing_pid,
+                            str(old_ds.get("bound_ue_project_id") or ""),
+                            str(old_ds.get("bound_ue_project_name") or ""),
+                        )
+                    _clear_binding_on_project(store, existing_pid)
+                except Exception as e:
+                    return False, {
+                        "error": "clear_previous_binding_failed",
+                        "message": f"清理旧项目 {existing_pid} 的绑定失败：{e}",
+                        "bound_to": existing_pid,
+                    }
 
-        # 所有落盘成功后再改内存索引，保证 DB/文件与索引一致
-        if existing_pid and existing_pid != active_pid and force:
-            _ue_index.pop(existing_pid, None)   # 冗余清理（防止 pid==ue_id 的极端命名）
-            for k in [k for k, v in _ue_index.items() if v == existing_pid]:
-                _ue_index.pop(k, None)
-        _ue_index[str(ue_project_id)] = str(active_pid)
+            ds = active_dataset(store)
+            if not ds:
+                ds = {
+                    "id": active.get("id"),
+                    "name": active.get("name"),
+                    "created_at": active.get("created_at"),
+                    "node_count": len(active.get("object_types") or {}),
+                    "link_count": 0,
+                    "graph_data": {"nodes": [], "links": [], "categories": []},
+                }
+            ds = dict(ds)
+            ds["bound_ue_project_id"] = ue_project_id
+            ds["bound_ue_project_name"] = ue_project_name or ue_project_id
+            try:
+                if hasattr(store, "set_dataset"):
+                    store.set_dataset(ds)
+                else:
+                    active["dataset"] = ds
+            except Exception as e:
+                # 新绑定写失败 → 尽力把旧绑定恢复回去，避免真源丢失
+                if old_snapshot is not None:
+                    try:
+                        _restore_binding_on_project(store, *old_snapshot)
+                    except Exception as re:
+                        print(f"[ue_binding] 回滚旧项目绑定失败 pid={old_snapshot[0]}: {re}")
+                return False, {"error": "write_binding_failed", "message": str(e)}
+
+            # 落盘全部成功后才改内存索引，保证 DB/文件与索引一致
+            if existing_pid and existing_pid != active_pid and force:
+                for k in [k for k, v in _ue_index.items() if v == existing_pid]:
+                    _ue_index.pop(k, None)
+            _ue_index[str(ue_project_id)] = str(active_pid)
 
     return True, {"project_id": active_pid, "dataset": ds}
 
 
 def _clear_binding_on_project(store, pid):
-    """把某项目 dataset 的 bound_ue_project_id/name 清空（force 迁移时用）。"""
-    if not pid or not hasattr(store, "read_project") or not hasattr(store, "write_project"):
-        return
-    try:
-        proj = store.read_project(pid)
-    except Exception:
-        proj = None
+    """清空指定项目 dataset 的 bound_ue_project_id/name。
+    失败一律抛错——bind_active_dataset 依赖此处的异常来做回滚决策。"""
+    if not pid:
+        raise ValueError("pid required")
+    if not hasattr(store, "read_project") or not hasattr(store, "write_project"):
+        raise RuntimeError("store lacks read_project/write_project")
+    proj = store.read_project(pid)
     if not isinstance(proj, dict):
-        return
+        raise ValueError(f"project not readable: {pid}")
     ds = proj.get("dataset") or {}
-    if not isinstance(ds, dict):
-        return
-    ds = dict(ds)
+    ds = dict(ds) if isinstance(ds, dict) else {}
     ds["bound_ue_project_id"] = ""
     ds["bound_ue_project_name"] = ""
     proj["dataset"] = ds
-    try:
-        store.write_project(pid, proj)
-    except Exception as e:
-        print(f"[ue_binding] 清理项目 {pid} 绑定失败: {e}")
+    store.write_project(pid, proj)
+
+
+def _restore_binding_on_project(store, pid, ue_id, ue_name):
+    """回滚：把 pid 项目的 dataset 绑定重设为 (ue_id, ue_name)。best-effort。"""
+    if not pid or not hasattr(store, "read_project") or not hasattr(store, "write_project"):
+        return
+    proj = store.read_project(pid)
+    if not isinstance(proj, dict):
+        return
+    ds = proj.get("dataset") or {}
+    ds = dict(ds) if isinstance(ds, dict) else {}
+    ds["bound_ue_project_id"] = ue_id or ""
+    ds["bound_ue_project_name"] = ue_name or ""
+    proj["dataset"] = ds
+    store.write_project(pid, proj)

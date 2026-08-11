@@ -90,6 +90,25 @@ class TrashSmokeTest(unittest.TestCase):
         self.assertEqual(n, 1)
         self.assertEqual(self.ts.list_items(), [])
 
+    def test_snapshot_dataset_to_trash_and_restore(self):
+        """未激活的仅内存数据集（无项目文件）也能进回收站并恢复。"""
+        ds_id = "ds_only_in_memory"
+        dataset_meta = {
+            "id": ds_id, "name": "内存态数据集", "created_at": "2026-08-11",
+            "graph_data": {"nodes": [{"id": "n1"}], "links": [], "categories": []},
+        }
+        # 无对应项目文件
+        self.assertFalse(os.path.exists(self.ps._path(ds_id)))
+
+        self.ps.snapshot_dataset_to_trash(ds_id, dataset_meta)
+        items = [i for i in self.ts.list_items() if i["project_id"] == ds_id]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["kind"], "project")
+
+        _, payload = self.ts.get_snapshot(items[0]["id"])
+        self.ps.restore_project(payload)
+        self.assertTrue(os.path.exists(self.ps._path(ds_id)))
+
     def test_sweep_expired(self):
         # 用 TTL=0 关闭清理；再用极短 TTL 触发
         ts = TrashStore(root_dir=os.path.join(self.tmp, "trash2"), ttl_seconds=1)

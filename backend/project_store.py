@@ -476,6 +476,37 @@ class ProjectStore:
                 self._save_active()
             return existed
 
+    def snapshot_dataset_to_trash(self, ds_id, dataset_meta):
+        """把「只在内存里的数据集」（从未激活成项目文件）也快照进回收站。
+        构造一份最小 project shell 以便 restore_project 能通过标准路径写回。"""
+        if getattr(self, "_trash", None) is None:
+            return None
+        name = None
+        created_at = None
+        if isinstance(dataset_meta, dict):
+            name = dataset_meta.get("name")
+            created_at = dataset_meta.get("created_at")
+        shell = {
+            "schema_version": CURRENT_SCHEMA_VERSION,
+            "id": ds_id,
+            "name": name or ds_id,
+            "created_at": created_at or time.strftime("%Y-%m-%d %H:%M:%S"),
+            "dataset": dataset_meta if isinstance(dataset_meta, dict) else None,
+            "object_types": {},
+            "instances": {},
+            "components": {},
+            "instance_roster": [],
+            "calibration": None,
+            "spatial_profile": _default_spatial_profile(),
+            "frames": [],
+            "scene_interactions": _default_scene_interactions(),
+            "media_policy": _default_media_policy(),
+        }
+        return self._trash_put(
+            "project", shell,
+            project_id=ds_id, name=shell["name"], instance_count=0,
+        )
+
     # ── 回收站恢复入口 ──────────────────────────────────────
     def restore_project(self, payload):
         """从整份项目快照恢复；覆盖同 id 已存在的文件。返回项目 id。"""

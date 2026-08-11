@@ -3222,8 +3222,12 @@ def delete_dataset(ds_id):
     if ds_index is None:
         return jsonify({"error": f"找不到数据集: {ds_id}"}), 404
 
-    _datasets.pop(ds_index)
-    project_store.delete_project(ds_id)   # 连带删除该项目的实例(无孤儿)
+    popped_ds = _datasets.pop(ds_index)
+    existed = project_store.delete_project(ds_id)   # 连带删除该项目的实例(无孤儿)
+    if not existed:
+        # 从未激活过的仅内存数据集：project_store 里没有文件可搬进回收站
+        # 手工把 dataset 包成最小 project shell 进回收站，restore 时走标准路径写回
+        project_store.snapshot_dataset_to_trash(ds_id, popped_ds)
 
     # 如果删除的是当前激活项，重置为 demo
     if _active_dataset_id == ds_id:

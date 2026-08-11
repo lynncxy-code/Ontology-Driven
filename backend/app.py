@@ -4654,6 +4654,9 @@ def trash_restore(trash_id):
     try:
         if kind == "project":
             pid = project_store.restore_project(payload)
+            # 项目文件已写回，但 app.py 里 _datasets 全局是内存缓存，
+            # 需要重新扫盘让恢复的项目重新可见（否则 DELETE datasets/<id> 会 404）。
+            _init_from_project_store()
         elif kind == "scene":
             pid = project_store.restore_scene(payload)
         elif kind == "instance":

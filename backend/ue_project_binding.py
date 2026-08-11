@@ -37,9 +37,16 @@ def request_ue_project(request):
     }
 
 
+_TRUSTED_INTERNAL_CLIENTS = ("Web", "MCP")
+
+
 def is_browser_request(request):
+    """无 UE-ID 时判断是否是"内部可信客户端"（放行 web-bypass）。
+    浏览器（UA 含 Mozilla）或 X-OntoTwin-Client 头为已知值（Web/MCP）都算。
+    """
     ua = request.headers.get("User-Agent", "")
-    return "Mozilla" in ua or request.headers.get("X-OntoTwin-Client") == "Web"
+    client = (request.headers.get("X-OntoTwin-Client") or "").strip()
+    return "Mozilla" in ua or client in _TRUSTED_INTERNAL_CLIENTS
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -86,6 +86,14 @@ class UeBindingIndexTest(unittest.TestCase):
         self.assertIsNone(pid)
         self.assertEqual(info["mode"], "web-bypass")
 
+    def test_resolve_mcp_client_bypass(self):
+        """MCP 客户端带 X-OntoTwin-Client:MCP，无 UE-ID 也应放行。"""
+        req = FakeRequest(headers={"X-OntoTwin-Client": "MCP"})
+        pid, ok, info = ub.resolve_project_for_ue(self.ps, req)
+        self.assertTrue(ok)
+        self.assertIsNone(pid)
+        self.assertEqual(info["mode"], "web-bypass")
+
     def test_resolve_ue_matched(self):
         ub.index_set("ueX", "pX")
         pid, ok, info = ub.resolve_project_for_ue(self.ps, ue_request("ueX"))

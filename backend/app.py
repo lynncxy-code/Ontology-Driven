@@ -2990,12 +2990,16 @@ def list_datasets():
 
 @app.route('/api/v2/ue/bind_active_project', methods=['POST'])
 def bind_active_ue_project():
-    """Bind current active dataset/project to a UE project identity."""
+    """Bind current active dataset/project to a UE project identity.
+    互斥：同一 UE-ID 已绑到其他项目 → 409；带 ?force=1 可强制迁移。"""
     global _datasets
     ue = request_ue_project(request)
-    ok, info = bind_active_dataset(project_store, ue["id"], ue["name"])
+    force = str(request.args.get("force") or (request.get_json(silent=True) or {}).get("force") or "").lower() in ("1", "true", "yes")
+    ok, info = bind_active_dataset(project_store, ue["id"], ue["name"], force=force)
     if not ok:
-        return jsonify(info), 400
+        # 互斥冲突返 409，其他参数错返 400
+        code = 409 if info.get("error") == "ue_project_already_bound" else 400
+        return jsonify(info), code
     ds = info["dataset"]
     for i, item in enumerate(_datasets):
         if item.get("id") == ds.get("id"):
@@ -3228,6 +3232,12 @@ def delete_dataset(ds_id):
         # 从未激活过的仅内存数据集：project_store 里没有文件可搬进回收站
         # 手工把 dataset 包成最小 project shell 进回收站，restore 时走标准路径写回
         project_store.snapshot_dataset_to_trash(ds_id, popped_ds)
+    # UE-ID→pid 索引同步：项目消失（无论是否有文件），指向它的 UE 绑定都要清
+    try:
+        from ue_project_binding import index_forget_project
+        index_forget_project(ds_id)
+    except Exception as _e:
+        print(f"[ue_binding] 索引清理 {ds_id} 失败: {_e}")
 
     # 如果删除的是当前激活项，重置为 demo
     if _active_dataset_id == ds_id:
@@ -4573,6 +4583,15 @@ def get_graph_data():
 # 启动时从 ProjectStore 恢复数据集 + 激活态 + 类型表（须在所有函数定义之后调用）
 _init_from_project_store()
 
+# 启动时扫盘构建 UE-ID→pid 索引（3.5：UE 请求按 UE-ID 路由）
+try:
+    from ue_project_binding import rebuild_index as _ue_rebuild_index
+    _idx = _ue_rebuild_index(project_store)
+    if _idx:
+        print(f"[ue_binding] 索引已建 {len(_idx)} 条：{list(_idx.keys())}")
+except Exception as _e:
+    print(f"[ue_binding] 索引构建失败: {_e}")
+
 
 def _refresh_object_types_after_overlay_save():
     global _object_types
@@ -4661,6 +4680,12 @@ def trash_restore(trash_id):
             # 项目文件已写回，但 app.py 里 _datasets 全局是内存缓存，
             # 需要重新扫盘让恢复的项目重新可见（否则 DELETE datasets/<id> 会 404）。
             _init_from_project_store()
+            # 恢复的项目可能自带 bound_ue_project_id → 重扫 UE 索引
+            try:
+                from ue_project_binding import rebuild_index as _ue_rebuild_index
+                _ue_rebuild_index(project_store)
+            except Exception:
+                pass
         elif kind == "scene":
             pid = project_store.restore_scene(payload)
         elif kind == "instance":

@@ -476,6 +476,27 @@ class ProjectStore:
                 self._save_active()
             return existed
 
+    # ── 按 pid 只读/只写（3.5：UE 请求按 UE-ID 路由到它绑的项目） ──
+    def read_project(self, pid):
+        """读一份指定项目 dict；不改 _current/_active_id。找不到返回 None。"""
+        with self._lock:
+            return self._read_project(pid)
+
+    def write_project(self, pid, proj):
+        """整份写回一个项目（PG/文件由子类多态处理）；不改激活态。
+        若 pid 恰是当前激活项目，则同步刷新 _current。"""
+        if not isinstance(proj, dict) or proj.get("id") != pid:
+            raise ValueError("payload must be a project dict with matching id")
+        with self._lock:
+            saved = self._current
+            try:
+                self._current = proj
+                self._save_current()   # 子类覆盖 _save_current 走 PG 或文件写
+            finally:
+                if self._active_id != pid:
+                    # 不是激活项目 → 还原 _current，避免污染激活态
+                    self._current = saved
+
     def snapshot_dataset_to_trash(self, ds_id, dataset_meta):
         """把「只在内存里的数据集」（从未激活成项目文件）也快照进回收站。
         构造一份最小 project shell 以便 restore_project 能通过标准路径写回。"""

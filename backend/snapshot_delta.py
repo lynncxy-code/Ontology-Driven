@@ -91,8 +91,9 @@ class SnapshotDeltaService:
         self.max_history = max(1, int(max_history))
         self.max_scopes = max(1, int(max_scopes))
         self._lock = threading.RLock()
+        # 3.5：scope_id 已含 project_id，隔离天然靠 scope，多 UE 各绑不同项目互不冲流
+        # （历史上有单值 _active_project_id 门控，会导致跨项目轮询清空全部流；已移除）
         self._states = {}
-        self._active_project_id = None
 
     @staticmethod
     def _parse_cursor(cursor):
@@ -233,11 +234,6 @@ class SnapshotDeltaService:
 
     def poll(self, project_id, scope_id, cursor, tokens, build_snapshot):
         with self._lock:
-            normalized_project_id = str(project_id or "")
-            if self._active_project_id != normalized_project_id:
-                self._states.clear()
-                self._active_project_id = normalized_project_id
-
             state = self._states.get(scope_id)
             if state is None:
                 state = self._new_state(tokens, build_snapshot)

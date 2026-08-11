@@ -368,8 +368,11 @@ class ProjectStorePG(ProjectStore):
             }
         earliest = min(r[2] for r in rows)
         latest = max(r[2] for r in rows)
+        # 微秒精度：避免"同一秒内新发生的删除被 restore/delete 一起误伤"
+        start_us = int(earliest.timestamp() * 1_000_000)
+        end_us = int(latest.timestamp() * 1_000_000)
         return {
-            "id": f"pg:batch:{pid}:{int(earliest.timestamp())}:{int(latest.timestamp())}",
+            "id": f"pg:batch:{pid}:{start_us}:{end_us}",
             "kind": "scene",
             "deleted_at": latest.strftime("%Y-%m-%d %H:%M:%S") if latest else "",
             "deleted_at_ts": int(latest.timestamp()) if latest else 0,
@@ -432,17 +435,17 @@ class ProjectStorePG(ProjectStore):
                     self._current = self._read_project(pid)
             return "instance", iid
         if kind == "batch":
-            pid, st, et = data["pid"], data["start"], data["end"]
+            pid, st_us, et_us = data["pid"], data["start"], data["end"]
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
-                    # 上界 +1 秒容差覆盖秒级取整误差
+                    # 微秒精度：st/et 已是微秒整数，除 1e6 得秒（含小数）
                     cur.execute(
                         """UPDATE instance SET deleted_at = NULL
                            WHERE project_id = %s
                              AND deleted_at IS NOT NULL
-                             AND deleted_at BETWEEN to_timestamp(%s) AND (to_timestamp(%s) + interval '1 second')
+                             AND deleted_at BETWEEN to_timestamp(%s) AND to_timestamp(%s)
                            RETURNING id""",
-                        (pid, st, et),
+                        (pid, st_us / 1_000_000, et_us / 1_000_000),
                     )
                     restored = [r[0] for r in cur.fetchall()]
             if not restored:
@@ -475,16 +478,16 @@ class ProjectStorePG(ProjectStore):
                     )
                     return cur.fetchone() is not None
         if kind == "batch":
-            pid, st, et = data["pid"], data["start"], data["end"]
+            pid, st_us, et_us = data["pid"], data["start"], data["end"]
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         """DELETE FROM instance
                            WHERE project_id = %s
                              AND deleted_at IS NOT NULL
-                             AND deleted_at BETWEEN to_timestamp(%s) AND (to_timestamp(%s) + interval '1 second')
+                             AND deleted_at BETWEEN to_timestamp(%s) AND to_timestamp(%s)
                            RETURNING id""",
-                        (pid, st, et),
+                        (pid, st_us / 1_000_000, et_us / 1_000_000),
                     )
                     return bool(cur.rowcount)
         return False

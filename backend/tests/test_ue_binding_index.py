@@ -97,7 +97,8 @@ class UeBindingIndexTest(unittest.TestCase):
         pid, ok, info = ub.resolve_project_for_ue(self.ps, ue_request("ueGhost"))
         self.assertFalse(ok)
         self.assertIsNone(pid)
-        self.assertEqual(info["error"], "ue_project_unbound")
+        # 错误码沿用 ue_project_mismatch 以兼容 UE 插件里的硬编码
+        self.assertEqual(info["error"], "ue_project_mismatch")
 
     def test_resolve_non_browser_no_header_rejected(self):
         pid, ok, info = ub.resolve_project_for_ue(self.ps, ue_request(None, browser=False))

@@ -156,8 +156,10 @@ def resolve_project_for_ue(store, request):
 
     pid = index_lookup(ue_id)
     if pid is None:
+        # 错误码保留旧名 ue_project_mismatch 以兼容 UE 插件里的硬编码
+        # （TwinSceneManager.cpp 里根据此码走"save disabled"专属提示）
         return None, False, {
-            "error": "ue_project_unbound",
+            "error": "ue_project_mismatch",
             "message": "该 UE 未绑定到任何项目；请在 Web UI 激活目标项目后在 UE 中执行绑定",
             "request_ue_project_id": ue_id,
             "request_ue_project_name": incoming.get("name"),
@@ -191,6 +193,7 @@ def check_request_matches_active(store, request):
 def bind_active_dataset(store, ue_project_id, ue_project_name, force=False):
     """把当前激活项目绑到指定 UE-ID。
     互斥：同一 UE-ID 只能绑一个项目；已绑他处需 force=True 才能迁移。
+    整个流程持 _index_lock：检查/清旧/写新/更新索引原子。
     """
     if not ue_project_id:
         return False, {"error": "ue_project_id is required"}
@@ -199,37 +202,53 @@ def bind_active_dataset(store, ue_project_id, ue_project_name, force=False):
         return False, {"error": "no active project"}
     active_pid = active.get("id")
 
-    existing_pid = index_lookup(ue_project_id)
-    if existing_pid and existing_pid != active_pid and not force:
-        return False, {
-            "error": "ue_project_already_bound",
-            "message": f"该 UE 已绑到另一项目 {existing_pid}；先在那边解绑或加 force=1 迁移",
-            "bound_to": existing_pid,
-        }
+    with _index_lock:
+        existing_pid = _ue_index.get(str(ue_project_id))
+        if existing_pid and existing_pid != active_pid and not force:
+            return False, {
+                "error": "ue_project_already_bound",
+                "message": f"该 UE 已绑到另一项目 {existing_pid}；先在那边解绑或加 force=1 迁移",
+                "bound_to": existing_pid,
+            }
 
-    if existing_pid and existing_pid != active_pid and force:
-        _clear_binding_on_project(store, existing_pid)
-        index_forget_project(existing_pid)
+        # 若强制迁移：先清旧项目的 dataset 绑定字段；异常则中止不动索引
+        if existing_pid and existing_pid != active_pid and force:
+            try:
+                _clear_binding_on_project(store, existing_pid)
+            except Exception as e:
+                return False, {
+                    "error": "clear_previous_binding_failed",
+                    "message": f"清理旧项目 {existing_pid} 的绑定失败：{e}",
+                    "bound_to": existing_pid,
+                }
 
-    ds = active_dataset(store)
-    if not ds:
-        ds = {
-            "id": active.get("id"),
-            "name": active.get("name"),
-            "created_at": active.get("created_at"),
-            "node_count": len(active.get("object_types") or {}),
-            "link_count": 0,
-            "graph_data": {"nodes": [], "links": [], "categories": []},
-        }
-    ds = dict(ds)
-    ds["bound_ue_project_id"] = ue_project_id
-    ds["bound_ue_project_name"] = ue_project_name or ue_project_id
-    if hasattr(store, "set_dataset"):
-        store.set_dataset(ds)
-    else:
-        active["dataset"] = ds
+        ds = active_dataset(store)
+        if not ds:
+            ds = {
+                "id": active.get("id"),
+                "name": active.get("name"),
+                "created_at": active.get("created_at"),
+                "node_count": len(active.get("object_types") or {}),
+                "link_count": 0,
+                "graph_data": {"nodes": [], "links": [], "categories": []},
+            }
+        ds = dict(ds)
+        ds["bound_ue_project_id"] = ue_project_id
+        ds["bound_ue_project_name"] = ue_project_name or ue_project_id
+        try:
+            if hasattr(store, "set_dataset"):
+                store.set_dataset(ds)
+            else:
+                active["dataset"] = ds
+        except Exception as e:
+            return False, {"error": "write_binding_failed", "message": str(e)}
 
-    index_set(ue_project_id, active_pid)
+        # 所有落盘成功后再改内存索引，保证 DB/文件与索引一致
+        if existing_pid and existing_pid != active_pid and force:
+            _ue_index.pop(existing_pid, None)   # 冗余清理（防止 pid==ue_id 的极端命名）
+            for k in [k for k, v in _ue_index.items() if v == existing_pid]:
+                _ue_index.pop(k, None)
+        _ue_index[str(ue_project_id)] = str(active_pid)
 
     return True, {"project_id": active_pid, "dataset": ds}
 

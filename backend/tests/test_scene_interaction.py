@@ -557,8 +557,8 @@ class SceneInteractionTestCase(unittest.TestCase):
             "X-OntoTwin-UE-Context": "packaged",
         })
         self.assertEqual(403, mismatch.status_code)
-        # 3.5 新语义：UE-B 未在索引中 → 返回 ue_project_unbound
-        self.assertEqual("ue_project_unbound", mismatch.get_json()["error"])
+        # 3.5：错误码保 ue_project_mismatch 以兼容 UE 插件硬编码
+        self.assertEqual("ue_project_mismatch", mismatch.get_json()["error"])
 
         matched_headers = {
             "X-OntoTwin-UE-Project-Id": "ue-project-a",
@@ -595,7 +595,8 @@ class SceneInteractionTestCase(unittest.TestCase):
             "X-OntoTwin-UE-Context": "packaged",
         })
         self.assertEqual(403, response.status_code)
-        self.assertEqual("ue_project_unbound", response.get_json()["error"])
+        # 3.5：错误码统一走 ue_project_mismatch（兼容 UE 插件；覆盖旧的 unbound 语义）
+        self.assertEqual("ue_project_mismatch", response.get_json()["error"])
 
 
 if __name__ == "__main__":

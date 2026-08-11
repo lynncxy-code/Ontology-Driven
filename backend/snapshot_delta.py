@@ -270,61 +270,70 @@ class SnapshotDeltaService:
             return self._delta_payload(state, since_revision)
 
 
-def _collect_instance_tokens(project_store, zone, object_types):
+def _tokens_from_instances(instances, zone, object_types, project_id):
+    """从一份 instances 字典生成 tokens。抽出以复用（激活/非激活两条路径）。"""
+    now = time.time()
+    tokens = {}
+    for instance_id, instance in instances.items():
+        if zone is not None and instance.get("zone_id") != zone:
+            continue
+        raw_state = instance.get("raw_state") or {}
+        render_config = instance.get("render_config") or {}
+        render_parts = render_config.get("render_parts") or []
+        model_override = render_config.get("model_override") or {}
+        override = (
+            (render_config.get("interface_overrides") or {}).get("I3D_Overlay") or {}
+        )
+        object_type_rid = instance.get("object_type_rid", "")
+        object_type = object_types.get(object_type_rid) or {}
+        type_overlay = (
+            (object_type.get("interface_configs") or {}).get("I3D_Overlay") or {}
+        )
+        last_seen = float(instance.get("last_seen") or 0.0)
+        tokens[instance_id] = (
+            id(instance),
+            id(raw_state),
+            last_seen,
+            (now - last_seen) < 3.0,
+            object_type_rid,
+            instance.get("display_name"),
+            tuple(instance.get("hierarchy_path") or []),
+            instance.get("source_folder_path"),
+            instance.get("source_asset_path"),
+            instance.get("classification_status"),
+            instance.get("classification_key"),
+            instance.get("zone_id"),
+            id(render_config),
+            render_config.get("asset_id"),
+            render_config.get("ue_asset_path"),
+            render_config.get("assembly_signature"),
+            id(render_parts),
+            len(render_parts),
+            model_override.get("revision"),
+            model_override.get("asset_id"),
+            model_override.get("ue_asset_path"),
+            override.get("revision"),
+            id(object_type),
+            object_type.get("asset_id"),
+            object_type.get("ue_asset_path"),
+            tuple(object_type.get("injected_interfaces") or []),
+            type_overlay.get("revision"),
+        )
+    return project_id, tokens
+
+
+def _collect_instance_tokens(project_store, zone, object_types, project=None, project_id=None):
+    """3.5：project/project_id 显式传入时不走 _current（供 UE 按 UE-ID 路由到非激活项目用）。"""
+    if project is not None:
+        instances = (project or {}).get("instances") or {}
+        return _tokens_from_instances(instances, zone, object_types, project_id or "")
     lock = getattr(project_store, "_lock", None)
     context = lock if lock is not None else nullcontext()
     with context:
         project = getattr(project_store, "_current", None)
         project_id = getattr(project_store, "_active_id", None) or ""
         instances = (project or {}).get("instances") or {}
-        now = time.time()
-        tokens = {}
-        for instance_id, instance in instances.items():
-            if zone is not None and instance.get("zone_id") != zone:
-                continue
-            raw_state = instance.get("raw_state") or {}
-            render_config = instance.get("render_config") or {}
-            render_parts = render_config.get("render_parts") or []
-            model_override = render_config.get("model_override") or {}
-            override = (
-                (render_config.get("interface_overrides") or {}).get("I3D_Overlay") or {}
-            )
-            object_type_rid = instance.get("object_type_rid", "")
-            object_type = object_types.get(object_type_rid) or {}
-            type_overlay = (
-                (object_type.get("interface_configs") or {}).get("I3D_Overlay") or {}
-            )
-            last_seen = float(instance.get("last_seen") or 0.0)
-            tokens[instance_id] = (
-                id(instance),
-                id(raw_state),
-                last_seen,
-                (now - last_seen) < 3.0,
-                object_type_rid,
-                instance.get("display_name"),
-                tuple(instance.get("hierarchy_path") or []),
-                instance.get("source_folder_path"),
-                instance.get("source_asset_path"),
-                instance.get("classification_status"),
-                instance.get("classification_key"),
-                instance.get("zone_id"),
-                id(render_config),
-                render_config.get("asset_id"),
-                render_config.get("ue_asset_path"),
-                render_config.get("assembly_signature"),
-                id(render_parts),
-                len(render_parts),
-                model_override.get("revision"),
-                model_override.get("asset_id"),
-                model_override.get("ue_asset_path"),
-                override.get("revision"),
-                id(object_type),
-                object_type.get("asset_id"),
-                object_type.get("ue_asset_path"),
-                tuple(object_type.get("injected_interfaces") or []),
-                type_overlay.get("revision"),
-            )
-        return project_id, tokens
+        return _tokens_from_instances(instances, zone, object_types, project_id)
 
 
 def register_snapshot_delta_routes(
@@ -334,7 +343,15 @@ def register_snapshot_delta_routes(
     request_guard,
     object_types_provider,
     service=None,
+    build_snapshot_for_project=None,
+    ue_resolver=None,
 ):
+    """
+    3.5：新增两个可选钩子以支持"UE 按 UE-ID 路由到它绑的项目"：
+      - ue_resolver(project_store, request) -> (pid, ok, info)
+      - build_snapshot_for_project(project_dict) -> callable(iid) -> snapshot_dict
+    未传时保持旧行为（仅按激活项目提供 delta）。
+    """
     from flask import Blueprint, jsonify, request
 
     blueprint = Blueprint("snapshot_delta_api", __name__)
@@ -342,21 +359,47 @@ def register_snapshot_delta_routes(
 
     @blueprint.get("/api/v2/state/snapshot_changes")
     def snapshot_changes():
-        ok, info = request_guard(project_store, request)
-        if not ok:
-            return jsonify(info), 403
+        # 优先走 UE 路由：解析请求→pid（web=None）
+        pid = None
+        if ue_resolver is not None:
+            pid, ok, info = ue_resolver(project_store, request)
+            if not ok:
+                return jsonify(info), 403
+        else:
+            ok, info = request_guard(project_store, request)
+            if not ok:
+                return jsonify(info), 403
 
         zone = request.args.get("zone") or request.args.get("scene") or None
         cursor = request.args.get("cursor")
-        object_types = object_types_provider() or {}
-        project_id, tokens = _collect_instance_tokens(project_store, zone, object_types)
+
+        if pid is None:
+            # Web 请求 → 走激活项目（旧路径）
+            object_types = object_types_provider() or {}
+            project_id, tokens = _collect_instance_tokens(project_store, zone, object_types)
+            build_snap = build_snapshot
+        else:
+            # UE 请求 → 按其绑的项目做 delta（scope_id 天然带 pid，切激活不影响）
+            project = project_store.read_project(pid)
+            if project is None:
+                return jsonify({"error": "project_gone", "project_id": pid}), 410
+            object_types = project.get("object_types") or {}
+            project_id, tokens = _collect_instance_tokens(
+                project_store, zone, object_types,
+                project=project, project_id=pid,
+            )
+            if build_snapshot_for_project is not None:
+                build_snap = build_snapshot_for_project(project)
+            else:
+                build_snap = build_snapshot   # 兜底：仍会用激活数据，效果不对但不崩
+
         scope_id = f"{project_id}\x1f{zone or ''}"
         payload = delta_service.poll(
             project_id=project_id,
             scope_id=scope_id,
             cursor=cursor,
             tokens=tokens,
-            build_snapshot=build_snapshot,
+            build_snapshot=build_snap,
         )
         return jsonify(payload)
 

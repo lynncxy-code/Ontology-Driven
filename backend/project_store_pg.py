@@ -295,6 +295,9 @@ class ProjectStorePG(ProjectStore):
                 self._soft_delete_absent_instances()
 
     # ── 回收站（走 PG 的 deleted_at 软删除，不用文件 trash） ─────────
+    # 聚合窗口：同项目下 deleted_at 相差 ≤ 该秒数视为一次批量删除
+    _TRASH_BATCH_WINDOW_SEC = 5
+
     def list_trash(self):
         items = []
         with pg.get_conn() as conn:
@@ -320,42 +323,87 @@ class ProjectStorePG(ProjectStore):
                         "instance_count": inst_count,
                         "note": "",
                     })
-                # 已删实例（活项目 + 死项目下的实例都列）
+                # 已删实例：按 (project_id, deleted_at ASC) 拿；同项目相邻 ≤ 窗口秒的聚合为 scene 批次
                 cur.execute("""
                     SELECT i.project_id, i.id, i.display_name, i.deleted_at, p.name
                     FROM instance i
                     LEFT JOIN project p ON p.id = i.project_id
                     WHERE i.deleted_at IS NOT NULL
-                    ORDER BY i.deleted_at DESC
+                    ORDER BY i.project_id, i.deleted_at ASC
                 """)
-                for pid, iid, disp, dt, pname in cur.fetchall():
-                    items.append({
-                        "id": f"pg:inst:{pid}:{iid}",
-                        "kind": "instance",
-                        "deleted_at": dt.strftime("%Y-%m-%d %H:%M:%S") if dt else "",
-                        "deleted_at_ts": int(dt.timestamp()) if dt else 0,
-                        "project_id": pid,
-                        "instance_id": iid,
-                        "name": disp or iid,
-                        "note": pname or "",
-                    })
+                rows = cur.fetchall()
+
+        cluster = None  # {pid, pname, start_ts, end_ts, rows}
+        for pid, iid, disp, dt, pname in rows:
+            ts = dt.timestamp() if dt else 0.0
+            if cluster and cluster["pid"] == pid and (ts - cluster["end_ts"]) <= self._TRASH_BATCH_WINDOW_SEC:
+                cluster["end_ts"] = ts
+                cluster["rows"].append((iid, disp, dt))
+            else:
+                if cluster:
+                    items.append(self._flush_trash_cluster(cluster))
+                cluster = {"pid": pid, "pname": pname, "start_ts": ts, "end_ts": ts,
+                           "rows": [(iid, disp, dt)]}
+        if cluster:
+            items.append(self._flush_trash_cluster(cluster))
+
         items.sort(key=lambda x: x.get("deleted_at_ts", 0), reverse=True)
         return items
 
+    def _flush_trash_cluster(self, cluster):
+        rows = cluster["rows"]
+        pid = cluster["pid"]
+        pname = cluster.get("pname") or ""
+        if len(rows) == 1:
+            iid, disp, dt = rows[0]
+            return {
+                "id": f"pg:inst:{pid}:{iid}",
+                "kind": "instance",
+                "deleted_at": dt.strftime("%Y-%m-%d %H:%M:%S") if dt else "",
+                "deleted_at_ts": int(dt.timestamp()) if dt else 0,
+                "project_id": pid,
+                "instance_id": iid,
+                "name": disp or iid,
+                "note": pname,
+            }
+        earliest = min(r[2] for r in rows)
+        latest = max(r[2] for r in rows)
+        return {
+            "id": f"pg:batch:{pid}:{int(earliest.timestamp())}:{int(latest.timestamp())}",
+            "kind": "scene",
+            "deleted_at": latest.strftime("%Y-%m-%d %H:%M:%S") if latest else "",
+            "deleted_at_ts": int(latest.timestamp()) if latest else 0,
+            "project_id": pid,
+            "instance_id": None,
+            "name": f"批量清空（{len(rows)} 项）",
+            "instance_count": len(rows),
+            "note": pname,
+        }
+
     def _parse_pg_tid(self, tid):
-        """'pg:prj:<pid>' or 'pg:inst:<pid>:<iid>' → (kind, pid, iid_or_None)."""
-        parts = str(tid or "").split(":", 3)
+        """解析 PG trash id：
+          pg:prj:<pid>                    -> ('project', {pid})
+          pg:inst:<pid>:<iid>             -> ('instance', {pid, iid})
+          pg:batch:<pid>:<start>:<end>    -> ('batch',    {pid, start, end}) 秒级 int
+        项目 id 与实例 id 都不含 ':' —— 已确认现存命名规则。
+        """
+        parts = str(tid or "").split(":")
         if len(parts) < 3 or parts[0] != "pg":
-            return None, None, None
+            return None, {}
         kind = parts[1]
-        if kind == "prj" and len(parts) >= 3:
-            return "project", parts[2], None
-        if kind == "inst" and len(parts) >= 4:
-            return "instance", parts[2], parts[3]
-        return None, None, None
+        if kind == "prj" and len(parts) == 3:
+            return "project", {"pid": parts[2]}
+        if kind == "inst" and len(parts) == 4:
+            return "instance", {"pid": parts[2], "iid": parts[3]}
+        if kind == "batch" and len(parts) == 5:
+            try:
+                return "batch", {"pid": parts[2], "start": int(parts[3]), "end": int(parts[4])}
+            except ValueError:
+                return None, {}
+        return None, {}
 
     def restore_trash(self, tid):
-        kind, pid, iid = self._parse_pg_tid(tid)
+        kind, data = self._parse_pg_tid(tid)
         if kind is None:
             # 兜底：走文件 trash（PG 一般不产生，容错）
             return super().restore_trash(tid)
@@ -364,12 +412,13 @@ class ProjectStorePG(ProjectStore):
                 with conn.cursor() as cur:
                     cur.execute(
                         "UPDATE project SET deleted_at = NULL WHERE id = %s AND deleted_at IS NOT NULL RETURNING id",
-                        (pid,),
+                        (data["pid"],),
                     )
                     if cur.fetchone() is None:
                         raise ValueError("not_found")
-            return "project", pid
+            return "project", data["pid"]
         if kind == "instance":
+            pid, iid = data["pid"], data["iid"]
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
@@ -378,15 +427,34 @@ class ProjectStorePG(ProjectStore):
                     )
                     if cur.fetchone() is None:
                         raise ValueError("not_found")
-            # 若恢复到当前激活项目，刷新 _current 让 Web/UE 立刻可见
             with self._lock:
                 if self._active_id == pid:
                     self._current = self._read_project(pid)
             return "instance", iid
+        if kind == "batch":
+            pid, st, et = data["pid"], data["start"], data["end"]
+            with pg.get_conn() as conn:
+                with conn.cursor() as cur:
+                    # 上界 +1 秒容差覆盖秒级取整误差
+                    cur.execute(
+                        """UPDATE instance SET deleted_at = NULL
+                           WHERE project_id = %s
+                             AND deleted_at IS NOT NULL
+                             AND deleted_at BETWEEN to_timestamp(%s) AND (to_timestamp(%s) + interval '1 second')
+                           RETURNING id""",
+                        (pid, st, et),
+                    )
+                    restored = [r[0] for r in cur.fetchall()]
+            if not restored:
+                raise ValueError("not_found")
+            with self._lock:
+                if self._active_id == pid:
+                    self._current = self._read_project(pid)
+            return "scene", pid
         raise ValueError(f"unknown_kind:{kind}")
 
     def delete_trash(self, tid):
-        kind, pid, iid = self._parse_pg_tid(tid)
+        kind, data = self._parse_pg_tid(tid)
         if kind is None:
             return super().delete_trash(tid)
         if kind == "project":
@@ -394,10 +462,11 @@ class ProjectStorePG(ProjectStore):
                 with conn.cursor() as cur:
                     cur.execute(
                         "DELETE FROM project WHERE id = %s AND deleted_at IS NOT NULL RETURNING id",
-                        (pid,),
+                        (data["pid"],),
                     )
                     return cur.fetchone() is not None
         if kind == "instance":
+            pid, iid = data["pid"], data["iid"]
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
@@ -405,6 +474,19 @@ class ProjectStorePG(ProjectStore):
                         (pid, iid),
                     )
                     return cur.fetchone() is not None
+        if kind == "batch":
+            pid, st, et = data["pid"], data["start"], data["end"]
+            with pg.get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """DELETE FROM instance
+                           WHERE project_id = %s
+                             AND deleted_at IS NOT NULL
+                             AND deleted_at BETWEEN to_timestamp(%s) AND (to_timestamp(%s) + interval '1 second')
+                           RETURNING id""",
+                        (pid, st, et),
+                    )
+                    return bool(cur.rowcount)
         return False
 
     def purge_trash(self):

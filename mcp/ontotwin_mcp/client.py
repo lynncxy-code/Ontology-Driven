@@ -14,9 +14,6 @@ class NexusClient:
             # 否则发往内网的请求会被 clash/VPN 错误劫持导致超时或 ImportError。
             # 逃生口：置 NEXUS_TRUST_ENV=1 时才走系统代理（远程 Nexus 场景）。
             trust_env=settings.trust_env,
-            # 3.5：标识为内部可信客户端；后端 is_browser_request 见此头即放行
-            # UE-ID 校验（否则 /state/* 等端点会 403 ue_project_required）
-            headers={"X-OntoTwin-Client": "MCP"},
         )
 
     def _handle(self, operation, resp):

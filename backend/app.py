@@ -120,6 +120,10 @@ def serve_floor_pulse():
 def serve_binding():
     return app.send_static_file('binding.html')
 
+@app.route('/trash')
+def serve_trash():
+    return app.send_static_file('trash.html')
+
 # ═══════════════════════════════════════════════════════════════
 # PRD 2.9 — 坐标标定工作台 API（无状态）
 # ═══════════════════════════════════════════════════════════════
@@ -4600,6 +4604,68 @@ snapshot_delta_service = register_snapshot_delta_routes(
     check_request_matches_active,
     lambda: _object_types,
 )
+
+# ═══════════════════════════════════════════════════════════════
+# 回收站 API（文件后端专用；PG 后端有软删除，此处返回的仅是文件侧记录）
+# ═══════════════════════════════════════════════════════════════
+
+from trash_store import get_default_store as _get_trash_store
+_trash = _get_trash_store()
+# 启动时清一次过期条目（默认 90 天 TTL）
+try:
+    _swept = _trash.sweep_expired()
+    if _swept:
+        print(f"[trash] 启动清理过期条目 {_swept} 条")
+except Exception as _e:
+    print(f"[trash] 启动清理失败: {_e}")
+
+
+@app.route('/api/v2/trash', methods=['GET'])
+def trash_list():
+    """列出回收站条目（含 kind/name/deleted_at/instance_count）。"""
+    return jsonify({"items": _trash.list_items()})
+
+
+@app.route('/api/v2/trash/purge', methods=['POST'])
+def trash_purge():
+    """一键清空回收站，永久删除。"""
+    n = _trash.purge_all()
+    return jsonify({"status": "ok", "purged": n})
+
+
+@app.route('/api/v2/trash/<trash_id>', methods=['DELETE'])
+def trash_delete(trash_id):
+    """永久删除单条。"""
+    ok = _trash.delete(trash_id)
+    if not ok:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"status": "ok", "id": trash_id})
+
+
+@app.route('/api/v2/trash/<trash_id>/restore', methods=['POST'])
+def trash_restore(trash_id):
+    """恢复单条到原位置。冲突策略：覆盖。"""
+    entry, payload = _trash.get_snapshot(trash_id)
+    if entry is None:
+        return jsonify({"error": "not found"}), 404
+    if payload is None:
+        return jsonify({"error": "snapshot missing"}), 410
+    kind = entry.get("kind")
+    try:
+        if kind == "project":
+            pid = project_store.restore_project(payload)
+        elif kind == "scene":
+            pid = project_store.restore_scene(payload)
+        elif kind == "instance":
+            pid = project_store.restore_instance(payload)
+        else:
+            return jsonify({"error": f"unknown kind: {kind}"}), 500
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    # 恢复成功后从回收站移除
+    _trash.delete(trash_id)
+    return jsonify({"status": "ok", "kind": kind, "restored": pid})
+
 
 if __name__ == '__main__':
     # threaded=True：支持并发请求（UE 多实例同时拉模型下载代理流，单线程会串行超时）

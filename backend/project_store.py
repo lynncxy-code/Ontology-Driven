@@ -260,7 +260,7 @@ class ProjectMismatch(Exception):
 
 
 class ProjectStore:
-    def __init__(self, projects_dir=None, active_file=None):
+    def __init__(self, projects_dir=None, active_file=None, trash_store=None):
         self._lock = threading.RLock()
         self._projects_dir = projects_dir or _PROJECTS_DIR
         self._active_file = active_file or _ACTIVE_FILE
@@ -268,7 +268,22 @@ class ProjectStore:
         self._active_id = None
         self._current = None   # 当前激活项目的完整内存对象（dict）
         self._dirty = False    # 当前项目实例是否有未落盘的高频改动
+        if trash_store is None:
+            from trash_store import get_default_store as _get_trash
+            trash_store = _get_trash()
+        self._trash = trash_store
         self._load_active()
+
+    # ── 回收站钩子（PG 子类不设置 _trash，getattr 兜底 None 即跳过） ──
+    def _trash_put(self, kind, payload, **meta):
+        trash = getattr(self, "_trash", None)
+        if trash is None:
+            return
+        try:
+            trash.put(kind, payload, **meta)
+        except Exception as e:
+            # 回收站失败不能阻塞删除
+            print(f"[project_store] trash put({kind}) 失败: {e}")
 
     # ── 底层 IO ──────────────────────────────────────────────
     def _path(self, pid):
@@ -439,12 +454,74 @@ class ProjectStore:
             path = self._path(pid)
             existed = os.path.exists(path)
             if existed:
+                snapshot = None
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        snapshot = json.load(f)
+                except Exception:
+                    snapshot = None
+                if snapshot is not None:
+                    insts = snapshot.get("instances") if isinstance(snapshot, dict) else None
+                    self._trash_put(
+                        "project",
+                        snapshot,
+                        project_id=pid,
+                        name=(snapshot.get("name") if isinstance(snapshot, dict) else None),
+                        instance_count=(len(insts) if isinstance(insts, dict) else None),
+                    )
                 os.remove(path)
             if self._active_id == pid:
                 self._active_id = None
                 self._current = None
                 self._save_active()
             return existed
+
+    # ── 回收站恢复入口 ──────────────────────────────────────
+    def restore_project(self, payload):
+        """从整份项目快照恢复；覆盖同 id 已存在的文件。返回项目 id。"""
+        if not isinstance(payload, dict) or not payload.get("id"):
+            raise ValueError("invalid project payload")
+        pid = payload["id"]
+        with self._lock:
+            self._write_json(self._path(pid), payload)
+            if self._active_id == pid:
+                self._current = self._read_project(pid)
+            return pid
+
+    def restore_scene(self, payload):
+        """整份 instances 覆盖回原项目：{project_id, instances}。返回项目 id。"""
+        payload = payload or {}
+        pid = payload.get("project_id")
+        insts = payload.get("instances")
+        if not pid or not isinstance(insts, dict):
+            raise ValueError("invalid scene payload")
+        with self._lock:
+            proj = self._read_project(pid)
+            if proj is None:
+                raise ValueError(f"project not found: {pid}")
+            proj["instances"] = insts
+            self._write_json(self._path(pid), proj)
+            if self._active_id == pid:
+                self._current = proj
+            return pid
+
+    def restore_instance(self, payload):
+        """单实例回填：{project_id, instance_id, record}。返回 instance_id。"""
+        payload = payload or {}
+        pid = payload.get("project_id")
+        iid = payload.get("instance_id")
+        rec = payload.get("record")
+        if not pid or not iid or not isinstance(rec, dict):
+            raise ValueError("invalid instance payload")
+        with self._lock:
+            proj = self._read_project(pid)
+            if proj is None:
+                raise ValueError(f"project not found: {pid}")
+            proj.setdefault("instances", {})[iid] = rec
+            self._write_json(self._path(pid), proj)
+            if self._active_id == pid:
+                self._current = proj
+            return iid
 
     def get_active(self):
         with self._lock:
@@ -593,6 +670,17 @@ class ProjectStore:
                 raise ProjectMismatch(expected_project_id, self._active_id)
             inst = self._inst().pop(instance_id, None)
             if inst is not None:
+                self._trash_put(
+                    "instance",
+                    {
+                        "project_id": self._current["id"],
+                        "instance_id": instance_id,
+                        "record": copy.deepcopy(inst),
+                    },
+                    project_id=self._current["id"],
+                    name=(inst.get("name") if isinstance(inst, dict) else None) or instance_id,
+                    instance_id=instance_id,
+                )
                 self._save_current()
             return inst
 
@@ -712,6 +800,18 @@ class ProjectStore:
         """清空当前项目的全部实例（保留项目与类型表）。"""
         with self._lock:
             if self._current:
+                insts = self._current.get("instances") or {}
+                if insts:
+                    self._trash_put(
+                        "scene",
+                        {
+                            "project_id": self._current["id"],
+                            "instances": copy.deepcopy(insts),
+                        },
+                        project_id=self._current["id"],
+                        name=self._current.get("name"),
+                        instance_count=len(insts),
+                    )
                 self._current["instances"] = {}
                 self._save_current()
 

@@ -476,6 +476,41 @@ class ProjectStore:
                 self._save_active()
             return existed
 
+    # ── 回收站统一入口（PG 子类可覆盖以走 DB deleted_at） ──
+    def list_trash(self):
+        trash = getattr(self, "_trash", None)
+        return trash.list_items() if trash is not None else []
+
+    def restore_trash(self, tid):
+        """返回 (kind, restored_id)。找不到 / 载荷缺失 / 参数错抛 ValueError。"""
+        trash = getattr(self, "_trash", None)
+        if trash is None:
+            raise ValueError("no_trash_source")
+        entry, payload = trash.get_snapshot(tid)
+        if entry is None:
+            raise ValueError("not_found")
+        if payload is None:
+            raise ValueError("snapshot_missing")
+        kind = entry.get("kind")
+        if kind == "project":
+            pid = self.restore_project(payload)
+        elif kind == "scene":
+            pid = self.restore_scene(payload)
+        elif kind == "instance":
+            pid = self.restore_instance(payload)
+        else:
+            raise ValueError(f"unknown_kind:{kind}")
+        trash.delete(tid)
+        return kind, pid
+
+    def delete_trash(self, tid):
+        trash = getattr(self, "_trash", None)
+        return bool(trash.delete(tid)) if trash is not None else False
+
+    def purge_trash(self):
+        trash = getattr(self, "_trash", None)
+        return trash.purge_all() if trash is not None else 0
+
     # ── 按 pid 只读/只写（3.5：UE 请求按 UE-ID 路由到它绑的项目） ──
     def read_project(self, pid):
         """读一份指定项目 dict；不改 _current/_active_id。找不到返回 None。"""

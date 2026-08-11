@@ -4753,7 +4753,7 @@ snapshot_delta_service = register_snapshot_delta_routes(
 
 from trash_store import get_default_store as _get_trash_store
 _trash = _get_trash_store()
-# 启动时清一次过期条目（默认 90 天 TTL）
+# 启动时清一次过期条目（默认 90 天 TTL；只针对文件后端的 trash）
 try:
     _swept = _trash.sweep_expired()
     if _swept:
@@ -4764,21 +4764,23 @@ except Exception as _e:
 
 @app.route('/api/v2/trash', methods=['GET'])
 def trash_list():
-    """列出回收站条目（含 kind/name/deleted_at/instance_count）。"""
-    return jsonify({"items": _trash.list_items()})
+    """列出回收站条目。
+    - 文件后端：来自 data/trash 快照
+    - PG 后端：来自 project/instance 表的 deleted_at IS NOT NULL 记录"""
+    return jsonify({"items": project_store.list_trash()})
 
 
 @app.route('/api/v2/trash/purge', methods=['POST'])
 def trash_purge():
     """一键清空回收站，永久删除。"""
-    n = _trash.purge_all()
+    n = project_store.purge_trash()
     return jsonify({"status": "ok", "purged": n})
 
 
 @app.route('/api/v2/trash/<trash_id>', methods=['DELETE'])
 def trash_delete(trash_id):
     """永久删除单条。"""
-    ok = _trash.delete(trash_id)
+    ok = project_store.delete_trash(trash_id)
     if not ok:
         return jsonify({"error": "not found"}), 404
     return jsonify({"status": "ok", "id": trash_id})
@@ -4787,35 +4789,20 @@ def trash_delete(trash_id):
 @app.route('/api/v2/trash/<trash_id>/restore', methods=['POST'])
 def trash_restore(trash_id):
     """恢复单条到原位置。冲突策略：覆盖。"""
-    entry, payload = _trash.get_snapshot(trash_id)
-    if entry is None:
-        return jsonify({"error": "not found"}), 404
-    if payload is None:
-        return jsonify({"error": "snapshot missing"}), 410
-    kind = entry.get("kind")
     try:
-        if kind == "project":
-            pid = project_store.restore_project(payload)
-            # 项目文件已写回，但 app.py 里 _datasets 全局是内存缓存，
-            # 需要重新扫盘让恢复的项目重新可见（否则 DELETE datasets/<id> 会 404）。
-            _init_from_project_store()
-            # 恢复的项目可能自带 bound_ue_project_id → 重扫 UE 索引
-            try:
-                from ue_project_binding import rebuild_index as _ue_rebuild_index
-                _ue_rebuild_index(project_store)
-            except Exception:
-                pass
-        elif kind == "scene":
-            pid = project_store.restore_scene(payload)
-        elif kind == "instance":
-            pid = project_store.restore_instance(payload)
-        else:
-            return jsonify({"error": f"unknown kind: {kind}"}), 500
+        kind, restored_id = project_store.restore_trash(trash_id)
     except ValueError as e:
-        return jsonify({"error": str(e)}), 400
-    # 恢复成功后从回收站移除
-    _trash.delete(trash_id)
-    return jsonify({"status": "ok", "kind": kind, "restored": pid})
+        code = 404 if str(e) in ("not_found", "snapshot_missing") else 400
+        return jsonify({"error": str(e)}), code
+    # 恢复项目后：文件后端需刷 _datasets 内存缓存 + UE 索引
+    if kind == "project":
+        _init_from_project_store()
+        try:
+            from ue_project_binding import rebuild_index as _ue_rebuild_index
+            _ue_rebuild_index(project_store)
+        except Exception:
+            pass
+    return jsonify({"status": "ok", "kind": kind, "restored": restored_id})
 
 
 if __name__ == '__main__':

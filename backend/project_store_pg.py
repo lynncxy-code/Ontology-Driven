@@ -294,6 +294,129 @@ class ProjectStorePG(ProjectStore):
                 self._save_current()
                 self._soft_delete_absent_instances()
 
+    # ── 回收站（走 PG 的 deleted_at 软删除，不用文件 trash） ─────────
+    def list_trash(self):
+        items = []
+        with pg.get_conn() as conn:
+            with conn.cursor() as cur:
+                # 已删项目
+                cur.execute("""
+                    SELECT p.id, p.name, p.deleted_at,
+                           (SELECT count(*) FROM instance i
+                              WHERE i.project_id = p.id AND i.deleted_at IS NULL)
+                    FROM project p
+                    WHERE p.deleted_at IS NOT NULL
+                    ORDER BY p.deleted_at DESC
+                """)
+                for pid, name, dt, inst_count in cur.fetchall():
+                    items.append({
+                        "id": f"pg:prj:{pid}",
+                        "kind": "project",
+                        "deleted_at": dt.strftime("%Y-%m-%d %H:%M:%S") if dt else "",
+                        "deleted_at_ts": int(dt.timestamp()) if dt else 0,
+                        "project_id": pid,
+                        "instance_id": None,
+                        "name": name or pid,
+                        "instance_count": inst_count,
+                        "note": "",
+                    })
+                # 已删实例（活项目 + 死项目下的实例都列）
+                cur.execute("""
+                    SELECT i.project_id, i.id, i.display_name, i.deleted_at, p.name
+                    FROM instance i
+                    LEFT JOIN project p ON p.id = i.project_id
+                    WHERE i.deleted_at IS NOT NULL
+                    ORDER BY i.deleted_at DESC
+                """)
+                for pid, iid, disp, dt, pname in cur.fetchall():
+                    items.append({
+                        "id": f"pg:inst:{pid}:{iid}",
+                        "kind": "instance",
+                        "deleted_at": dt.strftime("%Y-%m-%d %H:%M:%S") if dt else "",
+                        "deleted_at_ts": int(dt.timestamp()) if dt else 0,
+                        "project_id": pid,
+                        "instance_id": iid,
+                        "name": disp or iid,
+                        "note": pname or "",
+                    })
+        items.sort(key=lambda x: x.get("deleted_at_ts", 0), reverse=True)
+        return items
+
+    def _parse_pg_tid(self, tid):
+        """'pg:prj:<pid>' or 'pg:inst:<pid>:<iid>' → (kind, pid, iid_or_None)."""
+        parts = str(tid or "").split(":", 3)
+        if len(parts) < 3 or parts[0] != "pg":
+            return None, None, None
+        kind = parts[1]
+        if kind == "prj" and len(parts) >= 3:
+            return "project", parts[2], None
+        if kind == "inst" and len(parts) >= 4:
+            return "instance", parts[2], parts[3]
+        return None, None, None
+
+    def restore_trash(self, tid):
+        kind, pid, iid = self._parse_pg_tid(tid)
+        if kind is None:
+            # 兜底：走文件 trash（PG 一般不产生，容错）
+            return super().restore_trash(tid)
+        if kind == "project":
+            with pg.get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE project SET deleted_at = NULL WHERE id = %s AND deleted_at IS NOT NULL RETURNING id",
+                        (pid,),
+                    )
+                    if cur.fetchone() is None:
+                        raise ValueError("not_found")
+            return "project", pid
+        if kind == "instance":
+            with pg.get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE instance SET deleted_at = NULL WHERE project_id = %s AND id = %s AND deleted_at IS NOT NULL RETURNING id",
+                        (pid, iid),
+                    )
+                    if cur.fetchone() is None:
+                        raise ValueError("not_found")
+            # 若恢复到当前激活项目，刷新 _current 让 Web/UE 立刻可见
+            with self._lock:
+                if self._active_id == pid:
+                    self._current = self._read_project(pid)
+            return "instance", iid
+        raise ValueError(f"unknown_kind:{kind}")
+
+    def delete_trash(self, tid):
+        kind, pid, iid = self._parse_pg_tid(tid)
+        if kind is None:
+            return super().delete_trash(tid)
+        if kind == "project":
+            with pg.get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM project WHERE id = %s AND deleted_at IS NOT NULL RETURNING id",
+                        (pid,),
+                    )
+                    return cur.fetchone() is not None
+        if kind == "instance":
+            with pg.get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM instance WHERE project_id = %s AND id = %s AND deleted_at IS NOT NULL RETURNING id",
+                        (pid, iid),
+                    )
+                    return cur.fetchone() is not None
+        return False
+
+    def purge_trash(self):
+        n = 0
+        with pg.get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM instance WHERE deleted_at IS NOT NULL")
+                n += cur.rowcount or 0
+                cur.execute("DELETE FROM project WHERE deleted_at IS NOT NULL")
+                n += cur.rowcount or 0
+        return n
+
     def mint_instances(self, dry_run=False, expected_project_id=None):
         return super().mint_instances(dry_run=dry_run, expected_project_id=expected_project_id)
 

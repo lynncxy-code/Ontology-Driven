@@ -28,8 +28,8 @@ Web“UE 运行状态”会显示小地图当前状态。若显示“缺少地�
 当前关卡的三个相机锚点职责如下：
 
 - `TwinMinimapAnchor_All`：`MinimapId = minimap.default`，只提供一次性小地图取景。
-- `TwinGodViewAnchor`：`CameraId = camera.god.default`，同时用于开局固定视角、F7 进入漫游的默认上帝视角，以及退出漫游后的恢复视角。
-- `TwinGodViewAnchor_All`：旧的独立开局视角锚点；当前运行时不再自动选择，可保留作为项目备用相机。
+- 漫游视角锚点：`CameraId = camera.god.default`，用于 F7 漫游中的默认上帝视角。
+- 固定视角锚点：`CameraId` 与 `StartupViewCameraId` 一致（默认 `camera.startup.default`），用于运行时开局、F7 退出漫游及 F8 退出模型编辑后的固定视角；缺失时兼容回退到 `camera.god.default`。
 
 漫游默认视角为上帝视角；按 `V` 依次按“上帝视角 → 过肩视角 → 第一人称 → 上帝视角”循环。`F7` 仍只负责进入或退出漫游。
 

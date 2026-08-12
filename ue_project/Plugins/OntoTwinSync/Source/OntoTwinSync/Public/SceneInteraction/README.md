@@ -10,8 +10,8 @@
 4. 关卡放置 `ATwinRoamingSpawnAnchor`，将 `SpawnId` 设为 `spawn.character.default`。把 Actor 放在目标楼层地面附近；默认只在锚点上方 1 米至下方 10 米的局部范围内寻找地面，避免跨楼层误投射。
 5. `ATwinRoamingRoute.bSplineAtGroundLevel=true` 时，Route Actor 与各 Spline 点的 Z 表示地面表面高度，不要手动加人物胶囊半高。自动路线只从 Spline 读取平面位置和朝向，贴地高度继续由 CharacterMovement 维护。
 6. 关卡放置 `ATwinRoamingRoute`，将 `RouteId` 设为 `route.test.default`。默认认为 Spline Z 位于地面；若点已是胶囊中心高度，关闭 `bSplineAtGroundLevel`。
-7. 关卡放置 `ATwinGodViewAnchor`，实例名 `TwinGodViewAnchor`，将 `CameraId` 设为 `camera.god.default`；它同时是进入游戏、F7 进入漫游的默认上帝视角，以及退出漫游后恢复的固定视角。
-8. `TwinGodViewAnchor_All` 不再是运行时必需锚点；可保留为项目备用相机，但不会被自动选择。
+7. 关卡放置一个 `ATwinGodViewAnchor`，将 `CameraId` 设为 `camera.god.default`；它用于 F7 漫游中的默认上帝视角。
+8. 如需独立固定视角，再放置一个 `ATwinGodViewAnchor`，将 `CameraId` 设为组件的 `StartupViewCameraId`（默认 `camera.startup.default`）；进入游戏、F7 退出漫游及 F8 退出模型编辑后都会恢复到该锚点。锚点缺失时兼容回退到 `camera.god.default`。
 9. 关卡只需原有一个 `ATwinSceneManager`；4.0 组件由其构造函数自动创建。
 
 ## Asset Manager
@@ -27,7 +27,7 @@
 
 - 地面和可选对象需能被 `Visibility` 射线检测。
 - 人物出生点和路线起点必须能容纳配置胶囊；阻挡时运行时拒绝生成或拒绝归线，不穿墙传送。
-- `camera.god.default` 同时决定开局固定视角、漫游会话第一次进入全局视角的位置和退出漫游后的恢复视角；之后的视角循环为上帝、过肩、第一人称。
+- `StartupViewCameraId` 对应的锚点决定开局固定视角以及退出漫游/模型编辑后的恢复视角；`camera.god.default` 决定漫游会话第一次进入全局视角的位置，之后的视角循环为上帝、过肩、第一人称。
 - 普通漫游人物是观察者，不会自动成为 OntoTwin Instance，也不会在心跳上传位置。
 
 ## 验收顺序

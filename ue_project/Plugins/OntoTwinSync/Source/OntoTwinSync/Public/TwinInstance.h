@@ -193,6 +193,12 @@ public:
     /** assembly_v1 预览审计：当前已实际创建的静态网格部件数。 */
     int32 GetRenderPartComponentCount() const { return RenderPartComponents.Num(); }
 
+    /** 读取预览组件当前实际使用的材质路径（包含编辑器里的组件材质覆写）。 */
+    bool GetRenderPartMaterialPaths(int32 PartIndex, TArray<FString>& OutPaths) const;
+
+    /** 读取部件 StaticMesh 资产已保存的默认材质槽路径。 */
+    bool GetSavedRenderPartMaterialPaths(int32 PartIndex, TArray<FString>& OutPaths) const;
+
     /** assembly_v1 预览审计：仅在全部网格与材质加载成功时保留导出签名。 */
     const FString& GetCurrentAssemblySignature() const { return CurrentAssemblySignature; }
 
@@ -277,6 +283,9 @@ private:
 
     /** 防止 500ms 快照轮询重复销毁/重建相同的复合部件。 */
     FString CurrentAssemblySignature;
+
+    /** render_parts 完整状态摘要；装配签名不变但材质变化时仍会刷新组件。 */
+    FString CurrentRenderPartsStateHash;
 
     // ── 内部方法 ─────────────────────────────────────────────────────────
 

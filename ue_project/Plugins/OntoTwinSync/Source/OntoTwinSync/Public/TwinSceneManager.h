@@ -54,6 +54,23 @@ enum class EOntoTwinRuntimeAccessState : uint8
     Error
 };
 
+struct FPreviewMaterialPartBaseline
+{
+    int32 PartIndex = INDEX_NONE;
+    FString AssetPath;
+    FString SourceActorGuid;
+    FString SourceComponentName;
+    TArray<FString> DatabaseMaterialPaths;
+    TArray<FString> ComponentMaterialPaths;
+    TArray<FString> SavedMeshMaterialPaths;
+};
+
+struct FPreviewMaterialInstanceBaseline
+{
+    FString AssemblySignature;
+    TArray<FPreviewMaterialPartBaseline> Parts;
+};
+
 /**
  * ATwinSceneManager
  *
@@ -378,6 +395,11 @@ public:
               meta=(DisplayName="提交空间变更(回写)"))
     void CommitPreviewChanges();
 
+    /** 把预览组件覆写或已保存 StaticMesh 默认槽的材质变更原子回写到数据库。 */
+    UFUNCTION(CallInEditor, Category="预览",
+              meta=(DisplayName="提交材质变更(回写)"))
+    void CommitPreviewMaterialChanges();
+
     // ═══════════════════════════════════════════════════════════════════════
     // FR-6 历史 actor 迁移工具（编辑器一次性；配合后端 migrate_ue_actors.py）
     //   流程：① 框选历史 actor → 右键"移动到文件夹"→ 填 MigrationFolderName
@@ -443,6 +465,11 @@ private:
 
     /** FR-5 回写基线：InstanceId → 拉取预览时数据库给的 transform（提交时据此 diff） */
     TMap<FString, FTransform> PreviewBaseline;
+
+    /** 材质回写基线：数据库路径、组件实际路径、StaticMesh 已保存默认槽。 */
+    TMap<FString, FPreviewMaterialInstanceBaseline> PreviewMaterialBaseline;
+
+    bool bMaterialWritebackInFlight = false;
 
     /** FR-5 回写在途/成功计数（编辑器单线程回调，无需加锁） */
     int32 PendingWritebacks = 0;
@@ -623,6 +650,12 @@ private:
 
     /** 解析快照数组、生成 transient TwinInstance，并写可机读的资产加载审计。 */
     int32 SpawnPreviewActorsFromJson(const FString& JsonPayload, const FString& SourceLabel);
+
+    /** 从拉取快照和已生成组件捕获一次材质并发基线。 */
+    bool CapturePreviewMaterialBaseline(
+        ATwinInstance* Instance,
+        const TSharedPtr<FJsonObject>& Snapshot,
+        FString* OutError = nullptr);
 
     /** Saved/OntoTwinMigration/ue_snapshots.json */
     FString MigrationPreviewSnapshotPath() const;

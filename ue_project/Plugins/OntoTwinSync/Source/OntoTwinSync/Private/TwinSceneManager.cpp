@@ -1517,6 +1517,11 @@ void ATwinSceneManager::PollBackend()
 
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest =
         FHttpModule::Get().CreateRequest();
+    // The first project baseline can contain hundreds of instances and tens
+    // of thousands of render parts. Customer workstations may need more than
+    // UE's 30-second default activity window to produce and transfer it.
+    HttpRequest->SetTimeout(300.0f);
+    HttpRequest->SetActivityTimeout(180.0f);
 
     const FString Url = bUseIncremental ? BuildSnapshotChangesUrl() : BuildSnapshotsUrl();
     HttpRequest->SetURL(Url);
@@ -2262,6 +2267,10 @@ void ATwinSceneManager::FinishExitRuntimeEditMode()
         PC->bShowMouseCursor = bRuntimePreviousMouseCursor;
         FInputModeGameOnly InputMode;
         PC->SetInputMode(InputMode);
+    }
+    if (InteractionManager)
+    {
+        InteractionManager->RestoreStartupView();
     }
 
     bRuntimeEditMode = false;
@@ -5117,8 +5126,107 @@ void ATwinSceneManager::ClearPreview()
     }
     PreviewActors.Empty();
     PreviewBaseline.Empty();
+    PreviewMaterialBaseline.Empty();
     UE_LOG(LogTemp, Log, TEXT("[孪生管理器] 已清除 %d 个预览 Actor"), Cleared);
 #endif
+}
+
+bool ATwinSceneManager::CapturePreviewMaterialBaseline(
+    ATwinInstance* Instance,
+    const TSharedPtr<FJsonObject>& Snapshot,
+    FString* OutError)
+{
+    auto Fail = [OutError](const FString& Message)
+    {
+        if (OutError)
+        {
+            *OutError = Message;
+        }
+        return false;
+    };
+
+    if (!Instance || !IsValid(Instance) || !Snapshot.IsValid())
+    {
+        return Fail(TEXT("预览实例或快照无效"));
+    }
+
+    const TSharedPtr<FJsonObject>* Interfaces = nullptr;
+    const TSharedPtr<FJsonObject>* Representable = nullptr;
+    const TArray<TSharedPtr<FJsonValue>>* RenderParts = nullptr;
+    if (!Snapshot->TryGetObjectField(TEXT("interfaces"), Interfaces)
+        || !Interfaces || !Interfaces->IsValid()
+        || !(*Interfaces)->TryGetObjectField(TEXT("I3D_Representable"), Representable)
+        || !Representable || !Representable->IsValid()
+        || !(*Representable)->TryGetArrayField(TEXT("render_parts"), RenderParts)
+        || !RenderParts || RenderParts->Num() == 0)
+    {
+        return Fail(TEXT("快照不含 assembly_v1 render_parts"));
+    }
+
+    FString AssemblySignature;
+    (*Representable)->TryGetStringField(TEXT("assembly_signature"), AssemblySignature);
+    if (AssemblySignature.IsEmpty()
+        || Instance->GetCurrentAssemblySignature() != AssemblySignature
+        || Instance->GetRenderPartComponentCount() != RenderParts->Num())
+    {
+        return Fail(TEXT("装配未完整加载，不能建立材质回写基线"));
+    }
+
+    FPreviewMaterialInstanceBaseline InstanceBaseline;
+    InstanceBaseline.AssemblySignature = AssemblySignature;
+    InstanceBaseline.Parts.Reserve(RenderParts->Num());
+
+    for (int32 PartIndex = 0; PartIndex < RenderParts->Num(); ++PartIndex)
+    {
+        const TSharedPtr<FJsonObject>* PartObject = nullptr;
+        if (!(*RenderParts)[PartIndex].IsValid()
+            || !(*RenderParts)[PartIndex]->TryGetObject(PartObject)
+            || !PartObject || !PartObject->IsValid())
+        {
+            return Fail(FString::Printf(TEXT("render_parts[%d] 不是对象"), PartIndex));
+        }
+
+        FPreviewMaterialPartBaseline PartBaseline;
+        PartBaseline.PartIndex = PartIndex;
+        (*PartObject)->TryGetStringField(TEXT("asset_path"), PartBaseline.AssetPath);
+        (*PartObject)->TryGetStringField(
+            TEXT("source_actor_guid"), PartBaseline.SourceActorGuid);
+        (*PartObject)->TryGetStringField(
+            TEXT("source_component_name"), PartBaseline.SourceComponentName);
+        if (PartBaseline.AssetPath.IsEmpty())
+        {
+            return Fail(FString::Printf(TEXT("render_parts[%d] 缺少 asset_path"), PartIndex));
+        }
+
+        const TArray<TSharedPtr<FJsonValue>>* MaterialValues = nullptr;
+        if (!(*PartObject)->TryGetArrayField(TEXT("material_paths"), MaterialValues)
+            || !MaterialValues)
+        {
+            return Fail(FString::Printf(TEXT("render_parts[%d] 缺少 material_paths"), PartIndex));
+        }
+        for (const TSharedPtr<FJsonValue>& MaterialValue : *MaterialValues)
+        {
+            FString MaterialPath;
+            if (!MaterialValue.IsValid() || !MaterialValue->TryGetString(MaterialPath))
+            {
+                return Fail(FString::Printf(
+                    TEXT("render_parts[%d] 的 material_paths 含非字符串"), PartIndex));
+            }
+            PartBaseline.DatabaseMaterialPaths.Add(MaterialPath);
+        }
+
+        if (!Instance->GetRenderPartMaterialPaths(
+                PartIndex, PartBaseline.ComponentMaterialPaths)
+            || !Instance->GetSavedRenderPartMaterialPaths(
+                PartIndex, PartBaseline.SavedMeshMaterialPaths))
+        {
+            return Fail(FString::Printf(TEXT("无法读取 render_parts[%d] 材质槽"), PartIndex));
+        }
+        InstanceBaseline.Parts.Add(MoveTemp(PartBaseline));
+    }
+
+    PreviewMaterialBaseline.Add(Instance->GetInstanceId(), MoveTemp(InstanceBaseline));
+    return true;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -5240,6 +5348,314 @@ void ATwinSceneManager::CommitPreviewChanges()
     }
 #else
     UE_LOG(LogTemp, Warning, TEXT("[孪生管理器] 回写提交仅在编辑器模式下可用"));
+#endif
+}
+
+void ATwinSceneManager::CommitPreviewMaterialChanges()
+{
+#if WITH_EDITOR
+    if (bMaterialWritebackInFlight)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(
+                -1, 5.0f, FColor::Yellow, TEXT("材质回写正在进行，请等待本次请求完成"));
+        }
+        return;
+    }
+
+    TArray<TSharedPtr<FJsonValue>> InstanceChanges;
+    int32 ChangedPartCount = 0;
+    FString ValidationError;
+
+    auto PathsToJson = [](const TArray<FString>& Paths)
+    {
+        TArray<TSharedPtr<FJsonValue>> Values;
+        Values.Reserve(Paths.Num());
+        for (const FString& Path : Paths)
+        {
+            Values.Add(MakeShared<FJsonValueString>(Path));
+        }
+        return Values;
+    };
+
+    for (ATwinInstance* Instance : PreviewActors)
+    {
+        if (!Instance || !IsValid(Instance) || !Instance->IsAssemblyRenderActive())
+        {
+            continue;
+        }
+
+        const FString InstanceId = Instance->GetInstanceId();
+        const FPreviewMaterialInstanceBaseline* InstanceBaseline =
+            PreviewMaterialBaseline.Find(InstanceId);
+        if (!InstanceBaseline)
+        {
+            ValidationError = FString::Printf(
+                TEXT("%s 没有材质基线，请重新“从数据库拉取预览”"), *InstanceId);
+            break;
+        }
+        if (Instance->GetCurrentAssemblySignature()
+                != InstanceBaseline->AssemblySignature
+            || Instance->GetRenderPartComponentCount()
+                != InstanceBaseline->Parts.Num())
+        {
+            ValidationError = FString::Printf(
+                TEXT("%s 的装配已变化，请重新拉取预览后再提交"), *InstanceId);
+            break;
+        }
+
+        TArray<TSharedPtr<FJsonValue>> PartChanges;
+        for (const FPreviewMaterialPartBaseline& PartBaseline : InstanceBaseline->Parts)
+        {
+            TArray<FString> CurrentComponentPaths;
+            TArray<FString> CurrentSavedMeshPaths;
+            if (!Instance->GetRenderPartMaterialPaths(
+                    PartBaseline.PartIndex, CurrentComponentPaths)
+                || !Instance->GetSavedRenderPartMaterialPaths(
+                    PartBaseline.PartIndex, CurrentSavedMeshPaths))
+            {
+                ValidationError = FString::Printf(
+                    TEXT("%s 零件 %d 的材质槽读取失败"),
+                    *InstanceId, PartBaseline.PartIndex);
+                break;
+            }
+
+            const bool bComponentChanged =
+                CurrentComponentPaths != PartBaseline.ComponentMaterialPaths;
+            const bool bSavedMeshChanged =
+                CurrentSavedMeshPaths != PartBaseline.SavedMeshMaterialPaths;
+            if (!bComponentChanged && !bSavedMeshChanged)
+            {
+                continue;
+            }
+
+            if (bComponentChanged && bSavedMeshChanged
+                && CurrentComponentPaths != CurrentSavedMeshPaths)
+            {
+                ValidationError = FString::Printf(
+                    TEXT("%s 零件 %d：组件覆写与 StaticMesh 默认槽改成了不同材质，请统一后再提交"),
+                    *InstanceId, PartBaseline.PartIndex);
+                break;
+            }
+
+            const TArray<FString>& DesiredPaths =
+                bComponentChanged ? CurrentComponentPaths : CurrentSavedMeshPaths;
+            if (DesiredPaths == PartBaseline.DatabaseMaterialPaths)
+            {
+                continue;
+            }
+            if (DesiredPaths.Num() == 0)
+            {
+                ValidationError = FString::Printf(
+                    TEXT("%s 零件 %d 的材质槽为空，拒绝回写"),
+                    *InstanceId, PartBaseline.PartIndex);
+                break;
+            }
+
+            TSharedPtr<FJsonObject> PartChange = MakeShared<FJsonObject>();
+            PartChange->SetNumberField(TEXT("part_index"), PartBaseline.PartIndex);
+            PartChange->SetStringField(TEXT("asset_path"), PartBaseline.AssetPath);
+            PartChange->SetStringField(
+                TEXT("source_actor_guid"), PartBaseline.SourceActorGuid);
+            PartChange->SetStringField(
+                TEXT("source_component_name"), PartBaseline.SourceComponentName);
+            PartChange->SetArrayField(
+                TEXT("expected_material_paths"),
+                PathsToJson(PartBaseline.DatabaseMaterialPaths));
+            PartChange->SetArrayField(
+                TEXT("material_paths"), PathsToJson(DesiredPaths));
+            PartChanges.Add(MakeShared<FJsonValueObject>(PartChange));
+            ++ChangedPartCount;
+        }
+
+        if (!ValidationError.IsEmpty())
+        {
+            break;
+        }
+        if (PartChanges.Num() > 0)
+        {
+            TSharedPtr<FJsonObject> InstanceChange = MakeShared<FJsonObject>();
+            InstanceChange->SetStringField(TEXT("instance_id"), InstanceId);
+            InstanceChange->SetStringField(
+                TEXT("expected_assembly_signature"),
+                InstanceBaseline->AssemblySignature);
+            InstanceChange->SetArrayField(TEXT("parts"), PartChanges);
+            InstanceChanges.Add(MakeShared<FJsonValueObject>(InstanceChange));
+        }
+    }
+
+    if (!ValidationError.IsEmpty())
+    {
+        UE_LOG(LogTemp, Error, TEXT("[材质回写] %s"), *ValidationError);
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, ValidationError);
+        }
+        return;
+    }
+    if (InstanceChanges.Num() == 0)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(
+                -1, 6.0f, FColor::Yellow,
+                TEXT("没有检测到材质路径变更（请先拉取预览，再修改并保存材质槽）"));
+        }
+        return;
+    }
+
+    TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
+    Body->SetArrayField(TEXT("changes"), InstanceChanges);
+    FString BodyString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&BodyString);
+    FJsonSerializer::Serialize(Body.ToSharedRef(), Writer);
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest =
+        FHttpModule::Get().CreateRequest();
+    HttpRequest->SetURL(FString::Printf(
+        TEXT("%s/api/v2/state/material-writeback"), *BackendBaseUrl));
+    HttpRequest->SetVerb(TEXT("POST"));
+    HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    AddUEProjectHeaders(HttpRequest);
+    HttpRequest->SetTimeout(300.0f);
+    HttpRequest->SetActivityTimeout(180.0f);
+    HttpRequest->SetContentAsString(BodyString);
+
+    bMaterialWritebackInFlight = true;
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(
+            -1, 6.0f, FColor::Cyan,
+            FString::Printf(
+                TEXT("正在原子提交 %d 个实例、%d 个零件的材质变更..."),
+                InstanceChanges.Num(), ChangedPartCount));
+    }
+
+    TWeakObjectPtr<ATwinSceneManager> WeakThis(this);
+    HttpRequest->OnProcessRequestComplete().BindLambda(
+        [WeakThis, ChangedPartCount](
+            FHttpRequestPtr Request,
+            FHttpResponsePtr Response,
+            bool bWasSuccessful)
+        {
+            ATwinSceneManager* Self = WeakThis.Get();
+            if (!Self)
+            {
+                return;
+            }
+            Self->bMaterialWritebackInFlight = false;
+
+            const int32 ResponseCode = Response.IsValid()
+                ? Response->GetResponseCode() : -1;
+            const FString ResponseBody = Response.IsValid()
+                ? Response->GetContentAsString() : FString();
+            if (!bWasSuccessful || ResponseCode != 200)
+            {
+                UE_LOG(LogTemp, Error,
+                    TEXT("[材质回写] 请求失败 code=%d body=%s"),
+                    ResponseCode, *ResponseBody);
+                if (GEngine)
+                {
+                    GEngine->AddOnScreenDebugMessage(
+                        -1, 12.0f, FColor::Red,
+                        FString::Printf(
+                            TEXT("材质回写失败（HTTP %d）；数据库未发生部分写入，详见 Output Log"),
+                            ResponseCode));
+                }
+                return;
+            }
+
+            TSharedPtr<FJsonObject> RootObject;
+            TSharedRef<TJsonReader<>> Reader =
+                TJsonReaderFactory<>::Create(ResponseBody);
+            const TArray<TSharedPtr<FJsonValue>>* Snapshots = nullptr;
+            if (!FJsonSerializer::Deserialize(Reader, RootObject)
+                || !RootObject.IsValid()
+                || !RootObject->TryGetArrayField(TEXT("snapshots"), Snapshots)
+                || !Snapshots)
+            {
+                UE_LOG(LogTemp, Error,
+                    TEXT("[材质回写] 数据库已提交，但响应快照解析失败: %s"),
+                    *ResponseBody);
+                if (GEngine)
+                {
+                    GEngine->AddOnScreenDebugMessage(
+                        -1, 12.0f, FColor::Yellow,
+                        TEXT("材质已回写，但本地基线刷新失败；请重新从数据库拉取预览"));
+                }
+                return;
+            }
+
+            int32 RefreshedInstances = 0;
+            for (const TSharedPtr<FJsonValue>& SnapshotValue : *Snapshots)
+            {
+                const TSharedPtr<FJsonObject>* SnapshotObject = nullptr;
+                if (!SnapshotValue.IsValid()
+                    || !SnapshotValue->TryGetObject(SnapshotObject)
+                    || !SnapshotObject || !SnapshotObject->IsValid())
+                {
+                    continue;
+                }
+                FString InstanceId;
+                if (!(*SnapshotObject)->TryGetStringField(TEXT("instanceId"), InstanceId))
+                {
+                    continue;
+                }
+                ATwinInstance* PreviewInstance = nullptr;
+                for (ATwinInstance* Candidate : Self->PreviewActors)
+                {
+                    if (Candidate && IsValid(Candidate)
+                        && Candidate->GetInstanceId() == InstanceId)
+                    {
+                        PreviewInstance = Candidate;
+                        break;
+                    }
+                }
+                if (!PreviewInstance)
+                {
+                    continue;
+                }
+                PreviewInstance->ApplySnapshot(*SnapshotObject);
+                FString BaselineError;
+                if (Self->CapturePreviewMaterialBaseline(
+                        PreviewInstance, *SnapshotObject, &BaselineError))
+                {
+                    ++RefreshedInstances;
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning,
+                        TEXT("[材质回写] %s 新基线捕获失败: %s"),
+                        *InstanceId, *BaselineError);
+                }
+            }
+
+            UE_LOG(LogTemp, Log,
+                TEXT("[材质回写] 成功提交 %d 个零件，刷新 %d 个实例"),
+                ChangedPartCount, RefreshedInstances);
+            if (GEngine)
+            {
+                GEngine->AddOnScreenDebugMessage(
+                    -1, 10.0f, FColor::Green,
+                    FString::Printf(
+                        TEXT("材质回写完成：成功 %d 个零件；PIE/EXE 后续快照以数据库新材质为准"),
+                        ChangedPartCount));
+            }
+        });
+
+    if (!HttpRequest->ProcessRequest())
+    {
+        bMaterialWritebackInFlight = false;
+        UE_LOG(LogTemp, Error, TEXT("[材质回写] HTTP 请求未能启动"));
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(
+                -1, 8.0f, FColor::Red, TEXT("材质回写请求未能启动"));
+        }
+    }
+#else
+    UE_LOG(LogTemp, Warning, TEXT("[孪生管理器] 材质回写仅在编辑器模式下可用"));
 #endif
 }
 
@@ -5517,6 +5933,18 @@ int32 ATwinSceneManager::SpawnPreviewActorsFromJson(
 
         // FR-5：记录回写基线 = 数据库此刻给的 transform（提交时 diff 用）
         PreviewBaseline.Add(InstId, Inst->GetActorTransform());
+
+        if (ExpectedPartCount > 0)
+        {
+            FString MaterialBaselineError;
+            if (!CapturePreviewMaterialBaseline(
+                    Inst, *SnapObj, &MaterialBaselineError))
+            {
+                UE_LOG(LogTemp, Warning,
+                    TEXT("[材质回写] %s 未建立基线: %s"),
+                    *InstId, *MaterialBaselineError);
+            }
+        }
 
         PreviewActors.Add(Inst);
         Count++;

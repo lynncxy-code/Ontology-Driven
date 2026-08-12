@@ -77,9 +77,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|Input")
     FKey ResumeRouteKey = EKeys::R;
 
-    /** Optional fixed camera shown before entering roaming and restored after F7 exit. */
+    /** Configurable fixed runtime/home camera; falls back to camera.god.default when absent. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|Camera")
-    FString StartupViewCameraId = TEXT("camera.god.default");
+    FString StartupViewCameraId = TEXT("camera.startup.default");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|UI")
     TSubclassOf<UOntoTwinRoamingHUDWidget> RoamingHUDClass;
@@ -121,6 +121,7 @@ public:
     ETwinRoamingCameraMode GetCameraMode() const;
     bool GetGodViewTransform(FTransform& OutTransform) const;
     bool GetGodViewLookSensitivity(float& OutSensitivity) const;
+    void RestoreStartupView();
     FString GetHudStatusText() const;
     FString GetHudHintText() const;
     void GetHudShortcutItems(

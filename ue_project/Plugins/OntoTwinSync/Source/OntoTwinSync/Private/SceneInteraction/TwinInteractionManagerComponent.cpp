@@ -960,21 +960,30 @@ ATwinGodViewAnchor* UTwinInteractionManagerComponent::FindGodViewAnchor(const FS
 
 void UTwinInteractionManagerComponent::ApplyStartupView(bool bForce)
 {
-    if (!PlayerController || (!bForce && bRoamingActive)
-        || StartupViewCameraId.IsEmpty())
+    if (!PlayerController || (!bForce && bRoamingActive))
     {
         return;
     }
-    if (!StartupViewAnchor || !IsValid(StartupViewAnchor)
-        || StartupViewAnchor->CameraId != StartupViewCameraId)
+
+    StartupViewAnchor = FindGodViewAnchor(StartupViewCameraId);
+    if (!StartupViewAnchor
+        && StartupViewCameraId != TEXT("camera.god.default"))
     {
-        StartupViewAnchor = FindGodViewAnchor(StartupViewCameraId);
+        StartupViewAnchor = FindGodViewAnchor(TEXT("camera.god.default"));
     }
     if (!StartupViewAnchor) return;
     if (PlayerController->GetViewTarget() != StartupViewAnchor)
     {
         PlayerController->SetViewTarget(StartupViewAnchor);
+        UE_LOG(LogTemp, Log,
+            TEXT("OntoTwin startup view applied: camera_id=%s actor=%s"),
+            *StartupViewAnchor->CameraId, *StartupViewAnchor->GetName());
     }
+}
+
+void UTwinInteractionManagerComponent::RestoreStartupView()
+{
+    ApplyStartupView(true);
 }
 
 ATwinMinimapAnchor* UTwinInteractionManagerComponent::FindMinimapAnchor(

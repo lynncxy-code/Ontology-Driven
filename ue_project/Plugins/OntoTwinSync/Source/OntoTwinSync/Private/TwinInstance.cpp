@@ -25,6 +25,7 @@
 #include "Containers/Ticker.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/FileHelper.h"
+#include "Misc/SecureHash.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 // HTTP —— ArtStudio glb 经后端代理流式下载（3.3）
@@ -579,7 +580,61 @@ void ATwinInstance::ClearRenderParts()
     RenderPartComponents.Empty();
     RenderPartSourceVisibility.Empty();
     CurrentAssemblySignature.Empty();
+    CurrentRenderPartsStateHash.Empty();
     bAssemblyRenderActive = false;
+}
+
+bool ATwinInstance::GetRenderPartMaterialPaths(
+    int32 PartIndex,
+    TArray<FString>& OutPaths) const
+{
+    OutPaths.Reset();
+    if (!RenderPartComponents.IsValidIndex(PartIndex))
+    {
+        return false;
+    }
+
+    const UStaticMeshComponent* PartComponent = RenderPartComponents[PartIndex];
+    if (!PartComponent || !IsValid(PartComponent))
+    {
+        return false;
+    }
+
+    const int32 SlotCount = PartComponent->GetNumMaterials();
+    OutPaths.Reserve(SlotCount);
+    for (int32 SlotIndex = 0; SlotIndex < SlotCount; ++SlotIndex)
+    {
+        const UMaterialInterface* Material = PartComponent->GetMaterial(SlotIndex);
+        OutPaths.Add(Material ? Material->GetPathName() : FString());
+    }
+    return true;
+}
+
+bool ATwinInstance::GetSavedRenderPartMaterialPaths(
+    int32 PartIndex,
+    TArray<FString>& OutPaths) const
+{
+    OutPaths.Reset();
+    if (!RenderPartComponents.IsValidIndex(PartIndex))
+    {
+        return false;
+    }
+
+    const UStaticMeshComponent* PartComponent = RenderPartComponents[PartIndex];
+    const UStaticMesh* StaticMesh = PartComponent ? PartComponent->GetStaticMesh() : nullptr;
+    if (!StaticMesh)
+    {
+        return false;
+    }
+
+    const TArray<FStaticMaterial>& StaticMaterials = StaticMesh->GetStaticMaterials();
+    OutPaths.Reserve(StaticMaterials.Num());
+    for (const FStaticMaterial& StaticMaterial : StaticMaterials)
+    {
+        const UMaterialInterface* Material = StaticMaterial.MaterialInterface;
+        OutPaths.Add(Material ? Material->GetPathName() : FString());
+    }
+    return true;
 }
 
 void ATwinInstance::ApplyRenderPartsFromSnapshot(
@@ -590,6 +645,12 @@ void ATwinInstance::ApplyRenderPartsFromSnapshot(
     {
         return;
     }
+
+    FString RenderStateJson;
+    TSharedRef<TJsonWriter<>> StateWriter =
+        TJsonWriterFactory<>::Create(&RenderStateJson);
+    FJsonSerializer::Serialize(RenderParts, StateWriter);
+    const FString EffectiveRenderStateHash = FMD5::HashAnsiString(*RenderStateJson);
 
     // assembly_signature 由导出器按“资产路径 + 相对母 Actor 变换”生成。
     // 对接旧的手写 payload 时没有 signature，仍构造一个稳定的轻量缓存键。
@@ -653,7 +714,9 @@ void ATwinInstance::ApplyRenderPartsFromSnapshot(
         }
     }
 
-    if (bAssemblyRenderActive && CurrentAssemblySignature == EffectiveSignature)
+    if (bAssemblyRenderActive
+        && CurrentAssemblySignature == EffectiveSignature
+        && CurrentRenderPartsStateHash == EffectiveRenderStateHash)
     {
         return;
     }
@@ -816,6 +879,7 @@ void ATwinInstance::ApplyRenderPartsFromSnapshot(
     if (!bHadLoadFailure && LoadedPartCount == RenderParts.Num())
     {
         CurrentAssemblySignature = EffectiveSignature;
+        CurrentRenderPartsStateHash = EffectiveRenderStateHash;
         UE_LOG(LogTemp, Log,
             TEXT("[孪生体] assembly_v1 已创建 %d/%d 个渲染部件 (ID=%s, signature=%s)"),
             LoadedPartCount, RenderParts.Num(), *InstanceId, *CurrentAssemblySignature);
@@ -824,6 +888,7 @@ void ATwinInstance::ApplyRenderPartsFromSnapshot(
     {
         // 不缓存失败签名：下一次快照轮询会重新加载。基座 Cube 明确提示该 assembly 不完整。
         CurrentAssemblySignature.Empty();
+        CurrentRenderPartsStateHash.Empty();
         SetPlaceholderCube();
         UE_LOG(LogTemp, Error,
             TEXT("[孪生体] assembly_v1 仅加载 %d/%d 个部件，保留 Cube fallback 并等待重试 (ID=%s)"),

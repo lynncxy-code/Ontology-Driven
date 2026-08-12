@@ -42,6 +42,49 @@ function Get-ReleaseDescriptor {
     }
 }
 
+function Assert-UnixTextBytes {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$Bytes,
+        [Parameter(Mandatory = $true)][string]$ExpectedPrefix,
+        [Parameter(Mandatory = $true)][string]$DisplayName
+    )
+
+    $prefixBytes = [System.Text.Encoding]::ASCII.GetBytes($ExpectedPrefix)
+    if ($Bytes.Length -lt $prefixBytes.Length) {
+        throw "Linux payload text is truncated: $DisplayName"
+    }
+    if ($Bytes.Length -ge 3 -and $Bytes[0] -eq 0xEF -and $Bytes[1] -eq 0xBB -and $Bytes[2] -eq 0xBF) {
+        throw "Linux payload text must not contain a UTF-8 BOM: $DisplayName"
+    }
+    if ($Bytes.Length -ge 2 -and
+        (($Bytes[0] -eq 0xFF -and $Bytes[1] -eq 0xFE) -or
+         ($Bytes[0] -eq 0xFE -and $Bytes[1] -eq 0xFF))) {
+        throw "Linux payload text must not contain a UTF-16 BOM: $DisplayName"
+    }
+    if ($Bytes -contains [byte]0x0D) {
+        throw "Linux payload text contains CR/CRLF bytes and is unsafe for the appliance: $DisplayName"
+    }
+    for ($index = 0; $index -lt $prefixBytes.Length; $index++) {
+        if ($Bytes[$index] -ne $prefixBytes[$index]) {
+            throw "Linux payload text does not begin with the required LF-only interpreter line: $DisplayName"
+        }
+    }
+    if ($Bytes[$Bytes.Length - 1] -ne 0x0A) {
+        throw "Linux payload text must end with LF: $DisplayName"
+    }
+}
+
+function Assert-UnixTextFormat {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$ExpectedPrefix
+    )
+    Assert-UnixTextBytes `
+        -Bytes ([System.IO.File]::ReadAllBytes($Path)) `
+        -ExpectedPrefix $ExpectedPrefix `
+        -DisplayName $Path
+}
+
 function Write-ReleaseDocument {
     param(
         [Parameter(Mandatory = $true)][string]$Source,
@@ -113,10 +156,14 @@ function Assert-RuntimeEvidence {
 
     if ([string]$RuntimeIdentity.source_project_path -notmatch '(?i)(^|[/\\])ZHHZ\.uproject$' -or
         [string]$RuntimeIdentity.source_project_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        [int]$RuntimeIdentity.schema_version -lt 3 -or
+        @($RuntimeIdentity.source_build_inputs).Count -eq 0 -or
         @($RuntimeIdentity.source_umap_files).Count -eq 0) {
-        throw "Runtime manifest does not contain valid source project and .umap evidence."
+        throw "Runtime manifest does not contain valid source/config/plugin and .umap evidence."
     }
-    if ((@($RuntimeIdentity.source_umap_files) | ConvertTo-Json -Depth 5 -Compress) -cne
+    if ((@($RuntimeIdentity.source_build_inputs) | ConvertTo-Json -Depth 5 -Compress) -cne
+        (@($RuntimeComponent.source_build_inputs) | ConvertTo-Json -Depth 5 -Compress) -or
+        (@($RuntimeIdentity.source_umap_files) | ConvertTo-Json -Depth 5 -Compress) -cne
         (@($RuntimeComponent.source_umap_files) | ConvertTo-Json -Depth 5 -Compress) -or
         (@($RuntimeIdentity.package_files) | ConvertTo-Json -Depth 5 -Compress) -cne
         (@($RuntimeComponent.package_files) | ConvertTo-Json -Depth 5 -Compress)) {
@@ -286,6 +333,19 @@ function Assert-DataRootContract {
             throw "$name must read the shared HKLM DataRoot registry value."
         }
     }
+    $launcherXamlPath = Join-Path $DeployRoot "launcher\OntoTwin.ZHHZ.Launcher\MainWindow.xaml"
+    if (-not (Test-Path -LiteralPath $launcherXamlPath -PathType Leaf)) {
+        throw "Launcher XAML is missing: $launcherXamlPath"
+    }
+    $launcherXaml = Get-Content -Raw -Encoding UTF8 -LiteralPath $launcherXamlPath
+    if ($launcherXaml -match '(?i)\bRC\d+(?:\.\d+)*\b') {
+        throw "Launcher UI must not contain a hard-coded RC version."
+    }
+    if (-not $launcherXaml.Contains('x:Name="ReleaseCaptionText"') -or
+        -not $sourceText.Launcher.Contains('ResolveReleaseCaption') -or
+        -not $sourceText.Launcher.Contains('"release-manifest.json"')) {
+        throw "Launcher must render its release caption from the installed release manifest."
+    }
     if (-not $sourceText.PayloadInstaller.Contains('key.SetValue("DataRoot", dataRoot')) {
         throw "PayloadInstaller must persist the selected DataRoot in HKLM."
     }
@@ -390,6 +450,7 @@ function Assert-DataRootContract {
 
     foreach ($requiredRefreshSafety in @(
         '$systemDiskRefreshSafetyBytes = 1GB',
+        '$minimumSystemDiskBytes = 20GB',
         'if ($needsSystemRefresh -and (Test-Path -LiteralPath $dataDisk -PathType Leaf))',
         '$baseDiskLength = [int64](Get-Item -LiteralPath $baseDisk -ErrorAction Stop).Length',
         '$refreshReserveBytes = $baseDiskLength + [int64]$systemDiskRefreshSafetyBytes',
@@ -441,6 +502,8 @@ function Assert-DataRootContract {
         '$stagedSystemDisk = Join-Path $vmRoot "system.installing.vhdx"',
         'Copy-Item -LiteralPath $baseDisk -Destination $stagedSystemDisk',
         '$stagedSystemDiskLength -ne $expectedSystemDiskLength',
+        'Resize-VHD -Path $stagedSystemDisk -SizeBytes ([int64]$minimumSystemDiskBytes)',
+        '[int64]$stagedVhd.Size -lt [int64]$minimumSystemDiskBytes',
         'Move-Item -LiteralPath $stagedSystemDisk -Destination $systemDisk',
         'Move-Item -LiteralPath $oldSystemDisk -Destination $systemDisk -ErrorAction SilentlyContinue'
     )) {
@@ -566,7 +629,9 @@ function Assert-BackendUpgradeSafety {
         'def compose_status():',
         'Bootstrap is still preparing: missing',
         '"bootstrap_in_progress": bootstrap_active',
-        '"ready": not bootstrap_active and backend_ready()'
+        '"ready": not bootstrap_active and backend_ready()',
+        '"root_total_bytes": root_total',
+        '"root_free_bytes": root_free'
     )) {
         if (-not $ControlText.Contains($controlRequirement)) {
             throw "Guest control is not safe during early bootstrap: $controlRequirement"
@@ -583,6 +648,96 @@ function Assert-BackendUpgradeSafety {
     }
     if ($ComposeText -match '(?im)^\s*-\s*subnet:\s*172\.28\.251\.0/24\s*$') {
         throw "Release Compose network overlaps the Hyper-V host/guest transport subnet."
+    }
+}
+
+function Assert-StartupReadinessContract {
+    param(
+        [Parameter(Mandatory = $true)][string]$BootstrapText,
+        [Parameter(Mandatory = $true)][string]$HostControlText,
+        [Parameter(Mandatory = $true)][string]$LauncherText
+    )
+
+    foreach ($quietProbeRequirement in @(
+        "with urllib.request.urlopen('http://127.0.0.1:5000/', timeout=5) as response:",
+        'except Exception:',
+        'raise SystemExit(1)'
+    )) {
+        if (-not $BootstrapText.Contains($quietProbeRequirement)) {
+            throw "Guest bootstrap health checks must retry transient disconnects without a Python traceback: $quietProbeRequirement"
+        }
+    }
+    $rootCapacityFunction = [regex]::Match(
+        $BootstrapText,
+        '(?ms)^ensure_root_filesystem_capacity\(\) \{.*?^\}')
+    if (-not $rootCapacityFunction.Success) {
+        throw "Guest bootstrap is missing ensure_root_filesystem_capacity."
+    }
+    $rootCapacityText = $rootCapacityFunction.Value
+    foreach ($capacityRequirement in @(
+        'root_size_bytes="$(df -B1 --output=size / | tail -n 1 | tr -d ''[:space:]'')"',
+        'if [ "$root_size_bytes" -lt 17179869184 ]; then',
+        'root_device="$(readlink -f -- "$root_source"',
+        'partition_file="/sys/class/block/$root_device_name/partition"',
+        'root_device_type="$(lsblk -dnro TYPE -- "$root_device"',
+        'parent_type="$(lsblk -dnro TYPE -- "/dev/$parent_name"',
+        'part_number="$(awk ''NF {print $1; exit}'' "$partition_file")"',
+        '[[ "$part_number" =~ ^[0-9]+$ ]]',
+        '[ "$root_device_type" = "part" ]',
+        '[ "$parent_type" = "disk" ]',
+        'growpart "/dev/$parent_name" "$part_number"',
+        'Root partition expansion warning:',
+        'resize2fs "$root_source"',
+        'the appliance root filesystem is smaller than 16 GiB',
+        'less than 8 GiB is available on the appliance root filesystem'
+    )) {
+        if (-not $rootCapacityText.Contains($capacityRequirement)) {
+            throw "Guest bootstrap must safely expand and validate root filesystem capacity: $capacityRequirement"
+        }
+    }
+    if ($rootCapacityText -match '(?m)lsblk\s+-no\s+PARTN' -or
+        $rootCapacityText -match "awk\s+'NF\s*\{print;\s*exit\}'") {
+        throw "Guest bootstrap must not pass padded lsblk PARTN output to growpart."
+    }
+    $initialCapacityProbe = $rootCapacityText.IndexOf(
+        'root_size_bytes="$(df -B1 --output=size /', [System.StringComparison]::Ordinal)
+    $growthGate = $rootCapacityText.IndexOf(
+        'if [ "$root_size_bytes" -lt 17179869184 ]; then', [System.StringComparison]::Ordinal)
+    $growpartCall = $rootCapacityText.IndexOf(
+        'growpart "/dev/$parent_name" "$part_number"', [System.StringComparison]::Ordinal)
+    if ($initialCapacityProbe -lt 0 -or $growthGate -le $initialCapacityProbe -or
+        $growpartCall -le $growthGate) {
+        throw "Guest bootstrap must check root capacity before attempting growpart."
+    }
+    $earlyControlIndex = $BootstrapText.IndexOf(
+        'log "Early diagnostic control service started"', [System.StringComparison]::Ordinal)
+    $rootCapacityIndex = $BootstrapText.IndexOf(
+        'ensure_root_filesystem_capacity', $earlyControlIndex + 1, [System.StringComparison]::Ordinal)
+    $largePayloadIndex = $BootstrapText.IndexOf(
+        'while read -r checksum filename; do', [System.StringComparison]::Ordinal)
+    if ($earlyControlIndex -lt 0 -or $rootCapacityIndex -le $earlyControlIndex -or
+        $largePayloadIndex -le $rootCapacityIndex) {
+        throw "Guest root capacity must be checked after early diagnostics and before large payload downloads."
+    }
+    if ($HostControlText -notmatch '(?s)function Wait-GuestReady\s*\{\s*param\(\[int\]\$TimeoutSeconds = 1200\)' -or
+        -not $HostControlText.Contains('$diagnosticDeadline = (Get-Date).AddSeconds(180)') -or
+        -not $HostControlText.Contains('guest diagnostic service did not start within 180 seconds') -or
+        -not $HostControlText.Contains('A slow first installation can finish exactly on the timeout boundary.') -or
+        -not $HostControlText.Contains('if ($status.ready) { return $status }')) {
+        throw "HostControl must allow a 20-minute guest bootstrap and perform a final boundary probe."
+    }
+    if (-not $LauncherText.Contains('SendRequestAsync("start", TimeSpan.FromMinutes(30))')) {
+        throw "The launcher start request must outlive the guest and host readiness windows."
+    }
+    foreach ($runtimeLaunchRequirement in @(
+        '"ZHHZ-Win64-Shipping.exe"',
+        'using var runtimeProcess = Process.Start(startInfo)',
+        'runtimeProcess.HasExited',
+        'runtimeProcess.ExitCode'
+    )) {
+        if (-not $LauncherText.Contains($runtimeLaunchRequirement)) {
+            throw "The launcher must start and verify the real UE Shipping process: $runtimeLaunchRequirement"
+        }
     }
 }
 
@@ -641,6 +796,20 @@ function Get-ZipEntrySha256 {
     }
 }
 
+function Get-ZipEntryBytes {
+    param([Parameter(Mandatory = $true)]$Entry)
+
+    $stream = $Entry.Open()
+    $memory = [System.IO.MemoryStream]::new()
+    try {
+        $stream.CopyTo($memory)
+        return ,$memory.ToArray()
+    } finally {
+        $memory.Dispose()
+        $stream.Dispose()
+    }
+}
+
 function Assert-PayloadArchiveMatches {
     param(
         [Parameter(Mandatory = $true)][string]$Archive,
@@ -686,6 +855,8 @@ function Assert-PayloadArchiveMatches {
             "Appliance/appliance-manifest.json",
             "Appliance/ontotwin-ubuntu.vhdx",
             "Appliance/seed.iso",
+            "BackendPayload/bootstrap.sh",
+            "BackendPayload/control.py",
             "BackendPayload/release.tar.gz",
             "BackendPayload/SHA256SUMS"
         )
@@ -709,6 +880,14 @@ function Assert-PayloadArchiveMatches {
         if ([string]$archiveRelease.component_versions.appliance.version -ne [string]$archiveAppliance.version) {
             throw "Payload archive appliance version is inconsistent."
         }
+        Assert-UnixTextBytes `
+            -Bytes (Get-ZipEntryBytes -Entry (Get-ZipEntryByPath -Zip $zip -RelativePath "BackendPayload/bootstrap.sh")) `
+            -ExpectedPrefix "#!/bin/bash`n" `
+            -DisplayName "$Archive::BackendPayload/bootstrap.sh"
+        Assert-UnixTextBytes `
+            -Bytes (Get-ZipEntryBytes -Entry (Get-ZipEntryByPath -Zip $zip -RelativePath "BackendPayload/control.py")) `
+            -ExpectedPrefix "#!/usr/bin/env python3`n" `
+            -DisplayName "$Archive::BackendPayload/control.py"
         Assert-RuntimeManifestText `
             -UfsText (Get-ZipEntryText -Entry (Get-ZipEntryByPath -Zip $zip -RelativePath "ZHHZ/Manifest_UFSFiles_Win64.txt")) `
             -NonUfsText (Get-ZipEntryText -Entry (Get-ZipEntryByPath -Zip $zip -RelativePath "ZHHZ/Manifest_NonUFSFiles_Win64.txt"))
@@ -799,6 +978,20 @@ $applianceManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $ap
 if ([string]$releaseManifest.component_versions.appliance.version -ne [string]$applianceManifest.version) {
     throw "Installer release manifest and appliance manifest versions do not match."
 }
+if ([int]$applianceManifest.system_disk_size_gb -ne 20 -or
+    [int]$applianceManifest.minimum_guest_root_size_gb -ne 16 -or
+    [int]$applianceManifest.minimum_guest_root_free_gb -ne 8) {
+    throw "Appliance capacity contract must be system disk/root/root-free = 20/16/8 GiB."
+}
+foreach ($capacityField in @(
+    "system_disk_size_gb",
+    "minimum_guest_root_size_gb",
+    "minimum_guest_root_free_gb"
+)) {
+    if ([int]$releaseManifest.component_versions.appliance.$capacityField -ne [int]$applianceManifest.$capacityField) {
+        throw "Installer release manifest appliance capacity differs for $capacityField."
+    }
+}
 if ([int]$releaseManifest.component_versions.appliance.payload_port -ne 48075) {
     throw "Installer release manifest does not declare the required payload port 48075."
 }
@@ -818,6 +1011,10 @@ foreach ($requiredDirective in @('Type=oneshot', 'Restart=on-failure', 'TimeoutS
         throw "Appliance bootstrap service is missing $requiredDirective."
     }
 }
+if ($seedUserData -notmatch '(?ms)^growpart:\s*.*?^\s+devices:\s*\[''\/''\]\s*$' -or
+    $seedUserData -notmatch '(?m)^resize_rootfs:\s*true\s*$') {
+    throw "Appliance seed must explicitly grow the root partition and filesystem."
+}
 Assert-DataRootContract -DeployRoot $deployRoot -ApplianceManifest $applianceManifest
 $placementPolicyTests = Join-Path $installerRoot "tests\PayloadInstaller.PolicyTests\PayloadInstaller.PolicyTests.csproj"
 & dotnet run --project $placementPolicyTests -c Release --nologo
@@ -834,12 +1031,20 @@ $nestedEnvironment = Read-TarTextMember `
 $nestedCompose = Read-TarTextMember `
     -Archive (Join-Path $appPayload "BackendPayload\release.tar.gz") `
     -RelativePath "Deploy/docker-compose.release.yml"
-$packagedBootstrap = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $appPayload "BackendPayload\bootstrap.sh")
-$packagedControl = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $appPayload "BackendPayload\control.py")
+$packagedBootstrapPath = Join-Path $appPayload "BackendPayload\bootstrap.sh"
+$packagedControlPath = Join-Path $appPayload "BackendPayload\control.py"
+Assert-UnixTextFormat -Path $packagedBootstrapPath -ExpectedPrefix "#!/bin/bash`n"
+Assert-UnixTextFormat -Path $packagedControlPath -ExpectedPrefix "#!/usr/bin/env python3`n"
+$packagedBootstrap = Get-Content -Raw -Encoding UTF8 -LiteralPath $packagedBootstrapPath
+$packagedControl = Get-Content -Raw -Encoding UTF8 -LiteralPath $packagedControlPath
 Assert-BackendUpgradeSafety `
     -BootstrapText $packagedBootstrap `
     -ComposeText $nestedCompose `
     -ControlText $packagedControl
+Assert-StartupReadinessContract `
+    -BootstrapText $packagedBootstrap `
+    -HostControlText (Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $deployRoot "hyperv\host\HostControl.ps1")) `
+    -LauncherText (Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $deployRoot "launcher\OntoTwin.ZHHZ.Launcher\MainWindow.xaml.cs"))
 Assert-ReleaseDeployMatchesSource `
     -SourceDeployRoot $deployRoot `
     -ReleaseCompose $nestedCompose `
@@ -875,6 +1080,10 @@ if (-not $bundleText.Contains('$(var.PayloadVersion)') -or -not $bundleText.Cont
 }
 if (-not $msiText.Contains('$(var.MsiVersion)')) {
     throw "Package.wxs must consume the MsiVersion build variable."
+}
+if (-not $msiText.Contains('Include="$(var.LauncherDirectory)\**"') -or
+    -not $msiText.Contains('Exclude Files="$(var.LauncherPath)"')) {
+    throw "Package.wxs must install every launcher publish output while keeping LauncherExe explicitly authored."
 }
 foreach ($shortcutId in @('DesktopShortcut', 'StartMenuShortcut')) {
     if ($msiText -notmatch ('(?s)<Shortcut\s+Id="' + [regex]::Escape($shortcutId) + '"[^>]*Advertise="no"[^>]*/>')) {
@@ -973,6 +1182,19 @@ try {
             -p:PublishSingleFile=true @publishProperties -o $item.Output --nologo
         if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed: $($item.Project)" }
     }
+    foreach ($requiredLauncherFile in @(
+        'OntoTwin-ZHHZ-Launcher.exe',
+        'D3DCompiler_47_cor3.dll',
+        'PenImc_cor3.dll',
+        'PresentationNative_cor3.dll',
+        'vcruntime140_cor3.dll',
+        'wpfgfx_cor3.dll'
+    )) {
+        $requiredLauncherPath = Join-Path $launcherOutput $requiredLauncherFile
+        if (-not (Test-Path -LiteralPath $requiredLauncherPath -PathType Leaf)) {
+            throw "Self-contained WPF launcher dependency is missing from publish output: $requiredLauncherPath"
+        }
+    }
     if ($CodeSigningCertificateThumbprint) {
         foreach ($item in $projects) {
             foreach ($publishedExecutable in Get-ChildItem -LiteralPath $item.Output -Filter "*.exe" -File) {
@@ -990,6 +1212,7 @@ try {
         "-p:MsiVersion=$($releaseDescriptor.MsiVersion)" `
         "-p:PayloadVersion=$releaseVersion" `
         "-p:LauncherPath=$(Join-Path $launcherOutput 'OntoTwin-ZHHZ-Launcher.exe')" `
+        "-p:LauncherDirectory=$launcherOutput" `
         "-p:LauncherIconPath=$(Join-Path $deployRoot 'launcher\OntoTwin.ZHHZ.Launcher\LingYunZhi.ico')" `
         "-p:ServicePath=$(Join-Path $serviceOutput 'OntoTwin-ZHHZ-HostService.exe')" `
         "-p:HostScriptPath=$(Join-Path $deployRoot 'hyperv\host\HostControl.ps1')" `

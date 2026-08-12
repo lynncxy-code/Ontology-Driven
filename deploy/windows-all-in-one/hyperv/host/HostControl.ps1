@@ -26,6 +26,7 @@ $legacyDataRoot = [System.IO.Path]::GetFullPath((Join-Path $env:ProgramData "Ont
 $newDataRootFreeBytes = 50GB
 $existingDataRootFreeBytes = 20GB
 $systemDiskRefreshSafetyBytes = 1GB
+$minimumSystemDiskBytes = 20GB
 
 if ([string]::IsNullOrWhiteSpace($DataRoot)) {
     $configuredDataRoot = $null
@@ -167,7 +168,13 @@ function Read-ApplianceManifest {
     if (-not (Test-Path -LiteralPath $seedIso -PathType Leaf)) {
         throw "The backend appliance seed media is missing: $seedIso"
     }
-    return Get-Content -Raw -Encoding UTF8 -LiteralPath $manifestPath | ConvertFrom-Json
+    $manifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $manifestPath | ConvertFrom-Json
+    if ([int]$manifest.system_disk_size_gb -ne 20 -or
+        [int]$manifest.minimum_guest_root_size_gb -ne 16 -or
+        [int]$manifest.minimum_guest_root_free_gb -ne 8) {
+        throw "The appliance capacity contract must be system disk/root/root-free = 20/16/8 GiB."
+    }
+    return $manifest
 }
 
 function Get-ApplianceFingerprint {
@@ -176,12 +183,13 @@ function Get-ApplianceFingerprint {
     $version = ([string]$Manifest.version).Trim()
     $systemHash = ([string]$Manifest.system_vhdx_sha256).Trim().ToLowerInvariant()
     $seedHash = ([string]$Manifest.seed_iso_sha256).Trim().ToLowerInvariant()
+    $systemDiskSizeGb = [int]$Manifest.system_disk_size_gb
     if ([string]::IsNullOrWhiteSpace($version) -or
         [string]::IsNullOrWhiteSpace($systemHash) -or
         [string]::IsNullOrWhiteSpace($seedHash)) {
         throw "The backend appliance manifest does not contain a complete version/disk/seed fingerprint."
     }
-    return "$version|$systemHash|$seedHash"
+    return "$version|$systemHash|$seedHash|system-disk-${systemDiskSizeGb}gb"
 }
 
 function Ensure-ControlToken {
@@ -521,9 +529,18 @@ function Ensure-Vm {
     $pendingFingerprint = if (Test-Path -LiteralPath $pendingVersionMarker -PathType Leaf) {
         ([string](Get-Content -Raw -LiteralPath $pendingVersionMarker)).Trim()
     } else { "" }
+    $installedSystemDiskBytes = [int64]0
+    if (Test-Path -LiteralPath $systemDisk -PathType Leaf) {
+        try {
+            $installedSystemDiskBytes = [int64](Get-VHD -Path $systemDisk -ErrorAction Stop).Size
+        } catch {
+            throw "Unable to inspect the installed appliance system disk: $systemDisk. $($_.Exception.Message)"
+        }
+    }
     $needsSystemRefresh = ($installedFingerprint -ne $applianceFingerprint -and
         $pendingFingerprint -ne $applianceFingerprint) -or
-        -not (Test-Path -LiteralPath $systemDisk -PathType Leaf)
+        -not (Test-Path -LiteralPath $systemDisk -PathType Leaf) -or
+        $installedSystemDiskBytes -lt [int64]$minimumSystemDiskBytes
 
     # A process interruption may leave a full staged copy behind. It is never
     # attached to the VM and has no committed marker, so discard it before the
@@ -559,6 +576,14 @@ function Ensure-Vm {
             $stagedSystemDiskLength = [int64](Get-Item -LiteralPath $stagedSystemDisk -ErrorAction Stop).Length
             if ($stagedSystemDiskLength -ne $expectedSystemDiskLength) {
                 throw "The staged appliance system disk length does not match its source."
+            }
+            $stagedVhd = Get-VHD -Path $stagedSystemDisk -ErrorAction Stop
+            if ([int64]$stagedVhd.Size -lt [int64]$minimumSystemDiskBytes) {
+                Resize-VHD -Path $stagedSystemDisk -SizeBytes ([int64]$minimumSystemDiskBytes) -ErrorAction Stop
+                $stagedVhd = Get-VHD -Path $stagedSystemDisk -ErrorAction Stop
+            }
+            if ([int64]$stagedVhd.Size -lt [int64]$minimumSystemDiskBytes) {
+                throw "The staged appliance system disk could not be expanded to the required 20 GiB capacity."
             }
         } catch {
             Remove-Item -LiteralPath $stagedSystemDisk -Force -ErrorAction SilentlyContinue
@@ -623,8 +648,10 @@ function Get-GuestHeaders {
 }
 
 function Wait-GuestReady {
-    param([int]$TimeoutSeconds = 600)
+    param([int]$TimeoutSeconds = 1200)
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $diagnosticDeadline = (Get-Date).AddSeconds(180)
+    $diagnosticServiceResponded = $false
     $lastFailure = "No response received from the guest control service."
     $lastStatus = ""
     $lastComposeError = ""
@@ -632,6 +659,7 @@ function Wait-GuestReady {
     do {
         try {
             $status = Invoke-RestMethod -Uri "http://${guestAddress}:$guestControlPort/status" -Headers (Get-GuestHeaders) -TimeoutSec 5
+            $diagnosticServiceResponded = $true
             if ($status.ready) { return $status }
             $lastStatus = ($status | ConvertTo-Json -Compress -Depth 5)
             if ($status.PSObject.Properties["compose_error"]) {
@@ -644,8 +672,36 @@ function Wait-GuestReady {
         } catch {
             $lastFailure = $_.Exception.Message
         }
+        if (-not $diagnosticServiceResponded -and (Get-Date) -ge $diagnosticDeadline) {
+            if (Test-Path -LiteralPath $pendingVersionMarker -PathType Leaf) {
+                Remove-Item -LiteralPath $pendingVersionMarker -Force
+            }
+            $diagnosticVm = Get-VM -Name $vmName -ErrorAction SilentlyContinue
+            $diagnosticVmState = if ($diagnosticVm) { [string]$diagnosticVm.State } else { "NotInstalled" }
+            throw "The OntoTwin guest diagnostic service did not start within 180 seconds. " +
+                "VMState=$diagnosticVmState; GuestControl=http://${guestAddress}:$guestControlPort; " +
+                "LastError=$lastFailure. The next Start will refresh only the appliance system disk; customer data is preserved."
+        }
         Start-Sleep -Seconds 3
     } while ((Get-Date) -lt $deadline)
+
+    # A slow first installation can finish exactly on the timeout boundary.
+    # Probe once more before reporting failure so a completed bootstrap is not
+    # misclassified merely because the previous sleep crossed the deadline.
+    try {
+        $status = Invoke-RestMethod -Uri "http://${guestAddress}:$guestControlPort/status" -Headers (Get-GuestHeaders) -TimeoutSec 10
+        if ($status.ready) { return $status }
+        $lastStatus = ($status | ConvertTo-Json -Compress -Depth 5)
+        if ($status.PSObject.Properties["compose_error"]) {
+            $lastComposeError = [string]$status.compose_error
+        }
+        if ($status.PSObject.Properties["bootstrap_log_tail"]) {
+            $lastBootstrapLog = [string]$status.bootstrap_log_tail
+        }
+        $lastFailure = "The guest control service responded on the final probe, but the backend is not ready."
+    } catch {
+        $lastFailure = $_.Exception.Message
+    }
 
     $vm = Get-VM -Name $vmName -ErrorAction SilentlyContinue
     $vmState = if ($vm) { [string]$vm.State } else { "NotInstalled" }
@@ -658,6 +714,14 @@ function Wait-GuestReady {
     }
     if ($lastBootstrapLog.Length -gt 6000) {
         $lastBootstrapLog = $lastBootstrapLog.Substring($lastBootstrapLog.Length - 6000)
+    }
+    # If the guest never exposed even its early diagnostic service, regard the
+    # just-staged system disk as an incomplete attempt. Customer data remains on
+    # the separate data VHDX, while the next Start recreates only the system disk.
+    if ([string]::IsNullOrWhiteSpace($lastStatus) -and
+        [string]::IsNullOrWhiteSpace($lastBootstrapLog) -and
+        (Test-Path -LiteralPath $pendingVersionMarker -PathType Leaf)) {
+        Remove-Item -LiteralPath $pendingVersionMarker -Force
     }
     throw "The OntoTwin backend appliance did not become ready within $TimeoutSeconds seconds. " +
         "VMState=$vmState; GuestIPs=$guestIps; GuestControl=http://${guestAddress}:$guestControlPort; " +

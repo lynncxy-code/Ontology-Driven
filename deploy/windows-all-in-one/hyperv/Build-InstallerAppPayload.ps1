@@ -7,7 +7,9 @@ param(
     [string]$ApplianceDirectory,
 
     [Parameter(Mandatory = $true)]
-    [string]$OutputDirectory
+    [string]$OutputDirectory,
+
+    [string]$WslDistribution = "Ubuntu-22.04"
 )
 
 Set-StrictMode -Version Latest
@@ -18,6 +20,81 @@ function Assert-CanonicalReleaseVersion {
 
     if ($Version -cnotmatch '^\d+\.\d+\.\d+-r\d+-rc\d+(?:\.\d+)?$') {
         throw "Release manifest version is not canonical: $Version"
+    }
+}
+
+function Convert-ToWslPath {
+    param([Parameter(Mandatory = $true)][string]$WindowsPath)
+
+    $fullPath = [System.IO.Path]::GetFullPath($WindowsPath)
+    if ($fullPath -notmatch '^([A-Za-z]):[\\/](.*)$') {
+        throw "Only local drive paths can be inspected by the WSL appliance toolchain: $fullPath"
+    }
+    return "/mnt/$($Matches[1].ToLowerInvariant())/$($Matches[2].Replace('\', '/'))"
+}
+
+function Assert-UnixTextFormat {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$ExpectedPrefix
+    )
+
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $prefixBytes = [System.Text.Encoding]::ASCII.GetBytes($ExpectedPrefix)
+    if ($bytes.Length -lt $prefixBytes.Length) {
+        throw "Linux payload text is truncated: $Path"
+    }
+    if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+        throw "Linux payload text must not contain a UTF-8 BOM: $Path"
+    }
+    if ($bytes.Length -ge 2 -and
+        (($bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE) -or
+         ($bytes[0] -eq 0xFE -and $bytes[1] -eq 0xFF))) {
+        throw "Linux payload text must not contain a UTF-16 BOM: $Path"
+    }
+    if ($bytes -contains [byte]0x0D) {
+        throw "Linux payload text contains CR/CRLF bytes and is unsafe for the appliance: $Path"
+    }
+    for ($index = 0; $index -lt $prefixBytes.Length; $index++) {
+        if ($bytes[$index] -ne $prefixBytes[$index]) {
+            throw "Linux payload text does not begin with the required LF-only interpreter line: $Path"
+        }
+    }
+    if ($bytes[$bytes.Length - 1] -ne 0x0A) {
+        throw "Linux payload text must end with LF: $Path"
+    }
+}
+
+function Assert-RootCapacitySafety {
+    param([Parameter(Mandatory = $true)][string]$BootstrapText)
+
+    $rootCapacityFunction = [regex]::Match(
+        $BootstrapText,
+        '(?ms)^ensure_root_filesystem_capacity\(\) \{.*?^\}')
+    if (-not $rootCapacityFunction.Success) {
+        throw "Guest bootstrap is missing ensure_root_filesystem_capacity."
+    }
+    $rootCapacityText = $rootCapacityFunction.Value
+    foreach ($requirement in @(
+        'if [ "$root_size_bytes" -lt 17179869184 ]; then',
+        'partition_file="/sys/class/block/$root_device_name/partition"',
+        'part_number="$(awk ''NF {print $1; exit}'' "$partition_file")"',
+        '[[ "$part_number" =~ ^[0-9]+$ ]]',
+        '[ "$root_device_type" = "part" ]',
+        '[ "$parent_type" = "disk" ]',
+        'growpart "/dev/$parent_name" "$part_number"'
+    )) {
+        if (-not $rootCapacityText.Contains($requirement)) {
+            throw "Guest bootstrap root expansion safety requirement is missing: $requirement"
+        }
+    }
+    if ($rootCapacityText -match '(?m)lsblk\s+-no\s+PARTN' -or
+        $rootCapacityText -match "awk\s+'NF\s*\{print;\s*exit\}'") {
+        throw "Guest bootstrap must not pass padded lsblk PARTN output to growpart."
+    }
+    if ($rootCapacityText.IndexOf('if [ "$root_size_bytes" -lt 17179869184 ]; then', [System.StringComparison]::Ordinal) -ge
+        $rootCapacityText.IndexOf('growpart "/dev/$parent_name" "$part_number"', [System.StringComparison]::Ordinal)) {
+        throw "Guest bootstrap must check root capacity before attempting growpart."
     }
 }
 
@@ -64,10 +141,14 @@ function Assert-RuntimeEvidence {
 
     if ([string]$RuntimeIdentity.source_project_path -notmatch '(?i)(^|[/\\])ZHHZ\.uproject$' -or
         [string]$RuntimeIdentity.source_project_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        [int]$RuntimeIdentity.schema_version -lt 3 -or
+        @($RuntimeIdentity.source_build_inputs).Count -eq 0 -or
         @($RuntimeIdentity.source_umap_files).Count -eq 0) {
-        throw "Runtime manifest does not contain valid source project and .umap evidence."
+        throw "Runtime manifest does not contain valid source/config/plugin and .umap evidence."
     }
-    if ((@($RuntimeIdentity.source_umap_files) | ConvertTo-Json -Depth 5 -Compress) -cne
+    if ((@($RuntimeIdentity.source_build_inputs) | ConvertTo-Json -Depth 5 -Compress) -cne
+        (@($RuntimeComponent.source_build_inputs) | ConvertTo-Json -Depth 5 -Compress) -or
+        (@($RuntimeIdentity.source_umap_files) | ConvertTo-Json -Depth 5 -Compress) -cne
         (@($RuntimeComponent.source_umap_files) | ConvertTo-Json -Depth 5 -Compress) -or
         (@($RuntimeIdentity.package_files) | ConvertTo-Json -Depth 5 -Compress) -cne
         (@($RuntimeComponent.package_files) | ConvertTo-Json -Depth 5 -Compress)) {
@@ -276,7 +357,9 @@ function Assert-BackendUpgradeSafety {
         'def compose_status():',
         'Bootstrap is still preparing: missing',
         '"bootstrap_in_progress": bootstrap_active',
-        '"ready": not bootstrap_active and backend_ready()'
+        '"ready": not bootstrap_active and backend_ready()',
+        '"root_total_bytes": root_total',
+        '"root_free_bytes": root_free'
     )) {
         if (-not $ControlText.Contains($controlRequirement)) {
             throw "Guest control is not safe during early bootstrap: $controlRequirement"
@@ -332,6 +415,19 @@ $actualSeedHash = (Get-FileHash -LiteralPath $seedIsoPath -Algorithm SHA256).Has
 $actualDiskHash = (Get-FileHash -LiteralPath $baseDiskPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $actualDockerHash = (Get-FileHash -LiteralPath (Join-Path $appliance "docker-static.tgz") -Algorithm SHA256).Hash.ToLowerInvariant()
 $actualComposeHash = (Get-FileHash -LiteralPath (Join-Path $appliance "docker-compose") -Algorithm SHA256).Hash.ToLowerInvariant()
+$systemDiskSizeGb = [int]$applianceManifest.system_disk_size_gb
+$minimumGuestRootSizeGb = [int]$applianceManifest.minimum_guest_root_size_gb
+$minimumGuestRootFreeGb = [int]$applianceManifest.minimum_guest_root_free_gb
+if ($systemDiskSizeGb -ne 20 -or $minimumGuestRootSizeGb -ne 16 -or $minimumGuestRootFreeGb -ne 8) {
+    throw "Appliance capacity contract must be system disk/root/root-free = 20/16/8 GiB."
+}
+$baseDiskLinux = Convert-ToWslPath $baseDiskPath
+$vhdInfoText = (& wsl.exe -d $WslDistribution -u root -- qemu-img info --output=json $baseDiskLinux) -join "`n"
+if ($LASTEXITCODE -ne 0) { throw "Cannot inspect appliance VHDX virtual capacity with qemu-img." }
+$vhdInfo = $vhdInfoText | ConvertFrom-Json
+if ([int64]$vhdInfo.'virtual-size' -ne [int64]$systemDiskSizeGb * 1GB) {
+    throw "Appliance VHDX virtual capacity does not match system_disk_size_gb."
+}
 if ($actualSeedHash -ne [string]$applianceManifest.seed_iso_sha256) {
     throw "Appliance seed hash does not match appliance-manifest.json."
 }
@@ -359,12 +455,20 @@ $expectedPayloadEndpoint = "http://172.28.251.1:$expectedPayloadPort"
 if (-not $seedUserData.Contains($expectedPayloadEndpoint)) {
     throw "Appliance seed does not use the host payload port $expectedPayloadPort."
 }
+if ($seedUserData -notmatch '(?ms)^growpart:\s*.*?^\s+devices:\s*\[''\/''\]\s*$' -or
+    $seedUserData -notmatch '(?m)^resize_rootfs:\s*true\s*$') {
+    throw "Appliance seed must explicitly grow the root partition and filesystem."
+}
 $bootstrapPath = Join-Path $guestRoot "bootstrap.sh"
+Assert-UnixTextFormat -Path $bootstrapPath -ExpectedPrefix "#!/bin/bash`n"
+$controlPath = Join-Path $guestRoot "control.py"
+Assert-UnixTextFormat -Path $controlPath -ExpectedPrefix "#!/usr/bin/env python3`n"
 $bootstrapText = Get-Content -Raw -Encoding UTF8 -LiteralPath $bootstrapPath
-$controlText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $guestRoot "control.py")
+$controlText = Get-Content -Raw -Encoding UTF8 -LiteralPath $controlPath
 if (-not $bootstrapText.Contains($expectedPayloadEndpoint)) {
     throw "Guest bootstrap does not use the host payload port $expectedPayloadPort."
 }
+Assert-RootCapacitySafety -BootstrapText $bootstrapText
 $composeText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $release "Deploy\docker-compose.release.yml")
 Assert-BackendUpgradeSafety -BootstrapText $bootstrapText -ComposeText $composeText -ControlText $controlText
 $releaseManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $release "release-manifest.json") | ConvertFrom-Json
@@ -378,6 +482,26 @@ if ([string]$releaseManifest.component_versions.release_version -ne $releaseVers
 }
 if ([bool]$releaseManifest.pixel_streaming_included) {
     throw "Release manifest enables Pixel Streaming, which is forbidden in this release."
+}
+if ($releaseManifest.PSObject.Properties.Name -notcontains "reset_backend_baseline_on_upgrade") {
+    throw "Release manifest does not declare reset_backend_baseline_on_upgrade."
+}
+if ([bool]$releaseManifest.reset_backend_baseline_on_upgrade) {
+    foreach ($requiredResetFragment in @(
+        'baseline-backups/',
+        'previous_bootstrap_incomplete=false',
+        '[ -f "$BOOTSTRAP_IN_PROGRESS" ]',
+        '[ "$previous_bootstrap_incomplete" = true ]',
+        'systemctl stop docker.service',
+        'mv "$DATA_ROOT/docker" "$baseline_backup_root/docker"',
+        'mv "$DATA_ROOT/release-data" "$baseline_backup_root/release-data"',
+        'rm -f "$PAYLOAD_MARKER" "$IMAGES_MARKER"',
+        'systemctl start docker.service'
+    )) {
+        if (-not $bootstrapText.Contains($requiredResetFragment)) {
+            throw "Guest bootstrap is missing the recoverable baseline reset contract: $requiredResetFragment"
+        }
+    }
 }
 $customerEnvironmentPath = Join-Path $release "Deploy\customer.env.example"
 $customerEnvironment = Get-Content -Raw -Encoding UTF8 -LiteralPath $customerEnvironmentPath
@@ -445,6 +569,9 @@ $releaseManifest.component_versions = [ordered]@{
         system_vhdx_sha256 = $actualDiskHash
         seed_iso_sha256 = $actualSeedHash
         payload_port = $expectedPayloadPort
+        system_disk_size_gb = $systemDiskSizeGb
+        minimum_guest_root_size_gb = $minimumGuestRootSizeGb
+        minimum_guest_root_free_gb = $minimumGuestRootFreeGb
         docker_engine_version = [string]$applianceManifest.docker_engine_version
         docker_engine_sha256 = $actualDockerHash
         docker_compose_version = [string]$applianceManifest.docker_compose_version
@@ -461,6 +588,8 @@ foreach ($name in @("ontotwin-ubuntu.vhdx", "seed.iso", "appliance-manifest.json
 
 Copy-Item -LiteralPath (Join-Path $guestRoot "bootstrap.sh") -Destination $backendPayload
 Copy-Item -LiteralPath (Join-Path $guestRoot "control.py") -Destination $backendPayload
+Assert-UnixTextFormat -Path (Join-Path $backendPayload "bootstrap.sh") -ExpectedPrefix "#!/bin/bash`n"
+Assert-UnixTextFormat -Path (Join-Path $backendPayload "control.py") -ExpectedPrefix "#!/usr/bin/env python3`n"
 Copy-Item -LiteralPath (Join-Path $appliance "docker-static.tgz") -Destination $backendPayload
 Copy-Item -LiteralPath (Join-Path $appliance "docker-compose") -Destination $backendPayload
 

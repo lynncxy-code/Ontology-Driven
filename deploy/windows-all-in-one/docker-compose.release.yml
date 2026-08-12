@@ -3,7 +3,7 @@ name: ontotwin-zhhz
 services:
   backend:
     image: ${BACKEND_IMAGE}
-    restart: unless-stopped
+    restart: on-failure:5
     mem_limit: 2g
     ports:
       - "${ONTOTWIN_BIND_ADDRESS:-127.0.0.1}:${ONTOTWIN_HTTP_PORT:-5000}:5000"
@@ -21,6 +21,7 @@ services:
       ONTOTWIN_MIDDLEWARE_URL: ${ONTOTWIN_MIDDLEWARE_URL:-}
       ONTOTWIN_MEDIA_ALLOWED_HOSTS: ${ONTOTWIN_MEDIA_ALLOWED_HOSTS:-}
       ONTOTWIN_MEDIA_HTTP_EXCEPTIONS: ${ONTOTWIN_MEDIA_HTTP_EXCEPTIONS:-}
+      ONTOTWIN_MOCK_SIMULATOR_ENABLED: "true"
     volumes:
       - ../Models:/models
       - ../Data/project_assets:/app/data/project_assets
@@ -43,7 +44,7 @@ services:
 
   db:
     image: ${POSTGRES_IMAGE}
-    restart: unless-stopped
+    restart: on-failure:5
     mem_limit: 1g
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -62,7 +63,7 @@ services:
 
   neo4j:
     image: ${NEO4J_IMAGE}
-    restart: unless-stopped
+    restart: on-failure:5
     mem_limit: 2g
     environment:
       NEO4J_AUTH: ${NEO4J_USER}/${NEO4J_PASSWORD}

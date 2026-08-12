@@ -101,6 +101,14 @@ def bootstrap_in_progress():
         return False
 
 
+def root_capacity():
+    try:
+        usage = shutil.disk_usage("/")
+        return usage.total, usage.free
+    except Exception:
+        return None, None
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "OntoTwinGuestControl/1.0"
 
@@ -129,6 +137,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         compose_exit_code, services, compose_error = compose_status()
         bootstrap_active = bootstrap_in_progress()
+        root_total, root_free = root_capacity()
         self.write_json(200, {
             "ready": not bootstrap_active and backend_ready(),
             "bootstrap_in_progress": bootstrap_active,
@@ -136,6 +145,8 @@ class Handler(BaseHTTPRequestHandler):
             "services": services,
             "compose_error": compose_error,
             "bootstrap_log_tail": bootstrap_log_tail(),
+            "root_total_bytes": root_total,
+            "root_free_bytes": root_free,
         })
 
     def do_POST(self):

@@ -13,7 +13,7 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishTrimmed>false</PublishTrimmed>
     <DebugType>embedded</DebugType>
-    <Version>3.7.1.1002</Version>
+    <Version>3.7.1.1006</Version>
     <ApplicationIcon>LingYunZhi.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>

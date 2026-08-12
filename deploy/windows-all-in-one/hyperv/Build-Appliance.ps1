@@ -26,6 +26,9 @@ $composeExpectedHash = switch ($ComposeVersion) {
     "5.1.4" { "45ef136eeb23e2cfdef0e06592d3c2d8566172a5874169b35b446cf251080ecb" }
     default { throw "No pinned Docker Compose package hash is registered for version $ComposeVersion." }
 }
+$systemDiskSizeGb = 20
+$minimumGuestRootSizeGb = 16
+$minimumGuestRootFreeGb = 8
 
 function Invoke-Download {
     param([string]$Uri, [string]$Path)
@@ -103,9 +106,22 @@ try {
     $outputVhdx = Join-Path $output "ontotwin-ubuntu.vhdx"
     $sourceLinux = Convert-ToWslPath $ubuntuArchive
     $outputLinux = Convert-ToWslPath $outputVhdx
+    $resizedSource = Join-Path $temporary "ubuntu-resized.qcow2"
+    $resizedSourceLinux = Convert-ToWslPath $resizedSource
+    Write-Host "Preparing a ${systemDiskSizeGb} GiB Ubuntu source disk..."
+    & wsl.exe -d $WslDistribution -u root -- qemu-img convert -f qcow2 -O qcow2 $sourceLinux $resizedSourceLinux
+    if ($LASTEXITCODE -ne 0) { throw "Ubuntu cloud image staging failed." }
+    & wsl.exe -d $WslDistribution -u root -- qemu-img resize $resizedSourceLinux "${systemDiskSizeGb}G"
+    if ($LASTEXITCODE -ne 0) { throw "Ubuntu cloud image expansion failed." }
     Write-Host "Converting Ubuntu disk to dynamic VHDX..."
-    & wsl.exe -d $WslDistribution -u root -- qemu-img convert -p -f qcow2 -O vhdx -o subformat=dynamic,block_size=2097152 $sourceLinux $outputLinux
+    & wsl.exe -d $WslDistribution -u root -- qemu-img convert -p -f qcow2 -O vhdx -o subformat=dynamic,block_size=2097152 $resizedSourceLinux $outputLinux
     if ($LASTEXITCODE -ne 0) { throw "Ubuntu cloud image to VHDX conversion failed." }
+    $vhdInfoText = (& wsl.exe -d $WslDistribution -u root -- qemu-img info --output=json $outputLinux) -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw "Ubuntu VHDX capacity verification failed." }
+    $vhdInfo = $vhdInfoText | ConvertFrom-Json
+    if ([int64]$vhdInfo.'virtual-size' -ne [int64]$systemDiskSizeGb * 1GB) {
+        throw "Ubuntu VHDX virtual capacity is not ${systemDiskSizeGb} GiB."
+    }
 
     $seedDirectory = Join-Path $temporary "seed"
     New-Item -ItemType Directory -Path $seedDirectory | Out-Null
@@ -134,6 +150,9 @@ try {
     $manifest = [ordered]@{
         version = $ApplianceVersion
         vm_generation = 2
+        system_disk_size_gb = $systemDiskSizeGb
+        minimum_guest_root_size_gb = $minimumGuestRootSizeGb
+        minimum_guest_root_free_gb = $minimumGuestRootFreeGb
         data_disk_size_gb = 40
         guest_os = "Ubuntu Server 24.04 LTS"
         ubuntu_source = $ubuntuUrl

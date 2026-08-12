@@ -19,6 +19,9 @@ $ErrorActionPreference = "Stop"
 $base = [System.IO.Path]::GetFullPath($BaseApplianceDirectory)
 $output = [System.IO.Path]::GetFullPath($OutputDirectory)
 $guestRoot = Join-Path $PSScriptRoot "guest"
+$systemDiskSizeGb = 20
+$minimumGuestRootSizeGb = 16
+$minimumGuestRootFreeGb = 8
 
 function Convert-ToWslPath {
     param([string]$WindowsPath)
@@ -48,8 +51,27 @@ if (Test-Path -LiteralPath $output) {
     New-Item -ItemType Directory -Path $output | Out-Null
 }
 
-foreach ($name in @("ontotwin-ubuntu.vhdx", "docker-static.tgz", "docker-compose")) {
+foreach ($name in @("docker-static.tgz", "docker-compose")) {
     Copy-Item -LiteralPath (Join-Path $base $name) -Destination (Join-Path $output $name)
+}
+$outputVhdx = Join-Path $output "ontotwin-ubuntu.vhdx"
+$baseVhdxLinux = Convert-ToWslPath (Join-Path $base "ontotwin-ubuntu.vhdx")
+$outputVhdxLinux = Convert-ToWslPath $outputVhdx
+$resizedSource = Join-Path $output "system-resize.qcow2"
+$resizedSourceLinux = Convert-ToWslPath $resizedSource
+& wsl.exe -d $WslDistribution -u root -- qemu-img convert -f vhdx -O qcow2 $baseVhdxLinux $resizedSourceLinux
+if ($LASTEXITCODE -ne 0) { throw "Appliance VHDX staging conversion failed." }
+& wsl.exe -d $WslDistribution -u root -- qemu-img resize $resizedSourceLinux "${systemDiskSizeGb}G"
+if ($LASTEXITCODE -ne 0) { throw "Appliance system disk expansion failed." }
+& wsl.exe -d $WslDistribution -u root -- qemu-img convert -f qcow2 -O vhdx `
+    -o subformat=dynamic,block_size=2097152 $resizedSourceLinux $outputVhdxLinux
+if ($LASTEXITCODE -ne 0) { throw "Expanded appliance VHDX conversion failed." }
+Remove-Item -LiteralPath $resizedSource -Force
+$vhdInfoText = (& wsl.exe -d $WslDistribution -u root -- qemu-img info --output=json $outputVhdxLinux) -join "`n"
+if ($LASTEXITCODE -ne 0) { throw "Appliance VHDX capacity verification failed." }
+$vhdInfo = $vhdInfoText | ConvertFrom-Json
+if ([int64]$vhdInfo.'virtual-size' -ne [int64]$systemDiskSizeGb * 1GB) {
+    throw "Appliance VHDX virtual capacity is not ${systemDiskSizeGb} GiB."
 }
 
 $temporary = Join-Path ([System.IO.Path]::GetTempPath()) ("ontotwin-seed-" + [Guid]::NewGuid().ToString("N"))
@@ -71,6 +93,9 @@ try {
         throw "The rebuilt seed must use a new appliance version so installed VMs refresh: $ApplianceVersion"
     }
     $manifest.version = $ApplianceVersion
+    $manifest | Add-Member -NotePropertyName system_disk_size_gb -NotePropertyValue $systemDiskSizeGb -Force
+    $manifest | Add-Member -NotePropertyName minimum_guest_root_size_gb -NotePropertyValue $minimumGuestRootSizeGb -Force
+    $manifest | Add-Member -NotePropertyName minimum_guest_root_free_gb -NotePropertyValue $minimumGuestRootFreeGb -Force
     $manifest.system_vhdx_sha256 = (Get-FileHash -LiteralPath (Join-Path $output "ontotwin-ubuntu.vhdx") -Algorithm SHA256).Hash.ToLowerInvariant()
     $manifest.seed_iso_sha256 = (Get-FileHash -LiteralPath $isoPath -Algorithm SHA256).Hash.ToLowerInvariant()
     $manifest.generated_at = (Get-Date).ToString("o")

@@ -202,6 +202,9 @@ $runtimeIdentity = Get-Content -Raw -LiteralPath $runtimeManifestPath | ConvertF
 if ($runtimeIdentity.project_name -ne "ZHHZ" -or $runtimeIdentity.target_name -ne "ZHHZ") {
     throw "Runtime identity mismatch: project='$($runtimeIdentity.project_name)', target='$($runtimeIdentity.target_name)'."
 }
+if ([int]$runtimeIdentity.schema_version -lt 3 -or @($runtimeIdentity.source_build_inputs).Count -eq 0) {
+    throw "Runtime identity is missing schema-3 source/config/plugin evidence. Run a fresh Cook instead of reusing an old runtime."
+}
 if ([System.IO.Path]::GetFileNameWithoutExtension($sourceProject) -ne "ZHHZ") {
     throw "SourceProjectPath must point to ZHHZ.uproject: $sourceProject"
 }
@@ -210,6 +213,20 @@ if ($sourceProjectHash -ne [string]$runtimeIdentity.source_project_sha256) {
     throw "SourceProjectPath hash does not match the packaged runtime manifest."
 }
 $sourceProjectRoot = Split-Path -Parent $sourceProject
+$sourceProjectPrefix = [System.IO.Path]::GetFullPath($sourceProjectRoot).TrimEnd('\') + '\'
+foreach ($inputEntry in @($runtimeIdentity.source_build_inputs)) {
+    $relativeInput = [string]$inputEntry.path
+    if ([string]::IsNullOrWhiteSpace($relativeInput) -or [System.IO.Path]::IsPathRooted($relativeInput)) {
+        throw "Unsafe source build input path in runtime manifest: $relativeInput"
+    }
+    $currentInput = [System.IO.Path]::GetFullPath((Join-Path $sourceProjectRoot $relativeInput.Replace('/', '\')))
+    if (-not $currentInput.StartsWith($sourceProjectPrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+        -not (Test-Path -LiteralPath $currentInput -PathType Leaf) -or
+        (Get-Item -LiteralPath $currentInput).Length -ne [long]$inputEntry.bytes -or
+        (Get-FileHash -LiteralPath $currentInput -Algorithm SHA256).Hash.ToLowerInvariant() -ne [string]$inputEntry.sha256) {
+        throw "A source/config/plugin build input changed after Cook and must be recooked: $relativeInput"
+    }
+}
 $sourceContentRoot = Join-Path $sourceProjectRoot "Content"
 $sourceMaps = @(Get-ChildItem -LiteralPath $sourceContentRoot -Filter "*.umap" -Recurse -File | Sort-Object FullName)
 if ($sourceMaps.Count -eq 0) { throw "Source project does not contain any .umap files: $sourceContentRoot" }
@@ -277,6 +294,9 @@ Write-ReleaseDocument `
     -Descriptor $releaseDescriptor
 
 $baseManifest = Get-Content -Raw -LiteralPath $baseManifestPath | ConvertFrom-Json
+if ($baseManifest.PSObject.Properties.Name -notcontains "reset_backend_baseline_on_upgrade") {
+    throw "Base release manifest does not declare reset_backend_baseline_on_upgrade."
+}
 $outputDeploy = Join-Path $output "Deploy"
 New-Item -ItemType Directory -Path $outputDeploy -Force | Out-Null
 
@@ -352,6 +372,7 @@ $componentVersions = [ordered]@{
         target_name = [string]$runtimeIdentity.target_name
         source_project_path = $sourceProject
         source_project_sha256 = [string]$runtimeIdentity.source_project_sha256
+        source_build_inputs = @($runtimeIdentity.source_build_inputs)
         source_umap_files = $sourceMapHashes
         package_files = $runtimePackageHashes
     }
@@ -371,7 +392,7 @@ $componentVersions = [ordered]@{
 }
 
 $releaseManifest = [ordered]@{
-    manifest_schema_version = 2
+    manifest_schema_version = 3
     product = "OntoTwin ZHHZ"
     release_version = $ReleaseVersion
     data_version = $baseManifest.data_version
@@ -383,6 +404,7 @@ $releaseManifest = [ordered]@{
     realtime_websocket_enabled = $false
     pixel_streaming_included = $false
     artstudio_enabled_by_default = $true
+    reset_backend_baseline_on_upgrade = [bool]$baseManifest.reset_backend_baseline_on_upgrade
     component_versions = $componentVersions
     postgres_counts = $baseManifest.postgres_counts
     files = $manifestFiles

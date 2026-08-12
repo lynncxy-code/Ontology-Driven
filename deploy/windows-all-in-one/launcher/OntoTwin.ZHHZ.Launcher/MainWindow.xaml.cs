@@ -32,6 +32,7 @@ public partial class MainWindow : Window
         _operationButtons = [StartButton, StopButton, ConsoleButton, BackupButton, RefreshButton];
         _steps = [Step1, Step2, Step3, Step4, Step5];
         _installRoot = ResolveInstallRoot();
+        ReleaseCaptionText.Text = ResolveReleaseCaption(_installRoot);
 
         var logDirectory = Path.Combine(ResolveDataRoot(), "Logs");
         try
@@ -96,6 +97,27 @@ public partial class MainWindow : Window
             : Path.GetFullPath(configured);
     }
 
+    private static string ResolveReleaseCaption(string installRoot)
+    {
+        var manifestPath = Path.Combine(ResolveAppRoot(installRoot), "release-manifest.json");
+        try
+        {
+            using var manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
+            if (manifest.RootElement.TryGetProperty("release_version", out var releaseVersion))
+            {
+                var value = releaseVersion.GetString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(value))
+                    return $"一体化客户版 · {value.ToUpperInvariant()}";
+            }
+        }
+        catch
+        {
+            // Status refresh and diagnostics still need to work when a payload
+            // installation was interrupted before the manifest was committed.
+        }
+        return "一体化客户版 · 版本未安装";
+    }
+
     private static string ResolveDataRoot()
     {
         var legacy = Path.Combine(
@@ -136,7 +158,15 @@ public partial class MainWindow : Window
                 startInfo.ArgumentList.Add("-OntoTwinBackendBaseUrl=http://127.0.0.1:5000");
                 startInfo.ArgumentList.Add("-OntoTwinRealtimeWebSocket=false");
                 startInfo.ArgumentList.Add("-OntoTwinPollInterval=2.0");
-                Process.Start(startInfo);
+                using var runtimeProcess = Process.Start(startInfo)
+                    ?? throw new InvalidOperationException("ZHHZ 运行时进程未能创建。");
+                await Task.Delay(TimeSpan.FromSeconds(3));
+                runtimeProcess.Refresh();
+                if (runtimeProcess.HasExited)
+                {
+                    throw new InvalidOperationException(
+                        $"ZHHZ 运行时启动后立即退出，退出码 {runtimeProcess.ExitCode}。");
+                }
                 AppendLog("ZHHZ 已启动。");
             }
             else
@@ -230,7 +260,7 @@ public partial class MainWindow : Window
         {
             try
             {
-                var operation = SendRequestAsync("start", TimeSpan.FromMinutes(20));
+                var operation = SendRequestAsync("start", TimeSpan.FromMinutes(30));
                 while (true)
                 {
                     var completed = await Task.WhenAny(operation, Task.Delay(TimeSpan.FromSeconds(15)));
@@ -361,8 +391,17 @@ public partial class MainWindow : Window
     private static void OpenConsole() =>
         Process.Start(new ProcessStartInfo("http://127.0.0.1:5000/nexus") { UseShellExecute = true });
 
-    private string ResolveRuntimePath() =>
-        Path.Combine(ResolveAppRoot(_installRoot), "ZHHZ", "ZHHZ.exe");
+    private string ResolveRuntimePath()
+    {
+        var runtimeRoot = Path.Combine(ResolveAppRoot(_installRoot), "ZHHZ");
+        var shippingExecutable = Path.Combine(
+            runtimeRoot, "ZHHZ", "Binaries", "Win64", "ZHHZ-Win64-Shipping.exe");
+        if (File.Exists(shippingExecutable)) return shippingExecutable;
+
+        // Compatibility fallback for development payloads that only contain
+        // the Unreal bootstrap executable.
+        return Path.Combine(runtimeRoot, "ZHHZ.exe");
+    }
 
     private void SetBusy(bool busy, string status)
     {

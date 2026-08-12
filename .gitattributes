@@ -1,0 +1,5 @@
+# Linux appliance files must retain Unix newlines even when the repository is
+# checked out on Windows with core.autocrlf enabled.
+deploy/windows-all-in-one/**/*.sh text eol=lf
+deploy/windows-all-in-one/hyperv/guest/control.py text eol=lf
+deploy/windows-all-in-one/hyperv/guest/cloud-init/* text eol=lf

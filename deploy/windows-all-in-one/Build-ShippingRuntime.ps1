@@ -26,6 +26,8 @@ $dynamicGeometryRelativePath = "Content\AVIC_Show\Art\A03_ParkLevel\AVIC_0706\Ge
 $dynamicGeometryCookPath = "/Game/AVIC_Show/Art/A03_ParkLevel/AVIC_0706/Geometries"
 $dynamicGeometrySource = Join-Path $projectRoot $dynamicGeometryRelativePath
 $packagingConfig = Join-Path $projectRoot "Config\DefaultGame.ini"
+$engineConfig = Join-Path $projectRoot "Config\DefaultEngine.ini"
+$sceneManagerSource = Join-Path $projectRoot "Plugins\OntoTwinSync\Source\OntoTwinSync\Private\TwinSceneManager.cpp"
 
 if (-not (Test-Path -LiteralPath $project -PathType Leaf)) {
     throw "Unreal project was not found: $project"
@@ -42,10 +44,36 @@ if (-not (Test-Path -LiteralPath $dynamicGeometrySource -PathType Container)) {
 if (-not (Test-Path -LiteralPath $packagingConfig -PathType Leaf)) {
     throw "Project packaging configuration was not found: $packagingConfig"
 }
+if (-not (Test-Path -LiteralPath $engineConfig -PathType Leaf)) {
+    throw "Project engine configuration was not found: $engineConfig"
+}
+if (-not (Test-Path -LiteralPath $sceneManagerSource -PathType Leaf)) {
+    throw "OntoTwin scene manager source was not found: $sceneManagerSource"
+}
 $packagingConfigText = Get-Content -LiteralPath $packagingConfig -Raw
 $requiredCookSetting = "+DirectoriesToAlwaysCook=(Path=`"$dynamicGeometryCookPath`")"
 if (-not $packagingConfigText.Contains($requiredCookSetting)) {
     throw "Dynamic geometry cook rule is missing from ${packagingConfig}: $requiredCookSetting"
+}
+$engineConfigText = Get-Content -LiteralPath $engineConfig -Raw
+foreach ($requiredHttpSetting in @(
+    '[HTTP]',
+    'HttpConnectionTimeout=120.0',
+    'HttpActivityTimeout=180.0',
+    'HttpTotalTimeout=300.0'
+)) {
+    if (-not $engineConfigText.Contains($requiredHttpSetting)) {
+        throw "Shipping HTTP readiness setting is missing from ${engineConfig}: $requiredHttpSetting"
+    }
+}
+$sceneManagerText = Get-Content -LiteralPath $sceneManagerSource -Raw
+foreach ($requiredRequestTimeout in @(
+    'HttpRequest->SetTimeout(300.0f);',
+    'HttpRequest->SetActivityTimeout(180.0f);'
+)) {
+    if (-not $sceneManagerText.Contains($requiredRequestTimeout)) {
+        throw "Snapshot request timeout gate is missing from ${sceneManagerSource}: $requiredRequestTimeout"
+    }
 }
 if (Test-Path -LiteralPath $archive) {
     if (@(Get-ChildItem -LiteralPath $archive -Force).Count -gt 0) {
@@ -91,6 +119,10 @@ if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
 $projectRuntime = Join-Path $runtime $projectName
 if (-not (Test-Path -LiteralPath $projectRuntime -PathType Container)) {
     throw "Shipping runtime identity directory is missing: $projectRuntime"
+}
+$shippingExecutable = Join-Path $projectRuntime "Binaries\Win64\$TargetName-Win64-Shipping.exe"
+if (-not (Test-Path -LiteralPath $shippingExecutable -PathType Leaf)) {
+    throw "Shipping runtime did not contain the real UE executable: $shippingExecutable"
 }
 $ufsManifest = Join-Path $runtime "Manifest_UFSFiles_Win64.txt"
 if (-not (Test-Path -LiteralPath $ufsManifest -PathType Leaf)) {
@@ -148,6 +180,36 @@ $sourceMaps = @(
         }
     }
 )
+$sourceBuildInputFiles = @(
+    Get-Item -LiteralPath $project
+    if (Test-Path -LiteralPath (Join-Path $projectRoot "Config") -PathType Container) {
+        Get-ChildItem -LiteralPath (Join-Path $projectRoot "Config") -Recurse -File -Filter "*.ini"
+    }
+    if (Test-Path -LiteralPath (Join-Path $projectRoot "Source") -PathType Container) {
+        Get-ChildItem -LiteralPath (Join-Path $projectRoot "Source") -Recurse -File |
+            Where-Object { $_.Extension -in @(".h", ".cpp", ".cs") }
+    }
+    $ontoTwinPluginRoot = Join-Path $projectRoot "Plugins\OntoTwinSync"
+    if (Test-Path -LiteralPath $ontoTwinPluginRoot -PathType Container) {
+        Get-ChildItem -LiteralPath $ontoTwinPluginRoot -Recurse -File |
+            Where-Object {
+                $_.Extension -in @(".h", ".cpp", ".cs", ".uplugin") -and
+                $_.FullName -notmatch '(?i)[\\/](Binaries|Intermediate|Saved)[\\/]'
+            }
+    }
+)
+$sourceBuildInputs = @(
+    $sourceBuildInputFiles | Sort-Object FullName -Unique | ForEach-Object {
+        [ordered]@{
+            path = $_.FullName.Substring($projectRoot.Length + 1).Replace('\', '/')
+            bytes = $_.Length
+            sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+    }
+)
+if ($sourceBuildInputs.Count -eq 0) {
+    throw "No source/config/plugin build inputs were captured for Shipping provenance."
+}
 $cookedArtifacts = @(
     foreach ($name in @(
         "$TargetName.exe",
@@ -166,11 +228,12 @@ $cookedArtifacts = @(
     }
 )
 $runtimeIdentity = [ordered]@{
-    schema_version = 2
+    schema_version = 3
     project_name = $projectName
     target_name = $TargetName
     source_project_path = $project
     source_project_sha256 = (Get-FileHash -LiteralPath $project -Algorithm SHA256).Hash.ToLowerInvariant()
+    source_build_inputs = $sourceBuildInputs
     source_maps = $sourceMaps
     cooked_artifacts = $cookedArtifacts
     uat_log_path = $uatLog
@@ -179,7 +242,7 @@ $runtimeIdentity = [ordered]@{
 }
 [System.IO.File]::WriteAllText(
     (Join-Path $runtime "ontotwin-runtime-manifest.json"),
-    ($runtimeIdentity | ConvertTo-Json -Depth 5),
+    ($runtimeIdentity | ConvertTo-Json -Depth 8),
     [System.Text.UTF8Encoding]::new($false))
 
 Write-Host "Shipping runtime created: $runtime" -ForegroundColor Green

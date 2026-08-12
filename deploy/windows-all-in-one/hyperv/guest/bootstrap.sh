@@ -53,6 +53,98 @@ EOF
   systemctl restart ontotwin-control.service
 }
 
+ensure_root_filesystem_capacity() {
+  local root_source root_type root_device root_device_name root_device_type root_sysfs_path
+  local partition_file parent_name parent_type part_number grow_output
+  local root_size_bytes root_available_bytes
+
+  root_source="$(findmnt -nro SOURCE -e /)"
+  root_type="$(findmnt -nro FSTYPE -e /)"
+  root_size_bytes="$(df -B1 --output=size / | tail -n 1 | tr -d '[:space:]')"
+
+  # The distributed Ubuntu image is intentionally compact. The Windows host
+  # expands its dynamic VHDX before first boot; grow the root partition and
+  # filesystem here as an idempotent fallback if cloud-init has not done so.
+  # Only inspect direct block partitions while the root filesystem is still
+  # below the release contract. Reading the partition number from sysfs avoids
+  # lsblk's padded numeric output (for example "    1"), which growpart rejects.
+  if [ "$root_size_bytes" -lt 17179869184 ]; then
+    root_device="$(readlink -f -- "$root_source" 2>/dev/null || printf '%s\n' "$root_source")"
+    root_device_name="${root_device##*/}"
+    root_device_type="$(lsblk -dnro TYPE -- "$root_device" 2>/dev/null | awk 'NF {print $1; exit}')"
+    root_sysfs_path="$(readlink -f -- "/sys/class/block/$root_device_name" 2>/dev/null || true)"
+    partition_file="/sys/class/block/$root_device_name/partition"
+    parent_name=""
+    parent_type=""
+    part_number=""
+    if [ -n "$root_sysfs_path" ] && [ -r "$partition_file" ]; then
+      parent_name="$(basename "$(dirname "$root_sysfs_path")")"
+      parent_type="$(lsblk -dnro TYPE -- "/dev/$parent_name" 2>/dev/null | awk 'NF {print $1; exit}')"
+      part_number="$(awk 'NF {print $1; exit}' "$partition_file")"
+    fi
+    log "Root partition inspection: source=$root_source resolved=$root_device type=${root_device_type:-unknown} parent=${parent_name:-unknown} parent_type=${parent_type:-unknown} partition=${part_number:-unknown}"
+
+    if [[ "$part_number" =~ ^[0-9]+$ ]] \
+      && [ "$part_number" -gt 0 ] \
+      && [ "$root_device_type" = "part" ] \
+      && [ -n "$parent_name" ] \
+      && [ "$parent_name" != "$root_device_name" ] \
+      && [ "$parent_type" = "disk" ] \
+      && [ -b "/dev/$parent_name" ] \
+      && command -v growpart >/dev/null 2>&1; then
+      grow_output=""
+      if ! grow_output="$(growpart "/dev/$parent_name" "$part_number" 2>&1)"; then
+        if ! printf '%s\n' "$grow_output" | grep -qi 'NOCHANGE'; then
+          # The final capacity checks below remain authoritative. A transient
+          # growpart failure must not abort a VM whose partition was already
+          # expanded by cloud-init between the initial probe and this fallback.
+          log "Root partition expansion warning: $grow_output"
+        fi
+      fi
+      [ -z "$grow_output" ] || log "Root partition check: $grow_output"
+      udevadm settle 2>/dev/null || true
+    else
+      log "Root partition expansion was not attempted because a direct numeric partition could not be identified safely"
+    fi
+  else
+    log "Root partition expansion is not required; the root filesystem already meets the 16 GiB contract"
+  fi
+
+  case "$root_type" in
+    ext2|ext3|ext4)
+      resize2fs "$root_source"
+      ;;
+    xfs)
+      xfs_growfs /
+      ;;
+    btrfs)
+      btrfs filesystem resize max /
+      ;;
+    *)
+      log "Root filesystem type '$root_type' is not explicitly resizable; validating its current capacity"
+      ;;
+  esac
+
+  root_size_bytes="$(df -B1 --output=size / | tail -n 1 | tr -d '[:space:]')"
+  root_available_bytes="$(df -B1 --output=avail / | tail -n 1 | tr -d '[:space:]')"
+  if [ "$root_available_bytes" -lt 8589934592 ]; then
+    # Only disposable operating-system caches are removed. OntoTwin payloads,
+    # databases, images and customer settings live on the separate data disk.
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /tmp/*
+    journalctl --vacuum-size=64M >/dev/null 2>&1 || true
+    root_available_bytes="$(df -B1 --output=avail / | tail -n 1 | tr -d '[:space:]')"
+  fi
+  log "Root filesystem capacity: total=$root_size_bytes bytes available=$root_available_bytes bytes"
+  if [ "$root_size_bytes" -lt 17179869184 ]; then
+    log "Bootstrap failed: the appliance root filesystem is smaller than 16 GiB; the Windows host must refresh and expand the system VHDX"
+    exit 1
+  fi
+  if [ "$root_available_bytes" -lt 8589934592 ]; then
+    log "Bootstrap failed: less than 8 GiB is available on the appliance root filesystem"
+    exit 1
+  fi
+}
+
 mkdir -p /etc/ontotwin "$DATA_ROOT"
 download "$HOST_URL/bootstrap/token" "$TOKEN_FILE"
 chmod 0600 "$TOKEN_FILE"
@@ -77,6 +169,14 @@ if ! grep -q '^LABEL=ONTOTWIN_DATA ' /etc/fstab; then
 fi
 mountpoint -q "$DATA_ROOT" || mount "$DATA_ROOT"
 mkdir -p "$WORK_ROOT" "$DATA_ROOT/docker" "$DATA_ROOT/release-data/project_assets" "$DATA_ROOT/release-data/exports" "$DATA_ROOT/backups"
+
+# A failed previous bootstrap leaves this marker behind. Capture that state
+# before recording the current attempt so an RC upgrade can replace a
+# half-initialized PostgreSQL/Neo4j Docker baseline as well as a healthy one.
+previous_bootstrap_incomplete=false
+if [ -f "$BOOTSTRAP_IN_PROGRESS" ]; then
+  previous_bootstrap_incomplete=true
+fi
 
 if [ -f "$BOOTSTRAP_LOG" ] && [ "$(stat -c %s "$BOOTSTRAP_LOG" 2>/dev/null || printf 0)" -gt 2097152 ]; then
   mv -f "$BOOTSTRAP_LOG" "$BOOTSTRAP_LOG.previous"
@@ -114,6 +214,7 @@ fi
 printf '%s  %s\n' "$control_checksums" "$WORK_ROOT/control.py" | sha256sum -c - >/dev/null
 install_control_service
 log "Early diagnostic control service started"
+ensure_root_filesystem_capacity
 
 payload_fingerprint="$(sha256sum "$WORK_ROOT/SHA256SUMS" | awk '{print $1}')"
 image_checksum_count="$(awk '$2=="backend-image.tar" || $2=="postgres-image.tar" || $2=="neo4j-image.tar" {count++} END {print count+0}' "$WORK_ROOT/SHA256SUMS")"
@@ -287,6 +388,42 @@ if [ -d "$RELEASE_ROOT" ]; then
   mv "$RELEASE_ROOT" /opt/ontotwin/release.previous
 fi
 mv /opt/ontotwin/release.new "$RELEASE_ROOT"
+
+# Pre-customer RC packages may explicitly request a clean packaged baseline.
+# Preserve the former Docker state and release data by moving them to a
+# timestamped directory on the same data disk, then initialize fresh paths.
+# The persistent release.env (passwords and customer integrations) and normal
+# user backups are deliberately retained outside this baseline snapshot.
+reset_backend_baseline="$(python3 - "$RELEASE_ROOT/release-manifest.json" <<'PY'
+import json
+import pathlib
+import sys
+
+manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+print("true" if manifest.get("reset_backend_baseline_on_upgrade") is True else "false")
+PY
+)"
+if [ "$reset_backend_baseline" = true ] \
+  && { [ -n "$installed_fingerprint" ] || [ "$previous_bootstrap_incomplete" = true ]; }; then
+  baseline_backup_root="$DATA_ROOT/baseline-backups/$(date -u +%Y%m%d-%H%M%S)-${payload_fingerprint:0:12}"
+  if [ -e "$baseline_backup_root" ]; then
+    log "Bootstrap failed: the baseline backup destination already exists: $baseline_backup_root"
+    exit 1
+  fi
+  log "Backing up the previous backend baseline before applying the packaged ZHHZ data"
+  systemctl stop docker.service
+  mkdir -p "$baseline_backup_root"
+  if [ -d "$DATA_ROOT/docker" ]; then
+    mv "$DATA_ROOT/docker" "$baseline_backup_root/docker"
+  fi
+  if [ -d "$DATA_ROOT/release-data" ]; then
+    mv "$DATA_ROOT/release-data" "$baseline_backup_root/release-data"
+  fi
+  mkdir -p "$DATA_ROOT/docker" "$DATA_ROOT/release-data/project_assets" "$DATA_ROOT/release-data/exports"
+  rm -f "$PAYLOAD_MARKER" "$IMAGES_MARKER"
+  systemctl start docker.service
+  log "Previous backend baseline saved at $baseline_backup_root"
+fi
 if [ -d "$RELEASE_ROOT/Data" ]; then
   cp -a -n "$RELEASE_ROOT/Data/." "$DATA_ROOT/release-data/"
 fi
@@ -419,7 +556,8 @@ ln -sf "$persistent_env" "$env_file"
 cat >/etc/systemd/system/ontotwin-stack.service <<'EOF'
 [Unit]
 Description=OntoTwin ZHHZ application stack
-After=docker.service ontotwin-control.service
+Wants=network-online.target
+After=network-online.target docker.service ontotwin-control.service ontotwin-bootstrap.service
 Requires=docker.service
 
 [Service]
@@ -457,7 +595,13 @@ log "OntoTwin services started; waiting for the backend health check"
 deadline=$((SECONDS + 300))
 until python3 - <<'PY'
 import urllib.request
-urllib.request.urlopen('http://127.0.0.1:5000/', timeout=5).read(1)
+try:
+    with urllib.request.urlopen('http://127.0.0.1:5000/', timeout=5) as response:
+        response.read(1)
+except Exception:
+    # The backend process can reset a probe while Gunicorn is still starting.
+    # Return a retry signal without printing a misleading Python traceback.
+    raise SystemExit(1)
 PY
 do
   if [ "$SECONDS" -ge "$deadline" ]; then

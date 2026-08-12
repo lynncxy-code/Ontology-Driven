@@ -73,6 +73,9 @@
       <Component Id="LauncherComponent" Directory="LauncherFolder" Guid="8A440A15-D0E4-4DAE-A426-861BE7DE19B4">
         <File Id="LauncherExe" Source="$(var.LauncherPath)" KeyPath="yes" />
       </Component>
+      <Files Directory="LauncherFolder" Include="$(var.LauncherDirectory)\**">
+        <Exclude Files="$(var.LauncherPath)" />
+      </Files>
 
       <Component Id="HostServiceComponent" Directory="ServiceFolder" Guid="C8C12A03-B205-4C80-B1A4-E64B66560307">
         <File Id="HostServiceExe" Source="$(var.ServicePath)" KeyPath="yes" />

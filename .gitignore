@@ -53,6 +53,7 @@ backend/data/.artstudio_session.json
 backend/data/.artstudio_session.json.tmp
 backend/data/backups/
 backend/data/project_assets/
+backend/data/trash/
 
 # Local task and test artifacts
 .tmp/

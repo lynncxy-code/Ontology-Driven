@@ -83,6 +83,9 @@ def project_route_payload():
 
 class SceneInteractionTestCase(unittest.TestCase):
     def setUp(self):
+        # 3.5：UE-ID 索引是模块级全局，测试间会串；每次清空+按本测试的 store 重建
+        import ue_project_binding as _ub
+        _ub._ue_index.clear()
         self.temp = tempfile.TemporaryDirectory()
         self.store = ProjectStore(
             os.path.join(self.temp.name, "projects"),
@@ -640,6 +643,11 @@ class SceneInteractionTestCase(unittest.TestCase):
         )
 
     def test_http_binding_policy_and_heartbeat(self):
+        # 3.5：UE 请求走 UE-ID→pid 索引；测试需先扫盘建索引（正式服由启动流程负责）
+        import ue_project_binding as _ub
+        _ub._ue_index.clear()
+        _ub.rebuild_index(self.store)
+
         app = Flask(__name__)
         register_scene_interaction_routes(app, self.store)
         client = app.test_client()
@@ -655,6 +663,7 @@ class SceneInteractionTestCase(unittest.TestCase):
             "X-OntoTwin-UE-Context": "packaged",
         })
         self.assertEqual(403, mismatch.status_code)
+        # 3.5：错误码保 ue_project_mismatch 以兼容 UE 插件硬编码
         self.assertEqual("ue_project_mismatch", mismatch.get_json()["error"])
 
         matched_headers = {
@@ -694,7 +703,8 @@ class SceneInteractionTestCase(unittest.TestCase):
             "X-OntoTwin-UE-Context": "packaged",
         })
         self.assertEqual(403, response.status_code)
-        self.assertEqual("ue_project_unbound", response.get_json()["error"])
+        # 3.5：错误码统一走 ue_project_mismatch（兼容 UE 插件；覆盖旧的 unbound 语义）
+        self.assertEqual("ue_project_mismatch", response.get_json()["error"])
 
 
 if __name__ == "__main__":

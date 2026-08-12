@@ -3,6 +3,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -45,6 +46,18 @@ class ProjectStoreSchemaTestCase(unittest.TestCase):
             "allowed_hosts": [],
             "http_exceptions": [],
         }, project["media_policy"])
+
+    def test_auto_project_ids_do_not_collide_within_one_clock_tick(self):
+        with patch("project_store.time.time_ns", return_value=123456789):
+            first = self.store.create_project("First")
+            self.store.deactivate()
+            second = self.store.create_project("Second")
+
+        self.assertNotEqual(first["id"], second["id"])
+        self.assertTrue(first["id"].startswith("p_"))
+        self.assertTrue(second["id"].startswith("p_"))
+        self.assertIsNotNone(self.store.read_project(first["id"]))
+        self.assertIsNotNone(self.store.read_project(second["id"]))
 
     def test_v2_project_migrates_without_inventing_resources(self):
         path = self._write_project("v2_project", {

@@ -31,6 +31,18 @@ _ACTIVE_FILE = os.path.join(_DATA_DIR, "active.json")
 
 CURRENT_SCHEMA_VERSION = 6
 
+_PROJECT_ID_LOCK = threading.Lock()
+_LAST_PROJECT_ID_NS = 0
+
+
+def _next_project_id():
+    """Return a process-unique numeric project id without changing its wire format."""
+    global _LAST_PROJECT_ID_NS
+    with _PROJECT_ID_LOCK:
+        candidate = max(time.time_ns(), _LAST_PROJECT_ID_NS + 1)
+        _LAST_PROJECT_ID_NS = candidate
+        return f"p_{candidate}"
+
 
 def _default_media_policy():
     """Project media policy inherits the deployment allowlist until explicitly restricted."""
@@ -411,7 +423,7 @@ class ProjectStore:
         """新建项目并设为激活。project_id 不传则自动生成稳定 id。
         dataset = 原数据集字典(含 graph_data),供前端语义图谱用。"""
         with self._lock:
-            pid = project_id or f"p_{int(time.time() * 1000)}"
+            pid = project_id or _next_project_id()
             proj = {
                 "schema_version": CURRENT_SCHEMA_VERSION,
                 "id": pid,

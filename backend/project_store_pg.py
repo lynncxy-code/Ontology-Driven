@@ -28,6 +28,7 @@ from project_store import (
     _default_scene_interactions,
     _default_spatial_profile,
     _default_web_interactions,
+    _next_project_id,
     apply_instance_metadata,
     migrate_project_schema,
 )
@@ -591,7 +592,7 @@ class ProjectStorePG(ProjectStore):
     def create_project(self, name, object_types=None, calibration=None,
                        project_id=None, dataset=None):
         with self._lock:
-            pid = project_id or f"p_{int(time.time() * 1000)}"
+            pid = project_id or _next_project_id()
             proj = {
                 "schema_version": CURRENT_SCHEMA_VERSION,
                 "id": pid,

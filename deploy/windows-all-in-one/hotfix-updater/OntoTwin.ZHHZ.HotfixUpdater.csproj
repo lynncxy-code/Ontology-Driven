@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>OntoTwin-ZHHZ-RC10.10-HF2</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishTrimmed>false</PublishTrimmed>
+    <Version>3.7.1010.2</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.1" />
+    <EmbeddedResource Include="$(HotfixPayloadPath)" LogicalName="OntoTwin.ZHHZ.HotfixPayload.zip" />
+  </ItemGroup>
+  <Target Name="ValidateHotfixPayload" BeforeTargets="CoreCompile">
+    <Error Condition="'$(HotfixPayloadPath)' == ''" Text="HotfixPayloadPath is required." />
+    <Error Condition="!Exists('$(HotfixPayloadPath)')" Text="Hotfix payload does not exist: $(HotfixPayloadPath)" />
+  </Target>
+</Project>

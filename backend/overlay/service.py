@@ -511,15 +511,20 @@ class OverlayService:
             include_media_url=True,
         )
 
-    def resolve_instance_interface(self, object_type, instance, raw_state=None, online=None):
-        project = self._project()
+    def resolve_instance_interface(self, object_type, instance, raw_state=None, online=None,
+                                   project_media_policy=None):
+        """3.5: allow caller to pass project_media_policy (for by-pid UE snapshots).
+        默认从当前激活项目取（旧行为）。"""
+        if project_media_policy is None:
+            project = self._project()
+            project_media_policy = project.get("media_policy") or {}
         return resolve_overlay_interface(
             object_type,
             instance,
             raw_state=raw_state,
             online=online,
             media_policy_service=self.media_policy,
-            project_media_policy=project.get("media_policy") or {},
+            project_media_policy=project_media_policy or {},
         )
 
     def _validate_literal_media(self, config, project):

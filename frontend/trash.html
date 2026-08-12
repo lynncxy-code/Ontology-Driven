@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>回收站 | OntoTwin Nexus</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1a1a1a;--ink-2:#5c5c5c;--ink-3:#8a8a8a;
+  --line:#e8e8e8;--line-2:#d4d4d4;
+  --bg:#ffffff;--bg-2:#fafafa;--bg-3:#f3f3f3;--on-ink:#fff;
+  --danger:#b42318;--danger-bg:#fef3f2;--danger-line:#fda29b;
+  --warn:#b54708;--warn-bg:#fffaeb;--warn-line:#fec84b;
+  --ok:#067647;--ok-bg:#ecfdf3;--ok-line:#a6f4c5;
+  --info:#363f72;--info-bg:#f8f9fc;--info-line:#b3b8db;
+  --r-sm:6px;--r-md:8px;--r-lg:12px;
+  --t-xs:11px;--t-sm:12px;--t-base:13px;--t-md:14px;--t-lg:16px;--t-xl:20px;
+  --shadow-pop:0 4px 16px rgba(20,20,20,.08);
+  --shadow-modal:0 16px 48px rgba(20,20,20,.18);
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Microsoft YaHei',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);background:var(--bg-2);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--t-base)}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 24px 48px}
+.page-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+.page-head h1{font-size:var(--t-xl);font-weight:600;letter-spacing:-.01em}
+.page-head .sub{font-size:var(--t-sm);color:var(--ink-3)}
+.toolbar{display:flex;align-items:center;gap:10px;margin:14px 0}
+.spacer{flex:1}
+.btn{font:500 var(--t-base)/1 var(--font);padding:8px 14px;border-radius:var(--r-md);border:1px solid var(--line-2);background:#fff;color:var(--ink);cursor:pointer;transition:background .15s,border-color .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--bg-3)}
+.btn-primary{background:var(--ink);color:var(--on-ink);border-color:var(--ink)}
+.btn-primary:hover{background:#000}
+.btn-ghost{border-color:transparent;background:transparent;color:var(--ink-2)}
+.btn-ghost:hover{background:var(--bg-3);color:var(--ink)}
+.btn-danger{border-color:var(--danger-line);color:var(--danger);background:var(--danger-bg)}
+.btn-danger:hover{background:#fde5e2}
+.btn-sm{padding:6px 10px;font-size:var(--t-sm)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.tabs{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:3px}
+.tab{padding:6px 12px;font-size:var(--t-sm);color:var(--ink-2);border-radius:var(--r-sm);cursor:pointer;user-select:none}
+.tab.on{background:var(--ink);color:var(--on-ink)}
+.pane{background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+.thead,.trow{display:grid;grid-template-columns:88px 1fr 220px 160px 220px;align-items:center;gap:12px;padding:11px 16px}
+.thead{background:var(--bg-2);border-bottom:1px solid var(--line);font-size:var(--t-xs);color:var(--ink-3);font-weight:500;letter-spacing:.02em;text-transform:uppercase}
+.trow{border-bottom:1px solid var(--line);font-size:var(--t-sm)}
+.trow:last-child{border-bottom:none}
+.trow:hover{background:var(--bg-3)}
+.kind{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;background:var(--bg-3);color:var(--ink-2);border-radius:var(--r-sm);font-size:var(--t-xs);font-weight:500}
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.dot-project{background:var(--info)}
+.dot-scene{background:var(--warn)}
+.dot-instance{background:var(--ok)}
+.name{font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{color:var(--ink-3);font-size:var(--t-xs);margin-top:2px;font-family:'SFMono-Regular',Consolas,monospace}
+.time,.src{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ops{display:flex;gap:6px;justify-content:flex-end}
+.empty{padding:60px 20px;text-align:center;color:var(--ink-3);font-size:var(--t-sm);line-height:1.8}
+.count{font-family:'SFMono-Regular',Consolas,monospace;color:var(--ink-3);font-size:var(--t-xs)}
+/* toast */
+.toast{position:fixed;top:16px;right:16px;z-index:1100;display:flex;flex-direction:column;gap:8px}
+.toast-item{background:var(--ink);color:var(--on-ink);padding:10px 14px;border-radius:var(--r-md);font-size:var(--t-sm);box-shadow:var(--shadow-pop);max-width:360px;animation:slideIn .18s ease}
+.toast-item.ok{background:#fff;color:var(--ink);border-left:2px solid var(--ok)}
+.toast-item.err{background:#fff;color:var(--ink);border-left:2px solid var(--danger)}
+@keyframes slideIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
+/* modal */
+.mask{position:fixed;inset:0;background:rgba(20,20,20,.4);display:none;align-items:center;justify-content:center;z-index:1000}
+.mask.on{display:flex}
+.modal{background:#fff;border-radius:var(--r-lg);box-shadow:var(--shadow-modal);width:min(480px,92vw);padding:24px}
+.modal h3{font-size:var(--t-lg);font-weight:600;margin-bottom:12px}
+.modal .body{font-size:var(--t-sm);color:var(--ink-2);line-height:1.7}
+.modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+.help{font-size:var(--t-xs);color:var(--ink-3);margin-top:8px;padding-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="page-head">
+    <div>
+      <h1>回收站</h1>
+      <div class="sub">被删除的项目、场景、实例暂存于此；默认保留 90 天后自动清理。</div>
+    </div>
+    <div class="count" id="count-hint"></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="tabs" id="tabs">
+      <div class="tab on" data-k="all">全部</div>
+      <div class="tab" data-k="project">项目</div>
+      <div class="tab" data-k="scene">场景</div>
+      <div class="tab" data-k="instance">实例</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn btn-sm" id="btn-refresh">刷新</button>
+    <button class="btn btn-sm btn-danger" id="btn-purge">清空回收站</button>
+  </div>
+
+  <div class="pane">
+    <div class="thead">
+      <div>类型</div>
+      <div>名称</div>
+      <div>来源项目</div>
+      <div>删除时间</div>
+      <div style="text-align:right">操作</div>
+    </div>
+    <div id="rows"></div>
+  </div>
+
+  <div class="help">恢复采用「覆盖」策略：同 id 已存在时会直接覆盖当前记录。</div>
+</div>
+
+<div class="mask" id="mask">
+  <div class="modal" id="modal"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const KIND_LABEL = { project:'项目', scene:'场景', instance:'实例' };
+let CURRENT = { items: [], filter: 'all' };
+
+// ── toast / modal ────────────────────────────────────
+function toast(msg, type){
+  const box = document.getElementById('toast');
+  const el = document.createElement('div');
+  el.className = 'toast-item' + (type ? ' '+type : '');
+  el.textContent = msg;
+  box.appendChild(el);
+  setTimeout(()=>{ el.style.opacity=0; el.style.transition='opacity .2s'; }, 2200);
+  setTimeout(()=>{ el.remove(); }, 2500);
+}
+function confirmModal({ title, body, confirmText='确定', danger=false }){
+  return new Promise(resolve=>{
+    const mask = document.getElementById('mask');
+    const modal = document.getElementById('modal');
+    modal.innerHTML = `
+      <h3>${title}</h3>
+      <div class="body">${body}</div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" data-act="cancel">取消</button>
+        <button class="btn ${danger?'btn-danger':'btn-primary'}" data-act="ok">${confirmText}</button>
+      </div>`;
+    mask.classList.add('on');
+    const done = v => { mask.classList.remove('on'); modal.innerHTML=''; document.removeEventListener('keydown', onKey); resolve(v); };
+    modal.querySelector('[data-act=cancel]').onclick = ()=>done(false);
+    modal.querySelector('[data-act=ok]').onclick = ()=>done(true);
+    mask.onclick = e => { if(e.target===mask) done(false); };
+    function onKey(e){ if(e.key==='Escape') done(false); if(e.key==='Enter') done(true); }
+    document.addEventListener('keydown', onKey);
+    modal.querySelector('[data-act=ok]').focus();
+  });
+}
+
+// ── data ─────────────────────────────────────────────
+async function load(){
+  try {
+    const r = await fetch('/api/v2/trash');
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    const j = await r.json();
+    CURRENT.items = j.items || [];
+    render();
+  } catch(e){
+    toast('加载失败：'+e.message, 'err');
+  }
+}
+
+function render(){
+  const rows = document.getElementById('rows');
+  const list = CURRENT.filter==='all'
+    ? CURRENT.items
+    : CURRENT.items.filter(it => it.kind === CURRENT.filter);
+  document.getElementById('count-hint').textContent = `共 ${CURRENT.items.length} 条 · 当前视图 ${list.length}`;
+  if (list.length === 0){
+    rows.innerHTML = `<div class="empty">当前没有可恢复的条目。<br>删除项目、清空场景或删除实例后会出现在这里。</div>`;
+    return;
+  }
+  rows.innerHTML = list.map(it => {
+    const label = KIND_LABEL[it.kind] || it.kind;
+    const nameHtml = escapeHtml(it.name || it.instance_id || it.project_id || it.id);
+    const metaBits = [];
+    if (it.kind === 'scene' && it.instance_count != null) metaBits.push(`${it.instance_count} 个实例`);
+    if (it.kind === 'project' && it.instance_count != null) metaBits.push(`含 ${it.instance_count} 个实例`);
+    if (it.instance_id) metaBits.push(escapeHtml(it.instance_id));
+    const src = it.project_id ? escapeHtml(it.project_id) : '<span style="color:var(--ink-3)">—</span>';
+    return `
+      <div class="trow" data-id="${it.id}">
+        <div><span class="kind"><span class="dot dot-${it.kind}"></span>${label}</span></div>
+        <div>
+          <div class="name">${nameHtml}</div>
+          ${metaBits.length ? `<div class="meta">${metaBits.join(' · ')}</div>` : ''}
+        </div>
+        <div class="src">${src}</div>
+        <div class="time">${escapeHtml(it.deleted_at || '')}</div>
+        <div class="ops">
+          <button class="btn btn-sm" data-act="restore">恢复</button>
+          <button class="btn btn-sm btn-danger" data-act="delete">永久删除</button>
+        </div>
+      </div>`;
+  }).join('');
+  rows.querySelectorAll('.trow').forEach(row => {
+    row.querySelector('[data-act=restore]').onclick = () => onRestore(row.dataset.id);
+    row.querySelector('[data-act=delete]').onclick = () => onDelete(row.dataset.id);
+  });
+}
+
+function escapeHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function onRestore(id){
+  const item = CURRENT.items.find(x=>x.id===id);
+  if (!item) return;
+  const body = item.kind === 'project'
+    ? `恢复项目「${escapeHtml(item.name||item.project_id)}」，若同 id 项目已存在则会被覆盖。`
+    : item.kind === 'scene'
+    ? `恢复项目「${escapeHtml(item.project_id)}」的场景实例（${item.instance_count} 个），会覆盖当前实例集。`
+    : `恢复实例「${escapeHtml(item.name||item.instance_id)}」到项目「${escapeHtml(item.project_id)}」；同 id 实例会被覆盖。`;
+  const ok = await confirmModal({ title:'恢复确认', body, confirmText:'恢复' });
+  if (!ok) return;
+  try {
+    const r = await fetch(`/api/v2/trash/${encodeURIComponent(id)}/restore`, { method:'POST' });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(j.error || ('HTTP '+r.status));
+    toast('恢复成功', 'ok');
+    load();
+  } catch(e){
+    toast('恢复失败：'+e.message, 'err');
+  }
+}
+
+async function onDelete(id){
+  const ok = await confirmModal({ title:'永久删除', body:'该操作不可恢复。确定要从回收站彻底删除此条目？', confirmText:'永久删除', danger:true });
+  if (!ok) return;
+  try {
+    const r = await fetch(`/api/v2/trash/${encodeURIComponent(id)}`, { method:'DELETE' });
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    toast('已删除', 'ok');
+    load();
+  } catch(e){
+    toast('删除失败：'+e.message, 'err');
+  }
+}
+
+document.getElementById('btn-refresh').onclick = load;
+document.getElementById('btn-purge').onclick = async () => {
+  if (CURRENT.items.length === 0){ toast('回收站已空'); return; }
+  const ok = await confirmModal({
+    title:'清空回收站',
+    body:`将永久删除全部 ${CURRENT.items.length} 条记录，此操作不可恢复。`,
+    confirmText:'全部删除', danger:true
+  });
+  if (!ok) return;
+  try {
+    const r = await fetch('/api/v2/trash/purge', { method:'POST' });
+    const j = await r.json();
+    toast(`已清空 ${j.purged || 0} 条`, 'ok');
+    load();
+  } catch(e){
+    toast('清空失败：'+e.message, 'err');
+  }
+};
+
+document.getElementById('tabs').addEventListener('click', e => {
+  const t = e.target.closest('.tab');
+  if (!t) return;
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x===t));
+  CURRENT.filter = t.dataset.k;
+  render();
+});
+
+load();
+</script>
+</body>
+</html>

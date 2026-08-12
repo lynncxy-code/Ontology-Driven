@@ -125,6 +125,10 @@ def serve_floor_pulse():
 def serve_binding():
     return app.send_static_file('binding.html')
 
+@app.route('/trash')
+def serve_trash():
+    return app.send_static_file('trash.html')
+
 # ═══════════════════════════════════════════════════════════════
 # PRD 2.9 — 坐标标定工作台 API（无状态）
 # ═══════════════════════════════════════════════════════════════
@@ -2335,23 +2339,85 @@ def _build_representable_interface(ue_asset_path, asset_id, is_visible, config=N
     return payload
 
 
-def _build_snapshot(instance_id):
+class _SnapshotContext:
+    """Abstract snapshot data source over active project OR a loaded by-pid project.
+    3.5：UE 请求按 UE-ID 路由到它绑的项目（可能不是当前激活），需要这层抽象。"""
+    def __init__(self, get_raw_state, get_inst_meta, get_render_config,
+                 object_types, media_policy):
+        self.get_raw_state = get_raw_state
+        self.get_inst_meta = get_inst_meta
+        self.get_render_config = get_render_config
+        self.object_types = object_types
+        self.media_policy = media_policy or {}
+
+
+def _active_snapshot_context():
+    return _SnapshotContext(
+        get_raw_state=instance_store.get_raw_state,
+        get_inst_meta=instance_store.get_instance_metadata,
+        get_render_config=lambda iid: instance_store.get_render_config(iid) or {},
+        object_types=_object_types,
+        media_policy=(project_store.get_active() or {}).get("media_policy") or {},
+    )
+
+
+def _project_snapshot_context(project):
+    """从任意项目 dict 构造快照上下文（不改任何激活态）。"""
+    insts = project.get("instances") or {}
+
+    def get_meta(iid):
+        r = insts.get(iid) or {}
+        return {"id": iid, **{k: v for k, v in r.items() if k != "raw_state"}}
+
+    def get_raw(iid):
+        r = insts.get(iid)
+        if not r or "raw_state" not in r:
+            return None
+        return dict(r["raw_state"])
+
+    def get_render(iid):
+        r = insts.get(iid)
+        return dict(r.get("render_config") or {}) if r else {}
+
+    return _SnapshotContext(
+        get_raw_state=get_raw,
+        get_inst_meta=get_meta,
+        get_render_config=get_render,
+        object_types=project.get("object_types") or {},
+        media_policy=project.get("media_policy") or {},
+    )
+
+
+def _iter_instance_ids(project, zone=None):
+    """按 zone 过滤某项目下的实例 id。"""
+    insts = project.get("instances") or {}
+    if zone is None:
+        return list(insts.keys())
+    return [iid for iid, r in insts.items() if isinstance(r, dict) and r.get("zone_id") == zone]
+
+
+def _build_snapshot(instance_id, ctx=None):
     """
     将 raw_state 组装为标准接口格式快照。
     优先使用实例自带的 render_config（spawn 时冻结）；老实例无此字段时
-    回退到当前 _object_types，并沿用"类型不在激活数据集则隐藏"的旧逻辑。
+    回退到当前 object_types，并沿用"类型不在激活数据集则隐藏"的旧逻辑。
+
+    ctx=None → 使用当前激活项目（旧行为，保持兼容）。
+    ctx=<_SnapshotContext> → 按上下文读（3.5 UE 按 UE-ID 路由用）。
     """
-    raw = instance_store.get_raw_state(instance_id)
+    if ctx is None:
+        ctx = _active_snapshot_context()
+    raw = ctx.get_raw_state(instance_id)
     if raw is None:
         return None
 
-    inst_meta = instance_store.get_instance_metadata(instance_id) or {}
+    inst_meta = ctx.get_inst_meta(instance_id) or {}
     ot_rid = inst_meta.get("object_type_rid", "")
 
-    cfg = instance_store.get_render_config(instance_id) or {}
-    if ot_rid in _object_types:
-        # 类型在当前激活数据集 → 用实时配置：绑定资产/换模型立即生效（不被 spawn 时的快照锁死）
-        ot = _object_types[ot_rid]
+    cfg = ctx.get_render_config(instance_id) or {}
+    if ot_rid in ctx.object_types:
+        # 类型在项目类型表 → 用实时配置：绑定资产/换模型立即生效（不被 spawn 时的快照锁死）
+        ot = ctx.object_types[ot_rid]
         injected = ot.get("injected_interfaces", [])
         # 3.3.3: explicit instance override wins; otherwise the live type
         # default wins; a migrated assembly is the preserved fallback.
@@ -2423,7 +2489,7 @@ def _build_snapshot(instance_id):
 
     if "I3D_Overlay" in injected:
         try:
-            overlay_type = ot if ot_rid in _object_types else {
+            overlay_type = ot if ot_rid in ctx.object_types else {
                 "rid": ot_rid,
                 "name": ot_name,
                 "injected_interfaces": injected,
@@ -2437,6 +2503,7 @@ def _build_snapshot(instance_id):
                 overlay_instance,
                 raw_state=raw,
                 online=online,
+                project_media_policy=ctx.media_policy,
             )
             if overlay_payload is not None:
                 interfaces["I3D_Overlay"] = overlay_payload
@@ -2470,11 +2537,21 @@ def _build_snapshot(instance_id):
 
 @app.route('/api/v2/state/snapshot', methods=['GET'])
 def get_state_snapshot():
-    """获取指定实例经接口映射后的表现值快照"""
+    """获取指定实例经接口映射后的表现值快照。3.5：按 UE-ID 路由到它绑的项目。"""
+    from ue_project_binding import resolve_project_for_ue
     instance_id = request.args.get('id')
     if not instance_id:
         return jsonify({"error": "Missing instance id"}), 400
-    snap = _build_snapshot(instance_id)
+    pid, ok, info = resolve_project_for_ue(project_store, request)
+    if not ok:
+        return jsonify(info), 403
+    ctx = None
+    if pid is not None:
+        project = project_store.read_project(pid)
+        if project is None:
+            return jsonify({"error": "project_gone", "project_id": pid}), 410
+        ctx = _project_snapshot_context(project)
+    snap = _build_snapshot(instance_id, ctx=ctx)
     if snap is None:
         return jsonify({"error": "Instance not found"}), 404
     return jsonify(snap)
@@ -2483,18 +2560,32 @@ def get_state_snapshot():
 def get_all_snapshots():
     """
     获取实例快照（3D 渲染端批量轮询用）。
-    ?zone=<zone_id>（兼容旧 ?scene=）只返回该分区实例；不传则返回激活项目全部。
+    ?zone=<zone_id>（兼容旧 ?scene=）只返回该分区实例；不传则返回项目全部。
     FR-3：一分区一 TwinSceneManager，各自按 zone 拉取、互不串台。
+    3.5：UE 请求按 UE-ID→pid 索引路由到它绑的项目；Web 请求继续走激活项目。
     """
-    ok, info = check_request_matches_active(project_store, request)
+    from ue_project_binding import resolve_project_for_ue
+    pid, ok, info = resolve_project_for_ue(project_store, request)
     if not ok:
         return jsonify(info), 403
     zone = request.args.get('zone') or request.args.get('scene') or None
     result = []
-    for iid in instance_store.get_all_ids(zone):   # zone=None → 激活项目全部（唯一可见性规则）
-        snap = _build_snapshot(iid)
-        if snap:
-            result.append(snap)
+    if pid is None:
+        # Web 请求 → 走激活项目（旧路径）
+        for iid in instance_store.get_all_ids(zone):
+            snap = _build_snapshot(iid)
+            if snap:
+                result.append(snap)
+    else:
+        # UE 请求 → 按其绑的项目读，切激活不影响
+        project = project_store.read_project(pid)
+        if project is None:
+            return jsonify({"error": "project_gone", "project_id": pid}), 410
+        ctx = _project_snapshot_context(project)
+        for iid in _iter_instance_ids(project, zone):
+            snap = _build_snapshot(iid, ctx=ctx)
+            if snap:
+                result.append(snap)
     return jsonify(result)
 
 @app.route('/api/v2/state/override', methods=['POST'])
@@ -2502,12 +2593,25 @@ def override_state():
     """
     手动 Override 指定实例的属性值（调试用）。
     Body: { "instance_id": str, "patch": { field: value, ... } }
+    3.5：UE 请求按 UE-ID 路由；只允许写到当前激活项目（非激活 → 409）
     """
     data = request.json or {}
     instance_id = data.get("instance_id")
     patch = data.get("patch", {})
     if not instance_id:
         return jsonify({"error": "instance_id is required"}), 400
+
+    from ue_project_binding import resolve_project_for_ue as _ue_resolve
+    pid, ok, info = _ue_resolve(project_store, request)
+    if not ok:
+        return jsonify(info), 403
+    if pid is not None and pid != project_store.get_active_id():
+        return jsonify({
+            "error": "ue_project_not_active",
+            "message": "UE 所绑项目非当前激活项目；只有激活项目可写入。请在 Web UI 激活后重试。",
+            "ue_project_id": pid,
+            "active_project_id": project_store.get_active_id(),
+        }), 409
 
     # 类型转换：数值字段强制 float
     numeric_fields = {
@@ -2552,9 +2656,19 @@ def writeback_state():
     if not instance_id:
         return jsonify({"error": "instance_id is required"}), 400
 
-    bind_ok, bind_info = check_request_matches_active(project_store, request)
-    if not bind_ok:
-        return jsonify(bind_info), 403
+    # 3.5：UE 请求按 UE-ID 路由；只允许写到当前激活项目
+    # 语义："已经打开的读取不受影响；激活的能修改" —— 非激活项目 UE-Y 想改 → 409
+    from ue_project_binding import resolve_project_for_ue as _ue_resolve
+    pid, ok, info = _ue_resolve(project_store, request)
+    if not ok:
+        return jsonify(info), 403
+    if pid is not None and pid != project_store.get_active_id():
+        return jsonify({
+            "error": "ue_project_not_active",
+            "message": "UE 所绑项目非当前激活项目；只有激活项目可写入。请在 Web UI 激活后重试。",
+            "ue_project_id": pid,
+            "active_project_id": project_store.get_active_id(),
+        }), 409
 
     expected = data.get("expected_project_id")
     try:
@@ -3091,12 +3205,16 @@ def list_datasets():
 
 @app.route('/api/v2/ue/bind_active_project', methods=['POST'])
 def bind_active_ue_project():
-    """Bind current active dataset/project to a UE project identity."""
+    """Bind current active dataset/project to a UE project identity.
+    互斥：同一 UE-ID 已绑到其他项目 → 409；带 ?force=1 可强制迁移。"""
     global _datasets
     ue = request_ue_project(request)
-    ok, info = bind_active_dataset(project_store, ue["id"], ue["name"])
+    force = str(request.args.get("force") or (request.get_json(silent=True) or {}).get("force") or "").lower() in ("1", "true", "yes")
+    ok, info = bind_active_dataset(project_store, ue["id"], ue["name"], force=force)
     if not ok:
-        return jsonify(info), 400
+        # 互斥冲突返 409，其他参数错返 400
+        code = 409 if info.get("error") == "ue_project_already_bound" else 400
+        return jsonify(info), code
     ds = info["dataset"]
     for i, item in enumerate(_datasets):
         if item.get("id") == ds.get("id"):
@@ -3323,8 +3441,18 @@ def delete_dataset(ds_id):
     if ds_index is None:
         return jsonify({"error": f"找不到数据集: {ds_id}"}), 404
 
-    _datasets.pop(ds_index)
-    project_store.delete_project(ds_id)   # 连带删除该项目的实例(无孤儿)
+    popped_ds = _datasets.pop(ds_index)
+    existed = project_store.delete_project(ds_id)   # 连带删除该项目的实例(无孤儿)
+    if not existed:
+        # 从未激活过的仅内存数据集：project_store 里没有文件可搬进回收站
+        # 手工把 dataset 包成最小 project shell 进回收站，restore 时走标准路径写回
+        project_store.snapshot_dataset_to_trash(ds_id, popped_ds)
+    # UE-ID→pid 索引同步：项目消失（无论是否有文件），指向它的 UE 绑定都要清
+    try:
+        from ue_project_binding import index_forget_project
+        index_forget_project(ds_id)
+    except Exception as _e:
+        print(f"[ue_binding] 索引清理 {ds_id} 失败: {_e}")
 
     # 如果删除的是当前激活项，重置为 demo
     if _active_dataset_id == ds_id:
@@ -4670,6 +4798,15 @@ def get_graph_data():
 # 启动时从 ProjectStore 恢复数据集 + 激活态 + 类型表（须在所有函数定义之后调用）
 _init_from_project_store()
 
+# 启动时扫盘构建 UE-ID→pid 索引（3.5：UE 请求按 UE-ID 路由）
+try:
+    from ue_project_binding import rebuild_index as _ue_rebuild_index
+    _idx = _ue_rebuild_index(project_store)
+    if _idx:
+        print(f"[ue_binding] 索引已建 {len(_idx)} 条：{list(_idx.keys())}")
+except Exception as _e:
+    print(f"[ue_binding] 索引构建失败: {_e}")
+
 
 def _refresh_object_types_after_overlay_save():
     global _object_types
@@ -4701,13 +4838,79 @@ from spatial_assets import register_spatial_asset_routes
 register_spatial_asset_routes(app, project_store)
 
 from snapshot_delta import register_snapshot_delta_routes
+from ue_project_binding import resolve_project_for_ue as _ue_resolve
+
+def _build_snapshot_for_project(project):
+    ctx = _project_snapshot_context(project)
+    return lambda iid: _build_snapshot(iid, ctx=ctx)
+
 snapshot_delta_service = register_snapshot_delta_routes(
     app,
     project_store,
     _build_snapshot,
     check_request_matches_active,
     lambda: _object_types,
+    build_snapshot_for_project=_build_snapshot_for_project,
+    ue_resolver=_ue_resolve,
 )
+
+# ═══════════════════════════════════════════════════════════════
+# 回收站 API（文件后端专用；PG 后端有软删除，此处返回的仅是文件侧记录）
+# ═══════════════════════════════════════════════════════════════
+
+from trash_store import get_default_store as _get_trash_store
+_trash = _get_trash_store()
+# 启动时清一次过期条目（默认 90 天 TTL；只针对文件后端的 trash）
+try:
+    _swept = _trash.sweep_expired()
+    if _swept:
+        print(f"[trash] 启动清理过期条目 {_swept} 条")
+except Exception as _e:
+    print(f"[trash] 启动清理失败: {_e}")
+
+
+@app.route('/api/v2/trash', methods=['GET'])
+def trash_list():
+    """列出回收站条目。
+    - 文件后端：来自 data/trash 快照
+    - PG 后端：来自 project/instance 表的 deleted_at IS NOT NULL 记录"""
+    return jsonify({"items": project_store.list_trash()})
+
+
+@app.route('/api/v2/trash/purge', methods=['POST'])
+def trash_purge():
+    """一键清空回收站，永久删除。"""
+    n = project_store.purge_trash()
+    return jsonify({"status": "ok", "purged": n})
+
+
+@app.route('/api/v2/trash/<trash_id>', methods=['DELETE'])
+def trash_delete(trash_id):
+    """永久删除单条。"""
+    ok = project_store.delete_trash(trash_id)
+    if not ok:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"status": "ok", "id": trash_id})
+
+
+@app.route('/api/v2/trash/<trash_id>/restore', methods=['POST'])
+def trash_restore(trash_id):
+    """恢复单条到原位置。冲突策略：覆盖。"""
+    try:
+        kind, restored_id = project_store.restore_trash(trash_id)
+    except ValueError as e:
+        code = 404 if str(e) in ("not_found", "snapshot_missing") else 400
+        return jsonify({"error": str(e)}), code
+    # 恢复项目后：文件后端需刷 _datasets 内存缓存 + UE 索引
+    if kind == "project":
+        _init_from_project_store()
+        try:
+            from ue_project_binding import rebuild_index as _ue_rebuild_index
+            _ue_rebuild_index(project_store)
+        except Exception:
+            pass
+    return jsonify({"status": "ok", "kind": kind, "restored": restored_id})
+
 
 if __name__ == '__main__':
     # threaded=True：支持并发请求（UE 多实例同时拉模型下载代理流，单线程会串行超时）

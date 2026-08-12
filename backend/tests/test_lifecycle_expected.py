@@ -52,9 +52,15 @@ def test_delete_endpoint_expected_mismatch_409(client, store):
 
 def test_writeback_endpoint_expected_mismatch_409(client, store):
     store.spawn("DW-WB", "PE16A")
-    r = client.post("/api/v2/state/writeback", json={
-        "instance_id": "DW-WB", "transform": {"tx": 0, "ty": 0, "tz": 0},
-        "expected_project_id": "p_other"})
+    r = client.post(
+        "/api/v2/state/writeback",
+        headers={"X-OntoTwin-Client": "Web"},
+        json={
+            "instance_id": "DW-WB",
+            "transform": {"tx": 0, "ty": 0, "tz": 0},
+            "expected_project_id": "p_other",
+        },
+    )
     assert r.status_code == 409
 
 

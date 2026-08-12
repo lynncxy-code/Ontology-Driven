@@ -662,6 +662,35 @@ class ProjectStore:
             inst = self._inst().get(instance_id)
             return dict(inst.get("render_config") or {}) if inst else None
 
+    @staticmethod
+    def _instance_metadata(instance_id, inst, now):
+        return {
+            "id": instance_id,
+            "object_type_rid": inst["object_type_rid"],
+            "object_type_name": inst["object_type_name"],
+            "zone_id": inst.get("zone_id") or None,
+            "display_name": inst.get("display_name") or instance_id,
+            "hierarchy_path": _clean_hierarchy_path(
+                inst.get("hierarchy_path"),
+                [inst.get("object_type_name") or inst.get("object_type_rid") or "未分类"],
+            ),
+            "source_folder_path": inst.get("source_folder_path", ""),
+            "source_asset_path": inst.get("source_asset_path", ""),
+            "classification_status": inst.get("classification_status", "confirmed"),
+            "classification_key": inst.get("classification_key", ""),
+            "status": "online" if (now - inst["last_seen"]) < 3.0 else "offline",
+            "last_seen": inst["last_seen"],
+            "created_at": inst["created_at"],
+        }
+
+    def get_instance_metadata(self, instance_id):
+        """Return one instance's detached metadata without scanning the project."""
+        with self._lock:
+            inst = self._inst().get(instance_id)
+            if not inst:
+                return None
+            return self._instance_metadata(instance_id, inst, time.time())
+
     def update_raw_state(self, instance_id, patch, persist=False, expected_project_id=None):
         """persist=True 才落盘（模拟器高频波动传 False，避免狂写磁盘）。"""
         with self._lock:
@@ -670,11 +699,22 @@ class ProjectStore:
             inst = self._inst().get(instance_id)
             if not inst:
                 return False
-            inst["raw_state"].update(patch)
+            if not isinstance(patch, dict) or not patch:
+                return True
+            previous = inst.get("raw_state") or {}
+            changed = any(key not in previous or previous.get(key) != value
+                          for key, value in patch.items())
+            if changed:
+                updated = dict(previous)
+                updated.update(patch)
+                # Snapshot-delta change tokens use object identity. Replacing the
+                # mapping makes a real state change visible without treating every
+                # heartbeat timestamp as a full instance update.
+                inst["raw_state"] = updated
             inst["last_seen"] = time.time()
-            if persist:
+            if persist and changed:
                 self._save_current()
-            else:
+            elif changed:
                 self._dirty = True
             return True
 
@@ -763,27 +803,10 @@ class ProjectStore:
         """实例元信息列表（含在线状态），仅当前项目。"""
         with self._lock:
             now = time.time()
-            result = []
-            for iid, inst in self._inst().items():
-                result.append({
-                    "id": iid,
-                    "object_type_rid": inst["object_type_rid"],
-                    "object_type_name": inst["object_type_name"],
-                    "zone_id": inst.get("zone_id") or None,
-                    "display_name": inst.get("display_name") or iid,
-                    "hierarchy_path": _clean_hierarchy_path(
-                        inst.get("hierarchy_path"),
-                        [inst.get("object_type_name") or inst.get("object_type_rid") or "未分类"],
-                    ),
-                    "source_folder_path": inst.get("source_folder_path", ""),
-                    "source_asset_path": inst.get("source_asset_path", ""),
-                    "classification_status": inst.get("classification_status", "confirmed"),
-                    "classification_key": inst.get("classification_key", ""),
-                    "status": "online" if (now - inst["last_seen"]) < 3.0 else "offline",
-                    "last_seen": inst["last_seen"],
-                    "created_at": inst["created_at"],
-                })
-            return result
+            return [
+                self._instance_metadata(iid, inst, now)
+                for iid, inst in self._inst().items()
+            ]
 
     def clear_instances(self):
         """清空当前项目的全部实例（保留项目与类型表）。"""

@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 
 SCHEMA_VERSION = "snapshot_delta_v1"
 _IGNORED_DIFF_FIELDS = {"timestamp", "raw_state"}
+_EMPTY_DICT = {}
+_EMPTY_LIST = []
 
 
 @dataclass
@@ -282,23 +284,42 @@ def _collect_instance_tokens(project_store, zone, object_types):
         for instance_id, instance in instances.items():
             if zone is not None and instance.get("zone_id") != zone:
                 continue
-            raw_state = instance.get("raw_state") or {}
-            render_config = instance.get("render_config") or {}
-            render_parts = render_config.get("render_parts") or []
-            model_override = render_config.get("model_override") or {}
-            override = (
-                (render_config.get("interface_overrides") or {}).get("I3D_Overlay") or {}
-            )
+            raw_state = instance.get("raw_state")
+            if not isinstance(raw_state, dict):
+                raw_state = _EMPTY_DICT
+            render_config = instance.get("render_config")
+            if not isinstance(render_config, dict):
+                render_config = _EMPTY_DICT
+            render_parts = render_config.get("render_parts")
+            if not isinstance(render_parts, list):
+                render_parts = _EMPTY_LIST
+            model_override = render_config.get("model_override")
+            if not isinstance(model_override, dict):
+                model_override = _EMPTY_DICT
+            interface_overrides = render_config.get("interface_overrides")
+            if not isinstance(interface_overrides, dict):
+                interface_overrides = _EMPTY_DICT
+            override = interface_overrides.get("I3D_Overlay")
+            if not isinstance(override, dict):
+                override = _EMPTY_DICT
             object_type_rid = instance.get("object_type_rid", "")
-            object_type = object_types.get(object_type_rid) or {}
-            type_overlay = (
-                (object_type.get("interface_configs") or {}).get("I3D_Overlay") or {}
-            )
+            object_type = object_types.get(object_type_rid)
+            if not isinstance(object_type, dict):
+                object_type = _EMPTY_DICT
+            interface_configs = object_type.get("interface_configs")
+            if not isinstance(interface_configs, dict):
+                interface_configs = _EMPTY_DICT
+            type_overlay = interface_configs.get("I3D_Overlay")
+            if not isinstance(type_overlay, dict):
+                type_overlay = _EMPTY_DICT
             last_seen = float(instance.get("last_seen") or 0.0)
             tokens[instance_id] = (
                 id(instance),
                 id(raw_state),
-                last_seen,
+                # Exact heartbeat timestamps are intentionally excluded. They used
+                # to rebuild every snapshot on every simulator tick. The online
+                # transition remains part of the token, while real raw-state
+                # updates replace the mapping and change id(raw_state).
                 (now - last_seen) < 3.0,
                 object_type_rid,
                 instance.get("display_name"),

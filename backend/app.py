@@ -12,6 +12,7 @@ from mapping_store import (
 )
 from ontology_parser import validate_files, parse_ontology_csvs
 from writeback import apply_batch_writeback, apply_writeback, runtime_edit_state_hash
+from material_writeback import apply_material_writeback
 from ue_project_binding import bind_active_dataset, check_request_matches_active, request_ue_project
 from realtime_channel import enrich_instances_with_realtime_channel
 from scene_interaction.service import get_runtime_status
@@ -66,8 +67,12 @@ states = {
 from project_store import ProjectStore, ProjectMismatch
 project_store = ProjectStore()
 instance_store = project_store          # 向后兼容别名：实例操作接口一致
-simulator = MockInstanceSimulator(project_store)
-simulator.start()
+simulator = None
+if os.environ.get("ONTOTWIN_MOCK_SIMULATOR_ENABLED", "true").strip().lower() in {
+    "1", "true", "yes", "on"
+}:
+    simulator = MockInstanceSimulator(project_store)
+    simulator.start()
 
 # ObjectType 接口注册表（运行时内存，作为"当前激活项目"的视图，启动后由 _init_from_project_store 同步）
 _object_types = {k: dict(v) for k, v in OBJECT_TYPES.items()}
@@ -1608,7 +1613,7 @@ def _normalize_runtime_model_name(text):
     return "", None
 
 
-def _model_binding_summary(rid, ot):
+def _model_binding_summary(rid, ot, instances_by_type=None):
     asset_id = (ot.get("asset_id") or "").strip() if isinstance(ot.get("asset_id"), str) else ot.get("asset_id")
     ue_asset_path = (ot.get("ue_asset_path") or "").strip() if isinstance(ot.get("ue_asset_path"), str) else ot.get("ue_asset_path")
     default_path = ue_asset_path or asset_id or ""
@@ -1623,9 +1628,13 @@ def _model_binding_summary(rid, ot):
         }
 
     groups = {}
-    for inst in instance_store.list_all():
-        if inst.get("object_type_rid") != rid:
-            continue
+    instances = (
+        instances_by_type.get(rid, [])
+        if instances_by_type is not None
+        else [inst for inst in instance_store.list_all()
+              if inst.get("object_type_rid") == rid]
+    )
+    for inst in instances:
         cfg = instance_store.get_render_config(inst.get("id")) or {}
         path = inst.get("source_asset_path") or ""
         if not path and _is_assembly_render_config(cfg):
@@ -1650,7 +1659,7 @@ def _model_binding_summary(rid, ot):
     }
 
 
-def _object_type_response(rid, ot):
+def _object_type_response(rid, ot, instances_by_type=None):
     injected = ot.get("injected_interfaces", [])
     return {
         "rid": ot.get("rid", rid),
@@ -1665,14 +1674,20 @@ def _object_type_response(rid, ot):
         "ue_asset_path": ot.get("ue_asset_path", ""),
         "mock_instances": ot.get("mock_instances", []),
         "has_representable": "I3D_Representable" in injected,
-        "model_binding": _model_binding_summary(rid, ot),
+        "model_binding": _model_binding_summary(rid, ot, instances_by_type),
     }
 
 
 @app.route('/api/v2/ontology/types', methods=['GET'])
 def get_object_types():
     """获取所有 ObjectType 及其接口挂载状态"""
-    result = [_object_type_response(rid, ot) for rid, ot in _object_types.items()]
+    instances_by_type = {}
+    for inst in instance_store.list_all():
+        instances_by_type.setdefault(inst.get("object_type_rid"), []).append(inst)
+    result = [
+        _object_type_response(rid, ot, instances_by_type)
+        for rid, ot in _object_types.items()
+    ]
     return jsonify(result)
 
 @app.route('/api/v2/ontology/types/<object_type_rid>', methods=['GET'])
@@ -2241,8 +2256,7 @@ def get_instance(instance_id):
     raw = instance_store.get_raw_state(instance_id)
     if raw is None:
         return jsonify({"error": "Instance not found"}), 404
-    all_list = instance_store.list_all()
-    meta = next((i for i in all_list if i["id"] == instance_id), None)
+    meta = instance_store.get_instance_metadata(instance_id)
     # 数据集隔离：类型不在当前数据集时按 404 处理（与 list 行为一致）
     if meta and meta.get("object_type_rid") not in _object_types:
         return jsonify({"error": "Instance not found"}), 404
@@ -2331,8 +2345,7 @@ def _build_snapshot(instance_id):
     if raw is None:
         return None
 
-    all_instances = instance_store.list_all()
-    inst_meta = next((i for i in all_instances if i["id"] == instance_id), {})
+    inst_meta = instance_store.get_instance_metadata(instance_id) or {}
     ot_rid = inst_meta.get("object_type_rid", "")
 
     cfg = instance_store.get_render_config(instance_id) or {}
@@ -2576,6 +2589,44 @@ def writeback_state_batch():
         "status": "ok",
         "count": info["count"],
         "writebacks": info["results"],
+        "snapshots": snapshots,
+    })
+
+
+@app.route('/api/v2/state/material-writeback', methods=['POST'])
+def material_writeback_state():
+    """Atomically persist editor-preview material overrides for assembly parts."""
+    bind_ok, bind_info = check_request_matches_active(project_store, request)
+    if not bind_ok:
+        return jsonify(bind_info), 403
+
+    data = request.json or {}
+    try:
+        ok, info, status = apply_material_writeback(
+            instance_store,
+            data.get("changes"),
+            expected_project_id=data.get("expected_project_id"),
+        )
+    except ProjectMismatch as error:
+        return jsonify({
+            "status": "error",
+            "error": "project_changed",
+            "expected": error.expected,
+            "actual": error.actual,
+        }), 409
+    if not ok:
+        return jsonify({"status": "error", **info}), status
+
+    snapshots = []
+    for instance_id in info["instance_ids"]:
+        snapshot = _build_snapshot(instance_id)
+        if snapshot is not None:
+            snapshots.append(snapshot)
+    return jsonify({
+        "status": "ok",
+        "instance_count": info["instance_count"],
+        "part_count": info["part_count"],
+        "component_sync_count": info["component_sync_count"],
         "snapshots": snapshots,
     })
 

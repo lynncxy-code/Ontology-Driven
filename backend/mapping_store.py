@@ -2810,7 +2810,14 @@ class InstanceStore:
         with self._lock:
             inst = self._instances.get(instance_id)
             if inst:
-                inst["raw_state"].update(patch)
+                if not isinstance(patch, dict) or not patch:
+                    return True
+                previous = inst.get("raw_state") or {}
+                if any(key not in previous or previous.get(key) != value
+                       for key, value in patch.items()):
+                    updated = dict(previous)
+                    updated.update(patch)
+                    inst["raw_state"] = updated
                 inst["last_seen"] = time.time()
                 if persist:
                     self._save_scene(inst.get("scene_id", "default"))
@@ -2876,6 +2883,10 @@ class MockInstanceSimulator(threading.Thread):
             for iid in self.store.get_all_ids():
                 if is_websocket_spatial_instance(iid):
                     continue
+                # Static UE-imported scene records usually have no synthetic
+                # telemetry patch.  Keep their demo liveness fresh explicitly
+                # without mutating raw_state or marking the project dirty.
+                self.store.touch(iid)
                 state = self.store.get_raw_state(iid)
                 if state is None:
                     continue
@@ -2905,7 +2916,8 @@ class MockInstanceSimulator(threading.Thread):
                     patch["pressure"]    = state.get("pressure", 101) + random.uniform(-0.5, 0.5)
                     patch["ui_label_content"] = f"温度 {patch['temperature']:.1f}°C | 压力 {patch['pressure']:.1f}kPa"
 
-                self.store.update_raw_state(iid, patch)
+                if patch:
+                    self.store.update_raw_state(iid, patch)
 
 
 # ═══════════════════════════════════════════════════════════════

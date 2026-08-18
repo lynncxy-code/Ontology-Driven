@@ -127,6 +127,45 @@ class WebInteractionService:
         self.store.transact_active(update)
         return {"status": "ok", "published": True, "project_id": project_id, "revision": result["revision"], "config": published, "warnings": validation["warnings"]}
 
+    def apply(self, payload):
+        """Validate and atomically replace draft + published for the 3.8.2 single-page flow."""
+        project = self._project()
+        project_id = project.get("id")
+        expected = self._expected(payload.get("expected_revision"))
+        allow_warnings = bool(payload.get("confirm_warnings"))
+        source = payload.get("config") if "config" in payload else payload.get("draft")
+        validation = validate_config(project, source or {})
+        if not validation["valid"]:
+            return {"status": "validation_failed", "applied": False,
+                    **{key: validation[key] for key in ("errors", "warnings", "summary")}}
+        if validation["warnings"] and not allow_warnings:
+            return {"status": "warning_confirmation_required", "applied": False,
+                    "errors": [], "warnings": validation["warnings"], "summary": validation["summary"]}
+        applied = copy.deepcopy(validation["config"])
+        applied.pop("base_revision", None)
+        result = {}
+
+        def update(working):
+            if working.get("id") != project_id:
+                raise WebInteractionConflictError("保存期间当前激活项目已切换")
+            web = working.setdefault("web_interactions", _default_web_interactions())
+            current = int(web.get("revision") or 0)
+            if current != expected:
+                raise WebInteractionConflictError(
+                    f"web interaction revision conflict: expected {expected}, current {current}")
+            web["previous_published"] = copy.deepcopy(web.get("published"))
+            web["published"] = copy.deepcopy(applied)
+            web["revision"] = current + 1
+            web["draft"] = normalize_config(applied, current + 1)
+            result["revision"] = current + 1
+
+        self.store.transact_active(update)
+        return {
+            "status": "ok", "applied": True, "project_id": project_id,
+            "revision": result["revision"], "config": applied,
+            "warnings": validation["warnings"],
+        }
+
     def rollback(self, payload):
         project = self._project()
         project_id = project.get("id")

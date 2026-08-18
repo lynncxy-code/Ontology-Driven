@@ -133,8 +133,17 @@ def resolve_binding(project, config, payload):
     elif context.get("zone_id"):
         scope_type = "zone"
     effect = (page.get("scope_effects") or {}).get(scope_type, "web_only")
-    result["scene_scope"] = build_scene_scope(project, config, context, scope_type) if effect == "web_and_scene" else None
+    scene_behavior = "isolate_focus" if effect == "web_and_scene" else "web_only"
+    if scope_type == "business_view" and context.get("business_view_id"):
+        view = next((item for item in config.get("business_views") or []
+                     if item.get("business_view_id") == context["business_view_id"]), None)
+        if view and view.get("scene_behavior") in {"isolate_focus", "highlight", "web_only"}:
+            scene_behavior = view["scene_behavior"]
+    result["scene_scope"] = build_scene_scope(project, config, context, scope_type) if scene_behavior != "web_only" else None
+    if result["scene_scope"] is not None:
+        result["scene_scope"]["behavior"] = scene_behavior
     result["scope_effect"] = effect
+    result["scene_behavior"] = scene_behavior
     return result
 
 
@@ -160,6 +169,7 @@ def build_scene_scope(project, config, context, scope_type):
         "zone_id": context.get("zone_id"),
         "instance_id": context.get("instance_id"),
         "visible_instance_ids": sorted(visible | unzoned),
+        "matched_instance_ids": sorted(visible),
         "matched_instance_count": len(visible),
         "unzoned_instance_count": len(unzoned),
     }

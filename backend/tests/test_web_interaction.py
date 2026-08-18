@@ -160,6 +160,22 @@ class WebInteractionTestCase(unittest.TestCase):
         conflict = self.client.put("/api/v2/web-interactions/draft", json={"expected_revision": 9, "draft": sample_config()})
         self.assertEqual(409, conflict.status_code)
 
+    def test_single_page_apply_is_atomic_and_scene_behavior_is_preserved(self):
+        config = sample_config()
+        config["business_views"][0]["scene_behavior"] = "highlight"
+        needs_confirmation = self.service.apply({"expected_revision": 0, "config": config})
+        self.assertEqual("warning_confirmation_required", needs_confirmation["status"])
+        applied = self.service.apply({
+            "expected_revision": 0, "config": config, "confirm_warnings": True,
+        })
+        self.assertEqual(1, applied["revision"])
+        self.assertEqual("highlight", self.service.get()["published"]["business_views"][0]["scene_behavior"])
+        resolved = resolve_binding(self.store.get_active_copy(), applied["config"], {
+            "trigger": "business_view_activated", "context": {"business_view_id": "bv.fire"},
+        })
+        self.assertEqual("highlight", resolved["scene_behavior"])
+        self.assertEqual(["smoke_01"], resolved["scene_scope"]["matched_instance_ids"])
+
 
 if __name__ == "__main__":
     unittest.main()

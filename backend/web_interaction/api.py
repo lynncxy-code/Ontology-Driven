@@ -62,6 +62,10 @@ def register_web_interaction_routes(app, project_store):
     def publish():
         return execute(lambda: service.publish(request.get_json(silent=True) or {}))
 
+    @blueprint.post("/api/v2/web-interactions/apply")
+    def apply():
+        return execute(lambda: service.apply(request.get_json(silent=True) or {}))
+
     @blueprint.post("/api/v2/web-interactions/rollback")
     def rollback():
         return execute(lambda: service.rollback(request.get_json(silent=True) or {}))

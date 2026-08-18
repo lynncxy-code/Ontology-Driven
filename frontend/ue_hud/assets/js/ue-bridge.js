@@ -34,7 +34,7 @@
     const detail = { action, payload: payload || {}, page: document.body.dataset.page || "unknown", timestamp: new Date().toISOString() };
     actionListeners.forEach(listener => listener(detail));
     global.dispatchEvent(new CustomEvent("ontotwin:hud-action", { detail }));
-    if (["select_instance", "clear_selection", "request_open_scope", "request_open_page"].includes(action)) {
+    if (["select_instance", "clear_selection", "focus_current_scope", "close_page", "request_open_scope", "request_open_page"].includes(action)) {
       post(action, payload || {});
     }
     return detail;
@@ -96,7 +96,7 @@
   });
 
   function ready() {
-    post("ready", { version: "1.0", capabilities: ["interactive_regions", "select_instance", "clear_selection", "request_open_scope", "request_open_page"] });
+    post("ready", { version: "1.0", capabilities: ["interactive_regions", "select_instance", "clear_selection", "focus_current_scope", "close_page", "request_open_scope", "request_open_page"] });
     reportInteractiveRegions();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ready, { once: true });

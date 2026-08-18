@@ -4,7 +4,7 @@
   padding: var(--hud-s4);
   border: 1px solid var(--hud-line);
   border-radius: var(--hud-r-md);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .hud-page-state__title {

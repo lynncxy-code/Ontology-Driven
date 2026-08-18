@@ -150,6 +150,15 @@
     global.OntoTwinBridge.reportInteractiveRegions();
   }
 
+  function payloadForContext(payload) {
+    if (!payload || !payload.variants || typeof payload.variants !== "object") return payload;
+    const requested = query.zone_id || query.space_id || "";
+    return payload.variants[requested]
+      || payload.variants[payload.default_variant]
+      || Object.values(payload.variants)[0]
+      || payload;
+  }
+
   function toast(message) {
     const host = document.getElementById("toast-region");
     const item = document.createElement("div");
@@ -186,6 +195,7 @@
 
   shell();
   global.OntoTwinHUD.subscribe(payload => {
+    payload = payloadForContext(payload);
     if (!payload || !payload.page) { showState("empty"); return; }
     render(payload);
   });

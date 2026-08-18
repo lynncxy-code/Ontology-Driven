@@ -6,10 +6,10 @@
   --hud-ink-3: rgba(255, 255, 255, 0.5);
   --hud-line: rgba(255, 255, 255, 0.18);
   --hud-line-strong: rgba(255, 255, 255, 0.3);
-  --hud-surface: rgba(18, 18, 20, 0.72);
-  --hud-surface-strong: rgba(18, 18, 20, 0.86);
-  --hud-surface-hover: rgba(42, 42, 46, 0.82);
-  --hud-surface-pressed: rgba(58, 58, 62, 0.86);
+  --hud-surface: rgba(18, 18, 20, 0.36);
+  --hud-surface-strong: rgba(18, 18, 20, 0.48);
+  --hud-surface-hover: rgba(42, 42, 46, 0.52);
+  --hud-surface-pressed: rgba(58, 58, 62, 0.6);
 
   --hud-ok: #68c89a;
   --hud-info: #83b7d8;
@@ -37,7 +37,7 @@
   --hud-t-xl: 20px;
   --hud-t-value: clamp(24px, 1.8vw, 34px);
 
-  --hud-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+  --hud-shadow: 0 14px 36px rgba(0, 0, 0, 0.12);
   --hud-font: Inter, "Noto Sans SC", "Microsoft YaHei", "Segoe UI", sans-serif;
 
   --hud-safe-x: clamp(16px, 1.25vw, 32px);

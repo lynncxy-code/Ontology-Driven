@@ -100,7 +100,7 @@
   padding: var(--hud-s3);
   border: 1px solid var(--hud-line);
   border-radius: var(--hud-r-md);
-  background: rgba(255, 255, 255, 0.045);
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .hud-metric__label {
@@ -144,7 +144,7 @@
   padding: var(--hud-s3);
   border: 1px solid var(--hud-line);
   border-radius: var(--hud-r-md);
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(255, 255, 255, 0.02);
   color: var(--hud-ink);
   text-align: left;
   cursor: pointer;
@@ -201,7 +201,7 @@
   padding: var(--hud-s1);
   border: 1px solid var(--hud-line);
   border-radius: var(--hud-r-md);
-  background: rgba(0, 0, 0, 0.14);
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .hud-segment__button {
@@ -245,6 +245,11 @@
   border-color: rgba(255, 255, 255, 0.46);
 }
 
+.hud-button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .hud-button--primary {
   background: rgba(255, 255, 255, 0.92);
   color: #171719;
@@ -278,7 +283,7 @@
   padding: var(--hud-s3);
   border-left: 2px solid var(--hud-line-strong);
   border-radius: 0 var(--hud-r-md) var(--hud-r-md) 0;
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .hud-event[data-level="warning"] { border-left-color: var(--hud-warning); }

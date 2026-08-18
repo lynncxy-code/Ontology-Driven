@@ -10,6 +10,39 @@
       renderBuilding(payload, context);
     }
   });
+  const pendingActions = new Map();
+
+  function releasePendingAction(requestId, result) {
+    const control = pendingActions.get(requestId);
+    if (!control) return;
+    pendingActions.delete(requestId);
+    control.disabled = false;
+    control.removeAttribute("aria-busy");
+    if (control.dataset.idleLabel) {
+      control.textContent = control.dataset.idleLabel;
+      delete control.dataset.idleLabel;
+    }
+    if (result && result.payload && result.payload.result === "rejected") {
+      runtime.toast("操作未执行，请稍后重试", "err");
+    }
+  }
+
+  function postOnce(control, type, payload) {
+    if (!control || control.getAttribute("aria-busy") === "true") return;
+    control.dataset.idleLabel = control.textContent;
+    control.textContent = type === "close_page" ? "正在进入…" : "正在聚焦…";
+    control.disabled = true;
+    control.setAttribute("aria-busy", "true");
+    const requestId = global.OntoTwinBridge.post(type, payload || {});
+    pendingActions.set(requestId, control);
+    global.setTimeout(() => releasePendingAction(requestId), 1500);
+  }
+
+  global.OntoTwinBridge.subscribe((message) => {
+    if (message && message.type === "action_result" && message.request_id) {
+      releasePendingAction(message.request_id, message);
+    }
+  });
 
   function metricMarkup(metric) {
     const escape = global.OntoTwinPageRuntime.escapeHtml;
@@ -29,7 +62,9 @@
       '<button class="hud-list-button" type="button" data-ontotwin-interactive="zone-', escape(zone.id), '" data-action="open-zone" data-id="', escape(zone.id), '">',
       '<span><span class="hud-list-button__title">', escape(zone.name), '</span>',
       '<span class="hud-list-button__meta">', escape(zone.summary || "暂无摘要"), '</span></span>',
-      '<span class="hud-count">', escape(zone.event_count === undefined ? "—" : zone.event_count), '</span>',
+      '<span class="hud-count">', escape(zone.device_count === undefined
+        ? (zone.event_count === undefined ? "—" : zone.event_count)
+        : zone.device_count), '</span>',
       '</button>',
       '</li>'
     ].join("");
@@ -110,6 +145,16 @@
         button.setAttribute("aria-pressed", button === control ? "true" : "false");
       });
       runtime.toast(`已切换至 ${control.textContent.trim()}`, "ok");
+    }
+
+    if (action === "focus-building") {
+      postOnce(control, "focus_current_scope");
+      return;
+    }
+
+    if (action === "enter-building") {
+      postOnce(control, "close_page");
+      return;
     }
 
     global.OntoTwinHUD.emitAction(action, { id });

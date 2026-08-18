@@ -14,6 +14,7 @@ TRIGGERS = {
 }
 ZONE_LEVELS = {"building", "floor", "room", "area", "custom"}
 SCOPE_EFFECTS = {"web_only", "web_and_scene"}
+SCENE_BEHAVIORS = {"isolate_focus", "highlight", "web_only"}
 ID_RE = re.compile(r"^[A-Za-z0-9_.:/-]{1,128}$")
 
 
@@ -284,6 +285,9 @@ def validate_config(project, value):
         for value_id in view.get("exclude_instance_ids") or []:
             if value_id not in instance_ids:
                 _error(errors, f"{path}.exclude_instance_ids", "instance_not_found", f"实例不存在：{value_id}")
+        scene_behavior = view.get("scene_behavior")
+        if scene_behavior not in (None, "") and scene_behavior not in SCENE_BEHAVIORS:
+            _error(errors, f"{path}.scene_behavior", "invalid_scene_behavior", "场景行为不受支持")
         if view_id and not business_view_members(project, view, zones):
             warnings.append({"path": path, "code": "business_view_empty", "message": f"{view.get('name') or view_id} 当前匹配 0 个实例"})
 

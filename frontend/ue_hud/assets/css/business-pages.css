@@ -28,7 +28,7 @@
   border: 1px solid var(--hud-line);
   border-left-width: 2px;
   border-radius: var(--hud-r-md);
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(255, 255, 255, 0.02);
   color: var(--hud-ink);
   text-align: left;
 }

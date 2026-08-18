@@ -2,7 +2,7 @@ import copy
 from collections import Counter
 
 from project_store import ProjectMismatch
-from web_interaction.validators import ZONE_LEVELS, validate_zone_hierarchy, zone_catalog
+from web_interaction.validators import ID_RE, ZONE_LEVELS, validate_zone_hierarchy, zone_catalog
 
 
 class ZoneManagementError(ValueError):
@@ -97,8 +97,18 @@ class ZoneManagementService:
         catalog = zone_catalog(project)
         zones = []
         for zone_id in sorted(set(catalog) | set(counts), key=str.casefold):
-            item = {"id": zone_id, "instance_count": counts.get(zone_id, 0)}
             explicit = (project.get("zones") or {}).get(zone_id) if isinstance(project.get("zones"), dict) else None
+            is_registered = isinstance(explicit, dict)
+            item = {
+                "id": zone_id,
+                "name": zone_id,
+                "parent_zone_id": None,
+                "level": "custom",
+                "ue_level": "",
+                "streaming": {},
+                "instance_count": counts.get(zone_id, 0),
+                "registered": is_registered,
+            }
             if isinstance(explicit, dict):
                 item.update({
                     "name": explicit.get("name") or zone_id,
@@ -132,6 +142,12 @@ class ZoneManagementService:
             zone_id = _normalize_zone_id(raw.get("zone_id") or raw.get("id"))
             if not zone_id:
                 raise ZoneManagementError("invalid_zone_id", "Zone ID 不能为空", [{"path": f"zones[{index}].zone_id", "message": "不能为空"}])
+            if not ID_RE.fullmatch(zone_id):
+                raise ZoneManagementError(
+                    "invalid_zone_id",
+                    "Zone ID 仅允许英文字母、数字及 _ . : / -",
+                    [{"path": f"zones[{index}].zone_id", "message": "请使用稳定英文 ID"}],
+                )
             if zone_id in normalized:
                 raise ZoneManagementError("duplicate_zone_id", "Zone ID 不能重复", [{"path": f"zones[{index}].zone_id", "message": "不能重复"}])
             level = str(raw.get("level") or "custom").strip()

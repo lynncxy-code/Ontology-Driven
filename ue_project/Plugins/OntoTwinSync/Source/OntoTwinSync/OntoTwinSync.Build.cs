@@ -33,6 +33,7 @@ public class OntoTwinSync : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
+			"AssetRegistry",
 			"Projects",
 			"RHI",
 			"RenderCore",
@@ -51,6 +52,11 @@ public class OntoTwinSync : ModuleRules
 		RuntimeDependencies.Add("$(PluginDir)/Resources/Fonts/LICENSE-NotoSansCJK.txt");
 
 		// FR-6 迁移工具：编辑器选择集 / EditorDestroyActor 需要 UnrealEd（仅编辑器构建）
+		if (Target.Platform == UnrealTargetPlatform.Win64)
+		{
+			PublicSystemLibraries.Add("bcrypt.lib");
+		}
+
 		if (Target.bBuildEditor)
 		{
 			PrivateDependencyModuleNames.Add("UnrealEd");

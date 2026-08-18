@@ -17,6 +17,32 @@ ATwinGodViewPawn::ATwinGodViewPawn()
     Movement->Deceleration = 6000.0f;
 }
 
+void ATwinGodViewPawn::Tick(float DeltaSeconds)
+{
+    Super::Tick(DeltaSeconds);
+    if (!bFocusTransitionActive) return;
+
+    FocusTransitionElapsed += DeltaSeconds;
+    const float Alpha = FMath::Clamp(
+        FocusTransitionElapsed / FMath::Max(FocusTransitionDuration, KINDA_SMALL_NUMBER),
+        0.0f,
+        1.0f);
+    const float SmoothAlpha = FMath::SmoothStep(0.0f, 1.0f, Alpha);
+    const FVector Location = FMath::Lerp(
+        FocusTransitionStart.GetLocation(),
+        FocusTransitionTarget.GetLocation(),
+        SmoothAlpha);
+    const FQuat Rotation = FQuat::Slerp(
+        FocusTransitionStart.GetRotation(),
+        FocusTransitionTarget.GetRotation(),
+        SmoothAlpha).GetNormalized();
+    SetActorLocationAndRotation(Location, Rotation, false, nullptr, ETeleportType::TeleportPhysics);
+    if (Alpha >= 1.0f)
+    {
+        bFocusTransitionActive = false;
+    }
+}
+
 void ATwinGodViewPawn::Configure(float InMoveSpeedCmS, float InLookSensitivity)
 {
     Movement->MaxSpeed = FMath::Clamp(InMoveSpeedCmS, 100.0f, 10000.0f);
@@ -47,4 +73,21 @@ void ATwinGodViewPawn::AdjustSpeed(float Axis)
 {
     if (FMath::IsNearlyZero(Axis)) return;
     Movement->MaxSpeed = FMath::Clamp(Movement->MaxSpeed * (Axis > 0.0f ? 1.2f : 0.8f), 100.0f, 10000.0f);
+}
+
+void ATwinGodViewPawn::FocusToTransform(
+    const FTransform& TargetTransform,
+    float DurationSeconds)
+{
+    if (DurationSeconds <= KINDA_SMALL_NUMBER)
+    {
+        bFocusTransitionActive = false;
+        SetActorTransform(TargetTransform, false, nullptr, ETeleportType::TeleportPhysics);
+        return;
+    }
+    FocusTransitionStart = GetActorTransform();
+    FocusTransitionTarget = TargetTransform;
+    FocusTransitionElapsed = 0.0f;
+    FocusTransitionDuration = DurationSeconds;
+    bFocusTransitionActive = true;
 }

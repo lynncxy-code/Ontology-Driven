@@ -57,10 +57,52 @@ private:
     UBorder* DetailPanel = nullptr;
 
     UPROPERTY()
+    UTextBlock* DrawerTitle = nullptr;
+
+    UPROPERTY()
+    UWidget* RoamingRouteRow = nullptr;
+
+    UPROPERTY()
+    UWidget* RoamingViewModes = nullptr;
+
+    UPROPERTY()
+    UWidget* RoamingActions = nullptr;
+
+    UPROPERTY()
     UOntoTwinMinimapWidget* MinimapWidget = nullptr;
 
     UPROPERTY()
     UComboBoxString* RouteSelector = nullptr;
+
+    UPROPERTY()
+    UButton* HomeTabButton = nullptr;
+
+    UPROPERTY()
+    UButton* ZoneTabButton = nullptr;
+
+    UPROPERTY()
+    UButton* BusinessTabButton = nullptr;
+
+    UPROPERTY()
+    UButton* RoamingTabButton = nullptr;
+
+    UPROPERTY()
+    UWidget* ZonePanel = nullptr;
+
+    UPROPERTY()
+    UWidget* BusinessPanel = nullptr;
+
+    UPROPERTY()
+    UWidget* RoamingPanel = nullptr;
+
+    UPROPERTY()
+    UComboBoxString* WebZoneSelector = nullptr;
+
+    UPROPERTY()
+    UComboBoxString* WebBusinessSelector = nullptr;
+
+    UPROPERTY()
+    UComboBoxString* WebBusinessZoneSelector = nullptr;
 
     UPROPERTY()
     UButton* FirstPersonButton = nullptr;
@@ -73,9 +115,18 @@ private:
 
     FString ShortcutSignature;
     FString RouteSignature;
+    FString WebCatalogSignature;
     TArray<FString> RouteOptionIds;
     TArray<FString> RouteOptionLabels;
+    TArray<FString> WebZoneOptionIds;
+    TArray<FString> WebZoneOptionLabels;
+    TArray<FString> WebBusinessOptionIds;
+    TArray<FString> WebBusinessOptionLabels;
+    TArray<FString> WebBusinessZoneOptionIds;
+    TArray<FString> WebBusinessZoneOptionLabels;
     bool bRefreshingRouteSelector = false;
+    bool bRefreshingWebSelectors = false;
+    int32 ActiveDockTab = 1;
     float StatusPulsePhase = 0.0f;
 
     void BuildDefaultLayout();
@@ -85,6 +136,8 @@ private:
         float Radius);
     void RefreshShortcutList();
     void RefreshRouteSelector();
+    void RefreshWebSelectors();
+    void SetDockTab(int32 TabIndex);
     void AddShortcutRow(int32 Index, const FString& Key, const FString& Description);
     UButton* AddActionButton(UVerticalBox* Parent, const FName Name, const FString& Label);
 
@@ -114,4 +167,25 @@ private:
 
     UFUNCTION()
     void OnRouteSelected(FString SelectedItem, ESelectInfo::Type SelectionType);
+
+    UFUNCTION()
+    void OnHomeTab();
+
+    UFUNCTION()
+    void OnZoneTab();
+
+    UFUNCTION()
+    void OnBusinessTab();
+
+    UFUNCTION()
+    void OnRoamingTab();
+
+    UFUNCTION()
+    void OnWebZoneSelected(FString SelectedItem, ESelectInfo::Type SelectionType);
+
+    UFUNCTION()
+    void OnWebBusinessSelected(FString SelectedItem, ESelectInfo::Type SelectionType);
+
+    UFUNCTION()
+    void OnWebBusinessScopeSelected(FString SelectedItem, ESelectInfo::Type SelectionType);
 };

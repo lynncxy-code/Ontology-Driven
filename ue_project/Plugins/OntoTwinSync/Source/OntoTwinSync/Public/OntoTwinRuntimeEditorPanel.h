@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "TimerManager.h"
+#include "Types/SlateEnums.h"
 #include "OntoTwinRuntimeEditorPanel.generated.h"
 
 class ATwinSceneManager;
@@ -10,9 +11,12 @@ class SWidget;
 class UButton;
 class UBorder;
 class UCheckBox;
+class UComboBoxString;
+class UEditableTextBox;
 class USizeBox;
 class UTextBlock;
 class UVerticalBox;
+class UWidget;
 
 enum class EOntoTwinRuntimePanelConfirmation : uint8
 {
@@ -114,6 +118,36 @@ private:
     UButton* RedoButton = nullptr;
 
     UPROPERTY()
+    UButton* SceneTabButton = nullptr;
+
+    UPROPERTY()
+    UButton* BusinessTabButton = nullptr;
+
+    UPROPERTY()
+    UTextBlock* SceneTabLabel = nullptr;
+
+    UPROPERTY()
+    UTextBlock* BusinessTabLabel = nullptr;
+
+    UPROPERTY()
+    UVerticalBox* SceneContent = nullptr;
+
+    UPROPERTY()
+    UVerticalBox* BusinessContent = nullptr;
+
+    UPROPERTY()
+    UTextBlock* BusinessSelectionText = nullptr;
+
+    UPROPERTY()
+    UComboBoxString* BusinessSelector = nullptr;
+
+    UPROPERTY()
+    UEditableTextBox* BusinessNameInput = nullptr;
+
+    UPROPERTY()
+    UButton* CreateBusinessButton = nullptr;
+
+    UPROPERTY()
     UButton* RemoveButton = nullptr;
 
     UPROPERTY()
@@ -169,6 +203,12 @@ private:
     FTimerHandle ToastTimerHandle;
     EOntoTwinRuntimePanelConfirmation ConfirmationMode = EOntoTwinRuntimePanelConfirmation::None;
     bool bPendingListExpanded = false;
+    bool bBusinessTabActive = false;
+    bool bRefreshingBusinessSelector = false;
+    FString BusinessOptionsSignature;
+    TArray<FString> BusinessOptionIds;
+    TArray<FString> BusinessOptionLabels;
+    TArray<FString> BusinessOptionDisplayLabels;
 
     void BuildDefaultLayout();
     UTextBlock* CreateText(const FName Name, const FString& InitialText, int32 FontSize,
@@ -178,6 +218,8 @@ private:
     void HideToast();
     void HideConfirmation();
     void RefreshPendingList();
+    void SetActiveTab(bool bBusiness);
+    void RefreshBusinessEditor();
 
     UFUNCTION()
     void HandleAccessActionClicked();
@@ -196,6 +238,21 @@ private:
 
     UFUNCTION()
     void HandleRedoClicked();
+
+    UFUNCTION()
+    void HandleSceneTabClicked();
+
+    UFUNCTION()
+    void HandleBusinessTabClicked();
+
+    UFUNCTION()
+    void HandleBusinessSelected(FString SelectedItem, ESelectInfo::Type SelectionType);
+
+    UFUNCTION()
+    UWidget* GenerateBusinessOptionWidget(FString Item);
+
+    UFUNCTION()
+    void HandleCreateBusinessClicked();
 
     UFUNCTION()
     void HandleRemoveClicked();

@@ -2,6 +2,7 @@
 
 #include "SceneInteraction/TwinGodViewPawn.h"
 #include "SceneInteraction/TwinRoamingCharacter.h"
+#include "Camera/CameraComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "TimerManager.h"
@@ -223,7 +224,7 @@ bool UTwinCameraModeComponent::Cycle(
     ATwinGodViewAnchor* StartAnchor,
     FString& OutError)
 {
-    ETwinRoamingCameraMode NextMode = ETwinRoamingCameraMode::God;
+    ETwinRoamingCameraMode NextMode = ETwinRoamingCameraMode::NearFollow;
     if (Mode == ETwinRoamingCameraMode::God)
     {
         NextMode = ETwinRoamingCameraMode::NearFollow;
@@ -232,7 +233,66 @@ bool UTwinCameraModeComponent::Cycle(
     {
         NextMode = ETwinRoamingCameraMode::FirstPerson;
     }
+    else if (IsValid(StartAnchor))
+    {
+        NextMode = ETwinRoamingCameraMode::God;
+    }
+    // A level without TwinGodViewAnchor still has a complete two-mode camera
+    // loop. Explicitly selecting God view continues to report the missing anchor.
     return ActivateMode(NextMode, PlayerController, StartAnchor, OutError, false);
+}
+
+bool UTwinCameraModeComponent::FocusAtTransform(
+    APlayerController* PlayerController,
+    const FTransform& TargetTransform,
+    float FovDegrees,
+    FString& OutError)
+{
+    if (!PlayerController || !GetWorld())
+    {
+        OutError = TEXT("Player controller or world is unavailable");
+        return false;
+    }
+    if (IsTransitioning())
+    {
+        OutError = TEXT("Camera transition is already in progress");
+        return false;
+    }
+
+    if (!GodPawn || !IsValid(GodPawn))
+    {
+        FActorSpawnParameters Params;
+        Params.Owner = GetOwner();
+        Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+        GodPawn = GetWorld()->SpawnActor<ATwinGodViewPawn>(
+            ATwinGodViewPawn::StaticClass(), TargetTransform, Params);
+        if (!GodPawn)
+        {
+            OutError = TEXT("Instance-focus observation Pawn could not be spawned");
+            return false;
+        }
+        GodPawn->Configure(GodSettings.MoveSpeedCmS, GodSettings.LookSensitivity);
+    }
+    if (GodPawn->Camera)
+    {
+        GodPawn->Camera->SetFieldOfView(FMath::Clamp(FovDegrees, 20.0f, 120.0f));
+    }
+
+    const bool bAlreadyObserving = Mode == ETwinRoamingCameraMode::God
+        && PlayerController->GetPawn() == GodPawn;
+    if (bAlreadyObserving)
+    {
+        GodPawn->FocusToTransform(TargetTransform, GlobalCameraBlendSeconds);
+        return true;
+    }
+
+    GodPawn->FocusToTransform(TargetTransform, 0.0f);
+    return ActivateMode(
+        ETwinRoamingCameraMode::God,
+        PlayerController,
+        nullptr,
+        OutError,
+        false);
 }
 
 bool UTwinCameraModeComponent::IsTransitioning() const

@@ -40,8 +40,10 @@ class UMediaSoundComponent;
 class UMediaTexture;
 class UOntoTwinRuntimeEditorPanel;
 class UOntoTwinOverlayWidget;
+class UOntoTwinModelLoadingWidget;
 class UTwinInteractionManagerComponent;
 class UOntoTwinWebInteractionComponent;
+class UOntoTwinUEAssetCatalogSyncComponent;
 enum class EOntoTwinOverlayMediaAction : uint8;
 
 UENUM(BlueprintType)
@@ -193,6 +195,10 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="场景交互|Web")
     UOntoTwinWebInteractionComponent* WebInteractionManager;
 
+    /** UE 项目资产目录同步工具；默认扫描 /Game/Art，供 CAD 类型审核选择与推荐。 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="连接|资产目录")
+    UOntoTwinUEAssetCatalogSyncComponent* AssetCatalogSync;
+
     // ═══════════════════════════════════════════════════════════════════════
     // Runtime Editor（打包 exe 内的轻量场景编辑入口）
     // ═══════════════════════════════════════════════════════════════════════
@@ -329,8 +335,16 @@ public:
     bool CanRemoveRuntimeSelection() const;
     bool HasRuntimeEditSelection() const;
     int32 GetRuntimeEditSelectionCount() const;
+    void GetRuntimeSelectedInstanceDisplayNames(TArray<FString>& OutNames) const;
     int32 GetRuntimeEditPendingCount() const;
     void GetRuntimeEditPendingLines(TArray<FString>& OutLines) const;
+    void GetRuntimeBusinessMembershipRows(
+        TArray<FString>& OutBusinessIds,
+        TArray<FString>& OutNames,
+        TArray<uint8>& OutStates) const;
+    bool ToggleRuntimeBusinessMembership(const FString& BusinessId);
+    bool CreateRuntimeBusiness(const FString& Name);
+    bool HasRuntimeBusinessSnapshot() const { return RuntimeBusinessConfig.IsValid(); }
     bool IsRuntimeSelectionMultiple() const { return RuntimeSelectedInstances.Num() > 1; }
     bool IsRuntimeEditDirty() const { return bRuntimeEditDirty; }
     bool IsRuntimeEditSaving() const { return bRuntimeEditSaving; }
@@ -346,6 +360,7 @@ public:
     ATwinInstance* FindManagedInstance(const FString& InstanceId) const;
     void GetManagedInstances(TArray<ATwinInstance*>& OutInstances) const;
     void FocusManagedInstance(ATwinInstance* Instance) const;
+    void FocusManagedInstances(const TSet<FString>& InstanceIds) const;
 
     /** 将屏幕坐标解析为当前可见的 always Overlay，供漫游和语义输入共用。 */
     UFUNCTION(BlueprintCallable, Category="场景交互")
@@ -363,6 +378,11 @@ public:
     UFUNCTION(CallInEditor, Category="连接",
               meta=(DisplayName="绑定当前UE工程到激活数据集"))
     void BindCurrentUEProjectToActiveDataset();
+
+    /** 手动把当前 UE 工程资产目录同步到 OntoTwin。 */
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="连接|资产目录",
+              meta=(DisplayName="同步UE资产目录"))
+    void SyncUEAssetCatalog();
 
     // ═══════════════════════════════════════════════════════════════════════
     // 编辑器预览（FR-4）—— 从数据库临时 spawn 供查看/微调，绝不存进 .umap
@@ -432,6 +452,14 @@ private:
 
     /** 请求锁 */
     bool bRequestInFlight = false;
+
+    /** 首轮数据库模型基线完成前保持启动加载层，并阻止自动漫游接管镜头。 */
+    bool bInitialModelBaselineReady = false;
+
+    UPROPERTY(Transient)
+    UOntoTwinModelLoadingWidget* ModelLoadingWidget = nullptr;
+
+    FTimerHandle ModelLoadingDismissTimer;
 
     /** 连续失败计数 */
     int32 ConsecutiveFailures = 0;
@@ -552,6 +580,7 @@ private:
     bool bRuntimePreviousMouseCursor = false;
     bool bRuntimePreviousAnimRunning = false;
     bool bRuntimeExitAfterSave = false;
+    bool bRuntimeBusinessDirty = false;
     float RuntimeLastToggleInputTime = -1000.0f;
     FString RuntimePreviousAnimState;
     FString RuntimeBindingMode = TEXT("unknown");
@@ -602,11 +631,17 @@ private:
         FString Label;
         TArray<FRuntimeEditValue> Before;
         TArray<FRuntimeEditValue> After;
+        bool bBusinessCommand = false;
+        TSharedPtr<FJsonObject> BusinessBefore;
+        TSharedPtr<FJsonObject> BusinessAfter;
     };
 
     TMap<FString, FRuntimeEditInstanceState> RuntimeEditStates;
     TArray<FRuntimeEditCommand> RuntimeUndoStack;
     TArray<FRuntimeEditCommand> RuntimeRedoStack;
+    TSharedPtr<FJsonObject> RuntimeBusinessBaseline;
+    TSharedPtr<FJsonObject> RuntimeBusinessConfig;
+    int32 RuntimeBusinessRevision = -1;
     TMap<FString, FTransform> RuntimeDragStartTransforms;
     TArray<FRuntimeEditValue> RuntimeDragBeforeValues;
     TArray<FBox> RuntimeSelectionLocalBounds;
@@ -630,6 +665,12 @@ private:
 
     /** 定时轮询回调 */
     void PollBackend();
+
+    void EnsureModelLoadingWidget();
+    void UpdateInitialModelLoadingProgress(int32 Completed, int32 Total);
+    void CompleteInitialModelBaseline(int32 Total);
+    void FailInitialModelBaseline(const FString& Detail);
+    void DismissModelLoadingWidget();
 
     /** HTTP 响应回调 */
     void OnPollResponse(FHttpRequestPtr HttpRequest, FHttpResponsePtr Response, bool bWasSuccessful);
@@ -674,6 +715,10 @@ private:
 
     void TickRuntimeEditor(float DeltaTime);
     void TickOverlays();
+    void FocusManagedBounds(
+        const FBox& Bounds,
+        const FString& FocusLabel,
+        int32 InstanceCount) const;
     ATwinInstance* FindAlwaysOverlayAtScreenPosition(
         APlayerController* PlayerController,
         const FVector2D& ScreenPosition) const;
@@ -734,6 +779,11 @@ private:
     void ReleaseRuntimeEditState(const FString& InstanceId, bool bRestoreBaseline);
     void ReleaseCleanUnselectedRuntimeStates();
     void RefreshRuntimeEditDirtyState();
+    void RefreshRuntimeBusinessDirtyState();
+    bool RefreshRuntimeBusinessSnapshot();
+    TSharedPtr<FJsonObject> CloneRuntimeBusinessConfig(
+        const TSharedPtr<FJsonObject>& Source) const;
+    void GetRuntimeSelectedInstanceIds(TArray<FString>& OutInstanceIds) const;
     void UpdateRuntimeSelectionGeometry(bool bKeepDragPivot = false);
     bool CanStageRuntimeSelection() const;
     void RecordRuntimeCommand(FRuntimeEditCommand&& Command);

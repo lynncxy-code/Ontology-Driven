@@ -19,7 +19,15 @@ struct FOntoTwinWebNavigationFrame
     FString Trigger;
     TSharedPtr<FJsonObject> Context;
     TSet<FString> VisibleInstanceIds;
+    TSet<FString> FocusInstanceIds;
     bool bSceneScopeActive = false;
+};
+
+enum class EOntoTwinBusinessMembershipState : uint8
+{
+    None,
+    Mixed,
+    All
 };
 
 /** OntoTwin 3.8 runtime projection, resolver, singleton browser and scene linkage. */
@@ -57,6 +65,52 @@ public:
     UFUNCTION(BlueprintCallable, Category="Web Interaction")
     bool OpenInstanceDetail(const FString& InstanceId);
 
+    void GetAvailableZones(
+        TArray<FString>& OutZoneIds,
+        TArray<FString>& OutDisplayNames) const;
+
+    void GetAvailableBusinessViews(
+        TArray<FString>& OutBusinessViewIds,
+        TArray<FString>& OutDisplayNames) const;
+
+    bool IsRuntimeReady() const { return AppliedRevision >= 0; }
+    bool IsWebOpen() const { return bInputCaptured && !bRuntimeEditorSuppressed; }
+    bool IsPointerOverInteractiveWeb() const;
+    bool CanGoBack() const { return NavigationHistory.Num() > 0; }
+
+    /** Home restores the unfiltered scene and hides the browser without destroying it. */
+    void ResetHome();
+
+    /** F8 is an exclusive editing surface; preserve and restore the current web session. */
+    void SetRuntimeEditorSuppressed(bool bSuppressed);
+
+    bool GetRuntimeBusinessEditSnapshot(
+        TSharedPtr<FJsonObject>& OutConfig,
+        int32& OutRevision) const;
+    int32 GetRuntimeBusinessEditRevision() const { return AppliedRevision; }
+    void GetRuntimeBusinessMembershipStates(
+        const TSharedPtr<FJsonObject>& Config,
+        const TArray<FString>& InstanceIds,
+        TArray<FString>& OutBusinessIds,
+        TArray<FString>& OutNames,
+        TArray<EOntoTwinBusinessMembershipState>& OutStates) const;
+    bool SetRuntimeBusinessMembership(
+        const TSharedPtr<FJsonObject>& Config,
+        const FString& BusinessId,
+        const TArray<FString>& InstanceIds,
+        bool bAdd,
+        FString& OutError) const;
+    bool CreateRuntimeBusiness(
+        const TSharedPtr<FJsonObject>& Config,
+        const FString& Name,
+        const TArray<FString>& InstanceIds,
+        FString& OutBusinessId,
+        FString& OutError) const;
+    void ApplyRuntimeBusinessEdit(
+        const TSharedPtr<FJsonObject>& Config,
+        int32 ExpectedRevision,
+        TFunction<void(bool, int32, const FString&)> Completion);
+
     UFUNCTION(BlueprintCallable, Category="Web Interaction")
     void Back();
 
@@ -73,6 +127,7 @@ public:
     void HandlePageLoaded();
     void HandlePageLoadError();
     void HandleUrlChanged(const FString& Url);
+    bool HandleHostShortcut(const FKey& Key);
 
 private:
     UPROPERTY()
@@ -92,6 +147,8 @@ private:
     TMap<FString, TSharedPtr<FJsonObject>> InstancesById;
     TMap<FString, TSet<FString>> BusinessViewMembers;
     TMap<FString, FString> ZoneParents;
+    TMap<FString, FString> ZoneDisplayNames;
+    TMap<FString, FString> BusinessViewDisplayNames;
     TSet<FString> AllowedHosts;
     TArray<FOntoTwinWebNavigationFrame> NavigationHistory;
     FOntoTwinWebNavigationFrame CurrentFrame;
@@ -105,6 +162,8 @@ private:
     bool bInputCaptured = false;
     bool bPreviousMouseCursor = false;
     bool bBridgeReady = false;
+    bool bRuntimeEditorSuppressed = false;
+    bool bRestoreAfterRuntimeEditor = false;
     FString UrlPolicy = TEXT("open");
     FString ActiveProjectId;
     FString LastBlockedNavigation;
@@ -141,5 +200,7 @@ private:
     void SendContextToPage();
     void SendRuntimeEvent(const FString& EventType, const FString& Result,
         const FString& ErrorCode = FString()) const;
+    TSet<FString> BusinessMembersForConfig(
+        const TSharedPtr<FJsonObject>& BusinessView) const;
     static FString JsonString(const TSharedPtr<FJsonObject>& Object);
 };

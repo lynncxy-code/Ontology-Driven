@@ -20,10 +20,14 @@ class ATwinSceneManager;
 class UInputAction;
 class UInputMappingContext;
 class UOntoTwinCrosshairWidget;
+class UOntoTwinNarrationHUDWidget;
 class UOntoTwinRoamingHUDWidget;
+class UAudioComponent;
+class USoundWaveProcedural;
 class USceneCaptureComponent2D;
 class UTextureRenderTarget2D;
 struct FInputActionValue;
+struct FHitResult;
 
 /**
  * Scene Interaction 的 UE 运行入口。
@@ -84,6 +88,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|UI")
     TSubclassOf<UOntoTwinRoamingHUDWidget> RoamingHUDClass;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|UI")
+    TSubclassOf<UOntoTwinNarrationHUDWidget> NarrationHUDClass;
+
     UFUNCTION(BlueprintCallable, Category="Scene Interaction")
     void ToggleRoaming();
 
@@ -109,6 +116,9 @@ public:
     void RestartRoute();
 
     UFUNCTION(BlueprintCallable, Category="Scene Interaction")
+    void SkipNarrationSegment();
+
+    UFUNCTION(BlueprintCallable, Category="Scene Interaction")
     bool SelectRuntimeRoute(const FString& RouteId);
 
     UFUNCTION(BlueprintCallable, Category="Scene Interaction")
@@ -116,12 +126,19 @@ public:
 
     bool IsRoamingActive() const { return bRoamingActive; }
     bool IsHudInteractionOpen() const { return bHudInteraction; }
+    bool OwnsPointerSelection() const { return bRoamingActive || bHudInteraction; }
     bool HasPendingReload() const { return bPendingReload; }
     bool IsCameraTransitioning() const;
     ETwinRoamingCameraMode GetCameraMode() const;
     bool GetGodViewTransform(FTransform& OutTransform) const;
     bool GetGodViewLookSensitivity(float& OutSensitivity) const;
+    bool FocusInstanceCamera(
+        const FTransform& TargetTransform,
+        float FovDegrees,
+        FString& OutError);
     void RestoreStartupView();
+    /** SceneManager 首轮模型基线完成后开放人物漫游，并执行待处理的自动进入。 */
+    void NotifySceneBaselineReady();
     FString GetHudStatusText() const;
     FString GetHudHintText() const;
     void GetHudShortcutItems(
@@ -131,6 +148,20 @@ public:
         TArray<FString>& OutRouteIds,
         TArray<FString>& OutDisplayNames,
         TArray<bool>& OutDefaultFlags) const;
+    void GetAvailableWebZones(
+        TArray<FString>& OutZoneIds,
+        TArray<FString>& OutDisplayNames) const;
+    void GetAvailableWebBusinessViews(
+        TArray<FString>& OutBusinessViewIds,
+        TArray<FString>& OutDisplayNames) const;
+    void ActivateRuntimeHome();
+    void SetRuntimeEditorSuppressed(bool bSuppressed);
+    bool OpenWebProjectHome();
+    bool OpenWebZone(const FString& ZoneId);
+    bool OpenWebBusinessView(
+        const FString& BusinessViewId,
+        const FString& ZoneId = FString());
+    void HandleGlobalPointerSelection(const FHitResult* Hit);
     FString GetActiveRuntimeRouteId() const { return CurrentConfig.RouteId; }
     bool IsRouteSwitching() const { return bRouteSwitchInProgress; }
     FString GetMinimapState() const { return MinimapState; }
@@ -175,6 +206,15 @@ private:
     UOntoTwinRoamingHUDWidget* RoamingHUD = nullptr;
 
     UPROPERTY()
+    UOntoTwinNarrationHUDWidget* NarrationHUD = nullptr;
+
+    UPROPERTY()
+    UAudioComponent* NarrationAudioComponent = nullptr;
+
+    UPROPERTY()
+    USoundWaveProcedural* NarrationSound = nullptr;
+
+    UPROPERTY()
     UOntoTwinCrosshairWidget* CrosshairHUD = nullptr;
 
     UPROPERTY()
@@ -191,8 +231,6 @@ private:
     UInputAction* LookAction = nullptr;
     UPROPERTY()
     UInputAction* VerticalAction = nullptr;
-    UPROPERTY()
-    UInputAction* ViewAction = nullptr;
     UPROPERTY()
     UInputAction* HudAction = nullptr;
     UPROPERTY()
@@ -229,18 +267,30 @@ private:
     bool bShuttingDown = false;
     bool bRoamingActive = false;
     bool bHudInteraction = false;
+    bool bRestoreHudAfterRuntimeEditor = false;
     bool bPendingReload = false;
     bool bEnhancedInputReady = false;
     bool bSprintHeld = false;
     bool bTakeoverEnabled = true;
     bool bDefaultModeApplied = false;
+    bool bSceneBaselineReady = false;
     bool bCrosshairInteractive = false;
     bool bRouteSwitchInProgress = false;
+    bool bGlobalHudInputCaptured = false;
+    bool bGlobalHudPreviousMouseCursor = false;
+    bool bPreRoamingMouseCursor = false;
+    TWeakObjectPtr<ATwinInstance> WebSelectedInstance;
+    FString LastWebInteractionMessage;
     float PollAccumulator = 1000.0f;
     float HeartbeatAccumulator = 0.0f;
     float MinimapMarkerAccumulator = 0.0f;
     int32 ConsecutiveFailures = 0;
     FTimerHandle RouteSwitchTimer;
+    FTimerHandle NarrationTimer;
+    FTwinRoamingRuntimeWaypoint ActiveNarrationWaypoint;
+    int32 ActiveNarrationSegmentIndex = -1;
+    bool bNarrationActive = false;
+    TSharedPtr<IHttpRequest, ESPMode::ThreadSafe> NarrationAudioRequest;
     FMatrix MinimapViewProjection = FMatrix::Identity;
     FIntPoint MinimapCaptureSize = FIntPoint::ZeroValue;
 
@@ -282,6 +332,16 @@ private:
     void CreateHud();
     void DestroyHud();
     void RefreshHud();
+    void HandleNarrationRequested(const FTwinRoamingRuntimeWaypoint& Waypoint);
+    void ShowNarrationSegment();
+    void FinishNarrationPoint();
+    void StopNarration(bool bInterruptedByUser);
+    bool TryStartNarrationAudio(const FTwinNarrationRuntimeSegment& Segment);
+    bool PlayNarrationWav(
+        const TArray<uint8>& Bytes,
+        const FTwinNarrationRuntimeSegment& Segment);
+    void StartNarrationFallbackTimer(const FTwinNarrationRuntimeSegment& Segment);
+    FString NarrationCachePath(const FTwinNarrationRuntimeSegment& Segment) const;
     void UpdateCrosshairTarget();
     void SetHudInteraction(bool bOpen);
     void RestoreOriginalPawn();
@@ -295,12 +355,13 @@ private:
     void TickFallbackInput(float DeltaTime);
     void SelectFromView(bool bCursorTrace);
     ATwinInstance* ResolveInteractionInstance(const FHitResult& Hit) const;
+    void HandleWebInstanceSelection(ATwinInstance* Instance);
+    bool CompleteWebOpen(bool bOpened, const FString& FailureMessage);
 
     void OnMove(const FInputActionValue& Value);
     void OnLook(const FInputActionValue& Value);
     void OnVertical(const FInputActionValue& Value);
     void OnToggle(const FInputActionValue& Value);
-    void OnToggleView(const FInputActionValue& Value);
     void OnToggleHud(const FInputActionValue& Value);
     void OnInteract(const FInputActionValue& Value);
     void OnRoute(const FInputActionValue& Value);

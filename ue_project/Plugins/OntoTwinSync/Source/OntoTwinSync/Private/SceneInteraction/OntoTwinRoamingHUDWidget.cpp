@@ -257,7 +257,7 @@ void UOntoTwinRoamingHUDWidget::BuildDefaultLayout()
         UVerticalBox::StaticClass(), TEXT("DrawerStack"));
     DetailPanel->SetContent(DrawerStack);
 
-    UTextBlock* DrawerTitle = WidgetTree->ConstructWidget<UTextBlock>(
+    DrawerTitle = WidgetTree->ConstructWidget<UTextBlock>(
         UTextBlock::StaticClass(), TEXT("DrawerTitle"));
     DrawerTitle->SetText(FText::FromString(TEXT("漫游控制")));
     DrawerTitle->SetColorAndOpacity(PrimaryText);
@@ -274,10 +274,114 @@ void UOntoTwinRoamingHUDWidget::BuildDefaultLayout()
     UVerticalBoxSlot* DetailTextSlot = DrawerStack->AddChildToVerticalBox(DetailText);
     DetailTextSlot->SetPadding(FMargin(0.0f, 2.0f, 0.0f, 8.0f));
 
+    UHorizontalBox* DockTabs = WidgetTree->ConstructWidget<UHorizontalBox>(
+        UHorizontalBox::StaticClass(), TEXT("DockTabs"));
+    UVerticalBoxSlot* DockTabsSlot = DrawerStack->AddChildToVerticalBox(DockTabs);
+    DockTabsSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+    HomeTabButton = AddActionButton(nullptr, TEXT("HomeTabButton"), TEXT("Home"));
+    ZoneTabButton = AddActionButton(nullptr, TEXT("ZoneTabButton"), TEXT("空间"));
+    BusinessTabButton = AddActionButton(nullptr, TEXT("BusinessTabButton"), TEXT("业务"));
+    RoamingTabButton = AddActionButton(nullptr, TEXT("RoamingTabButton"), TEXT("漫游"));
+    for (UButton* Button : {HomeTabButton, ZoneTabButton, BusinessTabButton, RoamingTabButton})
+    {
+        UHorizontalBoxSlot* TabSlot = DockTabs->AddChildToHorizontalBox(Button);
+        TabSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        TabSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 0.0f));
+    }
+    HomeTabButton->OnClicked.AddDynamic(this, &UOntoTwinRoamingHUDWidget::OnHomeTab);
+    ZoneTabButton->OnClicked.AddDynamic(this, &UOntoTwinRoamingHUDWidget::OnZoneTab);
+    BusinessTabButton->OnClicked.AddDynamic(this, &UOntoTwinRoamingHUDWidget::OnBusinessTab);
+    RoamingTabButton->OnClicked.AddDynamic(this, &UOntoTwinRoamingHUDWidget::OnRoamingTab);
+
+    const auto CreateWebRow = [this, DrawerStack](const FName Name, const FString& Label)
+    {
+        UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(
+            UHorizontalBox::StaticClass(), Name);
+        Row->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+        UVerticalBoxSlot* RowSlot = DrawerStack->AddChildToVerticalBox(Row);
+        RowSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 6.0f));
+
+        USizeBox* LabelBounds = WidgetTree->ConstructWidget<USizeBox>(
+            USizeBox::StaticClass(), FName(*(Name.ToString() + TEXT("LabelBounds"))));
+        LabelBounds->SetWidthOverride(76.0f);
+        LabelBounds->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+        UTextBlock* RowLabel = WidgetTree->ConstructWidget<UTextBlock>(
+            UTextBlock::StaticClass(), FName(*(Name.ToString() + TEXT("Label"))));
+        RowLabel->SetText(FText::FromString(Label));
+        RowLabel->SetColorAndOpacity(SecondaryText);
+        RowLabel->SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9));
+        RowLabel->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+        LabelBounds->AddChild(RowLabel);
+        UHorizontalBoxSlot* LabelSlot = Row->AddChildToHorizontalBox(LabelBounds);
+        LabelSlot->SetVerticalAlignment(VAlign_Center);
+        LabelSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
+        return Row;
+    };
+
+    const auto AddWebSelector = [this](
+        UHorizontalBox* Row,
+        const FName Name,
+        const float Width,
+        UComboBoxString*& OutSelector)
+    {
+        USizeBox* Bounds = WidgetTree->ConstructWidget<USizeBox>(
+            USizeBox::StaticClass(), FName(*(Name.ToString() + TEXT("Bounds"))));
+        Bounds->SetWidthOverride(Width);
+        OutSelector = WidgetTree->ConstructWidget<UComboBoxString>(
+            UComboBoxString::StaticClass(), Name);
+        OutSelector->SetWidgetStyle(BuildRouteSelectorStyle());
+        OutSelector->SetItemStyle(BuildRouteSelectorRowStyle());
+        OutSelector->SetContentPadding(FMargin(10.0f, 6.0f));
+        OutSelector->SetMaxListHeight(260.0f);
+        OutSelector->OnGenerateWidgetEvent.BindDynamic(
+            this, &UOntoTwinRoamingHUDWidget::GenerateRouteOptionWidget);
+        Bounds->AddChild(OutSelector);
+        UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(Bounds);
+        Slot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
+    };
+
+    UVerticalBox* ZoneStack = WidgetTree->ConstructWidget<UVerticalBox>(
+        UVerticalBox::StaticClass(), TEXT("ZonePanel"));
+    ZonePanel = ZoneStack;
+    DrawerStack->AddChildToVerticalBox(ZoneStack);
+    UHorizontalBox* WebZoneRow = CreateWebRow(TEXT("WebZoneRow"), TEXT("空间分区"));
+    if (WebZoneRow->Slot) WebZoneRow->RemoveFromParent();
+    ZoneStack->AddChildToVerticalBox(WebZoneRow);
+    AddWebSelector(WebZoneRow, TEXT("WebZoneSelector"), 510.0f, WebZoneSelector);
+    WebZoneSelector->OnSelectionChanged.AddDynamic(
+        this, &UOntoTwinRoamingHUDWidget::OnWebZoneSelected);
+
+    UVerticalBox* BusinessStack = WidgetTree->ConstructWidget<UVerticalBox>(
+        UVerticalBox::StaticClass(), TEXT("BusinessPanel"));
+    BusinessPanel = BusinessStack;
+    DrawerStack->AddChildToVerticalBox(BusinessStack);
+    UHorizontalBox* WebBusinessScopeRow = CreateWebRow(
+        TEXT("WebBusinessScopeRow"), TEXT("作用范围"));
+    if (WebBusinessScopeRow->Slot) WebBusinessScopeRow->RemoveFromParent();
+    BusinessStack->AddChildToVerticalBox(WebBusinessScopeRow);
+    AddWebSelector(
+        WebBusinessScopeRow, TEXT("WebBusinessZoneSelector"), 510.0f,
+        WebBusinessZoneSelector);
+    WebBusinessZoneSelector->OnSelectionChanged.AddDynamic(
+        this, &UOntoTwinRoamingHUDWidget::OnWebBusinessScopeSelected);
+    UHorizontalBox* WebBusinessRow = CreateWebRow(TEXT("WebBusinessRow"), TEXT("业务管理"));
+    if (WebBusinessRow->Slot) WebBusinessRow->RemoveFromParent();
+    BusinessStack->AddChildToVerticalBox(WebBusinessRow);
+    AddWebSelector(
+        WebBusinessRow, TEXT("WebBusinessSelector"), 510.0f, WebBusinessSelector);
+    WebBusinessSelector->OnSelectionChanged.AddDynamic(
+        this, &UOntoTwinRoamingHUDWidget::OnWebBusinessSelected);
+
+    UVerticalBox* RoamingStack = WidgetTree->ConstructWidget<UVerticalBox>(
+        UVerticalBox::StaticClass(), TEXT("RoamingPanel"));
+    RoamingPanel = RoamingStack;
+    DrawerStack->AddChildToVerticalBox(RoamingStack);
+
     UHorizontalBox* RouteRow = WidgetTree->ConstructWidget<UHorizontalBox>(
         UHorizontalBox::StaticClass(), TEXT("RouteSelectorRow"));
+    RoamingRouteRow = RouteRow;
     RouteRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-    UVerticalBoxSlot* RouteRowSlot = DrawerStack->AddChildToVerticalBox(RouteRow);
+    UVerticalBoxSlot* RouteRowSlot = RoamingStack->AddChildToVerticalBox(RouteRow);
     RouteRowSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
 
     UTextBlock* RouteLabel = WidgetTree->ConstructWidget<UTextBlock>(
@@ -308,7 +412,8 @@ void UOntoTwinRoamingHUDWidget::BuildDefaultLayout()
 
     UHorizontalBox* ViewModes = WidgetTree->ConstructWidget<UHorizontalBox>(
         UHorizontalBox::StaticClass(), TEXT("ViewModes"));
-    UVerticalBoxSlot* ViewModesSlot = DrawerStack->AddChildToVerticalBox(ViewModes);
+    RoamingViewModes = ViewModes;
+    UVerticalBoxSlot* ViewModesSlot = RoamingStack->AddChildToVerticalBox(ViewModes);
     ViewModesSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
     GlobalButton = AddActionButton(nullptr, TEXT("GlobalButton"), TEXT("上帝视角"));
     ShoulderButton = AddActionButton(nullptr, TEXT("ShoulderButton"), TEXT("过肩视角"));
@@ -324,7 +429,8 @@ void UOntoTwinRoamingHUDWidget::BuildDefaultLayout()
 
     UHorizontalBox* Actions = WidgetTree->ConstructWidget<UHorizontalBox>(
         UHorizontalBox::StaticClass(), TEXT("Actions"));
-    DrawerStack->AddChildToVerticalBox(Actions);
+    RoamingActions = Actions;
+    RoamingStack->AddChildToVerticalBox(Actions);
     UButton* SkinButton = AddActionButton(nullptr, TEXT("SkinButton"), TEXT("切换皮肤"));
     UButton* ResumeButton = AddActionButton(nullptr, TEXT("ResumeButton"), TEXT("返回线路"));
     UButton* RestartButton = AddActionButton(nullptr, TEXT("RestartButton"), TEXT("从头开始"));
@@ -339,6 +445,7 @@ void UOntoTwinRoamingHUDWidget::BuildDefaultLayout()
     RestartButton->OnClicked.AddDynamic(this, &UOntoTwinRoamingHUDWidget::OnRestartRoute);
     ReloadButton->OnClicked.AddDynamic(this, &UOntoTwinRoamingHUDWidget::OnReloadCharacter);
     DetailPanel->SetVisibility(ESlateVisibility::Collapsed);
+    SetDockTab(1);
     RefreshShortcutList();
 }
 
@@ -437,6 +544,93 @@ void UOntoTwinRoamingHUDWidget::RefreshRouteSelector()
     bRefreshingRouteSelector = false;
 }
 
+void UOntoTwinRoamingHUDWidget::RefreshWebSelectors()
+{
+    if (!Manager || !WebZoneSelector || !WebBusinessSelector
+        || !WebBusinessZoneSelector) return;
+
+    TArray<FString> ZoneIds;
+    TArray<FString> ZoneNames;
+    TArray<FString> BusinessViewIds;
+    TArray<FString> BusinessViewNames;
+    Manager->GetAvailableWebZones(ZoneIds, ZoneNames);
+    Manager->GetAvailableWebBusinessViews(BusinessViewIds, BusinessViewNames);
+
+    FString NextSignature = TEXT("catalog");
+    for (int32 Index = 0; Index < ZoneIds.Num(); ++Index)
+    {
+        NextSignature += TEXT("|z:") + ZoneIds[Index] + TEXT(":");
+        if (ZoneNames.IsValidIndex(Index)) NextSignature += ZoneNames[Index];
+    }
+    for (int32 Index = 0; Index < BusinessViewIds.Num(); ++Index)
+    {
+        NextSignature += TEXT("|b:") + BusinessViewIds[Index] + TEXT(":");
+        if (BusinessViewNames.IsValidIndex(Index)) NextSignature += BusinessViewNames[Index];
+    }
+    if (NextSignature == WebCatalogSignature) return;
+    WebCatalogSignature = MoveTemp(NextSignature);
+
+    bRefreshingWebSelectors = true;
+    WebZoneOptionIds.Reset();
+    WebZoneOptionLabels.Reset();
+    WebBusinessOptionIds.Reset();
+    WebBusinessOptionLabels.Reset();
+    WebBusinessZoneOptionIds.Reset();
+    WebBusinessZoneOptionLabels.Reset();
+    WebZoneSelector->ClearOptions();
+    WebBusinessSelector->ClearOptions();
+    WebBusinessZoneSelector->ClearOptions();
+
+    WebZoneOptionIds.Add(FString());
+    WebZoneOptionLabels.Add(TEXT("选择空间分区"));
+    WebZoneSelector->AddOption(WebZoneOptionLabels[0]);
+    WebBusinessZoneOptionIds.Add(FString());
+    WebBusinessZoneOptionLabels.Add(TEXT("全部空间分区"));
+    WebBusinessZoneSelector->AddOption(WebBusinessZoneOptionLabels[0]);
+    for (int32 Index = 0; Index < ZoneIds.Num(); ++Index)
+    {
+        const FString ZoneId = ZoneIds[Index];
+        FString Label = ZoneNames.IsValidIndex(Index) && !ZoneNames[Index].IsEmpty()
+            ? ZoneNames[Index] : ZoneId;
+        if (WebZoneOptionLabels.Contains(Label))
+        {
+            Label += FString::Printf(TEXT("（%s）"), *ZoneId);
+        }
+        WebZoneOptionIds.Add(ZoneId);
+        WebZoneOptionLabels.Add(Label);
+        WebZoneSelector->AddOption(Label);
+        WebBusinessZoneOptionIds.Add(ZoneId);
+        WebBusinessZoneOptionLabels.Add(Label);
+        WebBusinessZoneSelector->AddOption(Label);
+    }
+
+    WebBusinessOptionIds.Add(FString());
+    WebBusinessOptionLabels.Add(TEXT("选择业务管理"));
+    WebBusinessSelector->AddOption(WebBusinessOptionLabels[0]);
+    for (int32 Index = 0; Index < BusinessViewIds.Num(); ++Index)
+    {
+        const FString BusinessViewId = BusinessViewIds[Index];
+        FString Label = BusinessViewNames.IsValidIndex(Index)
+            && !BusinessViewNames[Index].IsEmpty()
+            ? BusinessViewNames[Index] : BusinessViewId;
+        if (WebBusinessOptionLabels.Contains(Label))
+        {
+            Label += FString::Printf(TEXT("（%s）"), *BusinessViewId);
+        }
+        WebBusinessOptionIds.Add(BusinessViewId);
+        WebBusinessOptionLabels.Add(Label);
+        WebBusinessSelector->AddOption(Label);
+    }
+
+    WebZoneSelector->SetSelectedIndex(0);
+    WebBusinessSelector->SetSelectedIndex(0);
+    WebBusinessZoneSelector->SetSelectedIndex(0);
+    WebZoneSelector->SetIsEnabled(WebZoneOptionIds.Num() > 1);
+    WebBusinessSelector->SetIsEnabled(WebBusinessOptionIds.Num() > 1);
+    WebBusinessZoneSelector->SetIsEnabled(WebBusinessZoneOptionIds.Num() > 1);
+    bRefreshingWebSelectors = false;
+}
+
 void UOntoTwinRoamingHUDWidget::AddShortcutRow(
     int32 Index,
     const FString& Key,
@@ -512,13 +706,30 @@ void UOntoTwinRoamingHUDWidget::SetInteractionManager(
 void UOntoTwinRoamingHUDWidget::RefreshFromManager()
 {
     if (!Manager || !StatusText) return;
+    const bool bRoaming = Manager->IsRoamingActive();
     StatusText->SetText(FText::FromString(Manager->GetHudStatusText()));
+    if (DrawerTitle)
+    {
+        DrawerTitle->SetText(FText::FromString(TEXT("运行 Dock")));
+    }
+    if (RoamingTabButton) RoamingTabButton->SetIsEnabled(bRoaming);
+    if (!bRoaming && ActiveDockTab == 3) SetDockTab(1);
+    for (UWidget* RoamingOnly : {RoamingRouteRow, RoamingViewModes, RoamingActions})
+    {
+        if (RoamingOnly)
+        {
+            RoamingOnly->SetVisibility(
+                bRoaming ? ESlateVisibility::SelfHitTestInvisible
+                         : ESlateVisibility::Collapsed);
+        }
+    }
     RefreshShortcutList();
     RefreshRouteSelector();
+    RefreshWebSelectors();
     DetailText->SetText(FText::FromString(Manager->GetHudDetailText()));
 
     const ETwinRoamingCameraMode Mode = Manager->GetCameraMode();
-    const bool bEnabled = !Manager->IsCameraTransitioning();
+    const bool bEnabled = bRoaming && !Manager->IsCameraTransitioning();
     if (FirstPersonButton)
     {
         FirstPersonButton->SetIsEnabled(bEnabled);
@@ -541,7 +752,11 @@ void UOntoTwinRoamingHUDWidget::RefreshFromManager()
 
 void UOntoTwinRoamingHUDWidget::SetInteractionOpen(bool bOpen)
 {
-    if (bOpen) RefreshRouteSelector();
+    if (bOpen)
+    {
+        RefreshRouteSelector();
+        RefreshWebSelectors();
+    }
     if (DetailPanel)
     {
         DetailPanel->SetVisibility(
@@ -575,10 +790,84 @@ void UOntoTwinRoamingHUDWidget::ClearMinimap()
     if (MinimapWidget) MinimapWidget->ClearMap();
 }
 
+void UOntoTwinRoamingHUDWidget::SetDockTab(int32 TabIndex)
+{
+    ActiveDockTab = FMath::Clamp(TabIndex, 1, 3);
+    if (ZonePanel) ZonePanel->SetVisibility(
+        ActiveDockTab == 1 ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+    if (BusinessPanel) BusinessPanel->SetVisibility(
+        ActiveDockTab == 2 ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+    if (RoamingPanel) RoamingPanel->SetVisibility(
+        ActiveDockTab == 3 ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+    if (ZoneTabButton) ZoneTabButton->SetBackgroundColor(
+        ActiveDockTab == 1 ? ActiveButton : InactiveButton);
+    if (BusinessTabButton) BusinessTabButton->SetBackgroundColor(
+        ActiveDockTab == 2 ? ActiveButton : InactiveButton);
+    if (RoamingTabButton) RoamingTabButton->SetBackgroundColor(
+        ActiveDockTab == 3 ? ActiveButton : InactiveButton);
+}
+
 void UOntoTwinRoamingHUDWidget::OnCycleSkin() { if (Manager) Manager->CycleSkin(); }
 void UOntoTwinRoamingHUDWidget::OnResumeRoute() { if (Manager) Manager->ResumeRoute(); }
 void UOntoTwinRoamingHUDWidget::OnRestartRoute() { if (Manager) Manager->RestartRoute(); }
 void UOntoTwinRoamingHUDWidget::OnReloadCharacter() { if (Manager) Manager->ApplyPendingReload(); }
+void UOntoTwinRoamingHUDWidget::OnHomeTab()
+{
+    if (Manager) Manager->ActivateRuntimeHome();
+}
+
+void UOntoTwinRoamingHUDWidget::OnZoneTab() { SetDockTab(1); }
+void UOntoTwinRoamingHUDWidget::OnBusinessTab() { SetDockTab(2); }
+void UOntoTwinRoamingHUDWidget::OnRoamingTab() { SetDockTab(3); }
+
+void UOntoTwinRoamingHUDWidget::OnWebZoneSelected(
+    FString SelectedItem,
+    ESelectInfo::Type SelectionType)
+{
+    (void)SelectionType;
+    if (bRefreshingWebSelectors) return;
+    const int32 Index = WebZoneOptionLabels.IndexOfByKey(SelectedItem);
+    if (Manager && WebZoneOptionIds.IsValidIndex(Index)
+        && !WebZoneOptionIds[Index].IsEmpty())
+    {
+        Manager->OpenWebZone(WebZoneOptionIds[Index]);
+    }
+}
+
+void UOntoTwinRoamingHUDWidget::OnWebBusinessSelected(
+    FString SelectedItem,
+    ESelectInfo::Type SelectionType)
+{
+    (void)SelectionType;
+    if (bRefreshingWebSelectors) return;
+    if (!Manager || !WebBusinessSelector || !WebBusinessZoneSelector) return;
+    const int32 BusinessIndex = WebBusinessOptionLabels.IndexOfByKey(SelectedItem);
+    const int32 ZoneIndex = WebBusinessZoneOptionLabels.IndexOfByKey(
+        WebBusinessZoneSelector->GetSelectedOption());
+    if (!WebBusinessOptionIds.IsValidIndex(BusinessIndex)
+        || WebBusinessOptionIds[BusinessIndex].IsEmpty()) return;
+
+    const FString ZoneId = WebBusinessZoneOptionIds.IsValidIndex(ZoneIndex)
+        ? WebBusinessZoneOptionIds[ZoneIndex]
+        : FString();
+    Manager->OpenWebBusinessView(WebBusinessOptionIds[BusinessIndex], ZoneId);
+}
+
+void UOntoTwinRoamingHUDWidget::OnWebBusinessScopeSelected(
+    FString SelectedItem,
+    ESelectInfo::Type SelectionType)
+{
+    (void)SelectedItem;
+    (void)SelectionType;
+    if (bRefreshingWebSelectors || !WebBusinessSelector) return;
+    const FString CurrentBusiness = WebBusinessSelector->GetSelectedOption();
+    const int32 BusinessIndex = WebBusinessOptionLabels.IndexOfByKey(CurrentBusiness);
+    if (WebBusinessOptionIds.IsValidIndex(BusinessIndex)
+        && !WebBusinessOptionIds[BusinessIndex].IsEmpty())
+    {
+        OnWebBusinessSelected(CurrentBusiness, ESelectInfo::Direct);
+    }
+}
 void UOntoTwinRoamingHUDWidget::OnFirstPerson()
 {
     if (Manager) Manager->SetCameraMode(ETwinRoamingCameraMode::FirstPerson);

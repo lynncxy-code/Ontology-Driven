@@ -37,10 +37,14 @@ public:
     void SetHostStatus(const FString& Status, bool bError = false);
     void SetBridgeReady(bool bReady);
     void SetInteractiveRegions(const TArray<FSlateRect>& Regions);
+    bool IsPointerOverInteractiveRegion() const;
 
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+    virtual FReply NativeOnPreviewKeyDown(
+        const FGeometry& InGeometry,
+        const FKeyEvent& InKeyEvent) override;
     virtual void NativeDestruct() override;
 
 private:

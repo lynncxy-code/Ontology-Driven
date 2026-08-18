@@ -24,10 +24,36 @@ enum class ETwinRoamingRouteState : uint8
     Unavailable,
     Idle,
     AutoRoute,
+    PausedForNarration,
     PausedByUser,
     Joining,
     Completed,
     Blocked
+};
+
+struct ONTOTWINSYNC_API FTwinNarrationRuntimeSegment
+{
+    FString SegmentId;
+    FString Text;
+    float DurationSeconds = 3.0f;
+    FString AudioAssetId;
+    FString AudioSha256;
+    float AudioDurationSeconds = 0.0f;
+};
+
+struct ONTOTWINSYNC_API FTwinRoamingRuntimeWaypoint
+{
+    FString WaypointId;
+    FVector Position = FVector::ZeroVector;
+    float TriggerRadiusCm = 100.0f;
+    FString NarrationMode;
+    FString AudioState;
+    TArray<FTwinNarrationRuntimeSegment> NarrationSegments;
+
+    bool HasNarration() const
+    {
+        return !NarrationMode.IsEmpty() && NarrationSegments.Num() > 0;
+    }
 };
 
 USTRUCT(BlueprintType)
@@ -35,16 +61,16 @@ struct ONTOTWINSYNC_API FTwinRoamingMovementSettings
 {
     GENERATED_BODY()
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OntoTwin|Roaming|Movement")
     float WalkSpeedCmS = 250.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OntoTwin|Roaming|Movement")
     float SprintSpeedCmS = 500.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OntoTwin|Roaming|Movement")
     float AutoRouteSpeedCmS = 180.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OntoTwin|Roaming|Movement")
     float JumpHeightCm = 80.0f;
 };
 
@@ -53,13 +79,13 @@ struct ONTOTWINSYNC_API FTwinNearCameraSettings
 {
     GENERATED_BODY()
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OntoTwin|Roaming|Camera")
     float DistanceCm = 120.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OntoTwin|Roaming|Camera")
     float HeightCm = 35.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OntoTwin|Roaming|Camera")
     float LookSensitivity = 1.0f;
 };
 
@@ -68,13 +94,13 @@ struct ONTOTWINSYNC_API FTwinFirstPersonCameraSettings
 {
     GENERATED_BODY()
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OntoTwin|Roaming|Camera")
     float EyeHeightCm = 165.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OntoTwin|Roaming|Camera")
     float FovDeg = 85.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OntoTwin|Roaming|Camera")
     float LookSensitivity = 1.0f;
 };
 
@@ -83,13 +109,13 @@ struct ONTOTWINSYNC_API FTwinGodCameraSettings
 {
     GENERATED_BODY()
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OntoTwin|Roaming|Camera")
     FString CameraId;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OntoTwin|Roaming|Camera")
     float MoveSpeedCmS = 1800.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OntoTwin|Roaming|Camera")
     float LookSensitivity = 1.0f;
 };
 
@@ -105,6 +131,7 @@ struct ONTOTWINSYNC_API FTwinRoamingRuntimeRoute
     float SpeedCmS = 180.0f;
     bool bLoop = false;
     TArray<FVector> Points;
+    TArray<FTwinRoamingRuntimeWaypoint> Waypoints;
 };
 
 struct ONTOTWINSYNC_API FTwinRoamingRuntimeConfig
@@ -140,6 +167,7 @@ struct ONTOTWINSYNC_API FTwinRoamingRuntimeConfig
     FString RuntimeRouteLevel;
     float RuntimeRouteGroundZHintCm = 0.0f;
     TArray<FVector> RuntimeRoutePoints;
+    TArray<FTwinRoamingRuntimeWaypoint> RuntimeRouteWaypoints;
     TArray<FTwinRoamingRuntimeRoute> AvailableRoutes;
 };
 

@@ -1,6 +1,7 @@
 #include "OntoTwinRuntimeEditorPanel.h"
 
 #include "TwinSceneManager.h"
+#include "UI/OntoTwinGlassTheme.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/Border.h"
@@ -8,6 +9,8 @@
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/CheckBox.h"
+#include "Components/ComboBoxString.h"
+#include "Components/EditableTextBox.h"
 #include "Components/GridPanel.h"
 #include "Components/GridSlot.h"
 #include "Components/HorizontalBox.h"
@@ -50,9 +53,72 @@ FButtonStyle BuildButtonStyle(const FButtonStyle& BaseStyle, bool bPrimary)
     Style.SetHovered(FSlateRoundedBoxBrush(HoverColor, 6.0f));
     Style.SetPressed(FSlateRoundedBoxBrush(PressedColor, 6.0f));
     Style.SetDisabled(FSlateRoundedBoxBrush(FLinearColor(1.0f, 1.0f, 1.0f, 0.035f), 6.0f));
-    Style.SetNormalPadding(FMargin(10.0f, 6.0f));
-    Style.SetPressedPadding(FMargin(10.0f, 7.0f, 10.0f, 5.0f));
+    Style.SetNormalPadding(FMargin(8.0f, 5.0f));
+    Style.SetPressedPadding(FMargin(8.0f, 6.0f, 8.0f, 4.0f));
     return Style;
+}
+
+FButtonStyle BuildTabButtonStyle(const FButtonStyle& BaseStyle, bool bActive)
+{
+    FButtonStyle Style = BaseStyle;
+    const FLinearColor ActiveFill(0.96f, 0.96f, 0.96f, 0.96f);
+    const FLinearColor InactiveFill(1.0f, 1.0f, 1.0f, 0.035f);
+    Style.SetNormal(FSlateRoundedBoxBrush(bActive ? ActiveFill : InactiveFill, 6.0f));
+    Style.SetHovered(FSlateRoundedBoxBrush(
+        bActive ? FLinearColor::White : HoverBackground, 6.0f));
+    Style.SetPressed(FSlateRoundedBoxBrush(
+        bActive ? FLinearColor(0.84f, 0.84f, 0.84f, 1.0f) : PressedBackground, 6.0f));
+    Style.SetDisabled(FSlateRoundedBoxBrush(InactiveFill, 6.0f));
+    Style.SetNormalPadding(FMargin(8.0f, 6.0f));
+    Style.SetPressedPadding(FMargin(8.0f, 7.0f, 8.0f, 5.0f));
+    return Style;
+}
+
+FComboBoxStyle BuildCompactSelectorStyle()
+{
+    FComboBoxStyle Style = FCoreStyle::Get().GetWidgetStyle<FComboBoxStyle>(TEXT("ComboBox"));
+    FComboButtonStyle ComboButton = Style.ComboButtonStyle;
+    FButtonStyle ButtonStyle = ComboButton.ButtonStyle;
+    ButtonStyle
+        .SetNormal(FSlateRoundedBoxBrush(
+            FLinearColor(1.0f, 1.0f, 1.0f, 0.055f), 6.0f,
+            FLinearColor(1.0f, 1.0f, 1.0f, 0.16f), 1.0f))
+        .SetHovered(FSlateRoundedBoxBrush(
+            FLinearColor(1.0f, 1.0f, 1.0f, 0.10f), 6.0f,
+            FLinearColor(1.0f, 1.0f, 1.0f, 0.26f), 1.0f))
+        .SetPressed(FSlateRoundedBoxBrush(
+            FLinearColor(1.0f, 1.0f, 1.0f, 0.15f), 6.0f,
+            FLinearColor(1.0f, 1.0f, 1.0f, 0.32f), 1.0f))
+        .SetDisabled(FSlateRoundedBoxBrush(
+            FLinearColor(1.0f, 1.0f, 1.0f, 0.025f), 6.0f,
+            FLinearColor(1.0f, 1.0f, 1.0f, 0.08f), 1.0f));
+    ComboButton.SetButtonStyle(ButtonStyle)
+        .SetMenuBorderBrush(FSlateRoundedBoxBrush(
+            FLinearColor(0.055f, 0.055f, 0.055f, 0.98f), 6.0f,
+            FLinearColor(1.0f, 1.0f, 1.0f, 0.18f), 1.0f))
+        .SetMenuBorderPadding(FMargin(4.0f))
+        .SetDownArrowPadding(FMargin(6.0f, 0.0f));
+    return Style.SetComboButtonStyle(ComboButton).SetMenuRowPadding(FMargin(7.0f, 4.0f));
+}
+
+FTableRowStyle BuildCompactSelectorRowStyle()
+{
+    FTableRowStyle Style = FCoreStyle::Get().GetWidgetStyle<FTableRowStyle>(TEXT("ComboBox.Row"));
+    const FSlateRoundedBoxBrush Clear(FLinearColor::Transparent, 4.0f);
+    const FSlateRoundedBoxBrush Hovered(FLinearColor(1.0f, 1.0f, 1.0f, 0.10f), 4.0f);
+    const FSlateRoundedBoxBrush Selected(FLinearColor(1.0f, 1.0f, 1.0f, 0.16f), 4.0f);
+    return Style
+        .SetSelectorFocusedBrush(Selected)
+        .SetActiveHoveredBrush(Selected)
+        .SetActiveBrush(Selected)
+        .SetInactiveHoveredBrush(Selected)
+        .SetInactiveBrush(Selected)
+        .SetEvenRowBackgroundHoveredBrush(Hovered)
+        .SetEvenRowBackgroundBrush(Clear)
+        .SetOddRowBackgroundHoveredBrush(Hovered)
+        .SetOddRowBackgroundBrush(Clear)
+        .SetTextColor(FSlateColor(PrimaryText))
+        .SetSelectedTextColor(FSlateColor(PrimaryText));
 }
 
 void SetTextColor(UTextBlock* Text, const FLinearColor& Color)
@@ -108,6 +174,26 @@ void UOntoTwinRuntimeEditorPanel::NativeConstruct()
     {
         RedoButton->OnClicked.RemoveAll(this);
         RedoButton->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandleRedoClicked);
+    }
+    if (SceneTabButton)
+    {
+        SceneTabButton->OnClicked.RemoveAll(this);
+        SceneTabButton->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandleSceneTabClicked);
+    }
+    if (BusinessTabButton)
+    {
+        BusinessTabButton->OnClicked.RemoveAll(this);
+        BusinessTabButton->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandleBusinessTabClicked);
+    }
+    if (BusinessSelector)
+    {
+        BusinessSelector->OnSelectionChanged.RemoveAll(this);
+        BusinessSelector->OnSelectionChanged.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandleBusinessSelected);
+    }
+    if (CreateBusinessButton)
+    {
+        CreateBusinessButton->OnClicked.RemoveAll(this);
+        CreateBusinessButton->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandleCreateBusinessClicked);
     }
     if (RemoveButton)
     {
@@ -188,12 +274,12 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     WidgetTree->RootWidget = Root;
 
     PanelBounds = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("PanelBounds"));
-    PanelBounds->SetWidthOverride(440.0f);
-    PanelBounds->SetMinDesiredHeight(420.0f);
-    PanelBounds->SetMaxDesiredHeight(720.0f);
+    PanelBounds->SetWidthOverride(380.0f);
+    PanelBounds->SetMinDesiredHeight(360.0f);
+    PanelBounds->SetMaxDesiredHeight(640.0f);
 
     PanelBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("PanelBorder"));
-    PanelBorder->SetPadding(FMargin(16.0f));
+    PanelBorder->SetPadding(FMargin(14.0f));
     PanelBorder->SetBrush(FSlateRoundedBoxBrush(PanelBackground, 6.0f));
     PanelBounds->AddChild(PanelBorder);
 
@@ -201,7 +287,7 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     if (PanelSlot)
     {
         PanelSlot->SetAnchors(FAnchors(0.0f, 0.0f));
-        PanelSlot->SetPosition(FVector2D(24.0f, 24.0f));
+        PanelSlot->SetPosition(FVector2D(20.0f, 20.0f));
         PanelSlot->SetAutoSize(true);
     }
 
@@ -212,7 +298,7 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     UVerticalBoxSlot* HeaderSlot = Stack->AddChildToVerticalBox(Header);
     HeaderSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
 
-    UTextBlock* TitleText = CreateText(TEXT("TitleText"), TEXT("运行时编辑器"), 16, PrimaryText, true);
+    UTextBlock* TitleText = CreateText(TEXT("TitleText"), TEXT("运行时编辑器"), 14, PrimaryText, true);
     UHorizontalBoxSlot* TitleSlot = Header->AddChildToHorizontalBox(TitleText);
     TitleSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     TitleSlot->SetVerticalAlignment(VAlign_Center);
@@ -254,6 +340,21 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     UVerticalBoxSlot* DividerSlot = Stack->AddChildToVerticalBox(DividerBox);
     DividerSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
 
+    UHorizontalBox* ModeTabs = WidgetTree->ConstructWidget<UHorizontalBox>(
+        UHorizontalBox::StaticClass(), TEXT("ModeTabs"));
+    UVerticalBoxSlot* ModeTabsSlot = Stack->AddChildToVerticalBox(ModeTabs);
+    ModeTabsSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+    SceneTabButton = CreateButton(
+        TEXT("SceneTabButton"), TEXT("场景编辑"), SceneTabLabel, false);
+    BusinessTabButton = CreateButton(
+        TEXT("BusinessTabButton"), TEXT("业务编辑"), BusinessTabLabel, false);
+    for (UButton* TabButton : {SceneTabButton, BusinessTabButton})
+    {
+        UHorizontalBoxSlot* TabSlot = ModeTabs->AddChildToHorizontalBox(TabButton);
+        TabSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        TabSlot->SetPadding(FMargin(0.0f, 0.0f, 4.0f, 0.0f));
+    }
+
     UScrollBox* BodyScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("BodyScroll"));
     BodyScroll->SetScrollBarVisibility(ESlateVisibility::Visible);
     UVerticalBoxSlot* BodyScrollSlot = Stack->AddChildToVerticalBox(BodyScroll);
@@ -262,12 +363,16 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     UVerticalBox* Body = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("Body"));
     BodyScroll->AddChild(Body);
 
+    SceneContent = WidgetTree->ConstructWidget<UVerticalBox>(
+        UVerticalBox::StaticClass(), TEXT("SceneContent"));
+    Body->AddChildToVerticalBox(SceneContent);
+
     UTextBlock* DeviceLabel = CreateText(TEXT("DeviceLabel"), TEXT("选中对象"), 10, MutedText, true);
-    Body->AddChildToVerticalBox(DeviceLabel);
+    SceneContent->AddChildToVerticalBox(DeviceLabel);
 
     UGridPanel* IdentityGrid = WidgetTree->ConstructWidget<UGridPanel>(UGridPanel::StaticClass(), TEXT("IdentityGrid"));
     IdentityGrid->SetColumnFill(1, 1.0f);
-    UVerticalBoxSlot* IdentitySlot = Body->AddChildToVerticalBox(IdentityGrid);
+    UVerticalBoxSlot* IdentitySlot = SceneContent->AddChildToVerticalBox(IdentityGrid);
     IdentitySlot->SetPadding(FMargin(0.0f, 4.0f, 6.0f, 4.0f));
 
     UTextBlock* NameLabel = CreateText(TEXT("NameLabel"), TEXT("实例名称"), 11, MutedText, true);
@@ -291,13 +396,13 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     UTextBlock* RemoveLabel = nullptr;
     RemoveButton = CreateButton(TEXT("RemoveButton"), TEXT("从场景移除"), RemoveLabel, false);
     RemoveButton->SetToolTipText(FText::FromString(TEXT("立即隐藏所选实例，保存后可在 Web 端重新加载")));
-    UVerticalBoxSlot* RemoveSlot = Body->AddChildToVerticalBox(RemoveButton);
+    UVerticalBoxSlot* RemoveSlot = SceneContent->AddChildToVerticalBox(RemoveButton);
     RemoveSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 10.0f));
 
     UGridPanel* TransformGrid = WidgetTree->ConstructWidget<UGridPanel>(UGridPanel::StaticClass(), TEXT("TransformGrid"));
     TransformGrid->SetColumnFill(1, 1.0f);
     TransformGrid->SetColumnFill(3, 1.0f);
-    UVerticalBoxSlot* TransformGridSlot = Body->AddChildToVerticalBox(TransformGrid);
+    UVerticalBoxSlot* TransformGridSlot = SceneContent->AddChildToVerticalBox(TransformGrid);
     TransformGridSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 10.0f));
 
     auto AddTransformCell = [this, TransformGrid](const FName LabelName, const FString& Label,
@@ -322,10 +427,10 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     YawLabelText = Cast<UTextBlock>(WidgetTree->FindWidget(TEXT("YawLabel")));
 
     UTextBlock* AccessLabel = CreateText(TEXT("AccessLabel"), TEXT("数据集访问"), 10, MutedText, true);
-    Body->AddChildToVerticalBox(AccessLabel);
+    SceneContent->AddChildToVerticalBox(AccessLabel);
 
     UHorizontalBox* AccessRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AccessRow"));
-    UVerticalBoxSlot* AccessRowSlot = Body->AddChildToVerticalBox(AccessRow);
+    UVerticalBoxSlot* AccessRowSlot = SceneContent->AddChildToVerticalBox(AccessRow);
     AccessRowSlot->SetPadding(FMargin(0.0f, 2.0f, 6.0f, 9.0f));
 
     AccessStatusDot = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("AccessStatusDot"));
@@ -349,7 +454,7 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     AccessActionSlot->SetVerticalAlignment(VAlign_Center);
 
     UHorizontalBox* Toggles = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("SnapToggles"));
-    UVerticalBoxSlot* TogglesSlot = Body->AddChildToVerticalBox(Toggles);
+    UVerticalBoxSlot* TogglesSlot = SceneContent->AddChildToVerticalBox(Toggles);
     TogglesSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 10.0f));
 
     auto AddSnapToggle = [this, Toggles](const FName CheckName, const FString& Label, UCheckBox*& OutCheckBox)
@@ -364,6 +469,58 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
 
     AddSnapToggle(TEXT("WallSnapCheckBox"), TEXT("靠墙吸附"), WallSnapCheckBox);
     AddSnapToggle(TEXT("GridSnapCheckBox"), TEXT("网格吸附"), GridSnapCheckBox);
+
+    BusinessContent = WidgetTree->ConstructWidget<UVerticalBox>(
+        UVerticalBox::StaticClass(), TEXT("BusinessContent"));
+    BusinessContent->SetVisibility(ESlateVisibility::Collapsed);
+    Body->AddChildToVerticalBox(BusinessContent);
+
+    BusinessSelectionText = CreateText(
+        TEXT("BusinessSelectionText"), TEXT("请先在场景中选择对象"), 12, PrimaryText, true);
+    BusinessSelectionText->SetAutoWrapText(true);
+    UVerticalBoxSlot* BusinessSelectionSlot =
+        BusinessContent->AddChildToVerticalBox(BusinessSelectionText);
+    BusinessSelectionSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+
+    BusinessSelector = WidgetTree->ConstructWidget<UComboBoxString>(
+        UComboBoxString::StaticClass(), TEXT("BusinessSelector"));
+    BusinessSelector->SetWidgetStyle(BuildCompactSelectorStyle());
+    BusinessSelector->SetItemStyle(BuildCompactSelectorRowStyle());
+    BusinessSelector->SetContentPadding(FMargin(8.0f, 4.0f));
+    BusinessSelector->SetMaxListHeight(240.0f);
+    BusinessSelector->SetToolTipText(FText::FromString(
+        TEXT("选择业务后切换所选对象的业务归属。")));
+    BusinessSelector->OnGenerateWidgetEvent.BindDynamic(
+        this, &UOntoTwinRuntimeEditorPanel::GenerateBusinessOptionWidget);
+    UVerticalBoxSlot* BusinessSelectorSlot =
+        BusinessContent->AddChildToVerticalBox(BusinessSelector);
+    BusinessSelectorSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 12.0f));
+
+    UHorizontalBox* CreateBusinessRow = WidgetTree->ConstructWidget<UHorizontalBox>(
+        UHorizontalBox::StaticClass(), TEXT("CreateBusinessRow"));
+    UVerticalBoxSlot* CreateBusinessRowSlot =
+        BusinessContent->AddChildToVerticalBox(CreateBusinessRow);
+    CreateBusinessRowSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
+    BusinessNameInput = WidgetTree->ConstructWidget<UEditableTextBox>(
+        UEditableTextBox::StaticClass(), TEXT("BusinessNameInput"));
+    BusinessNameInput->WidgetStyle = FCoreStyle::Get().GetWidgetStyle<FEditableTextBoxStyle>(
+        TEXT("NormalEditableTextBox"));
+    BusinessNameInput->WidgetStyle
+        .SetFont(FOntoTwinGlassTheme::Font(10.0f))
+        .SetPadding(FMargin(8.0f, 4.0f));
+    BusinessNameInput->SetHintText(FText::FromString(TEXT("新建业务名称")));
+    BusinessNameInput->SetToolTipText(FText::FromString(
+        TEXT("输入名称后，将使用当前所选对象创建业务。保存全部修改后同步到 Web。")));
+    UHorizontalBoxSlot* BusinessNameSlot =
+        CreateBusinessRow->AddChildToHorizontalBox(BusinessNameInput);
+    BusinessNameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    BusinessNameSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
+    UTextBlock* CreateBusinessButtonLabel = nullptr;
+    CreateBusinessButton = CreateButton(
+        TEXT("CreateBusinessButton"), TEXT("创建"), CreateBusinessButtonLabel, false);
+    CreateBusinessButton->SetToolTipText(FText::FromString(
+        TEXT("使用当前所选对象创建业务；创建后仍需保存全部修改。")));
+    CreateBusinessRow->AddChildToHorizontalBox(CreateBusinessButton);
 
     PendingToggleButton = CreateButton(TEXT("PendingToggleButton"), TEXT("待保存修改（0）"), PendingToggleLabel, false);
     UVerticalBoxSlot* PendingToggleSlot = Body->AddChildToVerticalBox(PendingToggleButton);
@@ -469,6 +626,7 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     ConfirmationSecondarySlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 6.0f));
     ConfirmationContinueButton = CreateButton(TEXT("ConfirmationContinueButton"), TEXT("继续编辑"), ConfirmationContinueLabel, false);
     DialogStack->AddChildToVerticalBox(ConfirmationContinueButton);
+    SetActiveTab(false);
 }
 
 UTextBlock* UOntoTwinRuntimeEditorPanel::CreateText(const FName Name, const FString& InitialText,
@@ -479,7 +637,7 @@ UTextBlock* UOntoTwinRuntimeEditorPanel::CreateText(const FName Name, const FStr
     UTextBlock* Text = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Name);
     Text->SetText(FText::FromString(InitialText));
     Text->SetColorAndOpacity(FSlateColor(Color));
-    Text->SetFont(FCoreStyle::GetDefaultFontStyle(bBold ? TEXT("Bold") : TEXT("Regular"), FontSize));
+    Text->SetFont(FOntoTwinGlassTheme::Font(FontSize, bBold));
     Text->SetAutoWrapText(false);
     return Text;
 }
@@ -492,7 +650,7 @@ UButton* UOntoTwinRuntimeEditorPanel::CreateButton(const FName Name, const FStri
     UButton* Button = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), Name);
     Button->SetStyle(BuildButtonStyle(Button->GetStyle(), bPrimary));
 
-    OutLabel = CreateText(FName(*(Name.ToString() + TEXT("Label"))), Label, 11,
+    OutLabel = CreateText(FName(*(Name.ToString() + TEXT("Label"))), Label, 10,
         bPrimary ? PanelBackground : PrimaryText, true);
     OutLabel->SetJustification(ETextJustify::Center);
     Button->SetContent(OutLabel);
@@ -649,6 +807,135 @@ void UOntoTwinRuntimeEditorPanel::HideToast()
     }
 }
 
+void UOntoTwinRuntimeEditorPanel::SetActiveTab(bool bBusiness)
+{
+    bBusinessTabActive = bBusiness;
+    if (SceneContent) SceneContent->SetVisibility(
+        bBusiness ? ESlateVisibility::Collapsed : ESlateVisibility::SelfHitTestInvisible);
+    if (BusinessContent) BusinessContent->SetVisibility(
+        bBusiness ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+    if (SceneTabButton) SceneTabButton->SetStyle(
+        BuildTabButtonStyle(SceneTabButton->GetStyle(), !bBusiness));
+    if (BusinessTabButton) BusinessTabButton->SetStyle(
+        BuildTabButtonStyle(BusinessTabButton->GetStyle(), bBusiness));
+    SetTextColor(SceneTabLabel, bBusiness ? SecondaryText : PanelBackground);
+    SetTextColor(BusinessTabLabel, bBusiness ? PanelBackground : SecondaryText);
+    if (bBusiness) RefreshBusinessEditor();
+}
+
+void UOntoTwinRuntimeEditorPanel::RefreshBusinessEditor()
+{
+    if (!SceneManager || !BusinessSelector) return;
+    const int32 SelectionCount = SceneManager->GetRuntimeEditSelectionCount();
+    TArray<FString> SelectedNames;
+    SceneManager->GetRuntimeSelectedInstanceDisplayNames(SelectedNames);
+    if (BusinessSelectionText)
+    {
+        FString SelectionText = TEXT("尚未选择对象");
+        if (SelectedNames.Num() == 1)
+        {
+            SelectionText = TEXT("已选：") + SelectedNames[0];
+        }
+        else if (SelectedNames.Num() > 1)
+        {
+            const int32 VisibleCount = FMath::Min(SelectedNames.Num(), 3);
+            TArray<FString> VisibleNames;
+            for (int32 Index = 0; Index < VisibleCount; ++Index)
+            {
+                VisibleNames.Add(SelectedNames[Index]);
+            }
+            SelectionText = FString::Printf(TEXT("已选 %d 个：%s"),
+                SelectionCount, *FString::Join(VisibleNames, TEXT("、")));
+            if (SelectedNames.Num() > VisibleCount)
+            {
+                SelectionText += FString::Printf(TEXT(" 等 %d 个"), SelectedNames.Num());
+            }
+        }
+        BusinessSelectionText->SetText(FText::FromString(SelectionText));
+    }
+
+    TArray<FString> NextOptionIds;
+    TArray<FString> NextOptionLabels;
+    TArray<uint8> States;
+    SceneManager->GetRuntimeBusinessMembershipRows(
+        NextOptionIds, NextOptionLabels, States);
+    const bool bHasSnapshot = SceneManager->HasRuntimeBusinessSnapshot();
+    const FString Placeholder = !bHasSnapshot
+        ? TEXT("业务同步中")
+        : (NextOptionIds.Num() == 0
+            ? TEXT("暂无业务")
+            : (SelectionCount == 0
+                ? TEXT("请先选择对象")
+                : TEXT("选择业务")));
+
+    FString OptionsSignature = FString::Printf(
+        TEXT("%d|%d|%d"), bHasSnapshot ? 1 : 0, SelectionCount, NextOptionIds.Num());
+    for (int32 Index = 0; Index < NextOptionIds.Num(); ++Index)
+    {
+        const uint8 State = States.IsValidIndex(Index) ? States[Index] : 0;
+        OptionsSignature += FString::Printf(
+            TEXT("|%s\x1f%s\x1f%d"),
+            *NextOptionIds[Index],
+            NextOptionLabels.IsValidIndex(Index) ? *NextOptionLabels[Index] : TEXT(""),
+            static_cast<int32>(State));
+    }
+
+    // RefreshFromManager runs every frame. Rebuilding UComboBoxString each frame closes
+    // its popup immediately after click, which makes a populated selector look inert.
+    // Rebuild only when its actual data or selection context changes.
+    if (BusinessOptionsSignature != OptionsSignature)
+    {
+        BusinessOptionsSignature = OptionsSignature;
+        BusinessOptionIds = MoveTemp(NextOptionIds);
+        BusinessOptionLabels = MoveTemp(NextOptionLabels);
+        BusinessOptionDisplayLabels.Reset();
+        bRefreshingBusinessSelector = true;
+        BusinessSelector->ClearOptions();
+        BusinessSelector->AddOption(Placeholder);
+        for (int32 Index = 0; Index < BusinessOptionLabels.Num(); ++Index)
+        {
+            const uint8 State = States.IsValidIndex(Index) ? States[Index] : 0;
+            const FString Prefix = State == 2 ? TEXT("[已选]")
+                : (State == 1 ? TEXT("[部分]") : TEXT("[未选]"));
+            const FString OptionDisplayLabel = Prefix + TEXT(" ") + BusinessOptionLabels[Index];
+            BusinessOptionDisplayLabels.Add(OptionDisplayLabel);
+            BusinessSelector->AddOption(OptionDisplayLabel);
+        }
+        BusinessSelector->SetSelectedIndex(0);
+        bRefreshingBusinessSelector = false;
+    }
+
+    BusinessSelector->SetIsEnabled(
+        SelectionCount > 0 && BusinessOptionIds.Num() > 0
+        && bHasSnapshot);
+    const FString Availability = !bHasSnapshot
+        ? TEXT("正在同步业务数据，完成后会自动启用。")
+        : (BusinessOptionIds.Num() == 0
+            ? TEXT("当前项目没有已启用业务，可在下方新建。")
+            : (SelectionCount == 0
+                ? FString::Printf(TEXT("已同步 %d 项业务。请先在场景中选择对象。"), BusinessOptionIds.Num())
+                : FString::Printf(
+                    TEXT("已同步 %d 项业务。选择后切换归属：[已选] 全部属于，[部分] 仅部分属于，[未选] 全部不属于。保存后生效。"),
+                    BusinessOptionIds.Num())));
+    BusinessSelector->SetToolTipText(FText::FromString(Availability));
+    if (CreateBusinessButton)
+    {
+        CreateBusinessButton->SetIsEnabled(
+            SelectionCount > 0 && bHasSnapshot);
+    }
+    if (BusinessNameInput) BusinessNameInput->SetIsEnabled(SelectionCount > 0 && bHasSnapshot);
+}
+
+UWidget* UOntoTwinRuntimeEditorPanel::GenerateBusinessOptionWidget(FString Item)
+{
+    UTextBlock* Text = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+    Text->SetText(FText::FromString(Item));
+    Text->SetColorAndOpacity(FSlateColor(PrimaryText));
+    Text->SetFont(FOntoTwinGlassTheme::Font(10.0f));
+    Text->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    return Text;
+}
+
 void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
 {
     if (!SceneManager) return;
@@ -659,7 +946,7 @@ void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
         GEngine->GameViewport->GetViewportSize(ViewportSize);
         if (ViewportSize.Y > 0.0f)
         {
-            PanelBounds->SetMaxDesiredHeight(FMath::Max(420.0f, ViewportSize.Y * 0.70f));
+            PanelBounds->SetMaxDesiredHeight(FMath::Max(360.0f, ViewportSize.Y * 0.70f));
         }
     }
 
@@ -771,6 +1058,7 @@ void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
     }
 
     RefreshPendingList();
+    if (bBusinessTabActive) RefreshBusinessEditor();
 }
 
 void UOntoTwinRuntimeEditorPanel::HandleAccessActionClicked()
@@ -813,6 +1101,50 @@ void UOntoTwinRuntimeEditorPanel::HandleUndoClicked()
 void UOntoTwinRuntimeEditorPanel::HandleRedoClicked()
 {
     if (SceneManager) SceneManager->RedoRuntimeEdit();
+}
+
+void UOntoTwinRuntimeEditorPanel::HandleSceneTabClicked()
+{
+    SetActiveTab(false);
+}
+
+void UOntoTwinRuntimeEditorPanel::HandleBusinessTabClicked()
+{
+    SetActiveTab(true);
+}
+
+void UOntoTwinRuntimeEditorPanel::HandleBusinessSelected(
+    FString SelectedItem,
+    ESelectInfo::Type SelectionType)
+{
+    (void)SelectionType;
+    if (bRefreshingBusinessSelector || !SceneManager) return;
+    const int32 Index = BusinessOptionDisplayLabels.IndexOfByKey(SelectedItem);
+    if (BusinessOptionIds.IsValidIndex(Index))
+    {
+        SceneManager->ToggleRuntimeBusinessMembership(BusinessOptionIds[Index]);
+        RefreshBusinessEditor();
+    }
+}
+
+void UOntoTwinRuntimeEditorPanel::HandleCreateBusinessClicked()
+{
+    if (!SceneManager || !BusinessNameInput) return;
+    const FString Name = BusinessNameInput->GetText().ToString().TrimStartAndEnd();
+    if (SceneManager->CreateRuntimeBusiness(Name))
+    {
+        BusinessNameInput->SetText(FText::GetEmpty());
+        ShowToast(
+            TEXT("业务已创建，保存后立即进入运行 Dock"),
+            EOntoTwinRuntimeToastType::Success);
+        RefreshBusinessEditor();
+    }
+    else
+    {
+        ShowToast(
+            TEXT("无法创建业务，请检查名称和当前选择"),
+            EOntoTwinRuntimeToastType::Warning);
+    }
 }
 
 void UOntoTwinRuntimeEditorPanel::HandleRemoveClicked()

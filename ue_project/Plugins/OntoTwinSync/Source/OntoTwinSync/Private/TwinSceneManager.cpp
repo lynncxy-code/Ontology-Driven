@@ -11,6 +11,8 @@
 // ============================================================================
 
 #include "TwinSceneManager.h"
+#include "UEAssetCatalogSyncComponent.h"
+#include "OntoTwinModelLoadingWidget.h"
 #include "OntoTwinRuntimeEditorPanel.h"
 #include "OntoTwinOverlayWidget.h"
 #include "OntoTwinRuntimeGizmo.h"
@@ -31,6 +33,7 @@
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Blueprint/UserWidget.h"
 #include "Camera/PlayerCameraManager.h"
+#include "Camera/CameraComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/MeshComponent.h"
 #include "Components/PrimitiveComponent.h"
@@ -160,6 +163,7 @@ ATwinSceneManager::ATwinSceneManager()
     OverlayMediaSound->SetAutoActivate(false);
     InteractionManager = CreateDefaultSubobject<UTwinInteractionManagerComponent>(TEXT("SceneInteractionManager"));
     WebInteractionManager = CreateDefaultSubobject<UOntoTwinWebInteractionComponent>(TEXT("WebInteractionManager"));
+    AssetCatalogSync = CreateDefaultSubobject<UOntoTwinUEAssetCatalogSyncComponent>(TEXT("AssetCatalogSync"));
     UEProjectName = FApp::GetProjectName();
     UEProjectId = FString::Printf(TEXT("ueproj_%s"), *UEProjectName);
 }
@@ -194,6 +198,7 @@ void ATwinSceneManager::BeginPlay()
 
     Super::BeginPlay();
     SetActorTickEnabled(true);
+    EnsureModelLoadingWidget();
 
     FString RealtimeEnabledOverride;
     if (FParse::Value(
@@ -306,6 +311,7 @@ void ATwinSceneManager::BeginPlay()
 void ATwinSceneManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     GetWorldTimerManager().ClearTimer(PollTimerHandle);
+    GetWorldTimerManager().ClearTimer(ModelLoadingDismissTimer);
     GetWorldTimerManager().ClearTimer(RealtimeReconnectTimerHandle);
     GetWorldTimerManager().ClearTimer(OverlayMediaRetryTimer);
     bRealtimeClosing = true;
@@ -323,6 +329,7 @@ void ATwinSceneManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
         UpdateOverlayPointerInput(PC, false);
     }
     ClearOverlaySelection();
+    DismissModelLoadingWidget();
 
     if (RuntimeGizmo && IsValid(RuntimeGizmo))
     {
@@ -364,7 +371,25 @@ void ATwinSceneManager::TickOverlays()
     const bool bPointerOverRuntimePanel =
         RuntimeEditorPanel && IsValid(RuntimeEditorPanel) && RuntimeEditorPanel->IsPointerOverPanel();
     const bool bInteractionOwnsSelection =
-        InteractionManager && InteractionManager->IsRoamingActive();
+        InteractionManager && InteractionManager->OwnsPointerSelection();
+    const bool bPointerOverWebInteraction =
+        WebInteractionManager && WebInteractionManager->IsPointerOverInteractiveWeb();
+    const bool bPointerOverOverlay = SelectedOverlayWidget
+        && IsValid(SelectedOverlayWidget) && SelectedOverlayWidget->IsPointerOverPanel();
+    const bool bGlobalSelectionClick = !bInteractionOwnsSelection
+        && !bRuntimeEditMode
+        && !bPointerOverRuntimePanel
+        && !bPointerOverOverlay
+        && !bPointerOverWebInteraction
+        && PC->WasInputKeyJustPressed(EKeys::LeftMouseButton);
+    FHitResult GlobalSelectionHit;
+    const bool bHasGlobalSelectionHit = bGlobalSelectionClick
+        && TraceRuntimeCursor(GlobalSelectionHit);
+    if (bGlobalSelectionClick && InteractionManager)
+    {
+        InteractionManager->HandleGlobalPointerSelection(
+            bHasGlobalSelectionHit ? &GlobalSelectionHit : nullptr);
+    }
 
     bool bHasSelectedOverlay = false;
     if (bEnableOverlays)
@@ -384,7 +409,7 @@ void ATwinSceneManager::TickOverlays()
     UpdateOverlayPointerInput(
         PC,
         bEnableOverlays && (bHasSelectedOverlay || bInteractiveMediaSelected)
-            && !bInteractionOwnsSelection && !bRuntimeEditMode);
+            && !bInteractionOwnsSelection && !bRuntimeEditMode && !bPointerOverWebInteraction);
 
     if (!bEnableOverlays)
     {
@@ -392,17 +417,11 @@ void ATwinSceneManager::TickOverlays()
         return;
     }
 
-    const bool bPointerOverOverlay = SelectedOverlayWidget
-        && IsValid(SelectedOverlayWidget) && SelectedOverlayWidget->IsPointerOverPanel();
-    if (!bInteractionOwnsSelection && !bPointerOverRuntimePanel && !bPointerOverOverlay
-        && PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
+    if (bGlobalSelectionClick)
     {
-        FHitResult Hit;
-        ATwinInstance* HitInstance = nullptr;
-        if (TraceRuntimeCursor(Hit))
-        {
-            HitInstance = Cast<ATwinInstance>(Hit.GetActor());
-        }
+        ATwinInstance* HitInstance = bHasGlobalSelectionHit
+            ? Cast<ATwinInstance>(GlobalSelectionHit.GetActor())
+            : nullptr;
         if (HitInstance && HitInstance->HasSelectedOverlay())
         {
             SelectOverlayInstance(HitInstance);
@@ -1259,12 +1278,106 @@ void ATwinSceneManager::GetManagedInstances(TArray<ATwinInstance*>& OutInstances
 void ATwinSceneManager::FocusManagedInstance(ATwinInstance* Instance) const
 {
     if (!Instance || !IsValid(Instance)) return;
+    FBox Bounds = Instance->GetComponentsBoundingBox(true, true);
+    if (!Bounds.IsValid) Bounds += Instance->GetActorLocation();
+    FocusManagedBounds(Bounds, Instance->GetInstanceId(), 1);
+}
+
+void ATwinSceneManager::FocusManagedInstances(const TSet<FString>& InstanceIds) const
+{
+    if (InstanceIds.Num() == 0) return;
+
+    FBox CombinedBounds(EForceInit::ForceInit);
+    int32 IncludedCount = 0;
+    for (const TPair<FString, ATwinInstance*>& Pair : InstanceRegistry)
+    {
+        ATwinInstance* Instance = Pair.Value;
+        if (!InstanceIds.Contains(Pair.Key) || !Instance || !IsValid(Instance)
+            || Instance->IsHidden())
+        {
+            continue;
+        }
+        const FBox InstanceBounds = Instance->GetComponentsBoundingBox(true, true);
+        if (InstanceBounds.IsValid) CombinedBounds += InstanceBounds;
+        else CombinedBounds += Instance->GetActorLocation();
+        ++IncludedCount;
+    }
+    if (!CombinedBounds.IsValid || IncludedCount == 0)
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("OntoTwin scope focus skipped: no visible managed instances"));
+        return;
+    }
+    FocusManagedBounds(CombinedBounds, TEXT("scope"), IncludedCount);
+}
+
+void ATwinSceneManager::FocusManagedBounds(
+    const FBox& Bounds,
+    const FString& FocusLabel,
+    int32 InstanceCount) const
+{
+    if (!Bounds.IsValid || InstanceCount <= 0) return;
     APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
     if (!PC) return;
-    const FVector CameraLocation = PC->PlayerCameraManager
-        ? PC->PlayerCameraManager->GetCameraLocation()
-        : (PC->GetPawn() ? PC->GetPawn()->GetActorLocation() : FVector::ZeroVector);
-    PC->SetControlRotation((Instance->GetActorLocation() - CameraLocation).Rotation());
+
+    const FVector FocusCenter = Bounds.GetCenter();
+    const float BoundsRadius = FMath::Max(50.0f, Bounds.GetExtent().Size());
+    const float FovDegrees = PC->PlayerCameraManager
+        ? FMath::Clamp(PC->PlayerCameraManager->GetFOVAngle(), 20.0f, 120.0f)
+        : 90.0f;
+    const float HalfFovRadians = FMath::DegreesToRadians(FovDegrees * 0.5f);
+    const float FocusDistance = FMath::Clamp(
+        BoundsRadius * 1.35f / FMath::Max(FMath::Tan(HalfFovRadians), 0.1f),
+        250.0f,
+        50000.0f);
+
+    const FRotator CurrentRotation = PC->PlayerCameraManager
+        ? PC->PlayerCameraManager->GetCameraRotation()
+        : PC->GetControlRotation();
+    const FRotator FocusRotation(
+        FMath::Clamp(CurrentRotation.Pitch, -55.0f, -12.0f),
+        CurrentRotation.Yaw,
+        0.0f);
+    const FVector FocusLocation = FocusCenter - FocusRotation.Vector() * FocusDistance;
+    const FTransform FocusTransform(FocusRotation, FocusLocation);
+
+    FString FocusError;
+    if (InteractionManager && InteractionManager->IsRoamingActive()
+        && InteractionManager->FocusInstanceCamera(
+            FocusTransform, FovDegrees, FocusError))
+    {
+        UE_LOG(LogTemp, Log,
+            TEXT("OntoTwin focus applied in roaming: target=%s instances=%d distance=%.1f radius=%.1f"),
+            *FocusLabel, InstanceCount, FocusDistance, BoundsRadius);
+        return;
+    }
+
+    AActor* CameraCarrier = PC->GetViewTarget();
+    if (!CameraCarrier) CameraCarrier = PC->GetPawn();
+    if (!CameraCarrier)
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("OntoTwin focus failed: no active camera carrier; target=%s instances=%d roaming_error=%s"),
+            *FocusLabel, InstanceCount, *FocusError);
+        return;
+    }
+    CameraCarrier->SetActorLocationAndRotation(
+        FocusLocation,
+        FocusRotation,
+        false,
+        nullptr,
+        ETeleportType::TeleportPhysics);
+    if (UCameraComponent* Camera = CameraCarrier->FindComponentByClass<UCameraComponent>())
+    {
+        Camera->SetFieldOfView(FovDegrees);
+    }
+    if (PC->GetPawn() == CameraCarrier)
+    {
+        PC->SetControlRotation(FocusRotation);
+    }
+    UE_LOG(LogTemp, Log,
+        TEXT("OntoTwin focus applied: target=%s instances=%d carrier=%s distance=%.1f radius=%.1f"),
+        *FocusLabel, InstanceCount, *CameraCarrier->GetName(), FocusDistance, BoundsRadius);
 }
 
 ATwinInstance* ATwinSceneManager::FindAlwaysOverlayAtScreenPosition(
@@ -1458,6 +1571,96 @@ void ATwinSceneManager::SetPollTimerInterval(float IntervalSeconds, float FirstD
         FMath::Max(0.0f, FirstDelaySeconds));
 }
 
+void ATwinSceneManager::EnsureModelLoadingWidget()
+{
+    if (bInitialModelBaselineReady || ModelLoadingWidget)
+    {
+        return;
+    }
+
+    APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+    if (!PlayerController)
+    {
+        return;
+    }
+
+    ModelLoadingWidget = CreateWidget<UOntoTwinModelLoadingWidget>(
+        PlayerController, UOntoTwinModelLoadingWidget::StaticClass());
+    if (!ModelLoadingWidget)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[孪生管理器] 无法创建模型加载界面"));
+        return;
+    }
+
+    ModelLoadingWidget->AddToViewport(2000);
+    ModelLoadingWidget->ShowWaiting(TEXT("正在连接 OntoTwin 并等待当前项目的模型数据。"));
+    UE_LOG(LogTemp, Log, TEXT("[孪生管理器] 模型加载界面已显示"));
+}
+
+void ATwinSceneManager::UpdateInitialModelLoadingProgress(const int32 Completed, const int32 Total)
+{
+    if (bInitialModelBaselineReady)
+    {
+        return;
+    }
+    EnsureModelLoadingWidget();
+    if (ModelLoadingWidget)
+    {
+        ModelLoadingWidget->ShowProgress(Completed, Total);
+    }
+}
+
+void ATwinSceneManager::CompleteInitialModelBaseline(const int32 Total)
+{
+    if (bInitialModelBaselineReady)
+    {
+        return;
+    }
+
+    bInitialModelBaselineReady = true;
+    if (ModelLoadingWidget)
+    {
+        ModelLoadingWidget->ShowComplete(Total);
+    }
+
+    UE_LOG(LogTemp, Log,
+        TEXT("[孪生管理器] 首轮模型基线已完成 | instances=%d"), Total);
+
+    if (InteractionManager)
+    {
+        InteractionManager->NotifySceneBaselineReady();
+    }
+
+    GetWorldTimerManager().SetTimer(
+        ModelLoadingDismissTimer,
+        this,
+        &ATwinSceneManager::DismissModelLoadingWidget,
+        0.45f,
+        false);
+}
+
+void ATwinSceneManager::FailInitialModelBaseline(const FString& Detail)
+{
+    if (bInitialModelBaselineReady)
+    {
+        return;
+    }
+    EnsureModelLoadingWidget();
+    if (ModelLoadingWidget)
+    {
+        ModelLoadingWidget->ShowFailure(Detail);
+    }
+}
+
+void ATwinSceneManager::DismissModelLoadingWidget()
+{
+    if (ModelLoadingWidget)
+    {
+        ModelLoadingWidget->RemoveFromParent();
+        ModelLoadingWidget = nullptr;
+    }
+}
+
 void ATwinSceneManager::BindCurrentUEProjectToActiveDataset()
 {
 #if WITH_EDITOR
@@ -1506,6 +1709,11 @@ void ATwinSceneManager::BindCurrentUEProjectToActiveDataset()
 void ATwinSceneManager::PollBackend()
 {
     if (bRequestInFlight) return;
+
+    if (!bInitialModelBaselineReady)
+    {
+        EnsureModelLoadingWidget();
+    }
 
     const bool bUseIncremental = bEnableIncrementalSnapshots && !bIncrementalSnapshotsFellBackToFull;
     if (!bUseIncremental)
@@ -1564,6 +1772,8 @@ void ATwinSceneManager::OnPollResponse(
                    TEXT("[孪生管理器] 后端连续 %d 次无响应，标记全部实例离线"),
                    ConsecutiveFailures);
         }
+        FailInitialModelBaseline(FString::Printf(
+            TEXT("模型数据请求失败（HTTP %d），系统将自动重试。"), ResponseCode));
         return;
     }
 
@@ -1579,6 +1789,7 @@ void ATwinSceneManager::OnPollResponse(
     if (!FJsonSerializer::Deserialize(Reader, SnapshotArray))
     {
         UE_LOG(LogTemp, Error, TEXT("[孪生管理器] ❌ 快照 JSON 数组解析失败:\n%s"), *Body);
+        FailInitialModelBaseline(TEXT("模型数据格式无法解析，系统将自动重试。"));
         return;
     }
 
@@ -1590,16 +1801,29 @@ void ATwinSceneManager::OnPollResponse(
     // ── 收集后端当前存在的实例 ID ─────────────────────────────────────────
     TSet<FString> BackendInstanceIds;
 
+    bool bAllApplied = true;
+    int32 Completed = 0;
     for (const auto& Val : SnapshotArray)
     {
         const TSharedPtr<FJsonObject>* SnapObj;
-        if (!Val->TryGetObject(SnapObj)) continue;
+        if (!Val->TryGetObject(SnapObj))
+        {
+            bAllApplied = false;
+            UpdateInitialModelLoadingProgress(++Completed, SnapshotArray.Num());
+            continue;
+        }
 
         FString InstanceId;
-        if (!(*SnapObj)->TryGetStringField(TEXT("instanceId"), InstanceId)) continue;
+        if (!(*SnapObj)->TryGetStringField(TEXT("instanceId"), InstanceId))
+        {
+            bAllApplied = false;
+            UpdateInitialModelLoadingProgress(++Completed, SnapshotArray.Num());
+            continue;
+        }
 
         BackendInstanceIds.Add(InstanceId);
-        ProcessSnapshot(*SnapObj);
+        bAllApplied = ProcessSnapshot(*SnapObj) && bAllApplied;
+        UpdateInitialModelLoadingProgress(++Completed, SnapshotArray.Num());
     }
 
     // ── 检测后端已删除的实例 → 在场景中销毁（FR-4：全部动态 spawn，一律销毁）─────
@@ -1614,6 +1838,23 @@ void ATwinSceneManager::OnPollResponse(
     for (const FString& Id : ToRemove)
     {
         DestroyTwinInstance(Id);
+    }
+
+    if (bAllApplied)
+    {
+        CompleteInitialModelBaseline(SnapshotArray.Num());
+    }
+    else
+    {
+        FailInitialModelBaseline(TEXT("部分模型未能加载，系统将自动重试。"));
+    }
+}
+
+void ATwinSceneManager::SyncUEAssetCatalog()
+{
+    if (AssetCatalogSync)
+    {
+        AssetCatalogSync->SyncCatalog();
     }
 }
 
@@ -1651,6 +1892,8 @@ void ATwinSceneManager::OnIncrementalPollResponse(
                TEXT("[孪生管理器] 增量快照请求失败 | Code=%d | bSuccessful=%s"),
                ResponseCode, bWasSuccessful ? TEXT("true") : TEXT("false"));
         ConsecutiveFailures++;
+        FailInitialModelBaseline(FString::Printf(
+            TEXT("模型数据请求失败（HTTP %d），系统将自动重试。"), ResponseCode));
         return;
     }
 
@@ -1693,6 +1936,7 @@ void ATwinSceneManager::OnIncrementalPollResponse(
     {
         TSet<FString> BackendInstanceIds;
         bool bAllApplied = true;
+        int32 Completed = 0;
         for (const TSharedPtr<FJsonValue>& Value : *Upserts)
         {
             const TSharedPtr<FJsonObject>* Snapshot = nullptr;
@@ -1705,16 +1949,19 @@ void ATwinSceneManager::OnIncrementalPollResponse(
                 || InstanceId.IsEmpty())
             {
                 bAllApplied = false;
+                UpdateInitialModelLoadingProgress(++Completed, Upserts->Num());
                 continue;
             }
             BackendInstanceIds.Add(InstanceId);
             bAllApplied = ProcessSnapshot(*Snapshot, false) && bAllApplied;
+            UpdateInitialModelLoadingProgress(++Completed, Upserts->Num());
         }
 
         if (!bAllApplied)
         {
             IncrementalSnapshotCursor.Empty();
             UE_LOG(LogTemp, Error, TEXT("[孪生管理器] reset 基线应用不完整，下轮重新请求基线"));
+            FailInitialModelBaseline(TEXT("部分模型未能加载，系统将自动重试。"));
             return;
         }
 
@@ -1735,6 +1982,7 @@ void ATwinSceneManager::OnIncrementalPollResponse(
         UE_LOG(LogTemp, Log,
                TEXT("[孪生管理器] 增量基线已恢复 | revision=%lld | instances=%d | removed=%d | bytes=%d"),
                static_cast<int64>(RevisionNumber), Upserts->Num(), ToRemove.Num(), Response->GetContentLength());
+        CompleteInitialModelBaseline(Upserts->Num());
         return;
     }
 
@@ -1767,6 +2015,10 @@ void ATwinSceneManager::OnIncrementalPollResponse(
     }
 
     IncrementalSnapshotCursor = NewCursor;
+    if (!bInitialModelBaselineReady)
+    {
+        CompleteInitialModelBaseline(InstanceRegistry.Num());
+    }
     if (Upserts->Num() > 0 || DeletedIds->Num() > 0)
     {
         UE_LOG(LogTemp, Log,
@@ -2200,6 +2452,24 @@ void ATwinSceneManager::EnterRuntimeEditMode()
         return;
     }
 
+    if (InteractionManager) InteractionManager->SetRuntimeEditorSuppressed(true);
+    if (WebInteractionManager) WebInteractionManager->SetRuntimeEditorSuppressed(true);
+    RuntimeBusinessConfig.Reset();
+    RuntimeBusinessBaseline.Reset();
+    RuntimeBusinessRevision = -1;
+    bRuntimeBusinessDirty = false;
+    if (WebInteractionManager)
+    {
+        TSharedPtr<FJsonObject> Snapshot;
+        int32 SnapshotRevision = -1;
+        if (WebInteractionManager->GetRuntimeBusinessEditSnapshot(
+            Snapshot, SnapshotRevision))
+        {
+            RuntimeBusinessConfig = Snapshot;
+            RuntimeBusinessBaseline = CloneRuntimeBusinessConfig(Snapshot);
+            RuntimeBusinessRevision = SnapshotRevision;
+        }
+    }
     bRuntimeEditMode = true;
     RuntimeStatusMessage = TEXT("运行时编辑已开启");
     SetPollTimerInterval(EditModePollInterval, EditModePollInterval);
@@ -2274,9 +2544,15 @@ void ATwinSceneManager::FinishExitRuntimeEditMode()
     }
 
     bRuntimeEditMode = false;
+    RuntimeBusinessConfig.Reset();
+    RuntimeBusinessBaseline.Reset();
+    RuntimeBusinessRevision = -1;
+    bRuntimeBusinessDirty = false;
     bRuntimeExitAfterSave = false;
     RuntimeStatusMessage = TEXT("运行时编辑已关闭");
     SetPollTimerInterval(PollInterval, PollInterval);
+    if (InteractionManager) InteractionManager->SetRuntimeEditorSuppressed(false);
+    if (WebInteractionManager) WebInteractionManager->SetRuntimeEditorSuppressed(false);
 }
 
 void ATwinSceneManager::SaveAndExitRuntimeEdit()
@@ -2324,6 +2600,10 @@ void ATwinSceneManager::TickRuntimeEditor(float DeltaTime)
     {
         return;
     }
+
+    // Web 投影与 F8 可能同时启动。只要用户尚未编辑业务，就持续接收更新版本，
+    // 避免进入 F8 时的一次性空快照把业务下拉永久锁死。
+    RefreshRuntimeBusinessSnapshot();
 
     if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel) && RuntimeEditorPanel->IsConfirmationOpen())
     {
@@ -3131,10 +3411,28 @@ void ATwinSceneManager::RefreshRuntimeEditDirtyState()
         State.bLoadedDirty = Instance->IsRuntimeLoaded() != State.bBaselineLoaded;
         if (State.bTransformDirty || State.bLoadedDirty) ++DirtyCount;
     }
-    bRuntimeEditDirty = DirtyCount > 0;
+    bRuntimeEditDirty = DirtyCount > 0 || bRuntimeBusinessDirty;
     RuntimeStatusMessage = bRuntimeEditDirty
-        ? FString::Printf(TEXT("待保存 %d 项"), DirtyCount)
+        ? FString::Printf(TEXT("待保存 %d 项%s"), DirtyCount,
+            bRuntimeBusinessDirty ? TEXT(" + 业务修改") : TEXT(""))
         : TEXT("没有待保存修改");
+}
+
+void ATwinSceneManager::RefreshRuntimeBusinessDirtyState()
+{
+    FString BaselineJson;
+    FString CurrentJson;
+    if (RuntimeBusinessBaseline.IsValid())
+    {
+        const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&BaselineJson);
+        FJsonSerializer::Serialize(RuntimeBusinessBaseline.ToSharedRef(), Writer);
+    }
+    if (RuntimeBusinessConfig.IsValid())
+    {
+        const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&CurrentJson);
+        FJsonSerializer::Serialize(RuntimeBusinessConfig.ToSharedRef(), Writer);
+    }
+    bRuntimeBusinessDirty = BaselineJson != CurrentJson;
 }
 
 void ATwinSceneManager::UpdateRuntimeSelectionGeometry(bool bKeepDragPivot)
@@ -3555,6 +3853,174 @@ ATwinSceneManager::FRuntimeEditValue ATwinSceneManager::CaptureRuntimeValue(
     return Value;
 }
 
+TSharedPtr<FJsonObject> ATwinSceneManager::CloneRuntimeBusinessConfig(
+    const TSharedPtr<FJsonObject>& Source) const
+{
+    if (!Source.IsValid()) return nullptr;
+    FString Json;
+    const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Json);
+    if (!FJsonSerializer::Serialize(Source.ToSharedRef(), Writer)) return nullptr;
+    TSharedPtr<FJsonObject> Result;
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
+    return FJsonSerializer::Deserialize(Reader, Result) ? Result : nullptr;
+}
+
+bool ATwinSceneManager::RefreshRuntimeBusinessSnapshot()
+{
+    if (!bRuntimeEditMode || bRuntimeEditSaving || bRuntimeBusinessDirty
+        || !WebInteractionManager)
+    {
+        return false;
+    }
+
+    const bool bHasBusinessHistory = RuntimeUndoStack.ContainsByPredicate(
+        [](const FRuntimeEditCommand& Command) { return Command.bBusinessCommand; })
+        || RuntimeRedoStack.ContainsByPredicate(
+            [](const FRuntimeEditCommand& Command) { return Command.bBusinessCommand; });
+    if (bHasBusinessHistory)
+    {
+        return false;
+    }
+
+    const int32 AvailableRevision = WebInteractionManager->GetRuntimeBusinessEditRevision();
+    if (AvailableRevision < 0
+        || (RuntimeBusinessConfig.IsValid() && AvailableRevision <= RuntimeBusinessRevision))
+    {
+        return false;
+    }
+
+    TSharedPtr<FJsonObject> Snapshot;
+    int32 SnapshotRevision = -1;
+    if (!WebInteractionManager->GetRuntimeBusinessEditSnapshot(Snapshot, SnapshotRevision))
+    {
+        return false;
+    }
+
+    RuntimeBusinessConfig = Snapshot;
+    RuntimeBusinessBaseline = CloneRuntimeBusinessConfig(Snapshot);
+    RuntimeBusinessRevision = SnapshotRevision;
+    return true;
+}
+
+void ATwinSceneManager::GetRuntimeSelectedInstanceIds(
+    TArray<FString>& OutInstanceIds) const
+{
+    OutInstanceIds.Reset();
+    for (const ATwinInstance* Instance : RuntimeSelectedInstances)
+    {
+        if (Instance && IsValid(Instance)) OutInstanceIds.Add(Instance->GetInstanceId());
+    }
+}
+
+void ATwinSceneManager::GetRuntimeSelectedInstanceDisplayNames(
+    TArray<FString>& OutNames) const
+{
+    OutNames.Reset();
+    for (const ATwinInstance* Instance : RuntimeSelectedInstances)
+    {
+        if (!Instance || !IsValid(Instance)) continue;
+        const FString DisplayName = Instance->GetTwinDisplayName();
+        OutNames.Add(DisplayName.IsEmpty() ? Instance->GetInstanceId() : DisplayName);
+    }
+}
+
+void ATwinSceneManager::GetRuntimeBusinessMembershipRows(
+    TArray<FString>& OutBusinessIds,
+    TArray<FString>& OutNames,
+    TArray<uint8>& OutStates) const
+{
+    OutBusinessIds.Reset();
+    OutNames.Reset();
+    OutStates.Reset();
+    if (!WebInteractionManager || !RuntimeBusinessConfig.IsValid()) return;
+    TArray<FString> SelectedIds;
+    GetRuntimeSelectedInstanceIds(SelectedIds);
+    TArray<EOntoTwinBusinessMembershipState> States;
+    WebInteractionManager->GetRuntimeBusinessMembershipStates(
+        RuntimeBusinessConfig, SelectedIds, OutBusinessIds, OutNames, States);
+    for (const EOntoTwinBusinessMembershipState State : States)
+    {
+        OutStates.Add(static_cast<uint8>(State));
+    }
+}
+
+bool ATwinSceneManager::ToggleRuntimeBusinessMembership(const FString& BusinessId)
+{
+    if (!bRuntimeEditMode || bRuntimeEditSaving || !WebInteractionManager
+        || !RuntimeBusinessConfig.IsValid()) return false;
+    TArray<FString> SelectedIds;
+    GetRuntimeSelectedInstanceIds(SelectedIds);
+    if (SelectedIds.Num() == 0)
+    {
+        RuntimeStatusMessage = TEXT("请先在场景中选择对象");
+        UpdateRuntimeEditorPanel();
+        return false;
+    }
+    TArray<FString> Ids;
+    TArray<FString> Names;
+    TArray<EOntoTwinBusinessMembershipState> States;
+    WebInteractionManager->GetRuntimeBusinessMembershipStates(
+        RuntimeBusinessConfig, SelectedIds, Ids, Names, States);
+    const int32 Index = Ids.IndexOfByKey(BusinessId);
+    if (!States.IsValidIndex(Index)) return false;
+
+    FRuntimeEditCommand Command;
+    Command.Label = States[Index] == EOntoTwinBusinessMembershipState::All
+        ? TEXT("移出业务") : TEXT("加入业务");
+    Command.bBusinessCommand = true;
+    Command.BusinessBefore = CloneRuntimeBusinessConfig(RuntimeBusinessConfig);
+    FString Error;
+    const bool bAdd = States[Index] != EOntoTwinBusinessMembershipState::All;
+    if (!WebInteractionManager->SetRuntimeBusinessMembership(
+        RuntimeBusinessConfig, BusinessId, SelectedIds, bAdd, Error))
+    {
+        RuntimeStatusMessage = Error;
+        UpdateRuntimeEditorPanel();
+        return false;
+    }
+    Command.BusinessAfter = CloneRuntimeBusinessConfig(RuntimeBusinessConfig);
+    RecordRuntimeCommand(MoveTemp(Command));
+    RefreshRuntimeBusinessDirtyState();
+    RefreshRuntimeEditDirtyState();
+    RuntimeStatusMessage = bAdd ? TEXT("已加入业务，等待保存") : TEXT("已移出业务，等待保存");
+    UpdateRuntimeEditorPanel();
+    return true;
+}
+
+bool ATwinSceneManager::CreateRuntimeBusiness(const FString& Name)
+{
+    if (!bRuntimeEditMode || bRuntimeEditSaving || !WebInteractionManager
+        || !RuntimeBusinessConfig.IsValid()) return false;
+    TArray<FString> SelectedIds;
+    GetRuntimeSelectedInstanceIds(SelectedIds);
+    if (SelectedIds.Num() == 0)
+    {
+        RuntimeStatusMessage = TEXT("请先在场景中选择对象");
+        UpdateRuntimeEditorPanel();
+        return false;
+    }
+    FRuntimeEditCommand Command;
+    Command.Label = TEXT("新建业务");
+    Command.bBusinessCommand = true;
+    Command.BusinessBefore = CloneRuntimeBusinessConfig(RuntimeBusinessConfig);
+    FString BusinessId;
+    FString Error;
+    if (!WebInteractionManager->CreateRuntimeBusiness(
+        RuntimeBusinessConfig, Name, SelectedIds, BusinessId, Error))
+    {
+        RuntimeStatusMessage = Error;
+        UpdateRuntimeEditorPanel();
+        return false;
+    }
+    Command.BusinessAfter = CloneRuntimeBusinessConfig(RuntimeBusinessConfig);
+    RecordRuntimeCommand(MoveTemp(Command));
+    RefreshRuntimeBusinessDirtyState();
+    RefreshRuntimeEditDirtyState();
+    RuntimeStatusMessage = TEXT("业务已创建，等待保存");
+    UpdateRuntimeEditorPanel();
+    return true;
+}
+
 void ATwinSceneManager::ApplyRuntimeValue(const FRuntimeEditValue& Value)
 {
     ATwinInstance* Instance = Value.Instance.Get();
@@ -3578,6 +4044,14 @@ void ATwinSceneManager::ApplyRuntimeCommand(
     const FRuntimeEditCommand& Command,
     bool bUseAfter)
 {
+    if (Command.bBusinessCommand)
+    {
+        RuntimeBusinessConfig = CloneRuntimeBusinessConfig(
+            bUseAfter ? Command.BusinessAfter : Command.BusinessBefore);
+        RefreshRuntimeBusinessDirtyState();
+        RefreshRuntimeEditDirtyState();
+        return;
+    }
     const TArray<FRuntimeEditValue>& Values = bUseAfter ? Command.After : Command.Before;
     for (const FRuntimeEditValue& Value : Values)
     {
@@ -3997,6 +4471,72 @@ void ATwinSceneManager::SaveRuntimeEdit()
         return;
     }
 
+    if (bRuntimeBusinessDirty)
+    {
+        if (!WebInteractionManager || !RuntimeBusinessConfig.IsValid()
+            || RuntimeBusinessRevision < 0)
+        {
+            RuntimeStatusMessage = TEXT("业务配置尚未就绪，本地修改仍保留");
+            UpdateRuntimeEditorPanel();
+            return;
+        }
+        bRuntimeEditSaving = true;
+        RuntimeStatusMessage = TEXT("正在保存业务修改...");
+        UpdateRuntimeEditorPanel();
+        TWeakObjectPtr<ATwinSceneManager> WeakThis(this);
+        WebInteractionManager->ApplyRuntimeBusinessEdit(
+            RuntimeBusinessConfig,
+            RuntimeBusinessRevision,
+            [WeakThis](bool bSuccess, int32 NewRevision, const FString& Error)
+            {
+                ATwinSceneManager* Self = WeakThis.Get();
+                if (!Self) return;
+                Self->bRuntimeEditSaving = false;
+                if (!bSuccess)
+                {
+                    Self->bRuntimeExitAfterSave = false;
+                    Self->RuntimeStatusMessage = Error;
+                    if (Self->RuntimeEditorPanel && IsValid(Self->RuntimeEditorPanel))
+                    {
+                        Self->RuntimeEditorPanel->ShowToast(
+                            Error,
+                            EOntoTwinRuntimeToastType::Error);
+                    }
+                    Self->UpdateRuntimeEditorPanel();
+                    return;
+                }
+
+                Self->RuntimeBusinessRevision = NewRevision;
+                Self->RuntimeBusinessBaseline = Self->CloneRuntimeBusinessConfig(
+                    Self->RuntimeBusinessConfig);
+                Self->bRuntimeBusinessDirty = false;
+                Self->RefreshRuntimeEditDirtyState();
+                if (Self->bRuntimeEditDirty)
+                {
+                    Self->RuntimeStatusMessage = TEXT("业务修改已保存，继续保存场景修改...");
+                    Self->SaveRuntimeEdit();
+                    return;
+                }
+
+                Self->RuntimeUndoStack.Reset();
+                Self->RuntimeRedoStack.Reset();
+                Self->RuntimeStatusMessage = TEXT("业务修改已保存并应用");
+                if (Self->RuntimeEditorPanel && IsValid(Self->RuntimeEditorPanel))
+                {
+                    Self->RuntimeEditorPanel->ShowToast(
+                        TEXT("全部修改已保存"),
+                        EOntoTwinRuntimeToastType::Success);
+                }
+                if (Self->bRuntimeExitAfterSave)
+                {
+                    Self->FinishExitRuntimeEditMode();
+                    return;
+                }
+                Self->UpdateRuntimeEditorPanel();
+            });
+        return;
+    }
+
     TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
     TArray<TSharedPtr<FJsonValue>> Changes;
     for (const TPair<FString, FRuntimeEditInstanceState>& Pair : RuntimeEditStates)
@@ -4199,6 +4739,8 @@ void ATwinSceneManager::CancelRuntimeEdit()
     }
     RuntimeUndoStack.Reset();
     RuntimeRedoStack.Reset();
+    RuntimeBusinessConfig = CloneRuntimeBusinessConfig(RuntimeBusinessBaseline);
+    bRuntimeBusinessDirty = false;
     bRuntimeEditDirty = false;
     bRuntimeEditSaving = false;
     bRuntimeExitAfterSave = false;
@@ -4484,7 +5026,7 @@ int32 ATwinSceneManager::GetRuntimeEditPendingCount() const
             ++Count;
         }
     }
-    return Count;
+    return Count + (bRuntimeBusinessDirty ? 1 : 0);
 }
 
 void ATwinSceneManager::GetRuntimeEditPendingLines(TArray<FString>& OutLines) const
@@ -4526,6 +5068,10 @@ void ATwinSceneManager::GetRuntimeEditPendingLines(TArray<FString>& OutLines) co
             ChangeText += TEXT("（存在版本冲突）");
         }
         OutLines.Add(FString::Printf(TEXT("%s · %s"), *TruncateRuntimeLabel(Name, 24), *ChangeText));
+    }
+    if (bRuntimeBusinessDirty)
+    {
+        OutLines.Add(TEXT("业务归属 · 已修改"));
     }
 }
 

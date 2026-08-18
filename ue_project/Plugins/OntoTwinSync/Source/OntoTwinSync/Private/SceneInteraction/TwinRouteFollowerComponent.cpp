@@ -62,16 +62,19 @@ void UTwinRouteFollowerComponent::Configure(
     ATwinRoamingRoute* InRoute,
     float InSpeedCmS,
     bool bInLoop,
-    bool bAutoStart)
+    bool bAutoStart,
+    const TArray<FTwinRoamingRuntimeWaypoint>& InWaypoints)
 {
     Route = InRoute;
     SpeedCmS = FMath::Max(1.0f, InSpeedCmS);
     bLoop = bInLoop && Route && Route->Spline && Route->Spline->IsClosedLoop();
+    RuntimeWaypoints = InWaypoints;
     DistanceAlongSpline = 0.0f;
     RouteState = Route && Route->Spline
         ? (bAutoStart ? ETwinRoamingRouteState::AutoRoute : ETwinRoamingRouteState::Idle)
         : ETwinRoamingRouteState::Unavailable;
     ResetStallDetection();
+    ResetNarrationSession();
     if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
     {
         ClearRouteAnimationMotion(Character);
@@ -90,6 +93,11 @@ void UTwinRouteFollowerComponent::SetLoop(bool bInLoop)
 
 void UTwinRouteFollowerComponent::PauseByUser()
 {
+    if (RouteState == ETwinRoamingRouteState::PausedForNarration)
+    {
+        InterruptNarrationByUser();
+        return;
+    }
     if (RouteState == ETwinRoamingRouteState::AutoRoute || RouteState == ETwinRoamingRouteState::Joining)
     {
         RouteState = ETwinRoamingRouteState::PausedByUser;
@@ -98,6 +106,26 @@ void UTwinRouteFollowerComponent::PauseByUser()
         {
             ClearRouteAnimationMotion(Character);
         }
+    }
+}
+
+void UTwinRouteFollowerComponent::CompleteNarration()
+{
+    if (RouteState != ETwinRoamingRouteState::PausedForNarration) return;
+    ++NextWaypointIndex;
+    RouteState = ETwinRoamingRouteState::AutoRoute;
+    ResetStallDetection();
+}
+
+void UTwinRouteFollowerComponent::InterruptNarrationByUser()
+{
+    if (RouteState != ETwinRoamingRouteState::PausedForNarration) return;
+    ++NextWaypointIndex;
+    RouteState = ETwinRoamingRouteState::PausedByUser;
+    ResetStallDetection();
+    if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
+    {
+        ClearRouteAnimationMotion(Character);
     }
 }
 
@@ -248,6 +276,7 @@ bool UTwinRouteFollowerComponent::RestartFromBeginning(FString& OutError)
     DistanceAlongSpline = 0.0f;
     RouteState = ETwinRoamingRouteState::AutoRoute;
     ResetStallDetection();
+    ResetNarrationSession();
     return true;
 }
 
@@ -259,6 +288,65 @@ void UTwinRouteFollowerComponent::StopRoute()
     {
         ClearRouteAnimationMotion(Character);
     }
+}
+
+void UTwinRouteFollowerComponent::ResetNarrationSession()
+{
+    NextWaypointIndex = 0;
+    PreviousSplineDistance = 0.0f;
+}
+
+void UTwinRouteFollowerComponent::AdvancePassedWaypoints(float SplineLength)
+{
+    if (!Route || !Route->Spline || RuntimeWaypoints.Num() == 0) return;
+    const int32 PointCount = Route->Spline->GetNumberOfSplinePoints();
+    while (NextWaypointIndex < RuntimeWaypoints.Num() && NextWaypointIndex < PointCount)
+    {
+        const float PointDistance = Route->Spline->GetDistanceAlongSplineAtSplinePoint(
+            NextWaypointIndex);
+        const float Radius = FMath::Max(
+            RouteArrivalToleranceCm,
+            RuntimeWaypoints[NextWaypointIndex].TriggerRadiusCm);
+        if (DistanceAlongSpline <= PointDistance + Radius) break;
+        ++NextWaypointIndex;
+    }
+    if (bLoop && NextWaypointIndex >= RuntimeWaypoints.Num()
+        && PreviousSplineDistance > SplineLength * 0.65f
+        && DistanceAlongSpline < SplineLength * 0.35f)
+    {
+        NextWaypointIndex = 0;
+    }
+}
+
+bool UTwinRouteFollowerComponent::TryTriggerNarration(float SplineLength)
+{
+    if (!Route || !Route->Spline || RuntimeWaypoints.Num() == 0) return false;
+    AdvancePassedWaypoints(SplineLength);
+    const int32 PointCount = Route->Spline->GetNumberOfSplinePoints();
+    while (NextWaypointIndex < RuntimeWaypoints.Num() && NextWaypointIndex < PointCount)
+    {
+        const FTwinRoamingRuntimeWaypoint& Waypoint = RuntimeWaypoints[NextWaypointIndex];
+        const float PointDistance = Route->Spline->GetDistanceAlongSplineAtSplinePoint(
+            NextWaypointIndex);
+        const float Radius = FMath::Max(RouteArrivalToleranceCm, Waypoint.TriggerRadiusCm);
+        const FVector WorldPoint = GetCharacterLocationAtDistance(PointDistance);
+        const bool bReachedAlongSpline = DistanceAlongSpline + Radius >= PointDistance;
+        const bool bReachedInWorld = FVector::Dist2D(GetOwner()->GetActorLocation(), WorldPoint) <= Radius;
+        if (!bReachedAlongSpline || !bReachedInWorld) return false;
+        if (!Waypoint.HasNarration())
+        {
+            ++NextWaypointIndex;
+            continue;
+        }
+        RouteState = ETwinRoamingRouteState::PausedForNarration;
+        if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
+        {
+            ClearRouteAnimationMotion(Character);
+        }
+        OnNarrationRequested.Broadcast(Waypoint);
+        return true;
+    }
+    return false;
 }
 
 void UTwinRouteFollowerComponent::UpdateFacing(
@@ -415,6 +503,11 @@ void UTwinRouteFollowerComponent::TickComponent(
     else
     {
         DistanceAlongSpline = FMath::Max(DistanceAlongSpline, ClosestDistance);
+        if (TryTriggerNarration(Length))
+        {
+            PreviousSplineDistance = DistanceAlongSpline;
+            return;
+        }
         const FVector End = GetCharacterLocationAtDistance(Length);
         if (FVector::Dist(Current, End) <= RouteArrivalToleranceCm)
         {
@@ -424,6 +517,20 @@ void UTwinRouteFollowerComponent::TickComponent(
             return;
         }
     }
+
+    if (bLoop)
+    {
+        if (PreviousSplineDistance > Length * 0.65f && DistanceAlongSpline < Length * 0.35f)
+        {
+            NextWaypointIndex = 0;
+        }
+        if (TryTriggerNarration(Length))
+        {
+            PreviousSplineDistance = DistanceAlongSpline;
+            return;
+        }
+    }
+    PreviousSplineDistance = DistanceAlongSpline;
 
     const float SteeringLookAheadCm = FMath::Clamp(
         SpeedCmS * RouteSteeringLookAheadSeconds,
@@ -469,6 +576,7 @@ FString UTwinRouteFollowerComponent::GetRouteStateText() const
     {
     case ETwinRoamingRouteState::Idle: return TEXT("idle");
     case ETwinRoamingRouteState::AutoRoute: return TEXT("auto_route");
+    case ETwinRoamingRouteState::PausedForNarration: return TEXT("paused_for_narration");
     case ETwinRoamingRouteState::PausedByUser: return TEXT("paused_by_user");
     case ETwinRoamingRouteState::Joining: return TEXT("joining");
     case ETwinRoamingRouteState::Completed: return TEXT("completed");

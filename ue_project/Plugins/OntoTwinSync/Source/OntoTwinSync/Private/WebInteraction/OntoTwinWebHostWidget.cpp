@@ -3,14 +3,12 @@
 #include "WebInteraction/OntoTwinWebBridge.h"
 #include "WebInteraction/OntoTwinWebInteractionComponent.h"
 
-#include "GameFramework/PlayerController.h"
-#include "Kismet/GameplayStatics.h"
+#include "Framework/Application/SlateApplication.h"
+#include "InputCoreTypes.h"
 #include "SWebInterface.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
-#include "Widgets/Layout/SBackgroundBlur.h"
-#include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/SBoxPanel.h"
@@ -28,17 +26,8 @@ void UOntoTwinWebHostWidget::Configure(
 
 TSharedRef<SWidget> UOntoTwinWebHostWidget::RebuildWidget()
 {
-    const float BlurStrength = EffectiveQuality == EOntoTwinWebGlassQuality::High ? 18.0f : 8.0f;
-    TSharedRef<SWidget> GlassLayer = EffectiveQuality == EOntoTwinWebGlassQuality::Performance
-        ? StaticCastSharedRef<SWidget>(SNew(SBorder)
-            .BorderImage(FCoreStyle::Get().GetBrush(TEXT("WhiteBrush")))
-            .BorderBackgroundColor(FLinearColor(0.04f, 0.045f, 0.05f, 0.96f)))
-        : StaticCastSharedRef<SWidget>(SNew(SBackgroundBlur)
-            .BlurStrength(BlurStrength)
-            .BlurRadius(EffectiveQuality == EOntoTwinWebGlassQuality::High ? 12 : 6)
-            .LowQualityFallbackBrush(FCoreStyle::Get().GetBrush(TEXT("WhiteBrush"))));
-    GlassLayer->SetVisibility(EVisibility::HitTestInvisible);
-
+    // The host must not paint or blur the full viewport. The web page owns only
+    // its local HUD surfaces; all unpainted pixels remain transparent to the UE scene.
     SAssignNew(Browser, SWebInterface)
         .InitialURL(TEXT("about:blank"))
         .FrameRate(60)
@@ -58,10 +47,6 @@ TSharedRef<SWidget> UOntoTwinWebHostWidget::RebuildWidget()
     return SNew(SOverlay)
         + SOverlay::Slot()
         [
-            GlassLayer
-        ]
-        + SOverlay::Slot()
-        [
             SNew(SVerticalBox)
             + SVerticalBox::Slot().AutoHeight().Padding(18.0f, 12.0f)
             [
@@ -69,7 +54,14 @@ TSharedRef<SWidget> UOntoTwinWebHostWidget::RebuildWidget()
                 + SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 8.0f, 0.0f)
                 [
                     SNew(SButton)
-                    .Text(FText::FromString(TEXT("返回")))
+                    .Text(FText::FromString(TEXT("‹")))
+                    .ToolTipText(FText::FromString(TEXT("返回上一上下文")))
+                    .Visibility_Lambda([this]()
+                    {
+                        return OwnerComponent && OwnerComponent->CanGoBack()
+                            ? EVisibility::Visible
+                            : EVisibility::Collapsed;
+                    })
                     .OnClicked_UObject(this, &UOntoTwinWebHostWidget::HandleBackClicked)
                 ]
                 + SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 8.0f, 0.0f)
@@ -82,7 +74,7 @@ TSharedRef<SWidget> UOntoTwinWebHostWidget::RebuildWidget()
                 [
                     SAssignNew(StatusText, STextBlock)
                     .Text(FText::FromString(TEXT("准备打开页面")))
-                    .ColorAndOpacity(FSlateColor(FLinearColor(0.88f, 0.9f, 0.93f, 1.0f)))
+                    .ColorAndOpacity(FSlateColor(FLinearColor(0.90f, 0.90f, 0.90f, 1.0f)))
                 ]
                 + SHorizontalBox::Slot().AutoWidth()
                 [
@@ -93,13 +85,7 @@ TSharedRef<SWidget> UOntoTwinWebHostWidget::RebuildWidget()
             ]
             + SVerticalBox::Slot().FillHeight(1.0f).Padding(12.0f, 0.0f, 12.0f, 12.0f)
             [
-                SNew(SBorder)
-                .BorderImage(FCoreStyle::Get().GetBrush(TEXT("WhiteBrush")))
-                .BorderBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.02f))
-                .Padding(0.0f)
-                [
-                    Browser.ToSharedRef()
-                ]
+                Browser.ToSharedRef()
             ]
         ];
 }
@@ -108,27 +94,39 @@ void UOntoTwinWebHostWidget::NativeTick(const FGeometry& MyGeometry, float InDel
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
     if (!Browser.IsValid()) return;
-    if (!bBridgeReady || InteractiveRegions.Num() == 0)
+    Browser->SetVisibility(IsPointerOverInteractiveRegion()
+        ? EVisibility::Visible
+        : EVisibility::HitTestInvisible);
+}
+
+FReply UOntoTwinWebHostWidget::NativeOnPreviewKeyDown(
+    const FGeometry& InGeometry,
+    const FKeyEvent& InKeyEvent)
+{
+    if (OwnerComponent && OwnerComponent->HandleHostShortcut(InKeyEvent.GetKey()))
     {
-        Browser->SetVisibility(EVisibility::Visible);
-        return;
+        return FReply::Handled();
     }
-    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-    float MouseX = 0.0f;
-    float MouseY = 0.0f;
-    if (!PC || !PC->GetMousePosition(MouseX, MouseY))
-    {
-        Browser->SetVisibility(EVisibility::Visible);
-        return;
-    }
-    const FVector2D Local = Browser->GetCachedGeometry().AbsoluteToLocal(FVector2D(MouseX, MouseY));
-    const bool bInsideInteractive = InteractiveRegions.ContainsByPredicate(
+    return Super::NativeOnPreviewKeyDown(InGeometry, InKeyEvent);
+}
+
+bool UOntoTwinWebHostWidget::IsPointerOverInteractiveRegion() const
+{
+    // Until a page declares its hit regions it remains safely interactive as a
+    // whole. Bridge-enabled pages become pointer-transparent outside those regions.
+    if (!bBridgeReady || InteractiveRegions.Num() == 0 || !Browser.IsValid()) return true;
+    // Browser geometry is expressed in Slate desktop space. PlayerController
+    // mouse coordinates are viewport-local pixels, which are offset (and often
+    // DPI-scaled) in PIE. Mixing the two makes the visible button transparent
+    // to input and sends the click into the 3D scene behind it.
+    const FVector2D Local = Browser->GetCachedGeometry().AbsoluteToLocal(
+        FSlateApplication::Get().GetCursorPos());
+    return InteractiveRegions.ContainsByPredicate(
         [&Local](const FSlateRect& Region)
         {
             return Local.X >= Region.Left && Local.X <= Region.Right
                 && Local.Y >= Region.Top && Local.Y <= Region.Bottom;
         });
-    Browser->SetVisibility(bInsideInteractive ? EVisibility::Visible : EVisibility::HitTestInvisible);
 }
 
 void UOntoTwinWebHostWidget::NativeDestruct()
@@ -170,7 +168,7 @@ void UOntoTwinWebHostWidget::SetHostStatus(const FString& Status, bool bError)
         StatusText->SetText(FText::FromString(Status));
         StatusText->SetColorAndOpacity(bStatusError
             ? FSlateColor(FLinearColor(0.95f, 0.35f, 0.3f, 1.0f))
-            : FSlateColor(FLinearColor(0.88f, 0.9f, 0.93f, 1.0f)));
+            : FSlateColor(FLinearColor(0.90f, 0.90f, 0.90f, 1.0f)));
     }
 }
 

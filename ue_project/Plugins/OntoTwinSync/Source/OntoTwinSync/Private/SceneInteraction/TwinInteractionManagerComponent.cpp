@@ -1,6 +1,7 @@
 #include "SceneInteraction/TwinInteractionManagerComponent.h"
 
 #include "SceneInteraction/OntoTwinCrosshairWidget.h"
+#include "SceneInteraction/OntoTwinNarrationHUDWidget.h"
 #include "SceneInteraction/Minimap/TwinMinimapAnchor.h"
 #include "SceneInteraction/OntoTwinRoamingHUDWidget.h"
 #include "SceneInteraction/TwinCameraModeComponent.h"
@@ -12,10 +13,13 @@
 #include "SceneInteraction/TwinSkinComponent.h"
 #include "TwinInstance.h"
 #include "TwinSceneManager.h"
+#include "WebInteraction/OntoTwinWebInteractionComponent.h"
 
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Camera/CameraComponent.h"
+#include "Audio.h"
+#include "Components/AudioComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/LightComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
@@ -41,6 +45,10 @@
 #include "InputModifiers.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Kismet/GameplayStatics.h"
+#include "HAL/FileManager.h"
+#include "GenericPlatform/GenericPlatformHttp.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "PixelFormat.h"
 #include "SceneView.h"
 #include "Widgets/Layout/Anchors.h"
@@ -48,6 +56,12 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "TimerManager.h"
+#include "Sound/SoundWaveProcedural.h"
+
+#if PLATFORM_WINDOWS
+#include "Windows/WindowsHWrapper.h"
+#include <bcrypt.h>
+#endif
 
 namespace
 {
@@ -74,6 +88,95 @@ FString StringOr(const TSharedPtr<FJsonObject>& Object, const TCHAR* Field, cons
 {
     FString Value;
     return Object.IsValid() && Object->TryGetStringField(Field, Value) ? Value : Default;
+}
+
+bool HasValidSha256(const FString& Value)
+{
+    if (Value.Len() != 64) return false;
+    for (const TCHAR Character : Value)
+    {
+        if (!FChar::IsHexDigit(Character)) return false;
+    }
+    return true;
+}
+
+bool MatchesSha256(const TArray<uint8>& Bytes, const FString& Expected)
+{
+    if (!HasValidSha256(Expected) || Bytes.Num() == 0) return false;
+#if PLATFORM_WINDOWS
+    BCRYPT_ALG_HANDLE Algorithm = nullptr;
+    BCRYPT_HASH_HANDLE Hash = nullptr;
+    DWORD ObjectLength = 0;
+    DWORD HashLength = 0;
+    DWORD ResultLength = 0;
+    TArray<uint8> HashObject;
+    TArray<uint8> Digest;
+
+    bool bSuccess = BCryptOpenAlgorithmProvider(
+        &Algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) >= 0;
+    if (bSuccess)
+    {
+        bSuccess = BCryptGetProperty(
+            Algorithm,
+            BCRYPT_OBJECT_LENGTH,
+            reinterpret_cast<PUCHAR>(&ObjectLength),
+            sizeof(ObjectLength),
+            &ResultLength,
+            0) >= 0;
+    }
+    if (bSuccess)
+    {
+        bSuccess = BCryptGetProperty(
+            Algorithm,
+            BCRYPT_HASH_LENGTH,
+            reinterpret_cast<PUCHAR>(&HashLength),
+            sizeof(HashLength),
+            &ResultLength,
+            0) >= 0
+            && HashLength == 32;
+    }
+    if (bSuccess)
+    {
+        HashObject.SetNumUninitialized(static_cast<int32>(ObjectLength));
+        Digest.SetNumUninitialized(static_cast<int32>(HashLength));
+        bSuccess = BCryptCreateHash(
+            Algorithm,
+            &Hash,
+            HashObject.GetData(),
+            ObjectLength,
+            nullptr,
+            0,
+            0) >= 0;
+    }
+    if (bSuccess)
+    {
+        bSuccess = BCryptHashData(
+            Hash,
+            const_cast<PUCHAR>(Bytes.GetData()),
+            static_cast<ULONG>(Bytes.Num()),
+            0) >= 0;
+    }
+    if (bSuccess)
+    {
+        bSuccess = BCryptFinishHash(
+            Hash, Digest.GetData(), HashLength, 0) >= 0;
+    }
+
+    if (Hash) BCryptDestroyHash(Hash);
+    if (Algorithm) BCryptCloseAlgorithmProvider(Algorithm, 0);
+    if (!bSuccess) return false;
+
+    FString Actual;
+    Actual.Reserve(64);
+    for (const uint8 Byte : Digest)
+    {
+        Actual += FString::Printf(TEXT("%02x"), Byte);
+    }
+    return Actual.Equals(Expected, ESearchCase::IgnoreCase);
+#else
+    // Unsupported platforms fail closed so narration falls back to subtitles.
+    return false;
+#endif
 }
 
 FString NormalizeLevelPackageName(FString Value)
@@ -137,6 +240,66 @@ bool ParseRuntimeRouteObject(
         if (Point.ContainsNaN()) return false;
         OutRoute.Points.Add(Point);
     }
+
+    const TArray<TSharedPtr<FJsonValue>>* StructuredWaypoints = nullptr;
+    if (Object->TryGetArrayField(TEXT("waypoints"), StructuredWaypoints)
+        && StructuredWaypoints)
+    {
+        for (const TSharedPtr<FJsonValue>& Value : *StructuredWaypoints)
+        {
+            const TSharedPtr<FJsonObject> WaypointObject = Value.IsValid()
+                ? Value->AsObject() : nullptr;
+            if (!WaypointObject.IsValid()) return false;
+            FTwinRoamingRuntimeWaypoint Waypoint;
+            Waypoint.WaypointId = StringOr(WaypointObject, TEXT("waypoint_id"));
+            Waypoint.TriggerRadiusCm = NumberOr(
+                WaypointObject, TEXT("trigger_radius_cm"), 100.0);
+            const TArray<TSharedPtr<FJsonValue>>* Position = nullptr;
+            if (!WaypointObject->TryGetArrayField(TEXT("position_ue_cm"), Position)
+                || !Position || Position->Num() < 3)
+            {
+                return false;
+            }
+            Waypoint.Position = FVector(
+                (*Position)[0]->AsNumber(),
+                (*Position)[1]->AsNumber(),
+                (*Position)[2]->AsNumber());
+            if (Waypoint.Position.ContainsNaN()) return false;
+
+            const TSharedPtr<FJsonObject>* NarrationObject = nullptr;
+            if (WaypointObject->TryGetObjectField(TEXT("narration"), NarrationObject)
+                && NarrationObject && NarrationObject->IsValid())
+            {
+                Waypoint.NarrationMode = StringOr(*NarrationObject, TEXT("mode"));
+                Waypoint.AudioState = StringOr(*NarrationObject, TEXT("audio_state"));
+                const TArray<TSharedPtr<FJsonValue>>* Segments = nullptr;
+                if ((*NarrationObject)->TryGetArrayField(TEXT("segments"), Segments)
+                    && Segments)
+                {
+                    for (const TSharedPtr<FJsonValue>& SegmentValue : *Segments)
+                    {
+                        const TSharedPtr<FJsonObject> SegmentObject = SegmentValue.IsValid()
+                            ? SegmentValue->AsObject() : nullptr;
+                        if (!SegmentObject.IsValid()) continue;
+                        FTwinNarrationRuntimeSegment Segment;
+                        Segment.SegmentId = StringOr(SegmentObject, TEXT("segment_id"));
+                        Segment.Text = StringOr(SegmentObject, TEXT("text"));
+                        Segment.DurationSeconds = FMath::Clamp(
+                            NumberOr(SegmentObject, TEXT("duration_sec"), 3.0), 1.0, 600.0);
+                        Segment.AudioAssetId = StringOr(
+                            SegmentObject, TEXT("audio_asset_id"));
+                        Segment.AudioSha256 = StringOr(
+                            SegmentObject, TEXT("audio_sha256"));
+                        Segment.AudioDurationSeconds = FMath::Max(
+                            0.0, NumberOr(SegmentObject, TEXT("audio_duration_sec"), 0.0));
+                        if (!Segment.Text.IsEmpty()) Waypoint.NarrationSegments.Add(Segment);
+                    }
+                }
+            }
+            OutRoute.Waypoints.Add(Waypoint);
+        }
+        if (OutRoute.Waypoints.Num() != OutRoute.Points.Num()) return false;
+    }
     return true;
 }
 
@@ -154,6 +317,7 @@ void ApplyRuntimeRouteToConfig(
     Config.Movement.AutoRouteSpeedCmS = Route.SpeedCmS;
     Config.bRouteLoop = Route.bLoop;
     Config.RuntimeRoutePoints = Route.Points;
+    Config.RuntimeRouteWaypoints = Route.Waypoints;
 }
 
 const FTwinRoamingRuntimeRoute* FindRuntimeRoute(
@@ -211,6 +375,7 @@ void UTwinInteractionManagerComponent::BeginPlay()
         return;
     }
     SetupInput();
+    CreateHud();
     ApplyStartupView();
     PollRuntimeProjection();
 }
@@ -219,6 +384,7 @@ void UTwinInteractionManagerComponent::EndPlay(const EEndPlayReason::Type EndPla
 {
     bShuttingDown = true;
     ExitRoaming();
+    DestroyHud();
     RemoveInput();
     Super::EndPlay(EndPlayReason);
 }
@@ -260,6 +426,22 @@ void UTwinInteractionManagerComponent::TickComponent(
     if (PlayerController && PlayerController->WasInputKeyJustPressed(ToggleRoamingKey))
     {
         ToggleRoaming();
+    }
+
+    // V must survive possession and host-project InputComponent replacement just
+    // like F7. Keep it out of the dynamically bound Enhanced Input component so
+    // there is exactly one global edge-triggered path for camera cycling.
+    if (PlayerController && bRoamingActive
+        && PlayerController->WasInputKeyJustPressed(ToggleViewKey))
+    {
+        ToggleCameraMode();
+    }
+
+    if (PlayerController && !bRoamingActive
+        && PlayerController->WasInputKeyJustPressed(ToggleHudKey)
+        && (!SceneManager->IsRuntimeEditModeActive() || bHudInteraction))
+    {
+        ToggleHudInteraction();
     }
 
     if (!bEnhancedInputReady)
@@ -494,6 +676,7 @@ bool UTwinInteractionManagerComponent::ParseRuntimeConfig(
         DefaultRoute.SpeedCmS = OutConfig.Movement.AutoRouteSpeedCmS;
         DefaultRoute.bLoop = OutConfig.bRouteLoop;
         DefaultRoute.Points = OutConfig.RuntimeRoutePoints;
+        DefaultRoute.Waypoints = OutConfig.RuntimeRouteWaypoints;
         OutConfig.AvailableRoutes.Insert(MoveTemp(DefaultRoute), 0);
     }
     const TSharedPtr<FJsonObject> CameraResource = GetObject(Resources, TEXT("god_camera"));
@@ -556,7 +739,7 @@ void UTwinInteractionManagerComponent::HandleRuntimeProjection(const TSharedPtr<
         RuntimeState = TEXT("available");
         LastError.Reset();
         ApplyMinimapConfig(CurrentConfig.bMinimapEnabled);
-        if (Incoming.bAutoEnter && !bDefaultModeApplied)
+        if (Incoming.bAutoEnter && !bDefaultModeApplied && bSceneBaselineReady)
         {
             FString Error;
             if (!EnterRoaming(Error))
@@ -564,6 +747,10 @@ void UTwinInteractionManagerComponent::HandleRuntimeProjection(const TSharedPtr<
                 RuntimeState = TEXT("blocked");
                 LastError = Error;
             }
+        }
+        else if (Incoming.bAutoEnter && !bSceneBaselineReady)
+        {
+            RuntimeState = TEXT("waiting_for_scene");
         }
         return;
     }
@@ -986,6 +1173,35 @@ void UTwinInteractionManagerComponent::RestoreStartupView()
     ApplyStartupView(true);
 }
 
+void UTwinInteractionManagerComponent::NotifySceneBaselineReady()
+{
+    if (bSceneBaselineReady)
+    {
+        return;
+    }
+
+    bSceneBaselineReady = true;
+    UE_LOG(LogTemp, Log, TEXT("OntoTwin scene baseline ready; roaming entry is now available"));
+
+    if (!CurrentConfig.bEnabled || !CurrentConfig.bAutoEnter || bDefaultModeApplied)
+    {
+        if (CurrentConfig.bEnabled && RuntimeState == TEXT("waiting_for_scene"))
+        {
+            RuntimeState = TEXT("available");
+        }
+        RefreshHud();
+        return;
+    }
+
+    FString Error;
+    if (!EnterRoaming(Error))
+    {
+        RuntimeState = TEXT("blocked");
+        LastError = Error;
+        UE_LOG(LogTemp, Warning, TEXT("OntoTwin delayed roaming entry failed: %s"), *Error);
+    }
+}
+
 ATwinMinimapAnchor* UTwinInteractionManagerComponent::FindMinimapAnchor(
     FString& OutState) const
 {
@@ -1322,6 +1538,11 @@ bool UTwinInteractionManagerComponent::GetGodViewLookSensitivity(float& OutSensi
 bool UTwinInteractionManagerComponent::EnterRoaming(FString& OutError)
 {
     if (bRoamingActive) return true;
+    if (!bSceneBaselineReady)
+    {
+        OutError = TEXT("Scene model baseline is still loading");
+        return false;
+    }
     if (!CurrentConfig.bEnabled)
     {
         OutError = TEXT("Roaming is disabled in the active project");
@@ -1337,6 +1558,8 @@ bool UTwinInteractionManagerComponent::EnterRoaming(FString& OutError)
         OutError = TEXT("Exit Runtime Editor before entering character roaming");
         return false;
     }
+    WebSelectedInstance.Reset();
+    LastWebInteractionMessage.Reset();
 
     UTwinCharacterAsset* CharacterAsset = ResolveCharacterAsset(OutError);
     if (!CharacterAsset) return false;
@@ -1370,6 +1593,7 @@ bool UTwinInteractionManagerComponent::EnterRoaming(FString& OutError)
         return false;
     }
 
+    bPreRoamingMouseCursor = PlayerController->bShowMouseCursor;
     OriginalPawn = PlayerController->GetPawn();
     FActorSpawnParameters SpawnParams;
     SpawnParams.Owner = SceneManager;
@@ -1403,11 +1627,14 @@ bool UTwinInteractionManagerComponent::EnterRoaming(FString& OutError)
         DegradedFeatures.AddUnique(TEXT("default_skin_missing"));
     }
 
+    RoamingCharacter->RouteFollower->OnNarrationRequested.AddUObject(
+        this, &UTwinInteractionManagerComponent::HandleNarrationRequested);
     RoamingCharacter->RouteFollower->Configure(
         ActiveRoute,
         CurrentConfig.Movement.AutoRouteSpeedCmS,
         CurrentConfig.bRouteLoop,
-        false);
+        false,
+        CurrentConfig.RuntimeRouteWaypoints);
     if (CurrentConfig.bRouteEnabled && !ActiveRoute)
     {
         DegradedFeatures.AddUnique(TEXT("route_missing"));
@@ -1489,14 +1716,16 @@ void UTwinInteractionManagerComponent::RestoreOriginalPawn()
 void UTwinInteractionManagerComponent::ExitRoaming()
 {
     CancelRuntimeRouteSwitch(true);
+    StopNarration(false);
     if (!bRoamingActive && !RoamingCharacter)
     {
         ShutdownMinimap(false);
         SetMinimapState(CurrentConfig.bEnabled && CurrentConfig.bMinimapEnabled
             ? TEXT("waiting") : TEXT("disabled"));
         DeactivateRoamingInput();
-        DestroyHud();
         DestroyRuntimeRoute();
+        if (bShuttingDown) DestroyHud();
+        else RefreshHud();
         return;
     }
     SetHudInteraction(false);
@@ -1518,18 +1747,39 @@ void UTwinInteractionManagerComponent::ExitRoaming()
     GodViewAnchor = nullptr;
     bRoamingActive = false;
     bHudInteraction = false;
+    if (PlayerController)
+    {
+        PlayerController->bShowMouseCursor = bPreRoamingMouseCursor;
+        if (bPreRoamingMouseCursor)
+        {
+            FInputModeGameAndUI InputMode;
+            InputMode.SetHideCursorDuringCapture(false);
+            InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+            PlayerController->SetInputMode(InputMode);
+        }
+        else
+        {
+            PlayerController->SetInputMode(FInputModeGameOnly());
+        }
+    }
+    WebSelectedInstance.Reset();
+    LastWebInteractionMessage.Reset();
     SetMinimapState(CurrentConfig.bEnabled && CurrentConfig.bMinimapEnabled
         ? TEXT("waiting") : TEXT("disabled"));
-    DestroyHud();
+    if (CrosshairHUD && IsValid(CrosshairHUD)) CrosshairHUD->RemoveFromParent();
+    CrosshairHUD = nullptr;
+    bCrosshairInteractive = false;
     RuntimeState = CurrentConfig.bEnabled
         ? (bBackendOnline ? TEXT("available") : TEXT("offline"))
         : TEXT("disabled");
+    RefreshHud();
 }
 
 void UTwinInteractionManagerComponent::ToggleRoaming()
 {
     UE_LOG(LogTemp, Log, TEXT("OntoTwin F7 roaming toggle received; active=%s revision=%d"),
         bRoamingActive ? TEXT("true") : TEXT("false"), AppliedRevision);
+    if (bHudInteraction) SetHudInteraction(false);
     if (bRoamingActive)
     {
         ExitRoaming();
@@ -1555,19 +1805,34 @@ void UTwinInteractionManagerComponent::ToggleRoaming()
 void UTwinInteractionManagerComponent::ToggleCameraMode()
 {
     if (!bRoamingActive || !RoamingCharacter || bHudInteraction
-        || RoamingCharacter->CameraMode->IsTransitioning()) return;
+        || RoamingCharacter->CameraMode->IsTransitioning())
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("OntoTwin V camera toggle ignored: roaming=%s character=%s hud=%s transitioning=%s"),
+            bRoamingActive ? TEXT("true") : TEXT("false"),
+            RoamingCharacter ? TEXT("ready") : TEXT("missing"),
+            bHudInteraction ? TEXT("open") : TEXT("closed"),
+            RoamingCharacter && RoamingCharacter->CameraMode->IsTransitioning()
+                ? TEXT("true") : TEXT("false"));
+        return;
+    }
+    const ETwinRoamingCameraMode PreviousMode = RoamingCharacter->CameraMode->GetMode();
     FString Error;
     if (!RoamingCharacter->CameraMode->Cycle(PlayerController, GodViewAnchor, Error))
     {
         LastError = Error;
-        if (RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God)
-        {
-            DegradedFeatures.AddUnique(TEXT("god_camera_unavailable"));
-        }
+        UE_LOG(LogTemp, Warning,
+            TEXT("OntoTwin V camera toggle failed from %s: %s"),
+            *CameraModeId(PreviousMode), *Error);
+        RefreshHud();
         return;
     }
     LastError.Reset();
     SetHudInteraction(false);
+    UE_LOG(LogTemp, Log,
+        TEXT("OntoTwin V camera toggle applied: %s -> %s"),
+        *CameraModeId(PreviousMode),
+        *CameraModeId(RoamingCharacter->CameraMode->GetMode()));
     RefreshHud();
 }
 
@@ -1608,12 +1873,25 @@ ETwinRoamingCameraMode UTwinInteractionManagerComponent::GetCameraMode() const
 
 void UTwinInteractionManagerComponent::ToggleHudInteraction()
 {
-    if (bRoamingActive && !IsCameraTransitioning()) SetHudInteraction(!bHudInteraction);
+    const bool bGlobalAvailable = SceneManager
+        && !SceneManager->IsRuntimeEditModeActive();
+    if ((bRoamingActive || bGlobalAvailable) && !IsCameraTransitioning())
+    {
+        SetHudInteraction(!bHudInteraction);
+    }
 }
 
 void UTwinInteractionManagerComponent::SetHudInteraction(bool bOpen)
 {
-    bHudInteraction = bOpen && bRoamingActive;
+    const bool bGlobalAvailable = SceneManager
+        && !SceneManager->IsRuntimeEditModeActive();
+    const bool bNextOpen = bOpen && (bRoamingActive || bGlobalAvailable);
+    if (bNextOpen && !bHudInteraction && !bRoamingActive && PlayerController)
+    {
+        bGlobalHudPreviousMouseCursor = PlayerController->bShowMouseCursor;
+        bGlobalHudInputCaptured = true;
+    }
+    bHudInteraction = bNextOpen;
     if (RoamingHUD) RoamingHUD->SetInteractionOpen(bHudInteraction);
     if (!PlayerController) return;
 
@@ -1626,6 +1904,22 @@ void UTwinInteractionManagerComponent::SetHudInteraction(bool bOpen)
         InputMode.SetHideCursorDuringCapture(false);
         InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
         PlayerController->SetInputMode(InputMode);
+    }
+    else if (bGlobalHudInputCaptured)
+    {
+        PlayerController->bShowMouseCursor = bGlobalHudPreviousMouseCursor;
+        if (bGlobalHudPreviousMouseCursor)
+        {
+            FInputModeGameAndUI InputMode;
+            InputMode.SetHideCursorDuringCapture(false);
+            InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+            PlayerController->SetInputMode(InputMode);
+        }
+        else
+        {
+            PlayerController->SetInputMode(FInputModeGameOnly());
+        }
+        bGlobalHudInputCaptured = false;
     }
     else
     {
@@ -1663,6 +1957,7 @@ void UTwinInteractionManagerComponent::ResumeRoute()
 void UTwinInteractionManagerComponent::RestartRoute()
 {
     if (!RoamingCharacter) return;
+    StopNarration(false);
     FString Error;
     if (!RoamingCharacter->RouteFollower->RestartFromBeginning(Error)) LastError = Error;
     else
@@ -1698,6 +1993,7 @@ bool UTwinInteractionManagerComponent::SelectRuntimeRoute(const FString& RouteId
         return true;
     }
 
+    StopNarration(false);
     RoamingCharacter->RouteFollower->PauseByUser();
     PendingRouteSwitchId = RouteId;
     bRouteSwitchInProgress = true;
@@ -1747,7 +2043,8 @@ void UTwinInteractionManagerComponent::CompleteRuntimeRouteSwitch()
             ActiveRoute,
             CurrentConfig.Movement.AutoRouteSpeedCmS,
             CurrentConfig.bRouteLoop,
-            false);
+            false,
+            CurrentConfig.RuntimeRouteWaypoints);
         bSucceeded = RoamingCharacter->RouteFollower->RestartFromBeginning(Error);
     }
     if (bSucceeded)
@@ -1779,7 +2076,8 @@ void UTwinInteractionManagerComponent::CompleteRuntimeRouteSwitch()
                     ActiveRoute,
                     CurrentConfig.Movement.AutoRouteSpeedCmS,
                     CurrentConfig.bRouteLoop,
-                    false);
+                    false,
+                    CurrentConfig.RuntimeRouteWaypoints);
                 RoamingCharacter->RouteFollower->TryResume(RestoreError);
             }
         }
@@ -1850,7 +2148,7 @@ void UTwinInteractionManagerComponent::CreateHud()
             RoamingHUD->SetAlignmentInViewport(FVector2D::ZeroVector);
         }
     }
-    if (!CrosshairHUD)
+    if (bRoamingActive && !CrosshairHUD)
     {
         CrosshairHUD = CreateWidget<UOntoTwinCrosshairWidget>(
             PlayerController, UOntoTwinCrosshairWidget::StaticClass());
@@ -1863,6 +2161,22 @@ void UTwinInteractionManagerComponent::CreateHud()
             CrosshairHUD->SetDesiredSizeInViewport(FVector2D(46.0f, 46.0f));
         }
     }
+    if (bRoamingActive && !NarrationHUD)
+    {
+        UClass* WidgetClass = NarrationHUDClass
+            ? NarrationHUDClass.Get() : UOntoTwinNarrationHUDWidget::StaticClass();
+        NarrationHUD = CreateWidget<UOntoTwinNarrationHUDWidget>(
+            PlayerController, WidgetClass);
+        if (NarrationHUD)
+        {
+            NarrationHUD->SetInteractionManager(this);
+            NarrationHUD->AddToViewport(852);
+            NarrationHUD->SetPositionInViewport(FVector2D::ZeroVector, true);
+            NarrationHUD->SetAnchorsInViewport(FAnchors(0.0f, 0.0f));
+            NarrationHUD->SetAlignmentInViewport(FVector2D::ZeroVector);
+            NarrationHUD->HideNarration();
+        }
+    }
     RefreshHud();
 }
 
@@ -1872,6 +2186,15 @@ void UTwinInteractionManagerComponent::DestroyHud()
     RoamingHUD = nullptr;
     if (CrosshairHUD && IsValid(CrosshairHUD)) CrosshairHUD->RemoveFromParent();
     CrosshairHUD = nullptr;
+    if (NarrationHUD && IsValid(NarrationHUD)) NarrationHUD->RemoveFromParent();
+    NarrationHUD = nullptr;
+    if (NarrationAudioComponent)
+    {
+        NarrationAudioComponent->Stop();
+        NarrationAudioComponent->UnregisterComponent();
+    }
+    NarrationAudioComponent = nullptr;
+    NarrationSound = nullptr;
     bCrosshairInteractive = false;
 }
 
@@ -1890,6 +2213,16 @@ void UTwinInteractionManagerComponent::RefreshHud()
                 FVector2D(ViewportX / ViewportScale, ViewportY / ViewportScale));
         }
         RoamingHUD->RefreshFromManager();
+    }
+    if (NarrationHUD && PlayerController)
+    {
+        int32 ViewportX = 0;
+        int32 ViewportY = 0;
+        PlayerController->GetViewportSize(ViewportX, ViewportY);
+        const float ViewportScale = FMath::Max(
+            0.01f, UWidgetLayoutLibrary::GetViewportScale(this));
+        NarrationHUD->SetDesiredSizeInViewport(
+            FVector2D(ViewportX / ViewportScale, ViewportY / ViewportScale));
     }
     if (CrosshairHUD)
     {
@@ -1965,7 +2298,6 @@ void UTwinInteractionManagerComponent::BuildDefaultInputContext()
     MoveAction = MakeAction(TEXT("IA_TwinRoamingMove"), EInputActionValueType::Axis2D);
     LookAction = MakeAction(TEXT("IA_TwinRoamingLook"), EInputActionValueType::Axis2D);
     VerticalAction = MakeAction(TEXT("IA_TwinRoamingVertical"), EInputActionValueType::Axis1D);
-    ViewAction = MakeAction(TEXT("IA_TwinRoamingView"), EInputActionValueType::Boolean);
     HudAction = MakeAction(TEXT("IA_TwinRoamingHUD"), EInputActionValueType::Boolean);
     InteractAction = MakeAction(TEXT("IA_TwinRoamingInteract"), EInputActionValueType::Boolean);
     RouteAction = MakeAction(TEXT("IA_TwinRoamingRoute"), EInputActionValueType::Boolean);
@@ -1975,7 +2307,6 @@ void UTwinInteractionManagerComponent::BuildDefaultInputContext()
     SelectAction = MakeAction(TEXT("IA_TwinRoamingSelect"), EInputActionValueType::Boolean);
     SpeedAction = MakeAction(TEXT("IA_TwinRoamingSpeed"), EInputActionValueType::Axis1D);
 
-    DefaultMappingContext->MapKey(ViewAction, ToggleViewKey);
     DefaultMappingContext->MapKey(HudAction, ToggleHudKey);
     DefaultMappingContext->MapKey(InteractAction, InteractKey);
     DefaultMappingContext->MapKey(RouteAction, ResumeRouteKey);
@@ -2061,7 +2392,6 @@ void UTwinInteractionManagerComponent::BindEnhancedInput()
     Input->BindAction(MoveAction, ETriggerEvent::Triggered, this, &UTwinInteractionManagerComponent::OnMove);
     Input->BindAction(LookAction, ETriggerEvent::Triggered, this, &UTwinInteractionManagerComponent::OnLook);
     Input->BindAction(VerticalAction, ETriggerEvent::Triggered, this, &UTwinInteractionManagerComponent::OnVertical);
-    Input->BindAction(ViewAction, ETriggerEvent::Started, this, &UTwinInteractionManagerComponent::OnToggleView);
     Input->BindAction(HudAction, ETriggerEvent::Started, this, &UTwinInteractionManagerComponent::OnToggleHud);
     Input->BindAction(InteractAction, ETriggerEvent::Started, this, &UTwinInteractionManagerComponent::OnInteract);
     Input->BindAction(RouteAction, ETriggerEvent::Started, this, &UTwinInteractionManagerComponent::OnRoute);
@@ -2088,7 +2418,6 @@ void UTwinInteractionManagerComponent::TickFallbackInput(float DeltaTime)
     if (RoamingCharacter->CameraMode->IsTransitioning()) return;
     if (PlayerController->WasInputKeyJustPressed(ToggleHudKey)) ToggleHudInteraction();
     if (bHudInteraction) return;
-    if (PlayerController->WasInputKeyJustPressed(ToggleViewKey)) ToggleCameraMode();
     if (PlayerController->WasInputKeyJustPressed(ResumeRouteKey)) ResumeRoute();
 
     const bool bGod = RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God;
@@ -2112,7 +2441,11 @@ void UTwinInteractionManagerComponent::TickFallbackInput(float DeltaTime)
         }
         else
         {
-            if (bTakeoverEnabled) RoamingCharacter->RouteFollower->PauseByUser();
+            if (bTakeoverEnabled)
+            {
+                StopNarration(true);
+                RoamingCharacter->RouteFollower->PauseByUser();
+            }
             RoamingCharacter->MoveRelativeToView(
                 Move, PlayerController->IsInputKeyDown(EKeys::LeftShift));
         }
@@ -2158,7 +2491,11 @@ void UTwinInteractionManagerComponent::OnMove(const FInputActionValue& Value)
     }
     else
     {
-        if (bTakeoverEnabled) RoamingCharacter->RouteFollower->PauseByUser();
+        if (bTakeoverEnabled)
+        {
+            StopNarration(true);
+            RoamingCharacter->RouteFollower->PauseByUser();
+        }
         RoamingCharacter->MoveRelativeToView(Move, bSprintHeld);
     }
 }
@@ -2199,7 +2536,6 @@ void UTwinInteractionManagerComponent::OnVertical(const FInputActionValue& Value
 }
 
 void UTwinInteractionManagerComponent::OnToggle(const FInputActionValue&) { ToggleRoaming(); }
-void UTwinInteractionManagerComponent::OnToggleView(const FInputActionValue&) { ToggleCameraMode(); }
 void UTwinInteractionManagerComponent::OnToggleHud(const FInputActionValue&) { ToggleHudInteraction(); }
 void UTwinInteractionManagerComponent::OnRoute(const FInputActionValue&) { ResumeRoute(); }
 
@@ -2320,6 +2656,403 @@ void UTwinInteractionManagerComponent::SelectFromView(bool bCursorTrace)
     {
         SceneManager->ClearOverlayFromSceneInteraction();
     }
+
+    if (Instance || !bSelectedByOverlay) HandleWebInstanceSelection(Instance);
+}
+
+void UTwinInteractionManagerComponent::HandleGlobalPointerSelection(
+    const FHitResult* Hit)
+{
+    if (!SceneManager || bRoamingActive || bHudInteraction
+        || SceneManager->IsRuntimeEditModeActive()) return;
+
+    ATwinInstance* Instance = Hit ? ResolveInteractionInstance(*Hit) : nullptr;
+    if (!Instance && Hit)
+    {
+        Instance = SceneManager->FindOverlayInstanceNearHit(*Hit);
+    }
+    HandleWebInstanceSelection(Instance);
+}
+
+void UTwinInteractionManagerComponent::HandleWebInstanceSelection(
+    ATwinInstance* Instance)
+{
+    if (Instance)
+    {
+        WebSelectedInstance = Instance;
+        const bool bOpened = SceneManager
+            && SceneManager->WebInteractionManager
+            && SceneManager->WebInteractionManager->OpenInstanceDetail(
+                Instance->GetInstanceId());
+        CompleteWebOpen(
+            bOpened,
+            TEXT("已选择对象；当前对象没有可用的网页详情绑定。"));
+        return;
+    }
+    else
+    {
+        WebSelectedInstance.Reset();
+        LastWebInteractionMessage.Reset();
+    }
+    RefreshHud();
+}
+
+void UTwinInteractionManagerComponent::HandleNarrationRequested(
+    const FTwinRoamingRuntimeWaypoint& Waypoint)
+{
+    StopNarration(false);
+    if (!Waypoint.HasNarration())
+    {
+        if (RoamingCharacter && RoamingCharacter->RouteFollower)
+        {
+            RoamingCharacter->RouteFollower->CompleteNarration();
+        }
+        return;
+    }
+    ActiveNarrationWaypoint = Waypoint;
+    ActiveNarrationSegmentIndex = 0;
+    bNarrationActive = true;
+    RuntimeState = TEXT("route_narration");
+    ShowNarrationSegment();
+    RefreshHud();
+}
+
+void UTwinInteractionManagerComponent::ShowNarrationSegment()
+{
+    if (!bNarrationActive
+        || !ActiveNarrationWaypoint.NarrationSegments.IsValidIndex(
+            ActiveNarrationSegmentIndex))
+    {
+        FinishNarrationPoint();
+        return;
+    }
+    const FTwinNarrationRuntimeSegment& Segment =
+        ActiveNarrationWaypoint.NarrationSegments[ActiveNarrationSegmentIndex];
+    const bool bVoiceRequested = ActiveNarrationWaypoint.NarrationMode != TEXT("subtitle");
+    if (NarrationHUD)
+    {
+        NarrationHUD->ShowSegment(
+            Segment.Text,
+            ActiveNarrationSegmentIndex,
+            ActiveNarrationWaypoint.NarrationSegments.Num(),
+            ActiveNarrationWaypoint.NarrationMode,
+            false,
+            ActiveNarrationWaypoint.NarrationMode != TEXT("voice"));
+    }
+    if (bVoiceRequested && TryStartNarrationAudio(Segment)) return;
+    if (bVoiceRequested)
+    {
+        DegradedFeatures.AddUnique(TEXT("audio_fallback_to_subtitle"));
+        if (NarrationHUD)
+        {
+            NarrationHUD->ShowSegment(
+                Segment.Text,
+                ActiveNarrationSegmentIndex,
+                ActiveNarrationWaypoint.NarrationSegments.Num(),
+                ActiveNarrationWaypoint.NarrationMode,
+                true,
+                true);
+        }
+    }
+    StartNarrationFallbackTimer(Segment);
+}
+
+void UTwinInteractionManagerComponent::StartNarrationFallbackTimer(
+    const FTwinNarrationRuntimeSegment& Segment)
+{
+    const float Duration = FMath::Clamp(Segment.DurationSeconds, 1.0f, 600.0f);
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().SetTimer(
+            NarrationTimer,
+            this,
+            &UTwinInteractionManagerComponent::SkipNarrationSegment,
+            Duration,
+            false);
+    }
+}
+
+FString UTwinInteractionManagerComponent::NarrationCachePath(
+    const FTwinNarrationRuntimeSegment& Segment) const
+{
+    if (!HasValidSha256(Segment.AudioSha256)) return FString();
+    return FPaths::Combine(
+        FPaths::ProjectSavedDir(),
+        TEXT("OntoTwin"),
+        TEXT("Narration"),
+        Segment.AudioSha256.ToLower() + TEXT(".wav"));
+}
+
+bool UTwinInteractionManagerComponent::TryStartNarrationAudio(
+    const FTwinNarrationRuntimeSegment& Segment)
+{
+    if (Segment.AudioAssetId.IsEmpty() || !HasValidSha256(Segment.AudioSha256))
+    {
+        return false;
+    }
+    const FString CachePath = NarrationCachePath(Segment);
+    TArray<uint8> CachedBytes;
+    if (!CachePath.IsEmpty()
+        && FFileHelper::LoadFileToArray(CachedBytes, *CachePath))
+    {
+        if (MatchesSha256(CachedBytes, Segment.AudioSha256)
+            && PlayNarrationWav(CachedBytes, Segment))
+        {
+            return true;
+        }
+        IFileManager::Get().Delete(*CachePath, false, true);
+    }
+    if (!SceneManager || !bBackendOnline) return false;
+
+    FString BaseUrl = SceneManager->BackendBaseUrl;
+    BaseUrl.RemoveFromEnd(TEXT("/"));
+    const FString ExpectedSegmentId = Segment.SegmentId;
+    const FTwinNarrationRuntimeSegment ExpectedSegment = Segment;
+    NarrationAudioRequest = FHttpModule::Get().CreateRequest();
+    NarrationAudioRequest->SetURL(
+        BaseUrl
+        + TEXT("/api/v2/scene-interactions/narration-assets/")
+        + FGenericPlatformHttp::UrlEncode(Segment.AudioAssetId));
+    NarrationAudioRequest->SetVerb(TEXT("GET"));
+    AddProjectHeaders(NarrationAudioRequest.ToSharedRef());
+    const TWeakObjectPtr<UTwinInteractionManagerComponent> WeakThis(this);
+    NarrationAudioRequest->OnProcessRequestComplete().BindLambda(
+        [WeakThis, ExpectedSegmentId, ExpectedSegment, CachePath](
+            FHttpRequestPtr,
+            FHttpResponsePtr Response,
+            bool bWasSuccessful)
+        {
+            UTwinInteractionManagerComponent* Self = WeakThis.Get();
+            if (!Self) return;
+            Self->NarrationAudioRequest.Reset();
+            if (!Self->bNarrationActive
+                || !Self->ActiveNarrationWaypoint.NarrationSegments.IsValidIndex(
+                    Self->ActiveNarrationSegmentIndex)
+                || Self->ActiveNarrationWaypoint.NarrationSegments[
+                    Self->ActiveNarrationSegmentIndex].SegmentId != ExpectedSegmentId)
+            {
+                return;
+            }
+            const bool bValidResponse = bWasSuccessful && Response.IsValid()
+                && EHttpResponseCodes::IsOk(Response->GetResponseCode());
+            const TArray<uint8>& Bytes = bValidResponse
+                ? Response->GetContent() : TArray<uint8>();
+            if (bValidResponse
+                && MatchesSha256(Bytes, ExpectedSegment.AudioSha256)
+                && Self->PlayNarrationWav(Bytes, ExpectedSegment))
+            {
+                if (!CachePath.IsEmpty())
+                {
+                    IFileManager::Get().MakeDirectory(
+                        *FPaths::GetPath(CachePath), true);
+                    const FString TemporaryPath = CachePath + TEXT(".tmp");
+                    if (FFileHelper::SaveArrayToFile(Bytes, *TemporaryPath))
+                    {
+                        IFileManager::Get().Move(
+                            *CachePath, *TemporaryPath, true, true, false, true);
+                    }
+                }
+                return;
+            }
+            Self->DegradedFeatures.AddUnique(TEXT("audio_fallback_to_subtitle"));
+            if (Self->NarrationHUD)
+            {
+                Self->NarrationHUD->ShowSegment(
+                    ExpectedSegment.Text,
+                    Self->ActiveNarrationSegmentIndex,
+                    Self->ActiveNarrationWaypoint.NarrationSegments.Num(),
+                    Self->ActiveNarrationWaypoint.NarrationMode,
+                    true,
+                    true);
+            }
+            Self->StartNarrationFallbackTimer(ExpectedSegment);
+        });
+    if (!NarrationAudioRequest->ProcessRequest())
+    {
+        NarrationAudioRequest.Reset();
+        return false;
+    }
+    return true;
+}
+
+bool UTwinInteractionManagerComponent::FocusInstanceCamera(
+    const FTransform& TargetTransform,
+    float FovDegrees,
+    FString& OutError)
+{
+    if (!bRoamingActive || !RoamingCharacter || !RoamingCharacter->CameraMode
+        || !PlayerController)
+    {
+        OutError = TEXT("Character roaming camera is not active");
+        return false;
+    }
+    const bool bFocused = RoamingCharacter->CameraMode->FocusAtTransform(
+        PlayerController,
+        TargetTransform,
+        FovDegrees,
+        OutError);
+    if (bFocused)
+    {
+        RuntimeState = TEXT("god_view");
+        RefreshHud();
+    }
+    return bFocused;
+}
+
+bool UTwinInteractionManagerComponent::PlayNarrationWav(
+    const TArray<uint8>& Bytes,
+    const FTwinNarrationRuntimeSegment& Segment)
+{
+    // FWaveModInfo repairs malformed streaming WAV chunk lengths in place.
+    // Parse a private copy so validation/playback never mutates the downloaded
+    // bytes that will be written to the content-addressed cache.
+    TArray<uint8> ParsedBytes = Bytes;
+    FWaveModInfo WaveInfo;
+    FString Error;
+    if (!WaveInfo.ReadWaveInfo(ParsedBytes.GetData(), ParsedBytes.Num(), &Error)
+        || !WaveInfo.pFormatTag
+        || *WaveInfo.pFormatTag != FWaveModInfo::WAVE_INFO_FORMAT_PCM
+        || !WaveInfo.pBitsPerSample || *WaveInfo.pBitsPerSample != 16
+        || !WaveInfo.pChannels || *WaveInfo.pChannels != 1
+        || !WaveInfo.pSamplesPerSec
+        || (*WaveInfo.pSamplesPerSec != 8000 && *WaveInfo.pSamplesPerSec != 16000)
+        || !WaveInfo.SampleDataStart || WaveInfo.SampleDataSize == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("OntoTwin narration WAV rejected: %s"), *Error);
+        return false;
+    }
+    const int32 BytesPerFrame = *WaveInfo.pChannels
+        * (*WaveInfo.pBitsPerSample / 8);
+    const int32 PlayableBytes = BytesPerFrame > 0
+        ? WaveInfo.SampleDataSize - (WaveInfo.SampleDataSize % BytesPerFrame)
+        : 0;
+    if (PlayableBytes <= 0)
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("OntoTwin narration WAV rejected: no complete PCM frames"));
+        return false;
+    }
+    const float PlaybackDuration = static_cast<float>(PlayableBytes)
+        / static_cast<float>(*WaveInfo.pSamplesPerSec * BytesPerFrame);
+    if (!NarrationAudioComponent)
+    {
+        NarrationAudioComponent = NewObject<UAudioComponent>(
+            this, TEXT("OntoTwinNarrationAudio"));
+        NarrationAudioComponent->bAutoActivate = false;
+        NarrationAudioComponent->bAllowSpatialization = false;
+        NarrationAudioComponent->bIsUISound = true;
+        NarrationAudioComponent->RegisterComponentWithWorld(GetWorld());
+    }
+    if (NarrationAudioComponent->IsPlaying()) NarrationAudioComponent->Stop();
+    NarrationSound = NewObject<USoundWaveProcedural>(this);
+    NarrationSound->NumChannels = *WaveInfo.pChannels;
+    NarrationSound->SetSampleRate(*WaveInfo.pSamplesPerSec);
+    NarrationSound->Duration = PlaybackDuration;
+    NarrationSound->SoundGroup = SOUNDGROUP_Voice;
+    NarrationSound->QueueAudio(WaveInfo.SampleDataStart, PlayableBytes);
+    NarrationAudioComponent->SetSound(NarrationSound);
+    NarrationAudioComponent->Play();
+    if (UWorld* World = GetWorld())
+    {
+        // USoundWaveProcedural does not reliably emit OnAudioFinished after its
+        // queued PCM is consumed. Resume from the measured PCM duration with a
+        // short mixer grace period instead of provider metadata + five seconds.
+        const float CompletionDuration = FMath::Clamp(
+            PlaybackDuration + 0.2f, 0.4f, 120.2f);
+        World->GetTimerManager().SetTimer(
+            NarrationTimer,
+            this,
+            &UTwinInteractionManagerComponent::SkipNarrationSegment,
+            CompletionDuration,
+            false);
+        UE_LOG(LogTemp, Log,
+            TEXT("OntoTwin narration playback segment=%s pcm=%.3fs metadata=%.3fs resume=%.3fs"),
+            *Segment.SegmentId,
+            PlaybackDuration,
+            Segment.AudioDurationSeconds,
+            CompletionDuration);
+    }
+    DegradedFeatures.Remove(TEXT("audio_fallback_to_subtitle"));
+    return true;
+}
+
+void UTwinInteractionManagerComponent::SkipNarrationSegment()
+{
+    if (!bNarrationActive) return;
+    if (UWorld* World = GetWorld()) World->GetTimerManager().ClearTimer(NarrationTimer);
+    if (NarrationAudioRequest.IsValid())
+    {
+        NarrationAudioRequest->CancelRequest();
+        NarrationAudioRequest.Reset();
+    }
+    if (NarrationAudioComponent && NarrationAudioComponent->IsPlaying())
+    {
+        NarrationAudioComponent->Stop();
+    }
+    NarrationSound = nullptr;
+    ++ActiveNarrationSegmentIndex;
+    UE_LOG(LogTemp, Log,
+        TEXT("OntoTwin narration advance next_segment=%d total=%d"),
+        ActiveNarrationSegmentIndex + 1,
+        ActiveNarrationWaypoint.NarrationSegments.Num());
+    if (ActiveNarrationWaypoint.NarrationSegments.IsValidIndex(
+        ActiveNarrationSegmentIndex))
+    {
+        ShowNarrationSegment();
+    }
+    else
+    {
+        FinishNarrationPoint();
+    }
+}
+
+void UTwinInteractionManagerComponent::FinishNarrationPoint()
+{
+    if (UWorld* World = GetWorld()) World->GetTimerManager().ClearTimer(NarrationTimer);
+    bNarrationActive = false;
+    if (NarrationAudioRequest.IsValid())
+    {
+        NarrationAudioRequest->CancelRequest();
+        NarrationAudioRequest.Reset();
+    }
+    if (NarrationAudioComponent && NarrationAudioComponent->IsPlaying())
+    {
+        NarrationAudioComponent->Stop();
+    }
+    NarrationSound = nullptr;
+    ActiveNarrationSegmentIndex = -1;
+    ActiveNarrationWaypoint = FTwinRoamingRuntimeWaypoint();
+    if (NarrationHUD) NarrationHUD->HideNarration();
+    if (RoamingCharacter && RoamingCharacter->RouteFollower)
+    {
+        RoamingCharacter->RouteFollower->CompleteNarration();
+    }
+    RuntimeState = TEXT("auto_route");
+    RefreshHud();
+}
+
+void UTwinInteractionManagerComponent::StopNarration(bool bInterruptedByUser)
+{
+    if (UWorld* World = GetWorld()) World->GetTimerManager().ClearTimer(NarrationTimer);
+    if (bInterruptedByUser && bNarrationActive
+        && RoamingCharacter && RoamingCharacter->RouteFollower)
+    {
+        RoamingCharacter->RouteFollower->InterruptNarrationByUser();
+    }
+    bNarrationActive = false;
+    if (NarrationAudioRequest.IsValid())
+    {
+        NarrationAudioRequest->CancelRequest();
+        NarrationAudioRequest.Reset();
+    }
+    if (NarrationAudioComponent && NarrationAudioComponent->IsPlaying())
+    {
+        NarrationAudioComponent->Stop();
+    }
+    NarrationSound = nullptr;
+    ActiveNarrationSegmentIndex = -1;
+    ActiveNarrationWaypoint = FTwinRoamingRuntimeWaypoint();
+    if (NarrationHUD) NarrationHUD->HideNarration();
 }
 
 ATwinInstance* UTwinInteractionManagerComponent::ResolveInteractionInstance(
@@ -2361,7 +3094,8 @@ void UTwinInteractionManagerComponent::SendHeartbeat()
         CameraMode = CameraModeId(ActiveCameraMode);
         RouteState = RoamingCharacter->RouteFollower->GetRouteStateText();
         ActiveSkin = RoamingCharacter->SkinComponent->GetActiveSkinId();
-        if (bGod) State = TEXT("god_view");
+        if (bNarrationActive) State = TEXT("route_narration");
+        else if (bGod) State = TEXT("god_view");
         else if (RoamingCharacter->RouteFollower->IsFollowing()) State = TEXT("auto_route");
         else State = TEXT("manual");
     }
@@ -2425,7 +3159,7 @@ void UTwinInteractionManagerComponent::SendHeartbeat()
 
 FString UTwinInteractionManagerComponent::GetHudStatusText() const
 {
-    if (!bRoamingActive) return TEXT("人物漫游");
+    if (!bRoamingActive) return TEXT("场景交互");
     const FString Character = CompactHudLabel(
         CurrentConfig.CharacterDisplayName, TEXT("漫游人物"), 16);
     const FString View = RoamingCharacter
@@ -2439,6 +3173,9 @@ FString UTwinInteractionManagerComponent::GetHudStatusText() const
             CurrentConfig.RouteDisplayName, TEXT("当前线路"), 24);
         switch (RoamingCharacter->RouteFollower->GetRouteState())
         {
+        case ETwinRoamingRouteState::PausedForNarration:
+            RouteStatus = FString::Printf(TEXT("路线解说 - %s"), *RouteName);
+            break;
         case ETwinRoamingRouteState::AutoRoute:
             RouteStatus = FString::Printf(TEXT("线路漫游 - %s"), *RouteName);
             break;
@@ -2493,7 +3230,19 @@ void UTwinInteractionManagerComponent::GetHudShortcutItems(
     {
         AddShortcut(ToggleHudKey.ToString(), TEXT("收起操作"));
         AddShortcut(TEXT("鼠标"), TEXT("选择按钮"));
-        AddShortcut(ToggleRoamingKey.ToString(), TEXT("退出漫游"));
+        AddShortcut(
+            ToggleRoamingKey.ToString(),
+            bRoamingActive ? TEXT("退出漫游") : TEXT("进入漫游"));
+        return;
+    }
+
+    if (!bRoamingActive)
+    {
+        AddShortcut(
+            TEXT("左键"),
+            TEXT("选择并打开网页详情"));
+        AddShortcut(ToggleHudKey.ToString(), TEXT("Web 业务"));
+        AddShortcut(ToggleRoamingKey.ToString(), TEXT("进入漫游"));
         return;
     }
 
@@ -2504,7 +3253,9 @@ void UTwinInteractionManagerComponent::GetHudShortcutItems(
         AddShortcut(TEXT("右键"), TEXT("观察"));
         AddShortcut(TEXT("Q / E"), TEXT("升降"));
         AddShortcut(TEXT("滚轮"), TEXT("调整速度"));
-        AddShortcut(TEXT("左键"), TEXT("选择"));
+        AddShortcut(
+            TEXT("左键"),
+            TEXT("选择并打开网页详情"));
         AddShortcut(ToggleViewKey.ToString(), TEXT("切换视角"));
         AddShortcut(ToggleHudKey.ToString(), TEXT("更多操作"));
         AddShortcut(ToggleRoamingKey.ToString(), TEXT("退出漫游"));
@@ -2512,7 +3263,9 @@ void UTwinInteractionManagerComponent::GetHudShortcutItems(
     }
 
     AddShortcut(TEXT("WASD"), TEXT("移动"));
-    AddShortcut(TEXT("E / 左键"), TEXT("交互"));
+    AddShortcut(
+        TEXT("E / 左键"),
+        TEXT("选择并打开网页详情"));
     const bool bPausedByUser = RoamingCharacter
         && RoamingCharacter->RouteFollower
         && RoamingCharacter->RouteFollower->GetRouteState()
@@ -2543,14 +3296,141 @@ void UTwinInteractionManagerComponent::GetAvailableRuntimeRoutes(
     }
 }
 
+void UTwinInteractionManagerComponent::GetAvailableWebZones(
+    TArray<FString>& OutZoneIds,
+    TArray<FString>& OutDisplayNames) const
+{
+    OutZoneIds.Reset();
+    OutDisplayNames.Reset();
+    if (SceneManager && SceneManager->WebInteractionManager)
+    {
+        SceneManager->WebInteractionManager->GetAvailableZones(
+            OutZoneIds,
+            OutDisplayNames);
+    }
+}
+
+void UTwinInteractionManagerComponent::GetAvailableWebBusinessViews(
+    TArray<FString>& OutBusinessViewIds,
+    TArray<FString>& OutDisplayNames) const
+{
+    OutBusinessViewIds.Reset();
+    OutDisplayNames.Reset();
+    if (SceneManager && SceneManager->WebInteractionManager)
+    {
+        SceneManager->WebInteractionManager->GetAvailableBusinessViews(
+            OutBusinessViewIds,
+            OutDisplayNames);
+    }
+}
+
+void UTwinInteractionManagerComponent::ActivateRuntimeHome()
+{
+    WebSelectedInstance.Reset();
+    LastWebInteractionMessage.Reset();
+    if (SceneManager && SceneManager->WebInteractionManager)
+    {
+        SceneManager->WebInteractionManager->ResetHome();
+    }
+    RestoreStartupView();
+    SetHudInteraction(false);
+    RefreshHud();
+}
+
+void UTwinInteractionManagerComponent::SetRuntimeEditorSuppressed(bool bSuppressed)
+{
+    if (bSuppressed)
+    {
+        bRestoreHudAfterRuntimeEditor = bHudInteraction;
+        SetHudInteraction(false);
+        return;
+    }
+    if (bRestoreHudAfterRuntimeEditor)
+    {
+        SetHudInteraction(true);
+    }
+    bRestoreHudAfterRuntimeEditor = false;
+}
+
+bool UTwinInteractionManagerComponent::CompleteWebOpen(
+    bool bOpened,
+    const FString& FailureMessage)
+{
+    if (bOpened)
+    {
+        LastWebInteractionMessage.Reset();
+        RefreshHud();
+        return true;
+    }
+
+    const bool bRuntimeReady = SceneManager
+        && SceneManager->WebInteractionManager
+        && SceneManager->WebInteractionManager->IsRuntimeReady();
+    LastWebInteractionMessage = bRuntimeReady
+        ? FailureMessage
+        : TEXT("Web 配置尚未就绪，请稍后重试。");
+    SetHudInteraction(true);
+    RefreshHud();
+    return false;
+}
+
+bool UTwinInteractionManagerComponent::OpenWebProjectHome()
+{
+    SetHudInteraction(false);
+    const bool bOpened = SceneManager
+        && SceneManager->WebInteractionManager
+        && SceneManager->WebInteractionManager->OpenProjectHome();
+    return CompleteWebOpen(
+        bOpened,
+        TEXT("当前项目没有可用的主页绑定。"));
+}
+
+bool UTwinInteractionManagerComponent::OpenWebZone(const FString& ZoneId)
+{
+    SetHudInteraction(false);
+    const bool bOpened = SceneManager
+        && SceneManager->WebInteractionManager
+        && SceneManager->WebInteractionManager->OpenZone(ZoneId);
+    return CompleteWebOpen(
+        bOpened,
+        TEXT("当前分区没有可用的页面绑定，或该分区已失效。"));
+}
+
+bool UTwinInteractionManagerComponent::OpenWebBusinessView(
+    const FString& BusinessViewId,
+    const FString& ZoneId)
+{
+    SetHudInteraction(false);
+    const bool bOpened = SceneManager
+        && SceneManager->WebInteractionManager
+        && SceneManager->WebInteractionManager->OpenBusinessView(
+            BusinessViewId,
+            ZoneId);
+    return CompleteWebOpen(
+        bOpened,
+        TEXT("当前业务没有可用的页面绑定，或该业务已失效。"));
+}
+
 FString UTwinInteractionManagerComponent::GetHudDetailText() const
 {
-    FString Text = bPendingReload
-        ? TEXT("存在待重载配置，可点击“重载人物”应用。")
-        : TEXT("选择视角，或执行人物与线路操作。");
+    FString Text;
+    if (!bRoamingActive)
+    {
+        Text = TEXT("单击对象打开详情；空间、业务和漫游入口位于 Dock 标签中。");
+    }
+    else
+    {
+        Text = bPendingReload
+            ? TEXT("存在待重载配置，可点击“重载人物”应用。")
+            : TEXT("选择视角，或执行人物与线路操作。");
+    }
     if (!bBackendOnline) Text += TEXT("  后端离线，当前使用最后一次有效配置。");
     if (!BindingWarning.IsEmpty()) Text += TEXT("\n") + BindingWarning;
     if (!LastError.IsEmpty()) Text += TEXT("\n提示：") + LastError;
+    if (!LastWebInteractionMessage.IsEmpty())
+    {
+        Text += TEXT("\nWeb：") + LastWebInteractionMessage;
+    }
     return Text;
 }
 

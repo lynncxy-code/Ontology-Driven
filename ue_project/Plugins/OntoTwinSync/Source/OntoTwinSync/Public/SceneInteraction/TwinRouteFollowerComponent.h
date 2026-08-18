@@ -7,6 +7,10 @@
 
 class ATwinRoamingRoute;
 
+DECLARE_MULTICAST_DELEGATE_OneParam(
+    FOnTwinNarrationRequested,
+    const FTwinRoamingRuntimeWaypoint&);
+
 /** Spline 路线导向器。实际行走由 CharacterMovement 执行，因此保留走楼梯/斜坡能力。 */
 UCLASS(ClassGroup=(OntoTwin), meta=(BlueprintSpawnableComponent))
 class ONTOTWINSYNC_API UTwinRouteFollowerComponent : public UActorComponent
@@ -19,7 +23,12 @@ public:
     virtual void TickComponent(float DeltaTime, ELevelTick TickType,
         FActorComponentTickFunction* ThisTickFunction) override;
 
-    void Configure(ATwinRoamingRoute* InRoute, float InSpeedCmS, bool bInLoop, bool bAutoStart);
+    void Configure(
+        ATwinRoamingRoute* InRoute,
+        float InSpeedCmS,
+        bool bInLoop,
+        bool bAutoStart,
+        const TArray<FTwinRoamingRuntimeWaypoint>& InWaypoints = {});
     void SetSpeed(float InSpeedCmS);
     void SetLoop(bool bInLoop);
     void PauseByUser();
@@ -27,10 +36,14 @@ public:
     bool TryResume(FString& OutError);
     bool RestartFromBeginning(FString& OutError);
     void StopRoute();
+    void CompleteNarration();
+    void InterruptNarrationByUser();
 
     ETwinRoamingRouteState GetRouteState() const { return RouteState; }
     FString GetRouteStateText() const;
     bool IsFollowing() const { return RouteState == ETwinRoamingRouteState::AutoRoute; }
+
+    FOnTwinNarrationRequested OnNarrationRequested;
 
 private:
     UPROPERTY()
@@ -41,6 +54,9 @@ private:
     float JoinTargetDistance = 0.0f;
     bool bLoop = false;
     ETwinRoamingRouteState RouteState = ETwinRoamingRouteState::Unavailable;
+    TArray<FTwinRoamingRuntimeWaypoint> RuntimeWaypoints;
+    int32 NextWaypointIndex = 0;
+    float PreviousSplineDistance = 0.0f;
 
     FVector StallReferenceLocation = FVector::ZeroVector;
     float NoProgressSeconds = 0.0f;
@@ -55,6 +71,9 @@ private:
     void ResetStallDetection();
     bool HasTimedOutWithoutProgress(float DeltaTime);
     void MarkBlocked();
+    bool TryTriggerNarration(float SplineLength);
+    void AdvancePassedWaypoints(float SplineLength);
+    void ResetNarrationSession();
     float FindClosestDistanceOnSpline(const FVector& WorldLocation) const;
     FVector GetCharacterLocationAtDistance(float Distance) const;
 };

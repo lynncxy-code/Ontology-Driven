@@ -28,6 +28,7 @@ class ONTOTWINSYNC_API ATwinGodViewPawn : public APawn
 
 public:
     ATwinGodViewPawn();
+    virtual void Tick(float DeltaSeconds) override;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
     USceneComponent* SceneRoot;
@@ -43,7 +44,13 @@ public:
     void MoveVertical(float Input);
     void Look(const FVector2D& Input);
     void AdjustSpeed(float Axis);
+    void FocusToTransform(const FTransform& TargetTransform, float DurationSeconds);
 
 private:
     float LookSensitivity = 1.0f;
+    bool bFocusTransitionActive = false;
+    float FocusTransitionElapsed = 0.0f;
+    float FocusTransitionDuration = 0.0f;
+    FTransform FocusTransitionStart;
+    FTransform FocusTransitionTarget;
 };

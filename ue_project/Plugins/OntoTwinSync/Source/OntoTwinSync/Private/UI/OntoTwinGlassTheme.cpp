@@ -176,10 +176,10 @@ FLinearColor FOntoTwinGlassTheme::WorldTint(const EOntoTwinGlassQuality Quality)
 FLinearColor FOntoTwinGlassTheme::StatusAccent(const FString& Level)
 {
 	if (Level == TEXT("normal") || Level == TEXT("green")) return FLinearColor(0.08f, 0.55f, 0.33f, 1.0f);
-	if (Level == TEXT("info") || Level == TEXT("cyan")) return FLinearColor(0.16f, 0.56f, 0.78f, 1.0f);
+	if (Level == TEXT("info") || Level == TEXT("cyan")) return FLinearColor(0.68f, 0.68f, 0.68f, 1.0f);
 	if (Level == TEXT("warning") || Level == TEXT("amber")) return FLinearColor(0.80f, 0.52f, 0.12f, 1.0f);
 	if (Level == TEXT("critical") || Level == TEXT("red")) return FLinearColor(0.72f, 0.18f, 0.16f, 1.0f);
-	if (Level == TEXT("offline") || Level == TEXT("unknown") || Level == TEXT("gray")) return FLinearColor(0.42f, 0.46f, 0.48f, 1.0f);
+	if (Level == TEXT("offline") || Level == TEXT("unknown") || Level == TEXT("gray")) return FLinearColor(0.46f, 0.46f, 0.46f, 1.0f);
 	return MutedText();
 }
 

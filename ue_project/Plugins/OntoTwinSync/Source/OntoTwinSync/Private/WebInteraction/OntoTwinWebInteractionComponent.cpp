@@ -2,12 +2,14 @@
 
 #include "TwinInstance.h"
 #include "TwinSceneManager.h"
+#include "SceneInteraction/TwinInteractionManagerComponent.h"
 #include "WebInteraction/OntoTwinWebBridge.h"
 
 #include "Blueprint/UserWidget.h"
 #include "Dom/JsonValue.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 #include "GameFramework/PlayerController.h"
+#include "Framework/Application/SlateApplication.h"
 #include "HAL/PlatformMisc.h"
 #include "HttpModule.h"
 #include "InputCoreTypes.h"
@@ -76,6 +78,42 @@ FString ScopeTypeForContext(const TSharedPtr<FJsonObject>& Context)
     if (!StringField(Context, TEXT("instance_id")).IsEmpty()) return TEXT("instance");
     if (!StringField(Context, TEXT("zone_id")).IsEmpty()) return TEXT("zone");
     return TEXT("project");
+}
+
+TSharedPtr<FJsonObject> CloneJsonObject(const TSharedPtr<FJsonObject>& Source)
+{
+    if (!Source.IsValid()) return nullptr;
+    FString Json;
+    const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Json);
+    if (!FJsonSerializer::Serialize(Source.ToSharedRef(), Writer)) return nullptr;
+    TSharedPtr<FJsonObject> Result;
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
+    return FJsonSerializer::Deserialize(Reader, Result) ? Result : nullptr;
+}
+
+TArray<FString> JsonStringArray(const TSharedPtr<FJsonObject>& Object, const TCHAR* Field)
+{
+    TArray<FString> Result;
+    const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+    if (Object.IsValid() && Object->TryGetArrayField(Field, Values) && Values)
+    {
+        for (const TSharedPtr<FJsonValue>& Value : *Values)
+        {
+            FString Text;
+            if (Value.IsValid() && Value->TryGetString(Text)) Result.Add(Text);
+        }
+    }
+    return Result;
+}
+
+void SetJsonStringArray(
+    const TSharedPtr<FJsonObject>& Object,
+    const TCHAR* Field,
+    const TArray<FString>& Values)
+{
+    TArray<TSharedPtr<FJsonValue>> JsonValues;
+    for (const FString& Value : Values) JsonValues.Add(MakeShared<FJsonValueString>(Value));
+    Object->SetArrayField(Field, JsonValues);
 }
 }
 
@@ -236,6 +274,8 @@ void UOntoTwinWebInteractionComponent::RebuildRuntimeIndexes(const TSharedPtr<FJ
     InstancesById.Reset();
     BusinessViewMembers.Reset();
     ZoneParents.Reset();
+    ZoneDisplayNames.Reset();
+    BusinessViewDisplayNames.Reset();
     AllowedHosts.Reset();
     if (!PublishedConfig.IsValid()) PublishedConfig = MakeShared<FJsonObject>();
 
@@ -266,7 +306,27 @@ void UOntoTwinWebInteractionComponent::RebuildRuntimeIndexes(const TSharedPtr<FJ
         {
             const TSharedPtr<FJsonObject> Zone = Value.IsValid() ? Value->AsObject() : nullptr;
             const FString ZoneId = StringField(Zone, TEXT("zone_id"));
-            if (!ZoneId.IsEmpty()) ZoneParents.Add(ZoneId, StringField(Zone, TEXT("parent_zone_id")));
+            if (!ZoneId.IsEmpty())
+            {
+                ZoneParents.Add(ZoneId, StringField(Zone, TEXT("parent_zone_id")));
+                const FString Name = StringField(Zone, TEXT("name"));
+                ZoneDisplayNames.Add(ZoneId, Name.IsEmpty() ? ZoneId : Name);
+            }
+        }
+    }
+    const TArray<TSharedPtr<FJsonValue>>* BusinessViews = nullptr;
+    if (PublishedConfig->TryGetArrayField(TEXT("business_views"), BusinessViews) && BusinessViews)
+    {
+        for (const TSharedPtr<FJsonValue>& Value : *BusinessViews)
+        {
+            const TSharedPtr<FJsonObject> BusinessView = Value.IsValid() ? Value->AsObject() : nullptr;
+            if (!BusinessView.IsValid() || !BoolField(BusinessView, TEXT("enabled"), true)) continue;
+            const FString BusinessViewId = StringField(BusinessView, TEXT("business_view_id"));
+            if (BusinessViewId.IsEmpty()) continue;
+            const FString Name = StringField(BusinessView, TEXT("name"));
+            BusinessViewDisplayNames.Add(
+                BusinessViewId,
+                Name.IsEmpty() ? BusinessViewId : Name);
         }
     }
     const TSharedPtr<FJsonObject> Memberships = ObjectField(Payload, TEXT("business_view_memberships"));
@@ -341,6 +401,346 @@ bool UOntoTwinWebInteractionComponent::OpenInstanceDetail(const FString& Instanc
     const bool bOpened = ResolveAndOpen(TEXT("open_detail"), Context);
     if (bOpened) SelectAndFocusInstance(InstanceId);
     return bOpened;
+}
+
+void UOntoTwinWebInteractionComponent::GetAvailableZones(
+    TArray<FString>& OutZoneIds,
+    TArray<FString>& OutDisplayNames) const
+{
+    OutZoneIds.Reset();
+    OutDisplayNames.Reset();
+    ZoneParents.GetKeys(OutZoneIds);
+    OutZoneIds.Sort(
+        [this](const FString& Left, const FString& Right)
+        {
+            const FString LeftName = ZoneDisplayNames.FindRef(Left);
+            const FString RightName = ZoneDisplayNames.FindRef(Right);
+            const int32 NameOrder = LeftName.Compare(RightName, ESearchCase::IgnoreCase);
+            return NameOrder == 0
+                ? Left.Compare(Right, ESearchCase::IgnoreCase) < 0
+                : NameOrder < 0;
+        });
+    for (const FString& ZoneId : OutZoneIds)
+    {
+        const FString Name = ZoneDisplayNames.FindRef(ZoneId);
+        OutDisplayNames.Add(Name.IsEmpty() ? ZoneId : Name);
+    }
+}
+
+void UOntoTwinWebInteractionComponent::GetAvailableBusinessViews(
+    TArray<FString>& OutBusinessViewIds,
+    TArray<FString>& OutDisplayNames) const
+{
+    OutBusinessViewIds.Reset();
+    OutDisplayNames.Reset();
+    BusinessViewDisplayNames.GetKeys(OutBusinessViewIds);
+    OutBusinessViewIds.Sort(
+        [this](const FString& Left, const FString& Right)
+        {
+            const FString LeftName = BusinessViewDisplayNames.FindRef(Left);
+            const FString RightName = BusinessViewDisplayNames.FindRef(Right);
+            const int32 NameOrder = LeftName.Compare(RightName, ESearchCase::IgnoreCase);
+            return NameOrder == 0
+                ? Left.Compare(Right, ESearchCase::IgnoreCase) < 0
+                : NameOrder < 0;
+        });
+    for (const FString& BusinessViewId : OutBusinessViewIds)
+    {
+        const FString Name = BusinessViewDisplayNames.FindRef(BusinessViewId);
+        OutDisplayNames.Add(Name.IsEmpty() ? BusinessViewId : Name);
+    }
+}
+
+bool UOntoTwinWebInteractionComponent::GetRuntimeBusinessEditSnapshot(
+    TSharedPtr<FJsonObject>& OutConfig,
+    int32& OutRevision) const
+{
+    OutConfig = CloneJsonObject(PublishedConfig);
+    OutRevision = AppliedRevision;
+    return OutConfig.IsValid() && OutRevision >= 0;
+}
+
+TSet<FString> UOntoTwinWebInteractionComponent::BusinessMembersForConfig(
+    const TSharedPtr<FJsonObject>& BusinessView) const
+{
+    TSet<FString> Members;
+    const TArray<TSharedPtr<FJsonValue>>* Groups = nullptr;
+    if (!BusinessView.IsValid()
+        || !BusinessView->TryGetArrayField(TEXT("rule_groups"), Groups) || !Groups)
+    {
+        return Members;
+    }
+
+    for (const TSharedPtr<FJsonValue>& GroupValue : *Groups)
+    {
+        const TSharedPtr<FJsonObject> Group = GroupValue.IsValid() ? GroupValue->AsObject() : nullptr;
+        if (!Group.IsValid()) continue;
+        const TArray<FString> ZoneIds = JsonStringArray(Group, TEXT("zone_ids"));
+        const TArray<FString> TypeIds = JsonStringArray(Group, TEXT("object_type_rids"));
+        const TArray<FString> ExplicitIds = JsonStringArray(Group, TEXT("instance_ids"));
+        if (ZoneIds.Num() == 0 && TypeIds.Num() == 0 && ExplicitIds.Num() == 0) continue;
+
+        TSet<FString> AllowedZones;
+        for (const FString& ZoneId : ZoneIds) AllowedZones.Append(DescendantZones(ZoneId));
+        for (const TPair<FString, TSharedPtr<FJsonObject>>& Pair : InstancesById)
+        {
+            if (ZoneIds.Num() > 0 && !AllowedZones.Contains(StringField(Pair.Value, TEXT("zone_id")))) continue;
+            if (TypeIds.Num() > 0 && !TypeIds.Contains(StringField(Pair.Value, TEXT("object_type_rid")))) continue;
+            if (ExplicitIds.Num() > 0 && !ExplicitIds.Contains(Pair.Key)) continue;
+            Members.Add(Pair.Key);
+        }
+    }
+    for (const FString& Excluded : JsonStringArray(BusinessView, TEXT("exclude_instance_ids")))
+    {
+        Members.Remove(Excluded);
+    }
+    return Members;
+}
+
+void UOntoTwinWebInteractionComponent::GetRuntimeBusinessMembershipStates(
+    const TSharedPtr<FJsonObject>& Config,
+    const TArray<FString>& InstanceIds,
+    TArray<FString>& OutBusinessIds,
+    TArray<FString>& OutNames,
+    TArray<EOntoTwinBusinessMembershipState>& OutStates) const
+{
+    OutBusinessIds.Reset();
+    OutNames.Reset();
+    OutStates.Reset();
+    const TArray<TSharedPtr<FJsonValue>>* Views = nullptr;
+    if (!Config.IsValid() || !Config->TryGetArrayField(TEXT("business_views"), Views) || !Views) return;
+    for (const TSharedPtr<FJsonValue>& Value : *Views)
+    {
+        const TSharedPtr<FJsonObject> View = Value.IsValid() ? Value->AsObject() : nullptr;
+        if (!View.IsValid() || !BoolField(View, TEXT("enabled"), true)) continue;
+        const FString BusinessId = StringField(View, TEXT("business_view_id"));
+        if (BusinessId.IsEmpty()) continue;
+        const TSet<FString> Members = BusinessMembersForConfig(View);
+        int32 Included = 0;
+        for (const FString& InstanceId : InstanceIds) if (Members.Contains(InstanceId)) ++Included;
+        OutBusinessIds.Add(BusinessId);
+        const FString Name = StringField(View, TEXT("name"));
+        OutNames.Add(Name.IsEmpty() ? BusinessId : Name);
+        OutStates.Add(InstanceIds.Num() == 0 || Included == 0
+            ? EOntoTwinBusinessMembershipState::None
+            : (Included == InstanceIds.Num()
+                ? EOntoTwinBusinessMembershipState::All
+                : EOntoTwinBusinessMembershipState::Mixed));
+    }
+}
+
+bool UOntoTwinWebInteractionComponent::SetRuntimeBusinessMembership(
+    const TSharedPtr<FJsonObject>& Config,
+    const FString& BusinessId,
+    const TArray<FString>& InstanceIds,
+    bool bAdd,
+    FString& OutError) const
+{
+    OutError.Reset();
+    const TArray<TSharedPtr<FJsonValue>>* Views = nullptr;
+    if (!Config.IsValid() || !Config->TryGetArrayField(TEXT("business_views"), Views) || !Views)
+    {
+        OutError = TEXT("业务配置尚未就绪");
+        return false;
+    }
+    TSharedPtr<FJsonObject> TargetView;
+    for (const TSharedPtr<FJsonValue>& Value : *Views)
+    {
+        const TSharedPtr<FJsonObject> View = Value.IsValid() ? Value->AsObject() : nullptr;
+        if (View.IsValid() && StringField(View, TEXT("business_view_id")) == BusinessId)
+        {
+            TargetView = View;
+            break;
+        }
+    }
+    if (!TargetView.IsValid())
+    {
+        OutError = TEXT("业务已不存在，请加载最新配置");
+        return false;
+    }
+
+    TArray<FString> Excluded = JsonStringArray(TargetView, TEXT("exclude_instance_ids"));
+    TArray<TSharedPtr<FJsonValue>> Groups;
+    const TArray<TSharedPtr<FJsonValue>>* ExistingGroups = nullptr;
+    if (TargetView->TryGetArrayField(TEXT("rule_groups"), ExistingGroups) && ExistingGroups)
+    {
+        Groups = *ExistingGroups;
+    }
+    if (bAdd)
+    {
+        for (const FString& InstanceId : InstanceIds) Excluded.Remove(InstanceId);
+        TSharedPtr<FJsonObject> ExactGroup;
+        for (const TSharedPtr<FJsonValue>& Value : Groups)
+        {
+            const TSharedPtr<FJsonObject> Group = Value.IsValid() ? Value->AsObject() : nullptr;
+            if (Group.IsValid()
+                && JsonStringArray(Group, TEXT("zone_ids")).Num() == 0
+                && JsonStringArray(Group, TEXT("object_type_rids")).Num() == 0)
+            {
+                ExactGroup = Group;
+                break;
+            }
+        }
+        if (!ExactGroup.IsValid())
+        {
+            ExactGroup = MakeShared<FJsonObject>();
+            SetJsonStringArray(ExactGroup, TEXT("zone_ids"), {});
+            SetJsonStringArray(ExactGroup, TEXT("object_type_rids"), {});
+            SetJsonStringArray(ExactGroup, TEXT("instance_ids"), {});
+            Groups.Add(MakeShared<FJsonValueObject>(ExactGroup));
+        }
+        TArray<FString> ExactIds = JsonStringArray(ExactGroup, TEXT("instance_ids"));
+        for (const FString& InstanceId : InstanceIds) ExactIds.AddUnique(InstanceId);
+        SetJsonStringArray(ExactGroup, TEXT("instance_ids"), ExactIds);
+    }
+    else
+    {
+        for (const TSharedPtr<FJsonValue>& Value : Groups)
+        {
+            const TSharedPtr<FJsonObject> Group = Value.IsValid() ? Value->AsObject() : nullptr;
+            if (!Group.IsValid()) continue;
+            TArray<FString> ExactIds = JsonStringArray(Group, TEXT("instance_ids"));
+            for (const FString& InstanceId : InstanceIds) ExactIds.Remove(InstanceId);
+            SetJsonStringArray(Group, TEXT("instance_ids"), ExactIds);
+        }
+        Groups.RemoveAll([](const TSharedPtr<FJsonValue>& Value)
+        {
+            const TSharedPtr<FJsonObject> Group = Value.IsValid() ? Value->AsObject() : nullptr;
+            return !Group.IsValid()
+                || (JsonStringArray(Group, TEXT("zone_ids")).Num() == 0
+                    && JsonStringArray(Group, TEXT("object_type_rids")).Num() == 0
+                    && JsonStringArray(Group, TEXT("instance_ids")).Num() == 0);
+        });
+    }
+    TargetView->SetArrayField(TEXT("rule_groups"), Groups);
+    SetJsonStringArray(TargetView, TEXT("exclude_instance_ids"), Excluded);
+    if (!bAdd)
+    {
+        const TSet<FString> StillMatched = BusinessMembersForConfig(TargetView);
+        for (const FString& InstanceId : InstanceIds)
+        {
+            if (StillMatched.Contains(InstanceId)) Excluded.AddUnique(InstanceId);
+        }
+        SetJsonStringArray(TargetView, TEXT("exclude_instance_ids"), Excluded);
+    }
+    return true;
+}
+
+bool UOntoTwinWebInteractionComponent::CreateRuntimeBusiness(
+    const TSharedPtr<FJsonObject>& Config,
+    const FString& Name,
+    const TArray<FString>& InstanceIds,
+    FString& OutBusinessId,
+    FString& OutError) const
+{
+    OutBusinessId.Reset();
+    OutError.Reset();
+    const FString CleanName = Name.TrimStartAndEnd();
+    if (CleanName.IsEmpty())
+    {
+        OutError = TEXT("请输入业务名称");
+        return false;
+    }
+    const TArray<TSharedPtr<FJsonValue>>* Existing = nullptr;
+    if (!Config.IsValid() || !Config->TryGetArrayField(TEXT("business_views"), Existing) || !Existing)
+    {
+        OutError = TEXT("业务配置尚未就绪");
+        return false;
+    }
+    TArray<TSharedPtr<FJsonValue>> Views = *Existing;
+    TSet<FString> UsedIds;
+    for (const TSharedPtr<FJsonValue>& Value : Views)
+    {
+        const TSharedPtr<FJsonObject> View = Value.IsValid() ? Value->AsObject() : nullptr;
+        if (View.IsValid()) UsedIds.Add(StringField(View, TEXT("business_view_id")));
+    }
+    FString BusinessId = FString::Printf(TEXT("bv.f8.%lld"), FDateTime::UtcNow().ToUnixTimestamp());
+    int32 Suffix = 1;
+    const FString BaseId = BusinessId;
+    while (UsedIds.Contains(BusinessId)) BusinessId = FString::Printf(TEXT("%s.%d"), *BaseId, Suffix++);
+
+    const TSharedPtr<FJsonObject> Group = MakeShared<FJsonObject>();
+    SetJsonStringArray(Group, TEXT("zone_ids"), {});
+    SetJsonStringArray(Group, TEXT("object_type_rids"), {});
+    SetJsonStringArray(Group, TEXT("instance_ids"), InstanceIds);
+    const TSharedPtr<FJsonObject> View = MakeShared<FJsonObject>();
+    View->SetStringField(TEXT("business_view_id"), BusinessId);
+    View->SetStringField(TEXT("name"), CleanName);
+    View->SetStringField(TEXT("description"), TEXT("由 F8 业务编辑创建"));
+    View->SetBoolField(TEXT("enabled"), true);
+    View->SetStringField(TEXT("scene_behavior"), TEXT("isolate_focus"));
+    View->SetArrayField(TEXT("rule_groups"), {MakeShared<FJsonValueObject>(Group)});
+    View->SetArrayField(TEXT("exclude_instance_ids"), TArray<TSharedPtr<FJsonValue>>());
+    Views.Add(MakeShared<FJsonValueObject>(View));
+    Config->SetArrayField(TEXT("business_views"), Views);
+    OutBusinessId = BusinessId;
+    return true;
+}
+
+void UOntoTwinWebInteractionComponent::ApplyRuntimeBusinessEdit(
+    const TSharedPtr<FJsonObject>& Config,
+    int32 ExpectedRevision,
+    TFunction<void(bool, int32, const FString&)> Completion)
+{
+    if (!Config.IsValid())
+    {
+        Completion(false, ExpectedRevision, TEXT("业务配置无效"));
+        return;
+    }
+    const TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
+    Body->SetNumberField(TEXT("expected_revision"), ExpectedRevision);
+    Body->SetBoolField(TEXT("confirm_warnings"), true);
+    const TSharedPtr<FJsonObject> AppliedConfig = CloneJsonObject(Config);
+    Body->SetObjectField(TEXT("config"), AppliedConfig);
+    FString BodyText;
+    const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&BodyText);
+    FJsonSerializer::Serialize(Body.ToSharedRef(), Writer);
+
+    const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+    Request->SetURL(SceneManager
+        ? FString::Printf(TEXT("%s/api/v2/web-interactions/apply"), *SceneManager->BackendBaseUrl)
+        : FString());
+    Request->SetVerb(TEXT("POST"));
+    Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    AddProjectHeaders(Request);
+    Request->SetContentAsString(BodyText);
+    TWeakObjectPtr<UOntoTwinWebInteractionComponent> WeakThis(this);
+    Request->OnProcessRequestComplete().BindLambda(
+        [WeakThis, ExpectedRevision, AppliedConfig, Completion = MoveTemp(Completion)](
+            FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bOk) mutable
+        {
+            UOntoTwinWebInteractionComponent* Self = WeakThis.Get();
+            const int32 Code = Resp.IsValid() ? Resp->GetResponseCode() : -1;
+            TSharedPtr<FJsonObject> Root;
+            if (Resp.IsValid())
+            {
+                const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Resp->GetContentAsString());
+                FJsonSerializer::Deserialize(Reader, Root);
+            }
+            FString Status;
+            if (Root.IsValid()) Root->TryGetStringField(TEXT("status"), Status);
+            if (Self && bOk && Code == 200 && Status == TEXT("ok"))
+            {
+                double RevisionNumber = ExpectedRevision + 1;
+                Root->TryGetNumberField(TEXT("revision"), RevisionNumber);
+                const int32 SavedRevision = static_cast<int32>(RevisionNumber);
+                Self->PublishedConfig = CloneJsonObject(AppliedConfig);
+                Self->AppliedRevision = -1;
+                Self->PollAccumulator = 1000.0f;
+                Completion(true, SavedRevision, FString());
+                return;
+            }
+            FString Error = Code == 409
+                ? TEXT("业务配置已在其他入口更新；本地修改仍保留")
+                : TEXT("业务修改保存失败；本地修改仍保留");
+            if (Root.IsValid())
+            {
+                FString Message;
+                if (Root->TryGetStringField(TEXT("message"), Message) && !Message.IsEmpty()) Error = Message;
+            }
+            Completion(false, ExpectedRevision, Error);
+        });
+    Request->ProcessRequest();
 }
 
 TSharedPtr<FJsonObject> UOntoTwinWebInteractionComponent::ResolveBinding(
@@ -423,7 +823,34 @@ bool UOntoTwinWebInteractionComponent::ResolveAndOpen(
     if (!Binding.IsValid() || bBlocked)
     {
         SendRuntimeEvent(TEXT("resolve"), bBlocked ? TEXT("blocked") : TEXT("no_binding"));
-        return false;
+        if (Trigger != TEXT("zone_activated") && Trigger != TEXT("business_view_activated"))
+        {
+            return false;
+        }
+
+        // Space and business activation is useful even without a page. Keep a
+        // navigation frame so Back restores both the previous page and scene.
+        FOntoTwinWebNavigationFrame Next;
+        Next.Trigger = Trigger;
+        Next.Context = Context;
+        const TSharedPtr<FJsonObject> SceneOnlyPage = MakeShared<FJsonObject>();
+        const TSharedPtr<FJsonObject> Effects = MakeShared<FJsonObject>();
+        Effects->SetStringField(
+            Trigger == TEXT("zone_activated") ? TEXT("zone") : TEXT("business_view"),
+            TEXT("web_and_scene"));
+        SceneOnlyPage->SetObjectField(TEXT("scope_effects"), Effects);
+        ApplySceneScope(SceneOnlyPage, Context, Next);
+        if (bPushHistory && bHasCurrentFrame) NavigationHistory.Add(CurrentFrame);
+        CurrentFrame = Next;
+        bHasCurrentFrame = true;
+        ApplyVisibilityFrame(CurrentFrame);
+        if (SceneManager && CurrentFrame.FocusInstanceIds.Num() > 0)
+        {
+            SceneManager->FocusManagedInstances(CurrentFrame.FocusInstanceIds);
+        }
+        if (HostWidget) HostWidget->SetVisibility(ESlateVisibility::Collapsed);
+        RestoreInput();
+        return true;
     }
     const FString PageId = StringField(Binding, TEXT("page_id"));
     const TSharedPtr<FJsonObject>* Page = PagesById.Find(PageId);
@@ -438,6 +865,7 @@ bool UOntoTwinWebInteractionComponent::OpenPage(
     const TSharedPtr<FJsonObject>& ExtraParams,
     bool bPushHistory)
 {
+    if (bRuntimeEditorSuppressed) return false;
     FString Error;
     const FString FinalUrl = BuildFinalUrl(Page, Context, ExtraParams, Error);
     if (FinalUrl.IsEmpty())
@@ -461,6 +889,12 @@ bool UOntoTwinWebInteractionComponent::OpenPage(
     CurrentFrame = Next;
     bHasCurrentFrame = true;
     ApplyVisibilityFrame(CurrentFrame);
+    const FString ScopeType = ScopeTypeForContext(Context);
+    if (CurrentFrame.bSceneScopeActive
+        && (ScopeType == TEXT("zone") || ScopeType == TEXT("business_view")))
+    {
+        SceneManager->FocusManagedInstances(CurrentFrame.FocusInstanceIds);
+    }
     EnsureHostWidget();
     if (!HostWidget) return false;
     HostWidget->SetVisibility(ESlateVisibility::Visible);
@@ -605,7 +1039,6 @@ void UOntoTwinWebInteractionComponent::CaptureWebInput()
     bPreviousMouseCursor = PlayerController->bShowMouseCursor;
     PlayerController->bShowMouseCursor = true;
     FInputModeGameAndUI Mode;
-    Mode.SetWidgetToFocus(HostWidget->TakeWidget());
     Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
     Mode.SetHideCursorDuringCapture(false);
     PlayerController->SetInputMode(Mode);
@@ -615,8 +1048,19 @@ void UOntoTwinWebInteractionComponent::CaptureWebInput()
 void UOntoTwinWebInteractionComponent::RestoreInput()
 {
     if (!PlayerController || !bInputCaptured) return;
+    FSlateApplication::Get().ClearKeyboardFocus(EFocusCause::SetDirectly);
     PlayerController->bShowMouseCursor = bPreviousMouseCursor;
-    if (!bPreviousMouseCursor) PlayerController->SetInputMode(FInputModeGameOnly());
+    if (bPreviousMouseCursor)
+    {
+        FInputModeGameAndUI Mode;
+        Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+        Mode.SetHideCursorDuringCapture(false);
+        PlayerController->SetInputMode(Mode);
+    }
+    else
+    {
+        PlayerController->SetInputMode(FInputModeGameOnly());
+    }
     bInputCaptured = false;
 }
 
@@ -633,7 +1077,18 @@ void UOntoTwinWebInteractionComponent::Back()
     const FOntoTwinWebNavigationFrame Previous = NavigationHistory.Pop();
     CurrentFrame = Previous;
     bHasCurrentFrame = true;
+    RestoreSceneVisibility();
     ApplyVisibilityFrame(CurrentFrame);
+    if (CurrentFrame.FinalUrl.IsEmpty())
+    {
+        if (HostWidget) HostWidget->SetVisibility(ESlateVisibility::Collapsed);
+        RestoreInput();
+        if (SceneManager && CurrentFrame.FocusInstanceIds.Num() > 0)
+        {
+            SceneManager->FocusManagedInstances(CurrentFrame.FocusInstanceIds);
+        }
+        return;
+    }
     EnsureHostWidget();
     if (HostWidget)
     {
@@ -650,6 +1105,73 @@ void UOntoTwinWebInteractionComponent::Close()
     SendToPage(TEXT("visibility_changed"), FString(), nullptr);
 }
 
+bool UOntoTwinWebInteractionComponent::HandleHostShortcut(const FKey& Key)
+{
+    if (!SceneManager || !SceneManager->InteractionManager) return false;
+    if (Key == EKeys::Tab)
+    {
+        Close();
+        if (!SceneManager->InteractionManager->IsHudInteractionOpen())
+        {
+            SceneManager->InteractionManager->ToggleHudInteraction();
+        }
+        return true;
+    }
+    if (Key == EKeys::F7)
+    {
+        Close();
+        SceneManager->InteractionManager->ToggleRoaming();
+        return true;
+    }
+    if (Key == EKeys::Escape)
+    {
+        Back();
+        return true;
+    }
+    return false;
+}
+
+void UOntoTwinWebInteractionComponent::ResetHome()
+{
+    NavigationHistory.Reset();
+    bHasCurrentFrame = false;
+    RestoreSceneVisibility();
+    if (HostWidget) HostWidget->SetVisibility(ESlateVisibility::Collapsed);
+    RestoreInput();
+    SendToPage(TEXT("visibility_changed"), FString(), nullptr);
+}
+
+void UOntoTwinWebInteractionComponent::SetRuntimeEditorSuppressed(bool bSuppressed)
+{
+    if (bRuntimeEditorSuppressed == bSuppressed) return;
+    bRuntimeEditorSuppressed = bSuppressed;
+    if (bSuppressed)
+    {
+        bRestoreAfterRuntimeEditor = HostWidget
+            && HostWidget->GetVisibility() == ESlateVisibility::Visible;
+        if (HostWidget) HostWidget->SetVisibility(ESlateVisibility::Collapsed);
+        RestoreInput();
+        return;
+    }
+
+    if (bRestoreAfterRuntimeEditor && bHasCurrentFrame)
+    {
+        EnsureHostWidget();
+        if (HostWidget) HostWidget->SetVisibility(ESlateVisibility::Visible);
+        ApplyVisibilityFrame(CurrentFrame);
+        CaptureWebInput();
+        SendContextToPage();
+    }
+    bRestoreAfterRuntimeEditor = false;
+}
+
+bool UOntoTwinWebInteractionComponent::IsPointerOverInteractiveWeb() const
+{
+    return IsWebOpen() && HostWidget
+        && HostWidget->GetVisibility() == ESlateVisibility::Visible
+        && HostWidget->IsPointerOverInteractiveRegion();
+}
+
 void UOntoTwinWebInteractionComponent::Retry()
 {
     if (HostWidget && bHasCurrentFrame) HostWidget->Navigate(CurrentFrame.FinalUrl);
@@ -662,7 +1184,28 @@ void UOntoTwinWebInteractionComponent::ApplySceneScope(
 {
     const FString ScopeType = ScopeTypeForContext(Context);
     const TSharedPtr<FJsonObject> Effects = ObjectField(Page, TEXT("scope_effects"));
-    if (StringField(Effects, *ScopeType) != TEXT("web_and_scene")) return;
+    FString SceneBehavior = StringField(Effects, *ScopeType) == TEXT("web_and_scene")
+        ? TEXT("isolate_focus")
+        : TEXT("web_only");
+    if (ScopeType == TEXT("business_view") && PublishedConfig.IsValid())
+    {
+        const FString BusinessViewId = StringField(Context, TEXT("business_view_id"));
+        const TArray<TSharedPtr<FJsonValue>>* Views = nullptr;
+        if (PublishedConfig->TryGetArrayField(TEXT("business_views"), Views) && Views)
+        {
+            for (const TSharedPtr<FJsonValue>& Value : *Views)
+            {
+                const TSharedPtr<FJsonObject> View = Value.IsValid() ? Value->AsObject() : nullptr;
+                if (View.IsValid() && StringField(View, TEXT("business_view_id")) == BusinessViewId)
+                {
+                    const FString Configured = StringField(View, TEXT("scene_behavior"));
+                    if (!Configured.IsEmpty()) SceneBehavior = Configured;
+                    break;
+                }
+            }
+        }
+    }
+    if (SceneBehavior == TEXT("web_only")) return;
     Frame.bSceneScopeActive = true;
     TSet<FString> Target;
     if (ScopeType == TEXT("instance"))
@@ -693,7 +1236,15 @@ void UOntoTwinWebInteractionComponent::ApplySceneScope(
             }
         }
     }
-    for (const TPair<FString, TSharedPtr<FJsonObject>>& Pair : InstancesById)
+    Frame.FocusInstanceIds = Target;
+    if (SceneBehavior == TEXT("highlight"))
+    {
+        for (const TPair<FString, TSharedPtr<FJsonObject>>& Pair : InstancesById)
+        {
+            Target.Add(Pair.Key);
+        }
+    }
+    else for (const TPair<FString, TSharedPtr<FJsonObject>>& Pair : InstancesById)
     {
         if (StringField(Pair.Value, TEXT("zone_id")).IsEmpty()) Target.Add(Pair.Key);
     }
@@ -728,7 +1279,6 @@ void UOntoTwinWebInteractionComponent::RestoreSceneVisibility()
         if (Pair.Key.IsValid()) Pair.Key->SetActorHiddenInGame(Pair.Value);
     }
     OriginalHiddenStates.Reset();
-    NavigationHistory.Reset();
 }
 
 TSet<FString> UOntoTwinWebInteractionComponent::DescendantZones(const FString& ZoneId) const
@@ -853,6 +1403,25 @@ void UOntoTwinWebInteractionComponent::HandleBridgeMessage(const FString& Messag
     {
         if (SceneManager) SceneManager->ClearOverlayFromSceneInteraction();
         Reply(TEXT("ok"));
+        return;
+    }
+    if (Type == TEXT("focus_current_scope"))
+    {
+        if (!SceneManager || !bHasCurrentFrame || CurrentFrame.FocusInstanceIds.Num() == 0)
+        {
+            Reply(TEXT("rejected"), TEXT("scope_empty"));
+        }
+        else
+        {
+            SceneManager->FocusManagedInstances(CurrentFrame.FocusInstanceIds);
+            Reply(TEXT("ok"));
+        }
+        return;
+    }
+    if (Type == TEXT("close_page"))
+    {
+        Reply(TEXT("ok"));
+        Close();
         return;
     }
     if (Type == TEXT("request_open_scope"))

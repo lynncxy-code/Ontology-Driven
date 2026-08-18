@@ -37,6 +37,11 @@ public:
         FString& OutError,
         bool bInstant = true);
     bool Cycle(APlayerController* PlayerController, ATwinGodViewAnchor* StartAnchor, FString& OutError);
+    bool FocusAtTransform(
+        APlayerController* PlayerController,
+        const FTransform& TargetTransform,
+        float FovDegrees,
+        FString& OutError);
     void Shutdown(APlayerController* PlayerController);
 
     ETwinRoamingCameraMode GetMode() const { return Mode; }

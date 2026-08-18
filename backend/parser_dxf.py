@@ -1,5 +1,9 @@
 import ezdxf
 import uuid
+import math
+import statistics
+
+from ezdxf import bbox
 
 from coord_filter_rules import (
     is_layer_blacklisted, is_block_blacklisted, classify_layer
@@ -26,15 +30,32 @@ def extract_block_candidates(file_path, mapping=None):
     doc = ezdxf.readfile(file_path)
     msp = doc.modelspace()
 
-    # 收集每个 block_name 出现的图层与次数
+    # DXF 单位转 cm；0=unitless 时不做尺寸推荐，避免把未知单位误当 mm。
+    unit_code = int(doc.header.get('$INSUNITS', 0) or 0)
+    unit_to_cm = {
+        1: 2.54, 2: 30.48, 4: 0.1, 5: 1.0, 6: 100.0,
+        10: 91.44, 14: 10.0,
+    }.get(unit_code)
+
+    # 收集每个 block_name 出现的图层、次数与典型包围盒。
     blocks = {}  # name -> {count, layers: {layer: count}}
     for ins in msp.query('INSERT'):
         name = ins.dxf.name
         layer = ins.dxf.layer
         if name not in blocks:
-            blocks[name] = {'count': 0, 'layers': {}}
+            blocks[name] = {'count': 0, 'layers': {}, 'sizes': []}
         blocks[name]['count'] += 1
         blocks[name]['layers'][layer] = blocks[name]['layers'].get(layer, 0) + 1
+        if len(blocks[name]['sizes']) < 5:
+            try:
+                extent = bbox.extents([ins], fast=True)
+                size = extent.size
+                values = [float(size.x), float(size.y), float(size.z)]
+                if all(math.isfinite(value) for value in values) and max(values) > 0:
+                    blocks[name]['sizes'].append(values)
+            except Exception:
+                # 某些代理对象或损坏块无法计算 extents；名称/分类推荐仍可继续。
+                pass
 
     candidates = []
     filtered_log = []
@@ -78,6 +99,20 @@ def extract_block_candidates(file_path, mapping=None):
         # 4) 灰色地带分类
         warn_color, warn_text, default_checked = classify_layer(primary_layer)
 
+        typical_size = None
+        if info['sizes']:
+            typical_size = {
+                'x': round(statistics.median(value[0] for value in info['sizes']), 4),
+                'y': round(statistics.median(value[1] for value in info['sizes']), 4),
+                'z': round(statistics.median(value[2] for value in info['sizes']), 4),
+            }
+        cad_size_cm = None
+        if typical_size and unit_to_cm:
+            cad_size_cm = {
+                key: round(value * unit_to_cm, 4)
+                for key, value in typical_size.items() if value > 0
+            } or None
+
         candidates.append({
             'block_name': name,
             'layers': layer_names,
@@ -86,6 +121,9 @@ def extract_block_candidates(file_path, mapping=None):
             'suggested_name': name,
             'suggested_rid': name,
             'preset_asset_id': mapping.get(name),
+            'cad_size': typical_size,
+            'cad_size_cm': cad_size_cm,
+            'cad_unit_code': unit_code,
             'warning': warn_text,
             'warning_color': warn_color,
             'default_checked': default_checked,

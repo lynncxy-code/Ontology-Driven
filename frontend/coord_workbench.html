@@ -140,8 +140,36 @@ body.embedded-mode{background:#fafaf7}
 .audit-row .a-warn-text{font-size:10px;line-height:1.4;color:var(--warn)}
 .audit-row.warn-red .a-warn-text{color:var(--danger)}
 .audit-row .a-count{font-family:monospace;font-size:10px;color:var(--text-soft);min-width:32px;text-align:right}
-.audit-row .a-asset{width:150px;flex-shrink:0}
-.audit-row .a-asset input{width:100%;padding:3px 6px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:11px}
+.audit-row .a-asset{width:190px;flex-shrink:0}
+.asset-catalog-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;margin-bottom:8px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-subtle);font-size:var(--t-xs);color:var(--text-muted)}
+.asset-catalog-status{display:flex;align-items:center;gap:7px;min-width:0}
+.asset-catalog-status span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--text-soft);flex:0 0 auto}
+.status-dot.ok{background:var(--success)}
+.status-dot.warn{background:var(--warning)}
+.status-dot.err{background:var(--danger)}
+.asset-choice{border:1px solid var(--border);border-radius:var(--r-sm);padding:6px;background:var(--surface);min-height:48px}
+.asset-choice.confirmed{border-color:var(--ok-line);background:var(--ok-bg)}
+.asset-choice-head{display:flex;align-items:center;gap:5px;min-width:0}
+.asset-choice-name{font-size:var(--t-xs);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.asset-choice-path{font-size:9px;color:var(--text-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+.asset-choice-reason{font-size:9px;color:var(--text-muted);line-height:1.35;margin-top:3px}
+.asset-choice-actions{display:flex;gap:5px;margin-top:5px}
+.asset-choice-actions .btn{padding:3px 7px;font-size:10px}
+.asset-score{font-family:monospace;font-size:9px;color:var(--text-muted);flex:0 0 auto}
+.asset-picker-tools{display:flex;gap:8px;margin-bottom:10px}
+.asset-picker-tools input,.asset-picker-tools select{border:1px solid var(--border-strong);border-radius:var(--r-sm);background:var(--surface);padding:7px 9px;font-size:var(--t-sm)}
+.asset-picker-tools input{flex:1;min-width:0}
+.asset-picker-list{display:flex;flex-direction:column;gap:6px;max-height:430px;overflow-y:auto}
+.asset-picker-item{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:9px;align-items:center;border:1px solid var(--border);border-radius:var(--r-md);padding:7px;background:var(--surface);cursor:pointer}
+.asset-picker-item:hover{background:var(--surface-subtle);border-color:var(--border-strong)}
+.asset-picker-item.unsupported{opacity:.55;cursor:not-allowed}
+.asset-thumb{width:48px;height:48px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-subtle);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:10px;color:var(--text-soft)}
+.asset-thumb img{width:100%;height:100%;object-fit:contain}
+.asset-picker-name{font-size:var(--t-sm);font-weight:600;color:var(--text)}
+.asset-picker-path{font-size:10px;color:var(--text-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+.asset-picker-meta{font-size:10px;color:var(--text-muted);margin-top:3px}
+.asset-picker-empty{padding:28px 12px;text-align:center;color:var(--text-soft);font-size:var(--t-sm);border:1px dashed var(--border);border-radius:var(--r-md)}
 .audit-row .a-warn-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .warn-dot-red{background:#dc2626}
 .warn-dot-yellow{background:#f59e0b}
@@ -355,7 +383,11 @@ body.embedded-mode{background:#fafaf7}
           </div>
           <div class="step-panel" id="step2">
             <div class="section-title">类型审核</div>
-            <p class="hint" style="margin-top:0;margin-bottom:10px">系统已自动过滤匿名块/XREF 外参/系统层。下表为待审核候选，勾选要建库的条目（可改名、填资产路径）。</p>
+            <p class="hint" style="margin-top:0;margin-bottom:10px">系统已自动过滤匿名块/XREF 外参/系统层。勾选要建库的条目；资产推荐必须人工采用或在选择器中确认，未绑定也可提交。</p>
+            <div class="asset-catalog-bar" id="assetCatalogBar">
+              <div class="asset-catalog-status"><span class="status-dot"></span><span>正在读取目标 UE 工程资产目录…</span></div>
+              <button class="btn btn-sm" onclick="refreshAssetCatalogForTarget(true)">刷新</button>
+            </div>
             <div class="audit-summary" id="auditSummary">扫描中...</div>
             <div class="audit-toolbar">
               <input class="audit-search" id="auditSearch" placeholder="搜索块名 / 图层..." oninput="renderAuditList()"/>
@@ -376,7 +408,7 @@ body.embedded-mode{background:#fafaf7}
                 <label class="opt">合并到类型库</label>
                 <div class="opt-inputs" id="wsMergeInputs">
                   <span style="font-size:11px;color:var(--text-soft)">目标：</span>
-                  <select id="wsMergeTarget"><option>加载中...</option></select>
+                  <select id="wsMergeTarget" onchange="onMergeTargetChange()"><option>加载中...</option></select>
                   <span style="font-size:11px;color:var(--text-soft);margin-left:6px">同名冲突：</span>
                   <select id="wsConflictStrategy" style="flex:0 0 auto;width:90px">
                     <option value="skip">跳过</option>
@@ -722,6 +754,8 @@ function saveSession(){
       currentStep:State.currentStep, layerVisible:State.layerVisible, layerSelected:State.layerSelected,
       entityChecked:State.entityChecked, entityAssets:State.entityAssets, entityTypes:State.entityTypes,
       auditChecked:State.auditChecked, auditName:State.auditName, auditAsset:State.auditAsset,
+      auditAssetConfirmed:State.auditAssetConfirmed, auditAssetSource:State.auditAssetSource,
+      auditAssetProject:State.auditAssetProject,
       polyAuditChecked:State.polyAuditChecked,
       fileName: (State.lastUploadedFile && State.lastUploadedFile.name) || null,
     },
@@ -785,6 +819,8 @@ async function restoreSession(){
       State.layerVisible=c.layerVisible||{}; State.layerSelected=c.layerSelected||{};
       State.entityChecked=c.entityChecked||{}; State.entityAssets=c.entityAssets||{}; State.entityTypes=c.entityTypes||{};
       State.auditChecked=c.auditChecked||{}; State.auditName=c.auditName||{}; State.auditAsset=c.auditAsset||{};
+      State.auditAssetConfirmed=c.auditAssetConfirmed||{}; State.auditAssetSource=c.auditAssetSource||{};
+      State.auditAssetProject=c.auditAssetProject||{};
       State.polyAuditChecked=c.polyAuditChecked||{};
       if(c.fileName) State.lastUploadedFile={name:c.fileName};
     }
@@ -811,6 +847,7 @@ async function restoreSession(){
       _applyStep(snap.cad.currentStep||1);
     }
     draw();
+    if(hasCad) await refreshAssetCatalogForTarget(true);
     toast('已恢复上次进度（点右上"重新开始"可清空）', 'ok', 4200);
   }catch(e){ console.warn('会话恢复失败',e); }
 }
@@ -895,6 +932,16 @@ const State = {
   auditChecked: {},           // block_name -> bool
   auditName: {},              // block_name -> 用户编辑后的 name
   auditAsset: {},             // block_name -> 用户编辑后的 asset_id
+  auditAssetConfirmed: {},    // block_name -> 必须显式人工确认后才为 true
+  auditAssetSource: {},       // block_name -> recommendation | picker
+  auditAssetProject: {},      // block_name -> 确认时的 ue_project_id，防止跨工程串用
+  assetCatalog: null,         // 当前合并目标绑定的 UE 工程资产目录
+  assetRecommendations: {},  // block_name -> candidates
+  assetCatalogState: 'idle',  // idle | loading | ready | missing | error
+  assetCatalogMessage: '',
+  assetCatalogRequest: 0,
+  assetPickerBlock: '',
+  assetPickerSelection: '',
   polyAuditChecked: {},       // 线图层 layer -> bool（默认 false：未勾选=不纳入）
   lastUploadedFile: null,     // File 对象，供 scan 等接口复用
   // M4 commit UI 状态
@@ -1744,11 +1791,17 @@ async function fetchTypeScan(file) {
     State.auditChecked = {};
     State.auditName = {};
     State.auditAsset = {};
+    State.auditAssetConfirmed = {};
+    State.auditAssetSource = {};
+    State.auditAssetProject = {};
     (State.scanResult.candidates || []).forEach(c => {
       State.auditChecked[c.block_name] = c.default_checked;
       State.auditName[c.block_name] = c.suggested_name;
-      State.auditAsset[c.block_name] = c.preset_asset_id || '';
+      // 旧映射只作为推荐线索，不能跳过本次人工确认。
+      State.auditAsset[c.block_name] = '';
+      State.auditAssetConfirmed[c.block_name] = false;
     });
+    await refreshAssetCatalogForTarget(true);
     // 若用户已切到 step2，立即刷新
     if (State.currentStep === 2) renderAuditList();
   } catch(err) {
@@ -1796,7 +1849,6 @@ function renderAuditList() {
     const dotCls = wc === 'red' ? 'warn-dot-red' : (wc === 'yellow' ? 'warn-dot-yellow' : 'warn-dot-none');
     const checked = State.auditChecked[c.block_name] ? 'checked' : '';
     const nameVal = (State.auditName[c.block_name] ?? c.suggested_name) || '';
-    const assetVal = State.auditAsset[c.block_name] ?? '';
     const warnLine = c.warning ? `<span class="a-warn-text">${escapeHTML(c.warning)}</span>` : '';
     const row = document.createElement('div');
     row.className = `audit-row ${rowCls}`;
@@ -1810,8 +1862,7 @@ function renderAuditList() {
         ${warnLine}
       </div>
       <span class="a-count">×${c.count}</span>
-      <span class="a-asset"><input type="text" value="${escapeAttr(assetVal)}" placeholder="资产路径（可选）"
-            onchange="State.auditAsset['${escapeQ(c.block_name)}']=this.value"/></span>
+      <span class="a-asset">${renderAuditAssetChoice(c)}</span>
     `;
     listEl.appendChild(row);
   }
@@ -1886,7 +1937,8 @@ async function loadActiveDataset(silentRefresh) {
     State.activeDsName = active ? active.name : '(未知)';
     const badge = document.getElementById('activeDsBadge');
     if (badge) badge.textContent = `数据集：${State.activeDsName}`;
-    if (!silentRefresh) refreshStrategyUI();
+    refreshStrategyUI();
+    await refreshAssetCatalogForTarget(false);
   } catch(e) {
     console.warn('loadActiveDataset 失败:', e);
   }
@@ -1909,11 +1961,236 @@ function refreshStrategyUI() {
     if (noTip) noTip.style.display = 'none';
     if (btnCommit) btnCommit.disabled = false;
     if (targetSel) {
+      const previous = targetSel.value;
+      const keepPrevious = otherDs.some(d => d.id === previous);
       targetSel.innerHTML = otherDs.map(d =>
-        `<option value="${d.id}" ${d.is_active?'selected':''}>${escapeHTML(d.name)}</option>`
+        `<option value="${d.id}" ${(keepPrevious ? d.id === previous : d.is_active)?'selected':''}>${escapeHTML(d.name)}</option>`
       ).join('');
     }
   }
+}
+
+function selectedTargetDataset() {
+  const targetId = document.getElementById('wsMergeTarget')?.value || State.activeDsId;
+  return (State.datasetList || []).find(d => d.id === targetId)
+    || (State.datasetList || []).find(d => d.id === State.activeDsId)
+    || null;
+}
+
+function renderAssetCatalogStatus() {
+  const bar = document.getElementById('assetCatalogBar');
+  if (!bar) return;
+  let dot = '', text = State.assetCatalogMessage || '尚未读取 UE 资产目录';
+  if (State.assetCatalogState === 'ready') dot = 'ok';
+  else if (State.assetCatalogState === 'missing') dot = 'warn';
+  else if (State.assetCatalogState === 'error') dot = 'err';
+  bar.querySelector('.asset-catalog-status').innerHTML = `<span class="status-dot ${dot}"></span><span>${escapeHTML(text)}</span>`;
+}
+
+async function onMergeTargetChange() {
+  State.assetCatalog = null;
+  State.assetRecommendations = {};
+  await refreshAssetCatalogForTarget(true);
+  renderAuditList();
+}
+
+async function refreshAssetCatalogForTarget(refreshRecommendations) {
+  const requestId = ++State.assetCatalogRequest;
+  const target = selectedTargetDataset();
+  const ueProjectId = target?.bound_ue_project_id || '';
+  if (!ueProjectId) {
+    State.assetCatalog = null;
+    State.assetRecommendations = {};
+    State.assetCatalogState = 'missing';
+    State.assetCatalogMessage = '目标类型库尚未绑定 UE 工程；可保持未绑定后提交';
+    renderAssetCatalogStatus();
+    if (State.currentStep === 2 && State.scanResult) renderAuditList();
+    return;
+  }
+  if (State.assetCatalog?.ue_project_id !== ueProjectId) {
+    State.assetCatalog = null;
+    State.assetRecommendations = {};
+  }
+  State.assetCatalogState = 'loading';
+  State.assetCatalogMessage = `正在读取 ${target.bound_ue_project_name || ueProjectId} 的资产目录…`;
+  renderAssetCatalogStatus();
+  try {
+    const res = await fetch(`/api/v2/ue/assets/catalog?ue_project_id=${encodeURIComponent(ueProjectId)}`);
+    const data = await res.json();
+    if (requestId !== State.assetCatalogRequest) return;
+    if (!res.ok) {
+      State.assetCatalog = null;
+      State.assetRecommendations = {};
+      State.assetCatalogState = res.status === 404 ? 'missing' : 'error';
+      State.assetCatalogMessage = data.message || 'UE 资产目录读取失败';
+      renderAssetCatalogStatus();
+      if (State.currentStep === 2 && State.scanResult) renderAuditList();
+      return;
+    }
+    State.assetCatalog = data;
+    const validPaths = new Set((data.assets || []).filter(asset => asset.supported).map(asset => asset.object_path));
+    Object.keys(State.auditAssetConfirmed).forEach(blockName => {
+      if (State.auditAssetProject[blockName] === data.ue_project_id
+          && !validPaths.has(State.auditAsset[blockName])) {
+        State.auditAssetConfirmed[blockName] = false;
+        State.auditAsset[blockName] = '';
+        State.auditAssetSource[blockName] = '';
+        State.auditAssetProject[blockName] = '';
+      }
+    });
+    State.assetCatalogState = 'ready';
+    State.assetCatalogMessage = `${data.ue_project_name || ueProjectId} · ${data.supported_count || 0} 个可绑定资产 / ${data.asset_count || 0} 个总资产 · ${data.synced_at || '已同步'}`;
+    renderAssetCatalogStatus();
+    if (refreshRecommendations && State.scanResult) await fetchAssetRecommendations();
+  } catch (e) {
+    if (requestId !== State.assetCatalogRequest) return;
+    State.assetCatalog = null;
+    State.assetRecommendations = {};
+    State.assetCatalogState = 'error';
+    State.assetCatalogMessage = 'UE 资产目录连接失败：' + e.message;
+    renderAssetCatalogStatus();
+  }
+  if (State.currentStep === 2 && State.scanResult) renderAuditList();
+}
+
+async function fetchAssetRecommendations() {
+  if (!State.assetCatalog || !State.scanResult) return;
+  const ueProjectId = State.assetCatalog.ue_project_id;
+  const items = (State.scanResult.candidates || []).map(c => ({
+    block_name: c.block_name,
+    name: State.auditName[c.block_name] || c.suggested_name,
+    category: c.primary_layer,
+    primary_layer: c.primary_layer,
+    cad_size_cm: c.cad_size_cm || null,
+    preset_asset_id: c.preset_asset_id || '',
+  }));
+  try {
+    const res = await fetch('/api/v2/ue/assets/recommend', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ue_project_id: ueProjectId, items, limit: 3})
+    });
+    const data = await res.json();
+    if (!res.ok || ueProjectId !== State.assetCatalog?.ue_project_id) return;
+    State.assetRecommendations = {};
+    (data.recommendations || []).forEach(item => { State.assetRecommendations[item.block_name] = item.candidates || []; });
+  } catch (e) {
+    console.warn('资产推荐失败:', e.message);
+  }
+}
+
+function shortAssetName(path) {
+  const tail = String(path || '').split('/').pop() || '';
+  return tail.split('.')[0] || '未命名资产';
+}
+
+function renderAuditAssetChoice(candidate) {
+  const blockName = candidate.block_name;
+  const path = State.auditAsset[blockName] || '';
+  const confirmed = !!State.auditAssetConfirmed[blockName] && !!path
+    && State.auditAssetProject[blockName] === State.assetCatalog?.ue_project_id;
+  if (confirmed) {
+    return `<div class="asset-choice confirmed">
+      <div class="asset-choice-head"><span class="status-dot ok"></span><span class="asset-choice-name">${escapeHTML(shortAssetName(path))}</span></div>
+      <div class="asset-choice-path" data-tip="${escapeAttr(path)}">${escapeHTML(path)}</div>
+      <div class="asset-choice-actions"><button class="btn btn-sm" onclick="openAssetPicker('${escapeQ(blockName)}')">更换</button><button class="btn btn-ghost btn-sm" onclick="clearConfirmedAsset('${escapeQ(blockName)}')">清除</button></div>
+    </div>`;
+  }
+  const top = (State.assetRecommendations[blockName] || [])[0];
+  if (top) {
+    const percent = Math.round((top.score || 0) * 100);
+    const reason = (top.reasons || [])[0] || '请人工核对';
+    return `<div class="asset-choice">
+      <div class="asset-choice-head"><span class="status-dot warn"></span><span class="asset-choice-name">推荐 ${escapeHTML(top.display_name || top.asset_name)}</span><span class="asset-score">${percent}%</span></div>
+      <div class="asset-choice-path" data-tip="${escapeAttr(top.object_path)}">${escapeHTML(top.object_path)}</div>
+      <div class="asset-choice-reason">${escapeHTML(reason)} · 尚未确认</div>
+      <div class="asset-choice-actions"><button class="btn btn-primary btn-sm" onclick="adoptAssetRecommendation('${escapeQ(blockName)}')">采用</button><button class="btn btn-sm" onclick="openAssetPicker('${escapeQ(blockName)}')">查看其他</button></div>
+    </div>`;
+  }
+  return `<div class="asset-choice"><div class="asset-choice-reason">${State.assetCatalogState === 'ready' ? '没有可靠推荐，可人工选择' : '资产目录不可用，可保持未绑定'}</div><div class="asset-choice-actions"><button class="btn btn-sm" ${State.assetCatalogState === 'ready' ? '' : 'disabled'} onclick="openAssetPicker('${escapeQ(blockName)}')">选择资产</button></div></div>`;
+}
+
+function adoptAssetRecommendation(blockName) {
+  const top = (State.assetRecommendations[blockName] || [])[0];
+  if (!top || !top.supported) return;
+  State.auditAsset[blockName] = top.object_path;
+  State.auditAssetConfirmed[blockName] = true;
+  State.auditAssetSource[blockName] = 'recommendation';
+  State.auditAssetProject[blockName] = State.assetCatalog.ue_project_id;
+  renderAuditList();
+  scheduleSave();
+}
+
+function clearConfirmedAsset(blockName) {
+  State.auditAsset[blockName] = '';
+  State.auditAssetConfirmed[blockName] = false;
+  State.auditAssetSource[blockName] = '';
+  State.auditAssetProject[blockName] = '';
+  renderAuditList();
+  scheduleSave();
+}
+
+async function openAssetPicker(blockName) {
+  if (!State.assetCatalog) return;
+  State.assetPickerBlock = blockName;
+  State.assetPickerSelection = State.auditAssetConfirmed[blockName]
+    && State.auditAssetProject[blockName] === State.assetCatalog.ue_project_id
+    ? (State.auditAsset[blockName] || '') : '';
+  const result = await UI.modal({
+    title: '选择类型默认资产',
+    bodyHTML: `<div class="asset-picker-tools"><input id="assetPickerSearch" placeholder="搜索名称或路径" oninput="renderAssetPickerResults()"><select id="assetPickerKind" onchange="renderAssetPickerResults()"><option value="supported">可绑定</option><option value="all">全部资产</option></select></div><div class="asset-picker-list" id="assetPickerList"></div>`,
+    actions: [
+      {label:'取消', value:null},
+      {label:'保持未绑定', value:'clear'},
+      {label:'确认选择', value:'confirm', primary:true}
+    ],
+    onMount: () => renderAssetPickerResults()
+  });
+  if (result === 'clear') {
+    clearConfirmedAsset(blockName);
+  } else if (result === 'confirm') {
+    const asset = (State.assetCatalog.assets || []).find(item => item.object_path === State.assetPickerSelection);
+    if (!asset) {
+      toast('请先选择一个资产', 'warn');
+      return;
+    }
+    if (!asset.supported) {
+      toast('当前 TwinInstance 仅支持 StaticMesh', 'warn');
+      return;
+    }
+    State.auditAsset[blockName] = asset.object_path;
+    State.auditAssetConfirmed[blockName] = true;
+    State.auditAssetSource[blockName] = 'picker';
+    State.auditAssetProject[blockName] = State.assetCatalog.ue_project_id;
+    renderAuditList();
+    scheduleSave();
+  }
+}
+
+function renderAssetPickerResults() {
+  const list = document.getElementById('assetPickerList');
+  if (!list || !State.assetCatalog) return;
+  const keyword = (document.getElementById('assetPickerSearch')?.value || '').trim().toLowerCase();
+  const kind = document.getElementById('assetPickerKind')?.value || 'supported';
+  const assets = (State.assetCatalog.assets || []).filter(asset => {
+    if (kind === 'supported' && !asset.supported) return false;
+    const hay = `${asset.asset_name || ''} ${asset.display_name || ''} ${asset.object_path || ''}`.toLowerCase();
+    return !keyword || hay.includes(keyword);
+  }).slice(0, 300);
+  if (!assets.length) {
+    list.innerHTML = '<div class="asset-picker-empty">没有符合条件的资产</div>';
+    return;
+  }
+  list.innerHTML = assets.map(asset => {
+    const selected = State.assetPickerSelection === asset.object_path;
+    const thumb = asset.thumbnail_data_url ? `<img src="${escapeAttr(asset.thumbnail_data_url)}" alt="">` : escapeHTML(asset.asset_kind === 'StaticMesh' ? 'SM' : asset.asset_kind);
+    const size = asset.size_cm ? `${Number(asset.size_cm.x||0).toFixed(0)} × ${Number(asset.size_cm.y||0).toFixed(0)} × ${Number(asset.size_cm.z||0).toFixed(0)} cm` : '尺寸未知';
+    const supportText = asset.supported ? size : `${asset.asset_kind} · 当前不可绑定`;
+    return `<label class="asset-picker-item ${asset.supported?'':'unsupported'}">
+      <span class="asset-thumb">${thumb}</span>
+      <span><div class="asset-picker-name">${escapeHTML(asset.display_name || asset.asset_name)}</div><div class="asset-picker-path">${escapeHTML(asset.object_path)}</div><div class="asset-picker-meta">${escapeHTML(supportText)}</div></span>
+      <input type="radio" name="assetPickerChoice" value="${escapeAttr(asset.object_path)}" ${selected?'checked':''} ${asset.supported?'':'disabled'} onchange="State.assetPickerSelection=this.value">
+    </label>`;
+  }).join('');
 }
 
 async function openDatasetPicker() {
@@ -1936,12 +2213,35 @@ function _collectCheckedItems() {
   if (!State.scanResult) return [];
   return (State.scanResult.candidates || [])
     .filter(c => State.auditChecked[c.block_name] && State.layerSelected[c.primary_layer] !== false)
-    .map(c => ({
+    .map(c => {
+      const confirmedPath = State.auditAssetConfirmed[c.block_name]
+        && State.auditAssetProject[c.block_name] === State.assetCatalog?.ue_project_id
+        ? (State.auditAsset[c.block_name] || '') : '';
+      return ({
       block_name: c.block_name,
       name: State.auditName[c.block_name] || c.suggested_name,
       category: c.primary_layer,
-      asset_id: State.auditAsset[c.block_name] || '',
-    }));
+      asset_id: confirmedPath,
+      ue_asset_path: confirmedPath,
+      asset_confirmation_source: confirmedPath ? (State.auditAssetSource[c.block_name] || 'picker') : '',
+    });
+    });
+}
+
+async function rememberAssetConfirmations(items) {
+  if (!State.assetCatalog) return;
+  const selections = items.filter(item => item.ue_asset_path).map(item => ({
+    block_name: item.block_name, name: item.name, category: item.category, asset_path: item.ue_asset_path
+  }));
+  if (!selections.length) return;
+  try {
+    await fetch('/api/v2/ue/assets/confirmations', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ue_project_id:State.assetCatalog.ue_project_id, selections})
+    });
+  } catch (e) {
+    console.warn('资产确认记忆写入失败:', e.message);
+  }
 }
 
 async function doCommit(force) {
@@ -2006,6 +2306,7 @@ async function doCommit(force) {
       return;
     }
     // 成功
+    await rememberAssetConfirmations(items);
     await loadActiveDataset(true);
     showCommitSuccess(data);
   } catch(e) {
@@ -2223,7 +2524,7 @@ function showCommitSuccess(data) {
   // 不隐藏编辑区：成功后仍可继续勾选追加、或换数据集再提交（可逆）
   const summary = data.mode === 'publish'
     ? `数据集"${escapeHTML(data.dataset_name)}"已创建并激活<br>写入 <b>${data.written_count}</b> 个类型，记住资产对应 <b>${data.asset_mapping_updated}</b> 项`
-    : `已并入"${escapeHTML(data.target_dataset_name)}"<br>新增 <b>${data.added}</b>，覆盖 <b>${data.overwritten}</b>，跳过 <b>${data.skipped}</b>；记住资产对应 <b>${data.asset_mapping_updated}</b> 项`;
+    : `已并入"${escapeHTML(data.target_dataset_name)}"<br>新增 <b>${data.added}</b>，覆盖 <b>${data.overwritten}</b>，跳过 <b>${data.skipped}</b>；人工确认资产 <b>${data.asset_mapping_updated}</b> 项`;
   el.style.display = 'block';
   el.innerHTML = `
     <div class="success-panel">
@@ -2817,6 +3118,7 @@ function resetAll() {
     State.currentStep = 1; State.highlightId = null;
     // M2 类型审核状态清空
     State.scanResult = null; State.auditChecked = {}; State.auditName = {}; State.auditAsset = {}; State.polyAuditChecked = {};
+    State.auditAssetConfirmed = {}; State.auditAssetSource = {}; State.auditAssetProject = {}; State.assetRecommendations = {};
     State.layerVisible = {}; State.layerSelected = {};   // 2.9.2.2
     State.lastUploadedFile = null;
     document.getElementById('layerPanel').style.display = 'none';

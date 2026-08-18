@@ -68,7 +68,7 @@ from project_store import ProjectStore, ProjectMismatch
 project_store = ProjectStore()
 instance_store = project_store          # 向后兼容别名：实例操作接口一致
 simulator = None
-if os.environ.get("ONTOTWIN_MOCK_SIMULATOR_ENABLED", "true").strip().lower() in {
+if os.environ.get("ONTOTWIN_MOCK_SIMULATOR_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on"
 }:
     simulator = MockInstanceSimulator(project_store)
@@ -226,6 +226,7 @@ def _item_to_node(item, source_file=None):
             "I3D_Representable", "I3D_Spatial"
         ],
         "asset_id": (item.get("asset_id") or "").strip() or None,
+        "ue_asset_path": (item.get("ue_asset_path") or item.get("asset_id") or "").strip() or None,
         "mock_instances": [],
         "source": f"cad_auto:{source_file}" if source_file else item.get("source"),
         "created_at": time.time(),
@@ -4836,6 +4837,9 @@ instance_model_binding_service = register_instance_model_binding_routes(
 
 from spatial_assets import register_spatial_asset_routes
 register_spatial_asset_routes(app, project_store)
+
+from ue_asset_catalog import register_ue_asset_catalog_routes
+ue_asset_catalog_service = register_ue_asset_catalog_routes(app, project_store)
 
 from snapshot_delta import register_snapshot_delta_routes
 from ue_project_binding import resolve_project_for_ue as _ue_resolve

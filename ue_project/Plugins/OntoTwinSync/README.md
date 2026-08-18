@@ -37,15 +37,15 @@ Web“UE 运行状态”会显示小地图当前状态。若显示“缺少地�
 
 ## 编辑器鼠标世界坐标工具
 
-插件自带 Editor Utility Widget：`/OntoTwinSync/EUW_MouseWorldCoord`。
+插件自带 Editor Utility Widget：`/OntoTwinSync/EUW_MouseWorldCoord`，以及宿主无关的 Editor-only C++ 类 `UOntoTwinMouseWorldLibrary`。
 
-1. 在内容浏览器设置中开启“显示插件内容”。
-2. 打开 `OntoTwinSync Content`。
-3. 右键 `EUW_MouseWorldCoord`，选择“运行编辑器工具控件”。
+1. 打开 UE 编辑器。
+2. 选择 **Tools → OntoTwin Mouse World Coordinates**，即可直接打开工具。
+3. 在 Level 视口中移动鼠标，查看世界坐标、表面法线、命中 Actor 和视图类型。
 
-Widget 通过 `Get Cursor World Location (Editor)` 读取当前关卡编辑器视口的鼠标世界坐标、表面法线、命中 Actor 和视图类型。正交视图未命中物体时，可用指定轴深度计算坐标。
+也可以在内容浏览器开启“显示插件内容”，然后右键 `OntoTwinSync Content/EUW_MouseWorldCoord` 选择“运行编辑器工具控件”。正交视图未命中物体时，可用指定轴深度计算坐标；透视视图打空时不更新坐标。
 
-该能力属于插件内的 `DigitalFactoryBaseEditor` Editor-only 模块，只在 UE 编辑器中加载，不进入 PIE Runtime 逻辑或 Shipping 可执行文件。
+该能力属于插件自身的 `OntoTwinSyncEditor` 模块，只在 UE 编辑器中加载，不依赖 `DigitalFactoryBaseEditor`，也不会进入 PIE Runtime 逻辑或 Shipping 可执行文件。
 
 ## 包含的三个类与对应前端页面
 

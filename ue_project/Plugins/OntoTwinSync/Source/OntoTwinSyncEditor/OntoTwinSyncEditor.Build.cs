@@ -17,8 +17,11 @@ public class OntoTwinSyncEditor : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
+			"Blutility",
 			"Slate",
-			"SlateCore"
+			"SlateCore",
+			"ToolMenus",
+			"UMGEditor"
 		});
 	}
 }

@@ -1,11 +1,9 @@
-#include "MouseWorldLibrary.h"
+#include "OntoTwinMouseWorldLibrary.h"
 
-#if WITH_EDITOR
 #include "EditorViewportClient.h"
 #include "LevelEditorViewport.h"
-#endif
 
-bool UMouseWorldLibrary::GetCursorWorldLocation(
+bool UOntoTwinMouseWorldLibrary::GetCursorWorldLocation(
 	FVector& OutLocation,
 	FVector& OutNormal,
 	FString& OutHitActorName,
@@ -15,11 +13,10 @@ bool UMouseWorldLibrary::GetCursorWorldLocation(
 {
 	OutLocation = FVector::ZeroVector;
 	OutNormal = FVector::ZeroVector;
-	OutHitActorName = TEXT("");
+	OutHitActorName.Reset();
 	OutViewTypeName = TEXT("Unknown");
 	bOutHitObject = false;
 
-#if WITH_EDITOR
 	FLevelEditorViewportClient* ViewportClient = GCurrentLevelEditingViewportClient;
 	if (!ViewportClient || !ViewportClient->Viewport)
 	{
@@ -60,49 +57,45 @@ bool UMouseWorldLibrary::GetCursorWorldLocation(
 		OutViewTypeName = TEXT("Right");
 		break;
 	default:
-		OutViewTypeName = TEXT("Unknown");
 		break;
 	}
 
 	FHitResult Hit;
-	FCollisionQueryParams Params;
-	Params.bTraceComplex = true;
-
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(OntoTwinMouseWorld), true);
 	const FVector TraceEnd = Origin + Direction * 1000000.f;
-	if (World->LineTraceSingleByChannel(Hit, Origin, TraceEnd, ECC_Visibility, Params))
+
+	if (World->LineTraceSingleByChannel(Hit, Origin, TraceEnd, ECC_Visibility, QueryParams))
 	{
 		OutLocation = Hit.Location;
 		OutNormal = Hit.Normal;
-		OutHitActorName = Hit.GetActor() ? Hit.GetActor()->GetActorLabel() : TEXT("");
+		OutHitActorName = Hit.GetActor() ? Hit.GetActor()->GetActorLabel() : FString();
 		bOutHitObject = true;
 		return true;
 	}
 
-	if (ViewportClient->IsOrtho())
+	if (!ViewportClient->IsOrtho())
 	{
-		OutLocation = Origin;
-
-		switch (ViewportClient->ViewportType)
-		{
-		case LVT_OrthoXY:
-		case LVT_OrthoNegativeXY:
-			OutLocation.Z = DepthAxisValue;
-			break;
-		case LVT_OrthoXZ:
-		case LVT_OrthoNegativeXZ:
-			OutLocation.Y = DepthAxisValue;
-			break;
-		case LVT_OrthoYZ:
-		case LVT_OrthoNegativeYZ:
-			OutLocation.X = DepthAxisValue;
-			break;
-		default:
-			break;
-		}
-
-		return true;
+		return false;
 	}
-#endif
 
-	return false;
+	OutLocation = Origin;
+	switch (ViewportClient->ViewportType)
+	{
+	case LVT_OrthoXY:
+	case LVT_OrthoNegativeXY:
+		OutLocation.Z = DepthAxisValue;
+		break;
+	case LVT_OrthoXZ:
+	case LVT_OrthoNegativeXZ:
+		OutLocation.Y = DepthAxisValue;
+		break;
+	case LVT_OrthoYZ:
+	case LVT_OrthoNegativeYZ:
+		OutLocation.X = DepthAxisValue;
+		break;
+	default:
+		return false;
+	}
+
+	return true;
 }

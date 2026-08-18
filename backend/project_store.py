@@ -29,7 +29,7 @@ _DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 _PROJECTS_DIR = os.path.join(_DATA_DIR, "projects")
 _ACTIVE_FILE = os.path.join(_DATA_DIR, "active.json")
 
-CURRENT_SCHEMA_VERSION = 6
+CURRENT_SCHEMA_VERSION = 7
 
 _PROJECT_ID_LOCK = threading.Lock()
 _LAST_PROJECT_ID_NS = 0
@@ -74,6 +74,19 @@ def _default_web_interactions():
         "published": _empty_web_config(),
         "draft": _empty_web_config(0),
         "previous_published": None,
+    }
+
+
+def _default_narration_settings():
+    """Project narration defaults; deployment credentials never live here."""
+    return {
+        "language": "zh-CN",
+        "provider_id": "alibaba.isi.standard",
+        "voice_id": "xiaoyun",
+        "speech_rate": 0,
+        "pitch_rate": 0,
+        "volume": 50,
+        "trigger_radius_cm": 100.0,
     }
 
 
@@ -188,6 +201,21 @@ def migrate_project_schema(proj):
         version = 6
         changed = True
 
+    if version == 6:
+        # v7 adds authored waypoint narration and project-scoped generated
+        # audio metadata. Migration stays inert: no old point is enabled and
+        # no cloud request is made while loading a project.
+        scene = proj.get("scene_interactions")
+        if not isinstance(scene, dict):
+            scene = _default_scene_interactions()
+            proj["scene_interactions"] = scene
+        scene.setdefault("narration_defaults", _default_narration_settings())
+        scene.setdefault("narration_assets", {})
+        scene.setdefault("narration_audit", [])
+        proj["schema_version"] = 7
+        version = 7
+        changed = True
+
     if proj.get("schema_version") != CURRENT_SCHEMA_VERSION:
         proj["schema_version"] = CURRENT_SCHEMA_VERSION
         changed = True
@@ -293,6 +321,9 @@ def _default_scene_interactions():
             "auto_enter": False,
         },
         "routes": [],
+        "narration_defaults": _default_narration_settings(),
+        "narration_assets": {},
+        "narration_audit": [],
     }
 
 

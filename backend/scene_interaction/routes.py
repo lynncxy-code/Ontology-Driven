@@ -7,6 +7,14 @@ import uuid
 
 from coord_transform import apply_transform, build_ue_matrix, canonical_to_ue, invert_affine
 
+from .narration import (
+    DEFAULT_NARRATION_SETTINGS,
+    effective_voice_profile,
+    normalize_project_defaults,
+    normalize_route_profile,
+    normalize_waypoint_narration,
+    runtime_narration,
+)
 from .validators import SceneInteractionValidationError
 
 
@@ -136,6 +144,18 @@ def public_route(project, route, include_waypoints=True):
     if not include_waypoints:
         value.pop("waypoints", None)
         value["waypoint_count"] = len(route.get("waypoints") or [])
+        narrations = [
+            item.get("narration") for item in route.get("waypoints") or []
+            if isinstance(item, dict)
+            and isinstance(item.get("narration"), dict)
+            and item["narration"].get("enabled")
+        ]
+        value["narration_count"] = len(narrations)
+        value["narration_generation_state"] = (
+            "failed" if any(item.get("generation_state") == "failed" for item in narrations)
+            else "pending" if any(item.get("generation_state") == "pending" for item in narrations)
+            else "available" if narrations else "none"
+        )
     return value
 
 
@@ -190,6 +210,19 @@ def normalize_route(project, payload, current=None):
     elif floor and floor.get("ue_ground_z_cm") is None:
         _error(errors, "frame_id", "该楼层尚未确认 UE 地面高度")
 
+    scene = project.get("scene_interactions") or {}
+    narration_defaults = normalize_project_defaults(
+        scene.get("narration_defaults") or DEFAULT_NARRATION_SETTINGS,
+        errors,
+    )
+    raw_route_profile = (
+        payload.get("narration_profile")
+        if "narration_profile" in payload
+        else (current or {}).get("narration_profile")
+    )
+    narration_profile = normalize_route_profile(raw_route_profile, errors)
+    voice_profile = effective_voice_profile(narration_defaults, narration_profile)
+
     raw_waypoints = payload.get("waypoints")
     if not isinstance(raw_waypoints, list):
         _error(errors, "waypoints", "路线点必须是数组")
@@ -208,6 +241,11 @@ def normalize_route(project, payload, current=None):
     z_base = float((floor or {}).get("z_base_mm") or 0.0)
     waypoints = []
     seen_ids = set()
+    current_waypoints = {
+        str(item.get("id")): item
+        for item in (current or {}).get("waypoints") or []
+        if isinstance(item, dict) and item.get("id")
+    }
     for index, item in enumerate(raw_waypoints):
         if not isinstance(item, dict):
             _error(errors, f"waypoints[{index}]", "路线点必须是对象")
@@ -231,7 +269,20 @@ def normalize_route(project, payload, current=None):
         if waypoint_id in seen_ids:
             waypoint_id = f"wp-{index + 1}"
         seen_ids.add(waypoint_id)
-        waypoints.append({
+        current_waypoint = current_waypoints.get(waypoint_id) or {}
+        raw_narration = (
+            item.get("narration")
+            if "narration" in item
+            else current_waypoint.get("narration")
+        )
+        narration = normalize_waypoint_narration(
+            raw_narration,
+            current_waypoint.get("narration"),
+            voice_profile,
+            errors,
+            f"waypoints[{index}].narration",
+        )
+        waypoint = {
             "id": waypoint_id,
             "order": index + 1,
             "source_px": [round(x, 3), round(y, 3)],
@@ -240,7 +291,10 @@ def normalize_route(project, payload, current=None):
                 round(float(canonical[1]), 3),
                 round(z_base, 3),
             ],
-        })
+        }
+        if narration is not None:
+            waypoint["narration"] = narration
+        waypoints.append(waypoint)
 
     if len(waypoints) >= 2:
         distinct = any(
@@ -280,6 +334,7 @@ def normalize_route(project, payload, current=None):
         "z_policy": "project_to_walkable_ground",
         "loop": loop,
         "speed_cm_s": round(speed, 3),
+        "narration_profile": narration_profile,
         "review_state": "ready",
         "waypoints": waypoints,
         "revision": int((current or {}).get("revision") or 0) + 1,
@@ -297,6 +352,13 @@ def runtime_route_projection(project, route):
     floor_number = int(frame.get("floor") or 1)
     ground_z = float(floor.get("ue_ground_z_cm"))
     points = []
+    runtime_waypoints = []
+    scene = project.get("scene_interactions") or {}
+    voice_profile = effective_voice_profile(
+        scene.get("narration_defaults") or DEFAULT_NARRATION_SETTINGS,
+        route.get("narration_profile"),
+    )
+    default_trigger_radius = float(voice_profile.get("trigger_radius_cm") or 100.0)
     for waypoint in route.get("waypoints") or []:
         canonical = waypoint.get("canonical_position_mm") or []
         ue = canonical_to_ue(
@@ -304,7 +366,19 @@ def runtime_route_projection(project, route):
             [float(canonical[0]), float(canonical[1])],
             floor=floor_number,
         )
-        points.append([round(ue[0], 3), round(ue[1], 3), round(ground_z, 3)])
+        point = [round(ue[0], 3), round(ue[1], 3), round(ground_z, 3)]
+        points.append(point)
+        runtime_waypoint = {
+            "waypoint_id": str(waypoint.get("id") or ""),
+            "position_ue_cm": point,
+        }
+        narration = runtime_narration(
+            waypoint.get("narration"), default_trigger_radius
+        )
+        if narration:
+            runtime_waypoint["trigger_radius_cm"] = narration.pop("trigger_radius_cm")
+            runtime_waypoint["narration"] = narration
+        runtime_waypoints.append(runtime_waypoint)
     return {
         "route_id": route.get("id"),
         "route_revision": int(route.get("revision") or 0),
@@ -315,4 +389,5 @@ def runtime_route_projection(project, route):
         "floor_ground_z_hint_cm": round(ground_z, 3),
         "ue_level": frame.get("ue_level"),
         "waypoints_ue_cm": points,
+        "waypoints": runtime_waypoints,
     }, state

@@ -1,9 +1,11 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 
 from project_store import ProjectMismatch
 from ue_project_binding import check_request_matches_active, request_ue_project
 
 from .catalog import CatalogValidationError, ResourceCatalog
+from .narration_assets import NarrationAssetError
+from .narration_service import NarrationGenerationError
 from .runtime_projection import RuntimeProjectionError
 from .service import SceneInteractionConflictError, SceneInteractionNotFoundError, SceneInteractionService
 from .validators import SceneInteractionValidationError
@@ -35,6 +37,10 @@ def register_scene_interaction_routes(app, project_store, catalog_path=None):
         except CatalogValidationError as exc:
             return jsonify({"error": "catalog_resource_not_found", "message": str(exc)}), 404
         except RuntimeProjectionError as exc:
+            return jsonify({"error": exc.code, "message": str(exc)}), 422
+        except NarrationGenerationError as exc:
+            return jsonify({"error": exc.code, "message": str(exc)}), exc.status
+        except NarrationAssetError as exc:
             return jsonify({"error": exc.code, "message": str(exc)}), 422
         except (TypeError, ValueError) as exc:
             return jsonify({"error": "invalid_request", "message": str(exc)}), 400
@@ -126,6 +132,50 @@ def register_scene_interaction_routes(app, project_store, catalog_path=None):
             route_id, data.get("expected_revision"),
             data.get("expected_project_id"),
         ))
+
+    @blueprint.get("/api/v2/scene-interactions/narration/provider-status")
+    def narration_provider_status():
+        return execute(service.narration_provider_status)
+
+    @blueprint.put("/api/v2/scene-interactions/narration/defaults")
+    def save_narration_defaults():
+        data = request.get_json(silent=True) or {}
+        return execute(lambda: service.save_narration_defaults(
+            data.get("defaults") or {},
+            data.get("expected_revision"),
+            data.get("expected_project_id"),
+        ))
+
+    @blueprint.post("/api/v2/scene-interactions/routes/<route_id>/narration/generate")
+    def generate_route_narration(route_id):
+        data = request.get_json(silent=True) or {}
+        return execute(lambda: service.generate_route_narration(
+            route_id,
+            data.get("expected_revision"),
+            data.get("waypoint_ids"),
+            data.get("expected_project_id"),
+        ))
+
+    @blueprint.get("/api/v2/scene-interactions/narration-assets/<asset_id>")
+    def get_narration_asset(asset_id):
+        try:
+            runtime_binding(require_ue_identity=False)
+            path, metadata = service.narration_asset_file(asset_id)
+            response = send_file(
+                path,
+                mimetype="audio/wav",
+                conditional=True,
+                max_age=31536000,
+            )
+            if metadata.get("sha256"):
+                response.set_etag(metadata["sha256"])
+            return response
+        except SceneInteractionForbiddenError as exc:
+            return jsonify(exc.payload), 403
+        except NarrationGenerationError as exc:
+            return jsonify({"error": exc.code, "message": str(exc)}), exc.status
+        except NarrationAssetError as exc:
+            return jsonify({"error": exc.code, "message": str(exc)}), 422
 
     @blueprint.get("/api/v2/scene-interactions/runtime")
     def get_runtime():

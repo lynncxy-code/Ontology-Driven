@@ -4,6 +4,13 @@ import threading
 import time
 
 from .catalog import ResourceCatalog
+from .narration import (
+    DEFAULT_NARRATION_SETTINGS,
+    effective_voice_profile,
+    normalize_project_defaults,
+    normalize_waypoint_narration,
+)
+from .narration_service import NarrationGenerationService
 from .routes import (
     find_project_route,
     list_project_routes,
@@ -72,10 +79,18 @@ def get_runtime_status(project_id):
 
 
 class SceneInteractionService:
-    def __init__(self, store, catalog=None, runtime_status=None):
+    def __init__(
+        self, store, catalog=None, runtime_status=None,
+        narration_provider=None, narration_asset_root=None,
+    ):
         self.store = store
         self.catalog = catalog or ResourceCatalog()
         self.runtime_status = runtime_status or _RUNTIME_STATUS
+        self.narration = NarrationGenerationService(
+            store,
+            provider=narration_provider,
+            asset_root=narration_asset_root,
+        )
 
     def _project(self):
         project = self.store.get_active_copy()
@@ -87,7 +102,14 @@ class SceneInteractionService:
     def _scene(project):
         value = project.get("scene_interactions")
         if not isinstance(value, dict):
-            return {"revision": 0, "roaming": default_roaming_config(), "routes": []}
+            return {
+                "revision": 0,
+                "roaming": default_roaming_config(),
+                "routes": [],
+                "narration_defaults": copy.deepcopy(DEFAULT_NARRATION_SETTINGS),
+                "narration_assets": {},
+                "narration_audit": [],
+            }
         return value
 
     def catalog_snapshot(self):
@@ -221,6 +243,10 @@ class SceneInteractionService:
             "project_id": project.get("id"),
             "revision": int(scene.get("revision") or 0),
             "default_route_id": ((roaming.get("route") or {}).get("route_id") or ""),
+            "narration_defaults": copy.deepcopy(
+                scene.get("narration_defaults") or DEFAULT_NARRATION_SETTINGS
+            ),
+            "narration_provider": self.narration.provider_status(),
             "routes": list_project_routes(project, include_waypoints=False),
         }
 
@@ -232,8 +258,92 @@ class SceneInteractionService:
         return {
             "project_id": project.get("id"),
             "revision": int(self._scene(project).get("revision") or 0),
+            "narration_defaults": copy.deepcopy(
+                self._scene(project).get("narration_defaults")
+                or DEFAULT_NARRATION_SETTINGS
+            ),
+            "narration_provider": self.narration.provider_status(),
             "route": public_route(project, route, include_waypoints=True),
         }
+
+    def narration_provider_status(self):
+        return self.narration.provider_status()
+
+    def save_narration_defaults(
+        self, payload, expected_revision, expected_project_id=None,
+    ):
+        project = self._project()
+        expected = self._expected_revision(expected_revision)
+        errors = []
+        normalized = normalize_project_defaults(
+            payload, errors, path="narration_defaults"
+        )
+        if errors:
+            raise SceneInteractionValidationError(errors)
+        project_id = project.get("id")
+        result = {}
+
+        def update(working):
+            if working.get("id") != project_id:
+                raise SceneInteractionConflictError("保存期间当前激活项目已切换")
+            scene = working.setdefault("scene_interactions", {})
+            current_revision = int(scene.get("revision") or 0)
+            if current_revision != expected:
+                raise SceneInteractionConflictError(
+                    f"scene interaction revision conflict: expected {expected}, current {current_revision}"
+                )
+            scene["narration_defaults"] = copy.deepcopy(normalized)
+            for route in scene.get("routes") or []:
+                profile = effective_voice_profile(
+                    normalized, route.get("narration_profile")
+                )
+                changed = False
+                for index, waypoint in enumerate(route.get("waypoints") or []):
+                    current_narration = waypoint.get("narration")
+                    if not isinstance(current_narration, dict):
+                        continue
+                    narration_errors = []
+                    next_narration = normalize_waypoint_narration(
+                        current_narration,
+                        current_narration,
+                        profile,
+                        narration_errors,
+                        f"routes[{route.get('id')}].waypoints[{index}].narration",
+                    )
+                    if narration_errors:
+                        raise SceneInteractionValidationError(narration_errors)
+                    if next_narration != current_narration:
+                        waypoint["narration"] = next_narration
+                        changed = True
+                if changed:
+                    route["revision"] = int(route.get("revision") or 0) + 1
+                    route["updated_at"] = datetime.datetime.now(
+                        datetime.timezone.utc
+                    ).isoformat().replace("+00:00", "Z")
+            scene["revision"] = current_revision + 1
+            result["revision"] = scene["revision"]
+
+        self.store.transact_expected_active(expected_project_id, update)
+        return {
+            "status": "ok",
+            "project_id": project_id,
+            "revision": result["revision"],
+            "narration_defaults": normalized,
+        }
+
+    def generate_route_narration(
+        self, route_id, expected_revision, waypoint_ids=None,
+        expected_project_id=None,
+    ):
+        return self.narration.generate(
+            route_id,
+            expected_revision,
+            waypoint_ids=waypoint_ids,
+            expected_project_id=expected_project_id,
+        )
+
+    def narration_asset_file(self, asset_id):
+        return self.narration.asset_file(asset_id)
 
     def create_route(self, payload, expected_revision, expected_project_id=None):
         project = self._project()

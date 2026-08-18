@@ -39,6 +39,17 @@ class ProjectStoreSchemaTestCase(unittest.TestCase):
             "revision": 0,
             "roaming": {"enabled": False, "auto_enter": False},
             "routes": [],
+            "narration_defaults": {
+                "language": "zh-CN",
+                "provider_id": "alibaba.isi.standard",
+                "voice_id": "xiaoyun",
+                "speech_rate": 0,
+                "pitch_rate": 0,
+                "volume": 50,
+                "trigger_radius_cm": 100.0,
+            },
+            "narration_assets": {},
+            "narration_audit": [],
         }, project["scene_interactions"])
         self.assertEqual({
             "revision": 0,
@@ -130,6 +141,33 @@ class ProjectStoreSchemaTestCase(unittest.TestCase):
         self.assertEqual([], project["media_policy"]["allowed_hosts"])
         with open(path, "r", encoding="utf-8") as handle:
             self.assertEqual(4, json.load(handle)["schema_version"])
+
+    def test_v6_project_adds_inert_narration_containers(self):
+        path = self._write_project("v6_project", {
+            "schema_version": 6,
+            "id": "v6_project",
+            "name": "V6",
+            "object_types": {},
+            "instances": {},
+            "scene_interactions": {
+                "revision": 3,
+                "roaming": {"enabled": False, "auto_enter": False},
+                "routes": [{
+                    "id": "route-old",
+                    "waypoints": [{"id": "wp-1"}, {"id": "wp-2"}],
+                }],
+            },
+        })
+        self.assertTrue(self.store.activate("v6_project"))
+        project = self.store.get_active_copy()
+        scene = project["scene_interactions"]
+        self.assertEqual(CURRENT_SCHEMA_VERSION, project["schema_version"])
+        self.assertEqual("zh-CN", scene["narration_defaults"]["language"])
+        self.assertEqual({}, scene["narration_assets"])
+        self.assertEqual([], scene["narration_audit"])
+        self.assertNotIn("narration", scene["routes"][0]["waypoints"][0])
+        with open(path, "r", encoding="utf-8") as handle:
+            self.assertEqual(6, json.load(handle)["schema_version"])
 
     def test_scene_interactions_round_trip(self):
         self.store.create_project("Round Trip", project_id="round_trip")

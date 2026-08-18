@@ -545,6 +545,60 @@ class SceneInteractionTestCase(unittest.TestCase):
             self.service.create_route(payload, 0)
         self.assertEqual(0, self.store.get_scene_interactions()["revision"])
 
+    def test_route_narration_is_normalized_and_projected_with_stable_waypoint_id(self):
+        payload = project_route_payload()
+        payload["narration_profile"] = {
+            "inherit_project": True,
+            "voice_id": "xiaoyun",
+            "trigger_radius_cm": 120,
+        }
+        payload["waypoints"][0]["narration"] = {
+            "enabled": True,
+            "mode": "subtitle_voice",
+            "text": "欢迎来到总装区域。这里是第一站。",
+            "manual_break_offsets": [9],
+            "duration_mode": "auto",
+        }
+        created = self.service.create_route(payload, 0)
+        narration = created["route"]["waypoints"][0]["narration"]
+        self.assertEqual("pending", narration["generation_state"])
+        self.assertEqual(2, len(narration["segments"]))
+
+        config = roaming_config()
+        config["route"]["route_id"] = created["route"]["id"]
+        self.service.save_roaming(config, created["revision"])
+        runtime = self.service.runtime_projection({"mode": "matched"})
+        projected = runtime["runtime_route"]
+        self.assertEqual(2, len(projected["waypoints_ue_cm"]))
+        self.assertEqual("wp-1", projected["waypoints"][0]["waypoint_id"])
+        self.assertEqual(120.0, projected["waypoints"][0]["trigger_radius_cm"])
+        self.assertEqual(
+            "subtitle_voice",
+            projected["waypoints"][0]["narration"]["mode"],
+        )
+        self.assertEqual(
+            narration["segments"][0]["text"],
+            projected["waypoints"][0]["narration"]["segments"][0]["text"],
+        )
+
+    def test_legacy_route_update_without_narration_fields_preserves_authored_narration(self):
+        payload = project_route_payload()
+        payload["waypoints"][0]["narration"] = {
+            "enabled": True,
+            "mode": "subtitle",
+            "text": "保留这段解说。",
+        }
+        created = self.service.create_route(payload, 0)
+        legacy_payload = project_route_payload()
+        legacy_payload["name"] = "旧客户端更新后的名称"
+        updated = self.service.update_route(
+            created["route"]["id"], legacy_payload, created["revision"]
+        )
+        self.assertEqual(
+            "保留这段解说。",
+            updated["route"]["waypoints"][0]["narration"]["text"],
+        )
+
     def test_route_http_endpoints(self):
         app = Flask(__name__)
         register_scene_interaction_routes(app, self.store)

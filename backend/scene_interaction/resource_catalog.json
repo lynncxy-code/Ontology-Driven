@@ -1,5 +1,5 @@
 {
-  "catalog_version": "2026.07.9",
+  "catalog_version": "2026.08.1",
   "characters": [
     {
       "id": "character.observer.base",
@@ -7,6 +7,25 @@
       "thumbnail_url": "/assets/scene-interaction/character-observer-base.png?v=20260708",
       "ue_primary_asset_id": "TwinCharacter:ObserverBase",
       "skeleton_id": "skeleton.observer.v1",
+      "capsule": {
+        "radius_cm": 34.0,
+        "half_height_cm": 88.0
+      },
+      "mesh_offset_cm": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": -88.0
+      },
+      "mesh_yaw_offset_deg": -90.0,
+      "locomotion_profile_id": "locomotion.observer.v1",
+      "project_asset_required": true
+    },
+    {
+      "id": "character.manny.robot",
+      "display_name": "Manny 机器人",
+      "thumbnail_url": "/assets/scene-interaction/character-manny-robot.svg",
+      "ue_primary_asset_id": "TwinCharacter:MannyRobot",
+      "skeleton_id": "skeleton.manny.ue5.v1",
       "capsule": {
         "radius_cm": 34.0,
         "half_height_cm": 88.0
@@ -143,6 +162,16 @@
       "thumbnail_url": "/assets/scene-interaction/skin-observer-gray.svg",
       "ue_primary_asset_id": "TwinSkin:ObserverGray",
       "skeleton_id": "skeleton.observer.v1",
+      "material_variant_ids": [],
+      "project_asset_required": true
+    },
+    {
+      "id": "skin.manny.robot.default",
+      "character_id": "character.manny.robot",
+      "display_name": "默认机体",
+      "thumbnail_url": "/assets/scene-interaction/character-manny-robot.svg",
+      "ue_primary_asset_id": "TwinSkin:MannyRobotDefault",
+      "skeleton_id": "skeleton.manny.ue5.v1",
       "material_variant_ids": [],
       "project_asset_required": true
     },

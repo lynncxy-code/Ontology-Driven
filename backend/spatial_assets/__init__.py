@@ -1,4 +1,4 @@
-"""Project-scoped image frame persistence for OntoTwin Nexus 4.0.1."""
+"""Project-scoped image and CAD SpatialFrame persistence."""
 
 from .api import register_spatial_asset_routes
 

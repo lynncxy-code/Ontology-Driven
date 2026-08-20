@@ -21,6 +21,7 @@ from dataset_activation import (
     project_dataset_to_object_types,
 )
 from instance_model_binding.service import resolve_effective_model
+from scc_w18_semantic_mapping import decorate_graph as decorate_scc_w18_graph
 
 # ── App Setup ───────────────────────────────────────────────────
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
@@ -65,6 +66,7 @@ states = {
 # 2.9.4 重构：统一项目存储（取代 InstanceStore）。
 # 实例归属"当前激活项目"，与数据集/类型表一起持久化、一起加载、一起删——单一事实来源。
 from project_store import ProjectStore, ProjectMismatch
+from floor_profile_service import FloorProfileError, FloorProfileService
 project_store = ProjectStore()
 instance_store = project_store          # 向后兼容别名：实例操作接口一致
 simulator = None
@@ -415,20 +417,49 @@ def _commit_merge(data, items, source_file, force):
     skipped = 0
     overwritten = 0
     added = 0
+    asset_bindings_applied = 0
+    asset_bindings_updated = 0
     final_nodes = list(target_nodes)  # 复制
     by_rid = {n.get("rid"): i for i, n in enumerate(final_nodes) if n.get("rid")}
     for nn in new_nodes:
         rid = nn["rid"]
+        incoming_asset_id = str(nn.get("asset_id") or "").strip()
+        incoming_ue_asset_path = str(nn.get("ue_asset_path") or incoming_asset_id).strip()
+        has_confirmed_asset = bool(incoming_asset_id or incoming_ue_asset_path)
         if rid in by_rid:
+            old_node = final_nodes[by_rid[rid]]
+            old_asset_id = str((old_node or {}).get("asset_id") or "").strip()
+            old_ue_asset_path = str((old_node or {}).get("ue_asset_path") or old_asset_id).strip()
             if strategy == "skip":
+                # “保留原有定义”只保留类型结构；用户显式确认的模型绑定是独立修改，
+                # 不能随结构冲突一起被丢弃。只补丁两个模型字段，避免覆盖本体属性、
+                # 接口和业务语义。
+                if has_confirmed_asset:
+                    patched = dict(old_node or {})
+                    patched["asset_id"] = incoming_asset_id or incoming_ue_asset_path
+                    patched["ue_asset_path"] = incoming_ue_asset_path or incoming_asset_id
+                    final_nodes[by_rid[rid]] = patched
+                    asset_bindings_applied += 1
+                    if (old_asset_id, old_ue_asset_path) != (
+                        patched["asset_id"], patched["ue_asset_path"]
+                    ):
+                        asset_bindings_updated += 1
                 skipped += 1
             else:  # overwrite
                 final_nodes[by_rid[rid]] = nn
                 overwritten += 1
+                if has_confirmed_asset:
+                    asset_bindings_applied += 1
+                    if (old_asset_id, old_ue_asset_path) != (
+                        incoming_asset_id, incoming_ue_asset_path
+                    ):
+                        asset_bindings_updated += 1
         else:
             final_nodes.append(nn)
             by_rid[rid] = len(final_nodes) - 1
             added += 1
+            if has_confirmed_asset:
+                asset_bindings_applied += 1
 
     target_ds["graph_data"]["nodes"] = final_nodes
     target_ds["node_count"] = len(final_nodes)
@@ -448,9 +479,11 @@ def _commit_merge(data, items, source_file, force):
         "added": added,
         "overwritten": overwritten,
         "skipped": skipped,
+        "asset_bindings_applied": asset_bindings_applied,
+        "asset_bindings_updated": asset_bindings_updated,
         "asset_mapping_updated": mapping_n,
         "active_dataset_id": _active_dataset_id,
-        "hint": "若其他标签页正在浏览语义图谱总览，请手动刷新查看更新"
+        "hint": "保留原类型结构时，人工确认模型仍会独立写入；若其他标签页正在浏览语义图谱总览，请手动刷新查看更新"
     })
 
 
@@ -848,22 +881,27 @@ def coord_save_components():
         profile["ue_transform"]["matrix"] = source_to_ue_matrix
         profile_patch = profile          # 整体替换（对齐 set_spatial_profile）
     requested_frame_id = str(data.get("frame_id") or "").strip()
-    frame_id = requested_frame_id if mode == "image" and requested_frame_id else (
-        "frame_image" if mode == "image" else "frame_cad"
-    )
+    frame_id = requested_frame_id or ("frame_image" if mode == "image" else "frame_cad")
     frame_name = "图片平面图" if mode == "image" else "CAD 图纸"
     frame_unit = "px" if mode == "image" else "mm"
     existing_frame = project_store.get_frame(frame_id) if requested_frame_id else None
     frame_patch = None
-    if mode == "image" and requested_frame_id:
-        if not existing_frame or existing_frame.get("kind") != "image":
-            return jsonify({"error": "找不到当前图片对应的项目空间底图"}), 400
+    if requested_frame_id:
+        expected_frame_kind = "image" if mode == "image" else "cad"
+        if not existing_frame or existing_frame.get("kind") != expected_frame_kind:
+            label = "图片" if mode == "image" else "CAD"
+            return jsonify({"error": f"找不到当前{label}对应的项目空间底图"}), 400
         existing_to_ue = existing_frame.get("to_ue") or {}
         existing_matrix = existing_to_ue.get("matrix") if isinstance(existing_to_ue, dict) else existing_to_ue
         if not existing_matrix:
             return jsonify({"error": "当前空间底图尚未保存有效标定"}), 400
-        source_to_ue_matrix = existing_matrix
+        source_to_ue_matrix = existing_matrix if mode == "image" else _compose_origin(existing_matrix, origin)
         frame_name = existing_frame.get("name") or frame_name
+        if mode == "dxf":
+            profile["ue_transform"]["matrix"] = source_to_ue_matrix
+            profile_patch = profile
+            if not source_label:
+                source_label = ((existing_frame.get("cad") or {}).get("original_name") or frame_name)
     else:
         # 兼容旧图片/CAD 工作流；4.0.1 项目图片 Frame 已由 spatial_assets 模块维护，
         # 保存构件时不得再覆盖其图片身份、锚点、版本或 Z 基准。
@@ -873,6 +911,21 @@ def coord_save_components():
             "to_ue": {"method": "anchor", "matrix": source_to_ue_matrix},
             "floor": 1, "map_code": None,
         }
+
+    configured_floors = {
+        int(item.get("floor"))
+        for item in (profile.get("floor_table") or [])
+        if isinstance(item, dict) and item.get("floor") is not None
+    }
+    requested_floors = {int(item.get("floor") or 1) for item in items}
+    missing_floors = sorted(requested_floors - configured_floors)
+    if missing_floors:
+        labels = "、".join(f"{floor}F" for floor in missing_floors)
+        return jsonify({
+            "error": "floor_not_configured",
+            "message": f"请先在③标定保存楼层空间配置：{labels}",
+            "floors": missing_floors,
+        }), 400
 
     old = project_store.get_components()
     def _source_key(comp):
@@ -1031,33 +1084,54 @@ def spatial_profile_get():
     return jsonify(project_store.get_spatial_profile())
 
 
+def _floor_profile_error_response(exc):
+    payload = {"error": exc.code, "message": str(exc)}
+    if exc.fields:
+        payload["fields"] = exc.fields
+    return jsonify(payload), exc.status
+
+
+@app.route('/api/v2/spatial/floors', methods=['GET'])
+def spatial_floors_get():
+    try:
+        return jsonify(FloorProfileService(project_store).list_floors())
+    except FloorProfileError as exc:
+        return _floor_profile_error_response(exc)
+
+
+@app.route('/api/v2/spatial/floors/<floor>', methods=['PUT'])
+def spatial_floor_put(floor):
+    data = request.get_json(silent=True) or {}
+    try:
+        result = FloorProfileService(project_store).update_floor(
+            floor,
+            data,
+            expected_project_id=data.get("expected_project_id"),
+        )
+        return jsonify(result)
+    except FloorProfileError as exc:
+        return _floor_profile_error_response(exc)
+    except ProjectMismatch as exc:
+        return jsonify({
+            "error": "project changed",
+            "expected": exc.expected,
+            "actual": exc.actual,
+        }), 409
+
+
 @app.route('/api/v2/spatial/profile', methods=['PUT'])
 def spatial_profile_put():
     if project_store.get_active() is None:
         return jsonify({"error": "当前无激活项目"}), 400
     data = request.json or {}
-    import copy
-    # 深拷贝再改：get_spatial_profile 返回的是活引用，若直接原地改，
-    # 被 expected_project_id 护栏拒绝（set_spatial_profile 抛 ProjectMismatch）后，
-    # 内存态剖面仍被端点提前改脏（未落盘但脏，下次合法写会持久化）。
-    # 深拷贝后：护栏命中则 set_spatial_profile 整体替换为新对象；未命中则活剖面丝毫不动。
-    profile = copy.deepcopy(project_store.get_spatial_profile())
-    # 只更新允许的子项，保留 matrix（锚点拟合的精确 规范→UE）除非显式传入
-    if "ue_transform" in data:
-        ut = profile.get("ue_transform") or {}
-        ut.update(data["ue_transform"])
-        profile["ue_transform"] = ut
-    if "floor_table" in data:
-        profile["floor_table"] = data["floor_table"]
-    if "canonical_origin" in data:
-        profile["canonical_origin"] = data["canonical_origin"]
     expected = data.get("expected_project_id")
     try:
-        project_store.set_spatial_profile(profile, expected_project_id=expected)
-        _rederive_components()                   # FR-8：全场重算 + 同步实例
+        result = FloorProfileService(project_store).update_profile(data, expected)
+    except FloorProfileError as exc:
+        return _floor_profile_error_response(exc)
     except ProjectMismatch as e:
         return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
-    return jsonify({"status": "ok", "profile": profile})
+    return jsonify(result)
 
 
 @app.route('/api/v2/spatial/frames', methods=['GET'])
@@ -2793,11 +2867,15 @@ def _require_active_project():
 @app.route('/api/v2/binding/components', methods=['GET'])
 def binding_components():
     """当前项目的构件列表（含绑定状态）。"""
-    _, err = _require_active_project()
+    active, err = _require_active_project()
     if err:
         return err
     comps = project_store.get_components()
-    return jsonify({"components": list(comps.values()), "count": len(comps)})
+    return jsonify({
+        "project_id": active.get("id"),
+        "components": list(comps.values()),
+        "count": len(comps),
+    })
 
 
 @app.route('/api/v2/binding/components/<path:component_id>', methods=['DELETE'])
@@ -2872,6 +2950,39 @@ def binding_roster_upload():
     except ProjectMismatch as e:
         return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
     return jsonify({"status": "ok", "added": len(entries), "roster": project_store.get_roster()})
+
+
+@app.route('/api/v2/binding/auto-number', methods=['POST'])
+def binding_auto_number():
+    """3.0.1.1：预览或原子完成自动编号、清单写入与构件绑定。"""
+    _, err = _require_active_project()
+    if err:
+        return err
+    data = request.get_json(silent=True)
+    if request.data and data is None:
+        return jsonify({"error": "invalid JSON body"}), 400
+    data = data or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON body must be an object"}), 400
+    dry_run = data.get("dry_run", True)
+    if not isinstance(dry_run, bool):
+        return jsonify({"error": "dry_run must be a JSON boolean"}), 400
+    component_ids = data.get("component_ids")
+    if not isinstance(component_ids, list) or not component_ids:
+        return jsonify({"error": "请至少选择一个需要自动编号的构件"}), 400
+    try:
+        result = project_store.auto_number_bind(
+            prefix=data.get("prefix", "AUTO"),
+            width=data.get("width", 4),
+            component_ids=component_ids,
+            dry_run=dry_run,
+            expected_project_id=data.get("expected_project_id"),
+        )
+    except ProjectMismatch as e:
+        return jsonify({"error": "project changed", "expected": e.expected, "actual": e.actual}), 409
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"status": "preview" if dry_run else "ok", **result})
 
 
 @app.route('/api/v2/binding/automatch', methods=['POST'])
@@ -3428,7 +3539,8 @@ def get_dataset_graph(ds_id):
     if ds.get("graph_data") is None:
         # Demo 数据集，重定向到 graph_data
         return get_graph_data()
-    return jsonify(_normalize_graph_data(ds["graph_data"]))
+    graph = _normalize_graph_data(ds["graph_data"])
+    return jsonify(decorate_scc_w18_graph(ds_id, graph))
 
 
 @app.route('/api/v2/ontology/datasets/<ds_id>', methods=['DELETE'])

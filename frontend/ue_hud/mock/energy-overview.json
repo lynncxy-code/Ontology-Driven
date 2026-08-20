@@ -1,18 +1,42 @@
 {
-  "page": {"title":"M01 能源管控","heading":"能源管控总览","level":"E1 / E2 业务视图","path_label":"能源管控 / M01 总装厂房","context_query":"zone_id","context_id":"SF.SB.M01","status_label":"运行中","status_level":"normal","description":"展示当前空间的供能状态、专业系统、区域分布与能源事件。","revision":"energy-demo-r1"},
+  "page": {
+    "title": "能源区",
+    "heading": "能源管理总览",
+    "level": "E1 业务视图",
+    "path_label": "SCC W19 / 1F / 能源区",
+    "context_query": "zone_id",
+    "context_id": "scc_w19_1f_energy",
+    "status_label": "正常",
+    "status_level": "normal",
+    "description": "五台能源设备统一位于 1F 能源区，不再包含室外分区。",
+    "revision": "three-zones-r1"
+  },
   "metrics": [
-    {"label":"实时功率","display_value":"1.42 MW","note":"较昨日 +2.1%"},
-    {"label":"今日用能","display_value":"8.7 MWh","note":"预算内"},
-    {"label":"在网设备","display_value":"24 / 25","note":"1 台告警"},
-    {"label":"碳排估算","display_value":"4.8 t","note":"今日累计"}
+    {"label": "能源设备", "display_value": "5", "note": "全部归入能源区"},
+    {"label": "所在楼层", "display_value": "1F", "note": "与生产、物流同层"},
+    {"label": "室外设备", "display_value": "0", "note": "室外分区已移除"},
+    {"label": "未分区", "display_value": "0", "note": "无遗漏"}
   ],
-  "primary_groups": [
-    {"title":"专业系统","hint":"E1","items":[{"title":"暖通空调","meta":"12 台设备 · 1 项告警","value":"注意","level":"warning"},{"title":"动力系统","meta":"8 台设备 · 1 项严重事件","value":"严重","level":"critical"},{"title":"照明系统","meta":"5 个控制回路","value":"正常","level":"normal"}]},
-    {"title":"分区用能","hint":"E2","items":[{"title":"A 区","meta":"当前 420 kW","value":"29.6%"},{"title":"B 区","meta":"当前 510 kW","value":"35.9%"},{"title":"C / D 区","meta":"当前 490 kW","value":"34.5%"}]}
-  ],
-  "secondary_groups": [
-    {"title":"能源设备","hint":"进入 E3","items":[{"title":"空调机组 AHU-02","meta":"环廊 2F · 温度偏高","value":"查看","level":"warning","action":{"type":"request_open_page","payload":{"page_id":"page.energy-device","instance_id":"AHU-M01-02"}}},{"title":"动力泵 PUMP-B02","meta":"B 区 · 压力异常","value":"查看","level":"critical","action":{"type":"request_open_page","payload":{"page_id":"page.energy-device","instance_id":"PUMP-M01-B02"}}},{"title":"屋顶冷源 CHILLER-01","meta":"屋顶管廊","value":"正常","level":"normal","action":{"type":"select_instance","payload":{"instance_id":"CHILLER-M01-01"}}}]},
-    {"title":"能源事件","items":[{"title":"动力支路压力异常","meta":"8 分钟前","value":"严重","level":"critical","action":{"type":"request_open_page","payload":{"page_id":"page.event-detail","event_id":"EVT-M01-012"}}}]}
-  ],
-  "actions": [{"label":"聚焦能源范围","type":"request_open_scope","payload":{"scope_type":"zone","zone_id":"$context"}},{"label":"选择异常设备","primary":true,"type":"select_instance","payload":{"instance_id":"PUMP-M01-B02"}}]
+  "primary_groups": [{
+    "title": "能源设备",
+    "hint": "5 台",
+    "items": [
+      {"title": "屋顶光伏阵列 01", "meta": "能源区 / 1F", "value": "光伏", "level": "normal"},
+      {"title": "厂区风力发电机 01", "meta": "能源区 / 1F", "value": "风电", "level": "normal"},
+      {"title": "储能电池柜 BESS-01", "meta": "能源区 / 1F", "value": "储能", "level": "normal"},
+      {"title": "柴油应急发电机 DG-01", "meta": "能源区 / 1F", "value": "备用电源", "level": "normal"},
+      {"title": "能源站循环油泵 P-01", "meta": "能源区 / 1F", "value": "循环泵", "level": "normal"}
+    ]
+  }],
+  "secondary_groups": [{
+    "title": "区域档案",
+    "items": [
+      {"title": "区域编码", "meta": "所属楼层 1F", "value": "scc_w19_1f_energy"},
+      {"title": "区域关系", "meta": "与生产区、物流区同级", "value": "能源"}
+    ]
+  }],
+  "actions": [
+    {"label": "聚焦能源区", "type": "request_open_scope", "payload": {"scope_type": "zone", "zone_id": "$context"}},
+    {"label": "进入能源区", "primary": true, "type": "close_page"}
+  ]
 }

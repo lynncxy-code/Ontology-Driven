@@ -89,7 +89,7 @@
                     <div class="flex items-center gap-3">
                         <label class="w-12 text-xs font-medium text-gray-500 shrink-0">类型</label>
                         <select v-model="spawnForm.objectTypeRid" aria-label="投产设备类型"
-                                class="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition">
+                                class="flex-1 min-w-0 border border-gray-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition">
                             <option value="">-- 选择设备类型 --</option>
                             <option v-for="ot in readyTypes" :key="ot.rid" :value="ot.rid">{{ ot.name }}</option>
                         </select>
@@ -921,6 +921,7 @@
                         <input v-model.number="pos.rotation" type="number" class="w-20 text-xs font-mono border border-gray-200 rounded px-2 py-1 outline-none focus:border-gray-900">
                     </label>
                 </div>
+                <div class="mt-2 text-[11px] leading-relaxed text-gray-500">{{ posFloorHint() }}</div>
                 <div class="flex justify-end gap-2 mt-5">
                     <button @click="posOpen=false" class="text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition">取消</button>
                     <button @click="savePos" :disabled="posSaving" class="text-xs px-3 py-1.5 rounded-md bg-gray-900 text-white hover:bg-black transition disabled:opacity-50">{{ posSaving ? '保存中…' : '保存' }}</button>
@@ -2818,6 +2819,15 @@ createApp({
             pos.value.canonical.z = _floorZ(pos.value.floor);   // 切楼层 → Z 跳新层基准
             _posRecompute();
         }
+        function posFloorHint() {
+            if (pos.value.mode === 'free_instance') {
+                return '自由实例使用自身绝对 UE 坐标，不随项目楼层基准批量移动。';
+            }
+            const base = _floorZ(pos.value.floor);
+            const offset = _r2(Number(pos.value.canonical.z || 0) - base);
+            const ueBase = _r2(base * Number(posX.scale || 0.1));
+            return `${Number(pos.value.floor || 1)}F 基准：${base} mm / ${ueBase} cm；当前实例个别 Z 微调：${offset >= 0 ? '+' : ''}${offset} mm。整层高度请在坐标标定工作台维护。`;
+        }
         async function savePos() {
             if (!selectedInst.value) return;
             posSaving.value = true;
@@ -2892,7 +2902,7 @@ createApp({
             realtimeChannelTag,
             // FR-7 规范坐标微调
             posOpen, posSaving, pos, posX, openPos, savePos, posEditCanonical, posEditUE, posEditFrame, posEditFloor,
-            posSourceLabel, posSourceHint,
+            posSourceLabel, posSourceHint, posFloorHint,
             // instance list filter
             instanceSearch, instanceTypeFilter, instanceZoneFilter, availableZones, filteredInstances, instanceTreeGroups,
             zoneListLabel, zoneTargetLabel,

@@ -25,6 +25,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);-webkit-font-
 .wrap{max-width:1180px;margin:0 auto;padding:20px 24px 48px}
 /* toolbar */
 .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.toolbar-note{font-size:var(--t-xs);color:var(--ink-3)}
 .spacer{flex:1}
 .btn{font:500 var(--t-base)/1 var(--font);padding:8px 14px;border-radius:var(--r-md);border:1px solid var(--line-2);background:#fff;color:var(--ink);cursor:pointer;transition:background .15s,border-color .15s;display:inline-flex;align-items:center;gap:6px}
 .btn:hover{background:var(--bg-3)}
@@ -37,6 +38,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);-webkit-font-
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .btn-sm{padding:6px 10px;font-size:var(--t-sm)}
 .chk{font-size:var(--t-sm);color:var(--ink-2);display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.selection-meta{font-size:var(--t-xs);color:var(--ink-2);white-space:nowrap}
 .field{padding:7px 10px;border:1px solid var(--line-2);border-radius:var(--r-sm);font-size:var(--t-sm);background:#fff;color:var(--ink)}
 .field:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px rgba(26,26,26,.06)}
 /* panes */
@@ -45,10 +47,20 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);-webkit-font-
 .pane-head{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line)}
 .pane-head .t{font-size:var(--t-base);font-weight:600}
 .pane-head .m{font-size:var(--t-sm);color:var(--ink-3)}
+.component-tools{border-bottom:1px solid var(--line);background:var(--bg-2)}
+.filter-row{display:flex;align-items:center;gap:10px;padding:10px 14px}
+.filter-row .field{flex:1;min-width:0}
+.selection-bar{display:flex;align-items:center;gap:10px;min-height:42px;padding:7px 14px;border-top:1px solid var(--line);background:#fff}
+.selection-toggle{font-size:var(--t-sm);color:var(--ink);display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none;white-space:nowrap}
+.selection-toggle input{width:14px;height:14px;accent-color:var(--ink)}
+.selection-actions{display:flex;align-items:center;gap:4px;margin-left:auto}
 .list{max-height:62vh;overflow-y:auto}
 .row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line)}
 .row:last-child{border-bottom:none}
 .row:hover{background:var(--bg-3)}
+.row.is-selected{background:var(--bg-3);box-shadow:inset 2px 0 0 var(--ink)}
+.row-select{width:14px;height:14px;flex:none;accent-color:var(--ink);cursor:pointer}
+.row-select-spacer{width:14px;flex:none}
 .dot{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
 .dot-ok{background:var(--ok)}.dot-warn{background:var(--warn)}.dot-err{background:var(--danger)}.dot-info{background:var(--info)}.dot-muted{background:var(--ink-3)}
 .r-main{flex:1;min-width:0}
@@ -65,8 +77,19 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);-webkit-font-
 select.bind{height:32px;font-size:var(--t-sm);max-width:180px;border:1px solid var(--line-2);border-radius:var(--r-sm);background:#fff;color:var(--ink);padding:0 6px}
 .empty{padding:40px 20px;text-align:center;color:var(--ink-3);font-size:var(--t-sm);line-height:1.7}
 .empty a{color:var(--ink);text-decoration:underline}
+.empty-actions{display:flex;justify-content:center;margin-top:12px}
 .roster-add{display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--bg-2)}
 .roster-add .field{flex:1}
+.auto-fields{display:grid;grid-template-columns:1fr 120px;gap:12px;margin:14px 0}
+.auto-field label{display:block;color:var(--ink-2);font-size:var(--t-xs);margin-bottom:6px}
+.auto-field .field{width:100%}
+.auto-note{font-size:var(--t-xs);color:var(--ink-3);line-height:1.6;margin-bottom:12px}
+.auto-preview{border:1px solid var(--line);border-radius:var(--r-md);background:var(--bg-2);padding:12px;min-height:72px}
+.auto-summary{font-size:var(--t-sm);color:var(--ink);margin-bottom:8px}
+.auto-row{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-top:1px solid var(--line);font-size:var(--t-xs)}
+.auto-row:first-of-type{border-top:none}
+.auto-row .auto-id{font-family:monospace;color:var(--ink)}
+.field-error{font-size:var(--t-xs);color:var(--danger);line-height:1.5}
 /* toast */
 .toast{position:fixed;top:16px;right:16px;z-index:1100;display:flex;flex-direction:column;gap:8px}
 .toast-item{background:var(--ink);color:var(--on-ink);padding:10px 14px;border-radius:var(--r-md);font-size:var(--t-sm);box-shadow:var(--shadow-pop);max-width:360px}
@@ -91,9 +114,8 @@ select.bind{height:32px;font-size:var(--t-sm);max-width:180px;border:1px solid v
 </header>
 <div class="wrap">
   <div class="toolbar">
-    <button class="btn btn-sm" id="btnAuto" onclick="autoMatch()">自动撮合（EQUIP_ID）</button>
-    <label class="chk"><input type="checkbox" id="onlyUnbound" onchange="render()"> 仅看未绑定</label>
-    <input class="field" id="searchBox" placeholder="搜索 类型 / 编号 / 实例编号…" oninput="render()" style="width:200px">
+    <button class="btn btn-sm" id="btnAuto" onclick="autoMatch()">匹配已有编号</button>
+    <span class="toolbar-note">按设备编号匹配右侧清单</span>
     <div class="spacer"></div>
     <button class="btn btn-sm btn-ghost" onclick="loadAll()">刷新</button>
     <button class="btn btn-sm btn-primary" id="btnMint" onclick="mint()">铸造为实例（<span id="mintN">0</span>）</button>
@@ -104,6 +126,20 @@ select.bind{height:32px;font-size:var(--t-sm);max-width:180px;border:1px solid v
       <div class="pane-head">
         <span class="t">构件（CAD 解析）</span>
         <span class="m"><b id="boundN">0</b>/<b id="totalN">0</b> 已绑定</span>
+      </div>
+      <div class="component-tools">
+        <div class="filter-row">
+          <input class="field" id="searchBox" placeholder="搜索构件类型、设备编号或实例编号" oninput="render()">
+          <label class="chk"><input type="checkbox" id="onlyUnbound" onchange="render()"> 只看未绑定</label>
+        </div>
+        <div class="selection-bar">
+          <label class="selection-toggle"><input type="checkbox" id="selectVisible" onchange="setVisibleSelection(this.checked)"> 全选筛选结果</label>
+          <span class="selection-meta" id="selectionN">未选择构件</span>
+          <div class="selection-actions">
+            <button class="btn btn-sm btn-ghost" id="btnClearSelection" onclick="clearComponentSelection()">清除</button>
+            <button class="btn btn-sm" id="btnAutoNumber" onclick="openAutoNumber()">自动编号</button>
+          </div>
+        </div>
       </div>
       <div class="list" id="compList"></div>
     </div>
@@ -132,7 +168,7 @@ select.bind{height:32px;font-size:var(--t-sm);max-width:180px;border:1px solid v
 </div></div>
 
 <script>
-var State = { components: [], roster: [], instances: [], noProject: false };
+var State = { projectId: null, components: [], roster: [], instances: [], selectedComponents: {}, noProject: false };
 
 function toast(msg, type){
   var box = document.getElementById('toast');
@@ -150,6 +186,7 @@ function confirmModal(title, bodyHTML, okText, danger){
   var ok = document.getElementById('mdOk');
   ok.textContent = okText || '确认';
   ok.className = 'btn btn-sm ' + (danger ? 'btn-danger' : 'btn-primary');
+  ok.disabled = false;
   _modalReturnFocus = document.activeElement;
   document.getElementById('mask').classList.add('on');
   setTimeout(function(){ ok.focus(); }, 0);
@@ -167,7 +204,7 @@ document.getElementById('mask').addEventListener('mousedown', function(e){
 document.addEventListener('keydown', function(e){
   if(!document.getElementById('mask').classList.contains('on')) return;
   if(e.key === 'Escape') closeModal(false);
-  if(e.key === 'Enter') document.getElementById('mdOk').click();
+  if(e.key === 'Enter' && !document.getElementById('mdOk').disabled) document.getElementById('mdOk').click();
 });
 
 function esc(t){ return (''+(t==null?'':t)).replace(/[<>&"]/g, function(m){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[m];}); }
@@ -180,11 +217,25 @@ async function loadAll(){
       fetch('/api/v2/instances')
     ]);
     var rc = results[0];
-    if(rc.status === 400){ State.noProject = true; render(); return; }
+    if(rc.status === 400){
+      State.noProject = true;
+      State.projectId = null;
+      State.components = [];
+      State.roster = [];
+      State.instances = [];
+      State.selectedComponents = {};
+      render();
+      return;
+    }
     State.noProject = false;
-    State.components = (await rc.json()).components || [];
+    var componentData = await rc.json();
+    var nextProjectId = componentData.project_id || null;
+    if(State.projectId && State.projectId !== nextProjectId) State.selectedComponents = {};
+    State.projectId = nextProjectId;
+    State.components = componentData.components || [];
     State.roster = (await results[1].json()).roster || [];
     State.instances = await results[2].json() || [];
+    pruneComponentSelection();
   }catch(e){ toast('加载失败：' + e.message, 'err'); return; }
   render();
 }
@@ -201,36 +252,101 @@ function deployedSet(){
   return s;
 }
 
+function unboundComponentIds(){
+  return State.components.filter(function(c){ return !c.bound_instance_id; }).map(function(c){ return c.id; });
+}
+
+function selectedComponentIds(){
+  return Object.keys(State.selectedComponents).filter(function(id){ return State.selectedComponents[id]; });
+}
+
+function pruneComponentSelection(){
+  var selectable = {};
+  State.components.forEach(function(c){ if(!c.bound_instance_id) selectable[c.id] = true; });
+  Object.keys(State.selectedComponents).forEach(function(id){
+    if(!selectable[id]) delete State.selectedComponents[id];
+  });
+}
+
+function filteredComponents(){
+  var kw = (document.getElementById('searchBox').value || '').trim().toLowerCase();
+  var onlyUnbound = document.getElementById('onlyUnbound').checked;
+  return State.components.filter(function(c){
+    if(onlyUnbound && c.bound_instance_id) return false;
+    if(!kw) return true;
+    var eq = (c.attribs||{}).EQUIP_ID || '';
+    var hay = ((c.type_name||'')+' '+eq+' '+(c.bound_instance_id||'')+' '+(c.source_label||'')).toLowerCase();
+    return hay.indexOf(kw) >= 0;
+  });
+}
+
+function visibleUnboundComponentIds(){
+  return filteredComponents().filter(function(c){ return !c.bound_instance_id; }).map(function(c){ return c.id; });
+}
+
+function renderSelectionState(){
+  var selected = selectedComponentIds();
+  var visible = visibleUnboundComponentIds();
+  var visibleSet = {};
+  visible.forEach(function(id){ visibleSet[id] = true; });
+  var hiddenN = selected.filter(function(id){ return !visibleSet[id]; }).length;
+  var selectedVisibleN = visible.filter(function(id){ return !!State.selectedComponents[id]; }).length;
+  document.getElementById('selectionN').textContent = selected.length
+    ? '已选择 '+selected.length+' 个构件'+(hiddenN ? '（其中 '+hiddenN+' 个不在当前结果）' : '')
+    : '未选择构件';
+  var selectVisible = document.getElementById('selectVisible');
+  selectVisible.disabled = visible.length === 0;
+  selectVisible.checked = visible.length > 0 && selectedVisibleN === visible.length;
+  selectVisible.indeterminate = selectedVisibleN > 0 && selectedVisibleN < visible.length;
+  document.getElementById('btnClearSelection').disabled = selected.length === 0;
+  var autoButton = document.getElementById('btnAutoNumber');
+  autoButton.disabled = selected.length === 0;
+}
+
+function setVisibleSelection(checked){
+  var ids = visibleUnboundComponentIds();
+  if(ids.length === 0) return;
+  ids.forEach(function(id){
+    if(checked) State.selectedComponents[id] = true;
+    else delete State.selectedComponents[id];
+  });
+  render();
+}
+
+function clearComponentSelection(){
+  State.selectedComponents = {};
+  render();
+}
+
 function render(){
   var cl = document.getElementById('compList');
   var rl = document.getElementById('rosterList');
   if(State.noProject){
-    cl.innerHTML = '<div class="empty">当前没有激活项目。<br>请先在<a href="/coord" target="_blank">坐标标定工作台</a>合并类型库并保存构件。</div>';
+    cl.innerHTML = '<div class="empty">当前没有激活项目。<br>请先在<a href="/coord?nexus=true">坐标标定工作台</a>合并类型库并保存构件。</div>';
     rl.innerHTML = '<div class="empty">—</div>';
     document.getElementById('mintN').textContent = 0;
     document.getElementById('boundN').textContent = 0;
     document.getElementById('totalN').textContent = 0;
+    document.getElementById('btnMint').disabled = true;
+    renderSelectionState();
     return;
   }
   var taken = takenSet();
   var deployed = deployedSet();
-  var kw = (document.getElementById('searchBox').value || '').trim().toLowerCase();
-  var onlyUnbound = document.getElementById('onlyUnbound').checked;
+  var visibleComponents = filteredComponents();
 
   // 左：构件
   cl.innerHTML = '';
   if(State.components.length === 0){
-    cl.innerHTML = '<div class="empty">当前项目还没有构件。<br>去<a href="/coord" target="_blank">坐标标定</a>标定并「保存构件」。</div>';
+    cl.innerHTML = '<div class="empty">当前项目还没有构件。<br>去<a href="/coord?nexus=true">坐标标定</a>标定并「保存构件」。</div>';
+  }else if(visibleComponents.length === 0){
+    cl.innerHTML = '<div class="empty">没有符合当前筛选条件的构件。</div>';
   }
-  State.components.forEach(function(c){
-    if(onlyUnbound && c.bound_instance_id) return;
+  visibleComponents.forEach(function(c){
     var eq = (c.attribs||{}).EQUIP_ID || '';
-    if(kw){
-      var hay = (c.type_name+' '+eq+' '+(c.bound_instance_id||'')).toLowerCase();
-      if(hay.indexOf(kw) < 0) return;
-    }
     var row = document.createElement('div');
-    row.className = 'row';
+    var isSelected = !!State.selectedComponents[c.id];
+    row.className = 'row' + (isSelected ? ' is-selected' : '');
     var meta = (eq ? ('EQUIP ' + esc(eq)) : '无编号') + ' · UE(' + (c.ue_xy?c.ue_xy[0].toFixed(1):'?') + ', ' + (c.ue_xy?c.ue_xy[1].toFixed(1):'?') + ')';
     var slot;
     if(c.bound_instance_id){
@@ -246,7 +362,10 @@ function render(){
       slot = '<select class="bind" data-bind="'+esc(c.id)+'">'+opts+'</select>';
     }
     var dotCls = c.bound_instance_id ? 'dot-ok' : 'dot-warn';
-    row.innerHTML = '<span class="dot '+dotCls+'"></span>'
+    var selector = c.bound_instance_id
+      ? '<span class="row-select-spacer" aria-hidden="true"></span>'
+      : '<input class="row-select" type="checkbox" data-select-component="'+esc(c.id)+'" aria-label="选择 '+esc(c.type_name||'未命名构件')+'" '+(isSelected?'checked':'')+'>';
+    row.innerHTML = selector + '<span class="dot '+dotCls+'"></span>'
       + '<div class="r-main"><div class="r-title">'+esc(c.type_name)+'</div><div class="r-meta">'+meta+'</div></div>'
       + '<div class="r-actions"><div class="r-slot">'+slot+'</div>'
       + '<button type="button" class="btn btn-sm btn-danger" data-delete="'+esc(c.id)+'">删除</button></div>';
@@ -256,7 +375,10 @@ function render(){
   // 右：清单
   rl.innerHTML = '';
   if(State.roster.length === 0){
-    rl.innerHTML = '<div class="empty">还没有实例清单。<br>上传 CSV（含「实例编号」列）或在上方手填。</div>';
+    var selectionHint = unboundComponentIds().length
+      ? '<br>也可以先在左侧筛选并勾选构件，再自动编号。'
+      : '';
+    rl.innerHTML = '<div class="empty">还没有实例清单。<br>上传 CSV（含「实例编号」列）或在上方手填。'+selectionHint+'</div>';
   }
   State.roster.forEach(function(r){
     var isBound = !!taken[r.instance_id];
@@ -279,7 +401,8 @@ function render(){
       dotCls = 'dot-warn';
     }
     row.innerHTML = '<span class="dot '+dotCls+'"></span>'
-      + '<span class="r-main" style="font-family:monospace;font-size:var(--t-base)">'+esc(r.instance_id)+'</span>' + tag;
+      + '<span class="r-main" style="font-family:monospace;font-size:var(--t-base)">'+esc(r.instance_id)+'</span>' + tag
+      + (r.source === 'auto' ? '<span class="tag-info">自动编号</span>' : '');
     rl.appendChild(row);
   });
 
@@ -288,9 +411,19 @@ function render(){
   document.getElementById('totalN').textContent = State.components.length;
   document.getElementById('mintN').textContent = bn;
   document.getElementById('btnMint').disabled = bn === 0;
+  renderSelectionState();
 }
 
 document.addEventListener('change', async function(e){
+  var selectedId = e.target.getAttribute && e.target.getAttribute('data-select-component');
+  if(selectedId){
+    if(e.target.checked) State.selectedComponents[selectedId] = true;
+    else delete State.selectedComponents[selectedId];
+    var selectedRow = e.target.closest('.row');
+    if(selectedRow) selectedRow.classList.toggle('is-selected', e.target.checked);
+    renderSelectionState();
+    return;
+  }
   var cid = e.target.getAttribute && e.target.getAttribute('data-bind');
   if(!cid) return;
   var v = e.target.value;
@@ -370,13 +503,155 @@ async function uploadCsv(file){
   }catch(e){ toast('上传异常：' + e.message, 'err'); }
   document.getElementById('csvInput').value = '';
 }
+
+var _autoNumberContext = null;
+var _autoPreviewTimer = null;
+var _autoPreviewRequest = 0;
+
+function autoNumberValues(){
+  return {
+    prefix: (document.getElementById('autoPrefix').value || '').trim().toUpperCase(),
+    width: Number(document.getElementById('autoWidth').value || 4)
+  };
+}
+
+function scheduleAutoNumberPreview(){
+  clearTimeout(_autoPreviewTimer);
+  _autoPreviewRequest += 1;
+  document.getElementById('mdOk').disabled = true;
+  document.getElementById('autoPreview').innerHTML = '<span class="r-meta">正在重新计算编号…</span>';
+  _autoPreviewTimer = setTimeout(function(){ refreshAutoNumberPreview(); }, 250);
+}
+
+async function refreshAutoNumberPreview(){
+  var context = _autoNumberContext;
+  if(!context) return;
+  var values = autoNumberValues();
+  var preview = document.getElementById('autoPreview');
+  var okButton = document.getElementById('mdOk');
+  if(!/^[A-Z0-9][A-Z0-9_-]{0,23}$/.test(values.prefix)){
+    preview.innerHTML = '<div class="field-error">前缀须为 1–24 位英文字母、数字、短横线或下划线。</div>';
+    okButton.disabled = true;
+    return;
+  }
+  var requestId = ++_autoPreviewRequest;
+  preview.innerHTML = '<span class="r-meta">正在计算编号…</span>';
+  okButton.disabled = true;
+  try{
+    var response = await fetch('/api/v2/binding/auto-number', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        prefix:values.prefix,
+        width:values.width,
+        component_ids:context.componentIds,
+        dry_run:true,
+        expected_project_id:context.projectId
+      })
+    });
+    var data = await response.json().catch(function(){ return {}; });
+    if(requestId !== _autoPreviewRequest || context !== _autoNumberContext) return;
+    if(!response.ok){
+      preview.innerHTML = '<div class="field-error">预览失败：'+esc(data.error || response.status)+'</div>';
+      okButton.disabled = true;
+      return;
+    }
+    if(!data.count){
+      preview.innerHTML = '<div class="r-meta">当前没有可自动编号的构件。</div>';
+      okButton.disabled = true;
+      return;
+    }
+    context.prefix = data.prefix;
+    context.width = data.width;
+    context.preview = data;
+    var firstId = data.pairs[0].instance_id;
+    var lastId = data.pairs[data.pairs.length-1].instance_id;
+    var rows = data.pairs.slice(0, 5).map(function(pair){
+      return '<div class="auto-row"><span>'+esc(pair.type_name)+'</span><span class="auto-id">'+esc(pair.instance_id)+'</span></div>';
+    }).join('');
+    if(data.count > 5) rows += '<div class="r-meta" style="margin-top:6px">另有 '+(data.count-5)+' 个构件将按同一规则编号</div>';
+    preview.innerHTML = '<div class="auto-summary">将为 <b>'+data.count+'</b> 个构件生成 <b>'+esc(firstId)+'</b> 至 <b>'+esc(lastId)+'</b></div>'+rows;
+    okButton.disabled = false;
+  }catch(error){
+    if(requestId !== _autoPreviewRequest || context !== _autoNumberContext) return;
+    preview.innerHTML = '<div class="field-error">预览失败：'+esc(error.message)+'</div>';
+    okButton.disabled = true;
+  }
+}
+
+async function openAutoNumber(){
+  var componentIds = selectedComponentIds();
+  if(componentIds.length === 0){ toast('请先筛选并勾选需要自动编号的构件', 'warn'); return; }
+  var context = {
+    componentIds: componentIds,
+    projectId: State.projectId,
+    prefix: 'AUTO',
+    width: 4,
+    preview: null
+  };
+  _autoNumberContext = context;
+  var body = '<div>为已选的 <b>'+componentIds.length+'</b> 个未绑定构件生成项目内编号。</div>'
+    + '<div class="auto-fields">'
+    + '<div class="auto-field"><label for="autoPrefix">编号前缀</label><input class="field" id="autoPrefix" maxlength="24" value="AUTO" autocomplete="off"></div>'
+    + '<div class="auto-field"><label for="autoWidth">序号位数</label><select class="field" id="autoWidth"><option value="2">2 位</option><option value="3">3 位</option><option value="4" selected>4 位</option><option value="5">5 位</option><option value="6">6 位</option><option value="8">8 位</option></select></div>'
+    + '</div>'
+    + '<div class="auto-note">生成后将加入本项目实例清单并完成绑定，不会立即铸造。已使用的同前缀编号不会被重复分配。</div>'
+    + '<div class="auto-preview" id="autoPreview"><span class="r-meta">正在计算编号…</span></div>';
+  var decision = confirmModal('自动编号', body, '生成并绑定');
+  document.getElementById('mdOk').disabled = true;
+  document.getElementById('autoPrefix').addEventListener('input', scheduleAutoNumberPreview);
+  document.getElementById('autoWidth').addEventListener('change', scheduleAutoNumberPreview);
+  setTimeout(function(){
+    var prefixInput = document.getElementById('autoPrefix');
+    if(prefixInput){ prefixInput.focus(); prefixInput.select(); }
+  }, 0);
+  await refreshAutoNumberPreview();
+  var confirmed = await decision;
+  clearTimeout(_autoPreviewTimer);
+  _autoNumberContext = null;
+  if(!confirmed || !context.preview) return;
+  await commitAutoNumber(context);
+}
+
+async function commitAutoNumber(context){
+  var button = document.getElementById('btnAutoNumber');
+  button.disabled = true;
+  button.textContent = '生成中…';
+  try{
+    var response = await fetch('/api/v2/binding/auto-number', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        prefix:context.prefix,
+        width:context.width,
+        component_ids:context.componentIds,
+        dry_run:false,
+        expected_project_id:context.projectId
+      })
+    });
+    var data = await response.json().catch(function(){ return {}; });
+    if(!response.ok){
+      toast((response.status === 409 ? '项目已切换：' : '自动编号失败：') + (data.error || response.status), 'err');
+      await loadAll();
+      return;
+    }
+    toast('已生成并绑定 '+data.count+' 个实例编号', 'ok');
+    await loadAll();
+  }catch(error){
+    toast('自动编号失败：'+error.message, 'err');
+  }finally{
+    button.textContent = '自动编号';
+    render();
+  }
+}
+
 async function autoMatch(){
   var r = await fetch('/api/v2/binding/automatch', {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
   var d = await r.json();
   if(!r.ok){ toast('撮合失败：' + (d.error||r.status), 'err'); return; }
   var sugg = d.suggestions || [];
-  if(sugg.length === 0){ toast('没有可自动撮合的项（EQUIP_ID 未匹配到清单）', 'warn'); return; }
-  var ok = await confirmModal('自动撮合', '按 EQUIP_ID 精确匹配到 <b>'+sugg.length+'</b> 条绑定建议，是否全部采纳？', '采纳全部');
+  if(sugg.length === 0){ toast('没有设备编号与清单匹配', 'warn'); return; }
+  var ok = await confirmModal('自动撮合', '按设备编号精确匹配到 <b>'+sugg.length+'</b> 条绑定建议，是否全部采纳？', '采纳全部');
   if(!ok) return;
   var r2 = await fetch('/api/v2/binding/bind_batch', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pairs:sugg})});
   var d2 = await r2.json();
@@ -386,7 +661,7 @@ async function autoMatch(){
 async function mint(){
   var bn = State.components.filter(function(c){ return c.bound_instance_id; }).length;
   if(bn === 0){ toast('还没有已绑定的构件', 'warn'); return; }
-  var ok = await confirmModal('铸造为实例', '将把 <b>'+bn+'</b> 个已绑定构件铸造/同步为实例（实例集 = 已绑定构件集）。未绑定的构件不会成为实例。确认？', '铸造');
+  var ok = await confirmModal('铸造为实例', '将把 <b>'+bn+'</b> 个已绑定构件铸造/同步为实例。未绑定构件不会成为实例，已有自由实例会保留。确认？', '铸造');
   if(!ok) return;
   var r = await fetch('/api/v2/binding/mint', {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
   var d = await r.json();

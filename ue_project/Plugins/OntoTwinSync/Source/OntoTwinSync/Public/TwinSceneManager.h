@@ -195,7 +195,7 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="场景交互|Web")
     UOntoTwinWebInteractionComponent* WebInteractionManager;
 
-    /** UE 项目资产目录同步工具；默认扫描 /Game/Art，供 CAD 类型审核选择与推荐。 */
+    /** UE 项目资产目录同步工具；发布目录树并响应 Web 端按需扫描，供 CAD 类型审核选择与推荐。 */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="连接|资产目录")
     UOntoTwinUEAssetCatalogSyncComponent* AssetCatalogSync;
 

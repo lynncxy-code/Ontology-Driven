@@ -51,8 +51,9 @@ body.embedded-mode{background:#fafaf7}
 .step-panel.active{display:flex;flex-direction:column;flex:1;min-height:0}
 /* 每个 step 内的"主滚动区"统一 flex 占满 */
 #step2 > .audit-list,
-#step3 > #anchorList,
 #step4 > div[style*="overflow-y"]{flex:1;min-height:0;overflow-y:auto}
+#step3{overflow-y:auto;padding-right:2px}
+#step3 > #anchorList{flex:0 0 auto;max-height:220px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
 /* Upload */
 .upload-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;border:1.5px dashed var(--border-strong);border-radius:18px;background:linear-gradient(180deg,#fff 0%,#fbfbf8 100%);cursor:pointer;transition:all .18s;padding:30px;text-align:center}
 .upload-zone:hover{border-color:#111;background:#f5f5f0}
@@ -144,6 +145,13 @@ body.embedded-mode{background:#fafaf7}
 .asset-catalog-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;margin-bottom:8px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-subtle);font-size:var(--t-xs);color:var(--text-muted)}
 .asset-catalog-status{display:flex;align-items:center;gap:7px;min-width:0}
 .asset-catalog-status span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asset-recommendation-scope{padding:9px 10px;margin-bottom:8px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
+.asset-recommendation-scope-head{font-size:var(--t-xs);font-weight:600;color:var(--text);margin-bottom:6px}
+.asset-recommendation-scope-tools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
+.asset-recommendation-scope-tools input,.asset-recommendation-scope-tools select{min-width:0;padding:6px 9px;border:1px solid var(--border-strong);border-radius:var(--r-sm);background:var(--surface);font-size:var(--t-xs);color:var(--text)}
+.asset-recommendation-scope-tools select{grid-column:1/-1}
+.asset-recommendation-scope-tools input:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px rgba(26,26,26,.06)}
+.asset-recommendation-scope-note{margin-top:5px;font-size:10px;line-height:1.4;color:var(--text-soft)}
 .status-dot{width:6px;height:6px;border-radius:50%;background:var(--text-soft);flex:0 0 auto}
 .status-dot.ok{background:var(--success)}
 .status-dot.warn{background:var(--warning)}
@@ -157,13 +165,16 @@ body.embedded-mode{background:#fafaf7}
 .asset-choice-actions{display:flex;gap:5px;margin-top:5px}
 .asset-choice-actions .btn{padding:3px 7px;font-size:10px}
 .asset-score{font-family:monospace;font-size:9px;color:var(--text-muted);flex:0 0 auto}
-.asset-picker-tools{display:flex;gap:8px;margin-bottom:10px}
+.asset-picker-tools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-bottom:10px}
 .asset-picker-tools input,.asset-picker-tools select{border:1px solid var(--border-strong);border-radius:var(--r-sm);background:var(--surface);padding:7px 9px;font-size:var(--t-sm)}
 .asset-picker-tools input{flex:1;min-width:0}
+.asset-picker-tools .asset-picker-wide{grid-column:1/-1}
+.asset-picker-path-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;grid-column:1/-1}
 .asset-picker-list{display:flex;flex-direction:column;gap:6px;max-height:430px;overflow-y:auto}
 .asset-picker-item{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:9px;align-items:center;border:1px solid var(--border);border-radius:var(--r-md);padding:7px;background:var(--surface);cursor:pointer}
 .asset-picker-item:hover{background:var(--surface-subtle);border-color:var(--border-strong)}
 .asset-picker-item.unsupported{opacity:.55;cursor:not-allowed}
+.asset-picker-item.runtime-pending{border-style:dashed}
 .asset-thumb{width:48px;height:48px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-subtle);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:10px;color:var(--text-soft)}
 .asset-thumb img{width:100%;height:100%;object-fit:contain}
 .asset-picker-name{font-size:var(--t-sm);font-weight:600;color:var(--text)}
@@ -268,6 +279,28 @@ body.embedded-mode{background:#fafaf7}
 .image-config-grid label{display:flex;flex-direction:column;gap:var(--s1);font-size:var(--t-xs);color:var(--ink-2)}
 .image-config-grid input{width:100%;padding:7px 10px;border:1px solid var(--line-2);border-radius:var(--r-sm);font-size:var(--t-sm);background:var(--bg);color:var(--ink)}
 .image-config-grid input:focus,.image-frame-loader select:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px rgba(26,26,26,.06)}
+.floor-config-card,.scene-binding-card{margin-bottom:var(--s3);padding:var(--s3);border:1px solid var(--line);border-radius:var(--r-md);background:var(--bg-2)}
+.floor-config-card.is-collapsed{padding-top:10px;padding-bottom:10px}
+.floor-config-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s2)}
+.floor-config-heading{min-width:0;display:flex;flex-direction:column;gap:2px}
+.floor-config-title{font-size:var(--t-sm);font-weight:600;color:var(--ink)}
+.floor-config-summary{font-size:var(--t-xs);color:var(--ink-3);line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.floor-config-toggle{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;border:0;background:transparent;color:var(--ink-2);font:500 var(--t-xs)/1 var(--font);padding:5px 6px;border-radius:var(--r-sm);cursor:pointer}
+.floor-config-toggle:hover{background:var(--bg-3);color:var(--ink)}
+.floor-config-toggle:focus-visible{outline:1px solid var(--ink);outline-offset:2px}
+.floor-config-toggle svg{transition:transform .15s}
+.floor-config-card.is-collapsed .floor-config-toggle svg{transform:rotate(-90deg)}
+.floor-config-body{margin-top:var(--s2)}
+.floor-config-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
+.floor-config-grid label,.scene-binding-card label{display:flex;flex-direction:column;gap:var(--s1);font-size:var(--t-xs);color:var(--ink-2)}
+.floor-config-grid input,.scene-binding-card input{width:100%;padding:7px 10px;border:1px solid var(--line-2);border-radius:var(--r-sm);font-size:var(--t-sm);background:var(--bg);color:var(--ink)}
+.floor-config-grid input:focus,.scene-binding-card input:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px rgba(26,26,26,.06)}
+.floor-config-grid input[readonly]{background:var(--bg-3);color:var(--ink-2)}
+.floor-config-status{display:flex;align-items:center;gap:var(--s2);margin-top:var(--s2);font-size:var(--t-xs);color:var(--ink-2)}
+.floor-config-actions{display:flex;justify-content:flex-end;margin-top:var(--s2)}
+.floor-config-error{min-height:14px;margin-top:var(--s1);font-size:var(--t-xs);color:var(--danger)}
+.floor-config-success{display:none;margin-top:var(--s2);padding:8px 10px;border-left:2px solid var(--ok);background:var(--bg);font-size:var(--t-xs);color:var(--ink-2)}
+.floor-config-success button{border:0;background:transparent;color:var(--ink);text-decoration:underline;cursor:pointer;font:inherit;padding:0;margin-left:var(--s2)}
 .image-persist-status{display:flex;align-items:center;gap:var(--s2);padding:8px 10px;margin-bottom:var(--s3);border-left:2px solid var(--line-2);background:var(--bg-2);font-size:var(--t-xs);color:var(--ink-2)}
 .image-persist-status.published{border-left-color:var(--ok)}
 .image-persist-status.draft{border-left-color:var(--warn)}
@@ -363,6 +396,14 @@ body.embedded-mode{background:#fafaf7}
               <h3>上传 DXF 文件</h3>
               <p>点击或拖拽上传，系统将自动解析图元<br><small>支持真实 DXF 解析，无后端时自动使用 Mock 数据</small></p>
             </label>
+            <div class="image-frame-loader" id="cadFrameLoader">
+              <div class="section-title">已保存 CAD 空间底图</div>
+              <div class="loader-row">
+                <select id="cadFrameSelect" aria-label="选择已保存 CAD 空间底图"><option value="">暂无已保存底图</option></select>
+                <button class="btn btn-sm" id="cadLoadFrameBtn" onclick="cadLoadSelectedFrame()" disabled>加载</button>
+              </div>
+              <p class="hint">加载服务器中的原始 DXF、锚点和标定版本，不依赖本机浏览器缓存。</p>
+            </div>
             <div id="layerPanel" style="display:none; flex:1; min-height:0; flex-direction:column;">
               <div class="section-title" style="margin-top:16px; display:flex; justify-content:space-between; align-items:center;">
                 <span style="cursor:pointer; display:flex; align-items:center; gap:4px; user-select:none" onclick="toggleLayerAccordion(this)">
@@ -388,6 +429,15 @@ body.embedded-mode{background:#fafaf7}
               <div class="asset-catalog-status"><span class="status-dot"></span><span>正在读取目标 UE 工程资产目录…</span></div>
               <button class="btn btn-sm" onclick="refreshAssetCatalogForTarget(true)">刷新</button>
             </div>
+            <div class="asset-recommendation-scope" id="assetRecommendationScope">
+              <div class="asset-recommendation-scope-head">推荐模型目录</div>
+              <div class="asset-recommendation-scope-tools">
+                <select id="assetRecommendationFolderOptions" onchange="selectAssetRecommendationFolder(this.value)"><option value="">从已同步目录选择</option></select>
+                <input id="assetRecommendationFolder" placeholder="也可直接填写，如 /Game/项目名/Art" onkeydown="if(event.key==='Enter'){event.preventDefault();applyAssetRecommendationFolder()}">
+                <button class="btn btn-sm" id="assetRecommendationApply" onclick="applyAssetRecommendationFolder()">同步并推荐</button>
+              </div>
+              <div class="asset-recommendation-scope-note" id="assetRecommendationScopeNote">请先指定模型所在目录；系统只在该目录及子目录中匹配。</div>
+            </div>
             <div class="audit-summary" id="auditSummary">扫描中...</div>
             <div class="audit-toolbar">
               <input class="audit-search" id="auditSearch" placeholder="搜索块名 / 图层..." oninput="renderAuditList()"/>
@@ -410,16 +460,16 @@ body.embedded-mode{background:#fafaf7}
                   <span style="font-size:11px;color:var(--text-soft)">目标：</span>
                   <select id="wsMergeTarget" onchange="onMergeTargetChange()"><option>加载中...</option></select>
                   <span style="font-size:11px;color:var(--text-soft);margin-left:6px">同名冲突：</span>
-                  <select id="wsConflictStrategy" style="flex:0 0 auto;width:90px">
-                    <option value="skip">跳过</option>
-                    <option value="overwrite">覆盖</option>
+                  <select id="wsConflictStrategy" style="flex:0 0 auto;width:150px">
+                    <option value="skip">保留类型，仅更新模型</option>
+                    <option value="overwrite">覆盖类型和模型</option>
                   </select>
                 </div>
                 <p class="hint" style="margin:6px 0 0">本步只把构件类型并入已有类型库；新建类型库请在「语义图谱总览」完成。</p>
               </div>
               <div id="wsNoTargetTip" class="demo-tip" style="display:none">
                 还没有可合并的类型库。类型库须先在「语义图谱总览」中新建，再回到这里把构件类型并入。
-                <a class="btn btn-sm" style="margin-top:8px;width:100%;display:block;box-sizing:border-box;text-align:center;text-decoration:none" href="/ontology_graph" target="_blank">前往语义图谱总览新建类型库</a>
+                <a class="btn btn-sm" style="margin-top:8px;width:100%;display:block;box-sizing:border-box;text-align:center;text-decoration:none" href="/ontology_graph" onclick="openNexusPage('/ontology_graph'); return false">前往语义图谱总览新建类型库</a>
               </div>
             </div>
             <div id="commitArea" style="margin-top:10px">
@@ -433,6 +483,36 @@ body.embedded-mode{background:#fafaf7}
           </div>
           <div class="step-panel" id="step3">
             <div class="section-title">锚点标定</div>
+            <div class="image-config-grid">
+              <label>底图名称<input id="cadFrameName" maxlength="120" oninput="cadUpdateFrameField('name',this.value)" placeholder="例如：一层 CAD 底图"></label>
+              <label>楼层<input id="cadFrameFloor" type="number" min="1" max="10000" value="1" oninput="cadUpdateFrameField('floor',this.value)"></label>
+            </div>
+            <div class="floor-config-card" id="cadFloorCard">
+              <div class="floor-config-head">
+                <div class="floor-config-heading">
+                  <div class="floor-config-title">楼层空间配置</div>
+                  <div class="floor-config-summary" id="cadFloorSummary">楼层配置加载中</div>
+                </div>
+                <button class="floor-config-toggle" id="cadFloorToggle" type="button" aria-expanded="true" aria-controls="cadFloorBody" onclick="toggleFloorConfig('dxf')"><span>收起</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+              </div>
+              <div class="floor-config-body" id="cadFloorBody">
+                <div class="floor-config-grid">
+                  <label>规范楼层标高（mm）<input id="cadFloorBase" type="number" oninput="floorConfigInput('dxf')" placeholder="例如：4500"></label>
+                  <label>默认构件 UE Z（cm）<input id="cadFloorDerived" readonly value="—"></label>
+                  <label>UE 实际地面 Z（cm，可选）<input id="cadFloorGround" type="number" oninput="floorConfigInput('dxf')" placeholder="用于人物路线和地面检测"></label>
+                </div>
+                <p class="hint" style="margin:8px 0 0">规范楼层标高决定本层普通构件的默认 Z；UE 实际地面 Z 只用于人物路线和地面检测，两者可以不同。</p>
+                <div class="floor-config-status" id="cadFloorStatus"><span class="dot dot-muted"></span><span>正在读取当前楼层</span></div>
+                <div class="floor-config-error" id="cadFloorError"></div>
+                <div class="floor-config-actions"><button class="btn btn-primary btn-sm" id="cadFloorSaveBtn" onclick="saveFloorConfig('dxf')" disabled>保存楼层配置</button></div>
+              </div>
+              <div class="floor-config-success" id="cadFloorSuccess"></div>
+            </div>
+            <div class="scene-binding-card">
+              <label>绑定的 UE 场景地图（可选）<input id="cadFrameLevel" oninput="cadUpdateFrameField('ueLevel',this.value)" placeholder="例如：/Game/Maps/Main"></label>
+              <p class="hint" style="margin:8px 0 0">运行关卡只用于场景匹配，不会设置楼层高度或构件 Z。</p>
+            </div>
+            <div class="image-persist-status draft" id="cadPersistStatus"><span class="dot dot-warn"></span><span>新底图尚未保存标定草稿</span></div>
             <div id="orientPanel" style="border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;margin:0 0 12px;background:var(--bg-2)">
               <div style="font-size:var(--t-sm);font-weight:600;margin-bottom:8px">画布朝向 <span style="font-weight:400;color:var(--ink-3)">— 先转到与 UE 顶视一致，再打点</span></div>
               <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:var(--t-xs);color:var(--ink-2)">
@@ -462,11 +542,15 @@ body.embedded-mode{background:#fafaf7}
               <button class="btn btn-ghost btn-sm" style="padding:3px 8px" onclick="createNewSource()">+ 新建源</button>
               <span style="color:var(--ink-3)">同一批 CAD 点可标多个目标，切换只换读数列</span>
             </div>
-            <p class="hint" style="margin-top:0;margin-bottom:12px">在左侧画布上点击已知位置放置锚点，然后在下方填写该点在「映射目标」里的坐标</p>
+            <p class="hint" style="margin-top:0;margin-bottom:12px">在左侧画布上点击至少 3 个不共线的已知位置，然后填写这些点在「映射目标」里的坐标。</p>
             <div id="anchorList"></div>
-            <button class="btn btn-primary btn-sm" id="btnCalibrate" style="margin-top:10px;width:100%" onclick="doCalibrate()" disabled>计算变换（至少 2 个锚点）</button>
+            <button class="btn btn-primary btn-sm" id="btnCalibrate" style="margin-top:10px;width:100%" onclick="doCalibrate()" disabled>计算变换（至少 3 个锚点）</button>
             <div id="metricsPanel" style="display:none"></div>
-            <button class="btn btn-primary btn-sm" id="btnToStep4" style="margin-top:10px;width:100%;display:none" onclick="goToStep(4)">下一步：构件列表</button>
+            <div class="image-persist-actions">
+              <button class="btn btn-sm" id="cadSaveDraftBtn" onclick="cadSaveFrameDraft(false)" disabled>保存标定草稿</button>
+              <button class="btn btn-primary btn-sm" id="cadPublishBtn" onclick="cadSaveFrameDraft(true)" disabled>发布空间底图</button>
+            </div>
+            <button class="btn btn-sm" id="btnToStep4" style="margin-top:10px;width:100%;display:none" onclick="goToStep(4)">下一步：构件列表</button>
           </div>
           <div class="step-panel" id="step4">
             <div class="section-title">构件列表与资产对应</div>
@@ -546,9 +630,32 @@ body.embedded-mode{background:#fafaf7}
               <div class="image-config-grid">
                 <label>底图名称<input id="imgFrameName" maxlength="120" oninput="imgUpdateFrameField('name',this.value)" placeholder="例如：一层漫游底图"></label>
                 <label>楼层<input id="imgFrameFloor" type="number" min="1" max="10000" value="1" oninput="imgUpdateFrameField('floor',this.value)"></label>
-                <label class="wide">UE 运行关卡（Level）<input id="imgFrameLevel" oninput="imgUpdateFrameField('ueLevel',this.value)" placeholder="当前 EXE 场景，例如：/Game/Maps/Main"></label>
               </div>
-              <p class="hint" style="margin:8px 0 0">运行关卡是 UE 当前加载的场景地图，不是建筑楼层；同一张底图只能用于它绑定的运行关卡。</p>
+              <div class="floor-config-card" id="imgFloorCard">
+                <div class="floor-config-head">
+                  <div class="floor-config-heading">
+                    <div class="floor-config-title">楼层空间配置</div>
+                    <div class="floor-config-summary" id="imgFloorSummary">楼层配置加载中</div>
+                  </div>
+                  <button class="floor-config-toggle" id="imgFloorToggle" type="button" aria-expanded="true" aria-controls="imgFloorBody" onclick="toggleFloorConfig('image')"><span>收起</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+                </div>
+                <div class="floor-config-body" id="imgFloorBody">
+                  <div class="floor-config-grid">
+                    <label>规范楼层标高（mm）<input id="imgFloorBase" type="number" oninput="floorConfigInput('image')" placeholder="例如：4500"></label>
+                    <label>默认构件 UE Z（cm）<input id="imgFloorDerived" readonly value="—"></label>
+                    <label>UE 实际地面 Z（cm）<input id="imgFloorGround" readonly placeholder="请选择地面锚点"></label>
+                  </div>
+                  <p class="hint" id="imgFloorGroundSource" style="margin:8px 0 0">UE 实际地面 Z 由下方选中的地面锚点提供；规范楼层标高仍单独维护。</p>
+                  <div class="floor-config-status" id="imgFloorStatus"><span class="dot dot-muted"></span><span>正在读取当前楼层</span></div>
+                  <div class="floor-config-error" id="imgFloorError"></div>
+                  <div class="floor-config-actions"><button class="btn btn-primary btn-sm" id="imgFloorSaveBtn" onclick="saveFloorConfig('image')" disabled>保存楼层配置</button></div>
+                </div>
+                <div class="floor-config-success" id="imgFloorSuccess"></div>
+              </div>
+              <div class="scene-binding-card">
+                <label>绑定的 UE 场景地图<input id="imgFrameLevel" oninput="imgUpdateFrameField('ueLevel',this.value)" placeholder="当前 EXE 场景，例如：/Game/Maps/Main"></label>
+                <p class="hint" style="margin:8px 0 0">运行关卡只用于场景匹配，不会设置楼层高度或构件 Z。</p>
+              </div>
               <div class="image-persist-status draft" id="imgPersistStatus"><span class="dot dot-warn"></span><span>新底图尚未保存标定草稿</span></div>
               <div id="imgAnchorList"></div>
               <button class="btn btn-sm" id="imgBtnCalibrate" style="margin-top:10px;width:100%" onclick="imgDoCalibrate()" disabled>计算变换（至少 3 个锚点）</button>
@@ -751,11 +858,17 @@ function saveSession(){
     cad: {
       previewData:State.previewData, scanResult:State.scanResult,
       anchors:State.anchors, matrix:State.matrix, metrics:State.metrics, calibTarget:State.calibTarget,
+      frameId:State.cadFrameId, draftRevision:State.cadDraftRevision,
+      calibrationRevision:State.cadCalibrationRevision, persistStatus:State.cadPersistStatus,
+      frameName:State.cadFrameName, floor:State.cadFloor, floorId:State.cadFloorId,
+      ueLevel:State.cadUeLevel, savedOrigin:State.cadSavedOrigin, savedDisplay:State.cadSavedDisplay,
       currentStep:State.currentStep, layerVisible:State.layerVisible, layerSelected:State.layerSelected,
       entityChecked:State.entityChecked, entityAssets:State.entityAssets, entityTypes:State.entityTypes,
       auditChecked:State.auditChecked, auditName:State.auditName, auditAsset:State.auditAsset,
       auditAssetConfirmed:State.auditAssetConfirmed, auditAssetSource:State.auditAssetSource,
       auditAssetProject:State.auditAssetProject,
+      assetRecommendationFolder:State.assetRecommendationFolder,
+      assetRecommendationProject:State.assetRecommendationProject,
       polyAuditChecked:State.polyAuditChecked,
       fileName: (State.lastUploadedFile && State.lastUploadedFile.name) || null,
     },
@@ -816,11 +929,18 @@ async function restoreSession(){
       State.previewData=c.previewData; State.scanResult=c.scanResult;
       State.anchors=(c.anchors||[]).map(_migrateAnchor); State.matrix=c.matrix||null; State.metrics=c.metrics||null;
       State.calibTarget=c.calibTarget||'ue';
+      State.cadFrameId=c.frameId||''; State.cadDraftRevision=Number(c.draftRevision||0);
+      State.cadCalibrationRevision=Number(c.calibrationRevision||0); State.cadPersistStatus=c.persistStatus||'new';
+      State.cadFrameName=c.frameName||c.fileName||''; State.cadFloor=Number(c.floor||1);
+      State.cadFloorId=c.floorId||`floor-${State.cadFloor}`; State.cadUeLevel=c.ueLevel||'';
+      State.cadSavedOrigin=c.savedOrigin||null; State.cadSavedDisplay=c.savedDisplay||null;
       State.layerVisible=c.layerVisible||{}; State.layerSelected=c.layerSelected||{};
       State.entityChecked=c.entityChecked||{}; State.entityAssets=c.entityAssets||{}; State.entityTypes=c.entityTypes||{};
       State.auditChecked=c.auditChecked||{}; State.auditName=c.auditName||{}; State.auditAsset=c.auditAsset||{};
       State.auditAssetConfirmed=c.auditAssetConfirmed||{}; State.auditAssetSource=c.auditAssetSource||{};
       State.auditAssetProject=c.auditAssetProject||{};
+      State.assetRecommendationFolder=c.assetRecommendationFolder||'';
+      State.assetRecommendationProject=c.assetRecommendationProject||'';
       State.polyAuditChecked=c.polyAuditChecked||{};
       if(c.fileName) State.lastUploadedFile={name:c.fileName};
     }
@@ -832,7 +952,7 @@ async function restoreSession(){
       document.querySelector('#imgPanels .upload-zone').style.display='none';
       document.getElementById('btnReset').style.display='';
       imgRenderAnchorList();
-      imgSyncFrameForm();
+      imgSyncFrameForm();floorConfigSync('image');
       imgRenderPersistStatus();
       imgRenderMarkerList();
       if(imgState.matrix)imgRenderMetrics();
@@ -844,6 +964,8 @@ async function restoreSession(){
       document.getElementById('btnReset').style.display='';
       if(State.anchors.length) renderAnchorList();
       if(State.matrix) renderMetrics();
+      cadSyncFrameForm();floorConfigSync('dxf');cadRenderPersistStatus();
+      await cadRefreshFrameList(State.cadFrameId);
       _applyStep(snap.cad.currentStep||1);
     }
     draw();
@@ -866,6 +988,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
   // M4: 加载激活数据集，刷新 header 与写入策略 UI
   await loadActiveDataset(true);
+  await loadFloorProfiles(true);
+  cadSyncFrameForm();
+  cadRenderPersistStatus();
+  await cadRefreshFrameList();
   await imgRefreshFrameList();
   // U6: 自动恢复上次未完成的工作（若有）
   await restoreSession();
@@ -940,10 +1066,28 @@ const State = {
   assetCatalogState: 'idle',  // idle | loading | ready | missing | error
   assetCatalogMessage: '',
   assetCatalogRequest: 0,
+  assetRecommendationFolder: '',
+  assetRecommendationProject: '',
+  assetRecommendationMessage: '',
+  assetRecommendationRequest: 0,
+  assetScanRequestId: '',
+  assetScanStatus: 'idle',     // idle | pending | completed | failed
+  assetScanPollTimer: null,
   assetPickerBlock: '',
   assetPickerSelection: '',
   polyAuditChecked: {},       // 线图层 layer -> bool（默认 false：未勾选=不纳入）
   lastUploadedFile: null,     // File 对象，供 scan 等接口复用
+  cadFrameId: '',
+  cadDraftRevision: 0,
+  cadCalibrationRevision: 0,
+  cadPersistStatus: 'new',    // new | draft | published | dirty
+  cadFrameName: '',
+  cadFloor: 1,
+  cadFloorId: 'floor-1',
+  cadUeLevel: '',
+  cadSavedOrigin: null,
+  cadSavedDisplay: null,
+  cadPersistBusy: false,
   // M4 commit UI 状态
   activeDsId: null,
   activeDsName: null,
@@ -1239,6 +1383,241 @@ function s2w(sx, sy, cx = camX, cy = camY, scale = camScale) {
   return unproject([sx, sy], _viewportOptions(cx, cy, scale));
 }
 
+// ── 3.2.1 项目级楼层空间配置 ──
+const FloorConfig = {
+  projectId:'', scale:0.1, floors:[], loading:false,
+  busy:{dxf:false,image:false}, undo:{dxf:null,image:null},
+  expanded:{dxf:true,image:true},
+};
+
+function floorConfigPrefix(mode){return mode==='image'?'img':'cad';}
+function floorConfigSelectedFloor(mode){return Number(mode==='image'?imgState.floor:State.cadFloor)||1;}
+function floorConfigEntry(mode){
+  const floor=floorConfigSelectedFloor(mode);
+  return FloorConfig.floors.find(item=>Number(item.floor)===floor)||null;
+}
+function floorConfigIsConfigured(mode){
+  const item=floorConfigEntry(mode);
+  return !!item&&Number.isFinite(Number(item.z_base_mm));
+}
+function floorConfigSummary(mode){
+  const floor=floorConfigSelectedFloor(mode);
+  const item=floorConfigEntry(mode);
+  if(!item)return `${floor}F · 尚未配置`;
+  const derived=Math.round(Number(item.z_base_mm)*Number(FloorConfig.scale||0.1)*10000)/10000;
+  const ground=item.ue_ground_z_cm===null||item.ue_ground_z_cm===undefined
+    ? '' : ` · 地面 Z ${Number(item.ue_ground_z_cm)} cm`;
+  return `${floor}F · 标高 ${Number(item.z_base_mm)} mm · 默认 UE Z ${derived} cm${ground}`;
+}
+function floorConfigRenderExpanded(mode){
+  const prefix=floorConfigPrefix(mode);
+  const expanded=FloorConfig.expanded[mode]!==false;
+  const card=document.getElementById(prefix+'FloorCard');
+  const body=document.getElementById(prefix+'FloorBody');
+  const toggle=document.getElementById(prefix+'FloorToggle');
+  if(card)card.classList.toggle('is-collapsed',!expanded);
+  if(body)body.hidden=!expanded;
+  if(toggle){
+    toggle.setAttribute('aria-expanded',String(expanded));
+    const label=toggle.querySelector('span');
+    if(label)label.textContent=expanded?'收起':'展开编辑';
+  }
+}
+function floorConfigSetExpanded(mode,expanded){
+  FloorConfig.expanded[mode]=!!expanded;
+  floorConfigRenderExpanded(mode);
+}
+function toggleFloorConfig(mode){
+  floorConfigSetExpanded(mode,FloorConfig.expanded[mode]===false);
+}
+function floorConfigGroundAnchor(){
+  if(!imgState.floorReferenceAnchorId)return null;
+  return imgState.anchors.find(item=>item.id===imgState.floorReferenceAnchorId)||null;
+}
+function floorConfigSetStatus(mode,type,text){
+  const el=document.getElementById(floorConfigPrefix(mode)+'FloorStatus');
+  if(!el)return;
+  const dot=type==='ok'?'dot-ok':type==='warn'?'dot-warn':type==='err'?'dot-err':'dot-muted';
+  el.innerHTML=`<span class="dot ${dot}"></span><span>${escapeHTML(text)}</span>`;
+}
+function floorConfigSync(mode,preserveBase=false){
+  const prefix=floorConfigPrefix(mode);
+  const item=floorConfigEntry(mode);
+  const floor=floorConfigSelectedFloor(mode);
+  const base=document.getElementById(prefix+'FloorBase');
+  const ground=document.getElementById(prefix+'FloorGround');
+  const derived=document.getElementById(prefix+'FloorDerived');
+  const summary=document.getElementById(prefix+'FloorSummary');
+  const error=document.getElementById(prefix+'FloorError');
+  const save=document.getElementById(prefix+'FloorSaveBtn');
+  if(!FloorConfig.loading&&!item)FloorConfig.expanded[mode]=true;
+  if(summary)summary.textContent=floorConfigSummary(mode);
+  floorConfigRenderExpanded(mode);
+  if(error)error.textContent='';
+  if(base&&!preserveBase)base.value=item?Number(item.z_base_mm):'';
+  if(mode==='image'){
+    const anchor=floorConfigGroundAnchor();
+    if(ground)ground.value=anchor?Number(anchor.ueXYZ?.[2]||0):(item?.ue_ground_z_cm??'');
+    const source=document.getElementById('imgFloorGroundSource');
+    if(source)source.textContent=anchor
+      ? `待发布值来自地面锚点 ${anchor.id}；发布图片空间底图后写入当前楼层。`
+      : item?.ue_ground_z_cm!==null&&item?.ue_ground_z_cm!==undefined
+        ? `当前项目地面 Z 为 ${Number(item.ue_ground_z_cm)} cm；重新选择地面锚点可更新。`
+        : 'UE 实际地面 Z 由下方选中的地面锚点提供；规范楼层标高仍单独维护。';
+  }else if(ground&&!preserveBase){
+    ground.value=item?.ue_ground_z_cm??'';
+  }
+  const baseNumber=Number(base?.value);
+  if(derived)derived.value=base?.value!==''&&Number.isFinite(baseNumber)
+    ? String(Math.round(baseNumber*Number(FloorConfig.scale||0.1)*10000)/10000)
+    : '—';
+  if(FloorConfig.loading)floorConfigSetStatus(mode,'muted','正在读取楼层配置');
+  else if(item)floorConfigSetStatus(mode,'ok',`${floor}F 已配置 · 修改后会作为本层共同基准`);
+  else floorConfigSetStatus(mode,'warn',`${floor}F 尚未配置，发布或保存构件前必须先保存`);
+  if(save)save.disabled=FloorConfig.loading||FloorConfig.busy[mode]||base?.value===''||!Number.isFinite(baseNumber);
+  if(mode==='image')imgRenderPersistStatus();else cadRenderPersistStatus();
+}
+function floorConfigInput(mode){
+  const prefix=floorConfigPrefix(mode);
+  floorConfigSetExpanded(mode,true);
+  const base=document.getElementById(prefix+'FloorBase');
+  const derived=document.getElementById(prefix+'FloorDerived');
+  const error=document.getElementById(prefix+'FloorError');
+  const save=document.getElementById(prefix+'FloorSaveBtn');
+  const value=Number(base?.value);
+  if(derived)derived.value=base?.value!==''&&Number.isFinite(value)
+    ? String(Math.round(value*Number(FloorConfig.scale||0.1)*10000)/10000)
+    : '—';
+  if(error)error.textContent=base?.value!==''&&!Number.isFinite(value)?'请输入有效的规范楼层标高':'';
+  if(save)save.disabled=FloorConfig.busy[mode]||base?.value===''||!Number.isFinite(value);
+  floorConfigSetStatus(mode,'warn',`${floorConfigSelectedFloor(mode)}F 有未保存的楼层配置修改`);
+}
+async function loadFloorProfiles(silent=false){
+  FloorConfig.loading=true;
+  floorConfigSync('dxf');floorConfigSync('image');
+  try{
+    const res=await fetch('/api/v2/spatial/floors');
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.message||data.error||'楼层配置加载失败');
+    FloorConfig.projectId=data.project_id||'';
+    FloorConfig.scale=Number(data.scale_to_cm||0.1);
+    FloorConfig.floors=Array.isArray(data.floors)?data.floors:[];
+    FloorConfig.expanded.dxf=!floorConfigIsConfigured('dxf');
+    FloorConfig.expanded.image=!floorConfigIsConfigured('image');
+  }catch(error){
+    FloorConfig.projectId='';FloorConfig.floors=[];
+    if(!silent)toast('楼层配置加载失败：'+error.message,'err');
+  }finally{
+    FloorConfig.loading=false;
+    floorConfigSync('dxf');floorConfigSync('image');
+  }
+}
+function floorConfigShowSuccess(mode,message,canUndo){
+  const el=document.getElementById(floorConfigPrefix(mode)+'FloorSuccess');
+  if(!el)return;
+  el.style.display='block';
+  el.innerHTML=`${escapeHTML(message)}${canUndo?'<button type="button">撤销本次修改</button>':''}`;
+  const button=el.querySelector('button');
+  if(button)button.onclick=()=>undoFloorConfig(mode);
+}
+async function saveFloorConfig(mode){
+  const prefix=floorConfigPrefix(mode);
+  const floor=floorConfigSelectedFloor(mode);
+  const baseEl=document.getElementById(prefix+'FloorBase');
+  const groundEl=document.getElementById(prefix+'FloorGround');
+  const error=document.getElementById(prefix+'FloorError');
+  const button=document.getElementById(prefix+'FloorSaveBtn');
+  const zBase=Number(baseEl?.value);
+  if(baseEl?.value===''||!Number.isFinite(zBase)){
+    if(error)error.textContent='请填写有效的规范楼层标高';
+    baseEl?.focus();return;
+  }
+  const current=floorConfigEntry(mode);
+  const baseChanged=!current||Number(current.z_base_mm)!==zBase;
+  if(baseChanged){
+    const usage=current?.usage||{};
+    const impact=current
+      ? `将重新计算本层 ${Number(usage.components||0)} 个构件和 ${Number(usage.bound_instances||0)} 个绑定实例的 Z，并保留已有个别微调。`
+      : '这是新楼层配置。已有该楼层构件会以原 0 mm 基准计算偏移，再整体移动到新基准。';
+    const confirmed=await UI.confirm({
+      title:`保存 ${floor}F 规范楼层标高`,
+      bodyHTML:`规范楼层标高将设置为 <b>${zBase} mm</b>，默认构件 UE Z 为 <b>${Math.round(zBase*FloorConfig.scale*10000)/10000} cm</b>。<br><br>${impact}`,
+      confirmText:'保存并重算',cancelText:'取消',
+    });
+    if(!confirmed)return;
+  }
+  const old=current?{z_base_mm:Number(current.z_base_mm),ue_ground_z_cm:current.ue_ground_z_cm??null}:null;
+  const payload={expected_project_id:FloorConfig.projectId,z_base_mm:zBase};
+  if(mode!=='image'){
+    const groundText=String(groundEl?.value??'').trim();
+    const ground=groundText===''?null:Number(groundText);
+    if(ground!==null&&!Number.isFinite(ground)){
+      if(error)error.textContent='请输入有效的 UE 实际地面 Z，或留空';
+      groundEl?.focus();return;
+    }
+    payload.ue_ground_z_cm=ground;
+  }
+  FloorConfig.busy[mode]=true;
+  if(button){button.disabled=true;button.textContent='保存中';}
+  if(error)error.textContent='';
+  try{
+    const res=await fetch(`/api/v2/spatial/floors/${floor}`,{
+      method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),
+    });
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.message||data.error||'保存失败');
+    const index=FloorConfig.floors.findIndex(item=>Number(item.floor)===floor);
+    if(index>=0)FloorConfig.floors[index]=data.floor;else FloorConfig.floors.push(data.floor);
+    FloorConfig.undo[mode]=old?{floor,...old}:null;
+    floorConfigSync(mode);
+    const affected=data.affected||{};
+    floorConfigShowSuccess(mode,baseChanged
+      ? `楼层配置已保存，已更新 ${Number(affected.components||0)} 个构件和 ${Number(affected.bound_instances||0)} 个绑定实例。`
+      : '楼层配置已保存，普通构件位置未改变。',!!old);
+    floorConfigSetExpanded(mode,false);
+    toast('楼层空间配置已保存','ok');
+  }catch(errorValue){
+    if(error)error.textContent=errorValue.message;
+    toast('楼层配置保存失败：'+errorValue.message,'err');
+  }finally{
+    FloorConfig.busy[mode]=false;
+    if(button)button.textContent='保存楼层配置';
+    floorConfigSync(mode,true);
+  }
+}
+async function undoFloorConfig(mode){
+  const undo=FloorConfig.undo[mode];
+  if(!undo)return;
+  const prefix=floorConfigPrefix(mode);
+  const button=document.getElementById(prefix+'FloorSaveBtn');
+  FloorConfig.busy[mode]=true;
+  if(button){button.disabled=true;button.textContent='撤销中';}
+  try{
+    const res=await fetch(`/api/v2/spatial/floors/${undo.floor}`,{
+      method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        expected_project_id:FloorConfig.projectId,
+        z_base_mm:undo.z_base_mm,
+        ue_ground_z_cm:undo.ue_ground_z_cm,
+      }),
+    });
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.message||data.error||'撤销失败');
+    const index=FloorConfig.floors.findIndex(item=>Number(item.floor)===Number(undo.floor));
+    if(index>=0)FloorConfig.floors[index]=data.floor;
+    FloorConfig.undo[mode]=null;
+    floorConfigSync(mode);
+    floorConfigShowSuccess(mode,'已恢复为保存前的楼层配置。',false);
+    floorConfigSetExpanded(mode,false);
+    toast('已撤销楼层配置修改','ok');
+  }catch(error){toast('撤销失败：'+error.message,'err');}
+  finally{
+    FloorConfig.busy[mode]=false;
+    if(button)button.textContent='保存楼层配置';
+    floorConfigSync(mode,true);
+  }
+}
+
 // ── 3.1 空间剖面：画布朝向声明（读/写 /spatial/profile） ──
 let _orientSaveTimer = null;
 async function loadSpatialProfile() {
@@ -1247,10 +1626,13 @@ async function loadSpatialProfile() {
     if (!r.ok) { setDisplayOrient({}); draw(); return; }   // 无激活项目 → 恒等
     const p = await r.json();
     State.spatialProfile = p;
-    const disp = (p.ue_transform && p.ue_transform.display) || {};
+    const disp = State.cadSavedDisplay || ((p.ue_transform && p.ue_transform.display) || {});
+    if (!State.spatialProfile.ue_transform) State.spatialProfile.ue_transform = {};
+    State.spatialProfile.ue_transform.display = {...disp};
     const rotEl = document.getElementById('oRot'); if (rotEl) rotEl.value = String(disp.rotation_deg || 0);
     const flipEl = document.getElementById('oFlip'); if (flipEl) flipEl.checked = !!disp.flip;
-    const org = p.canonical_origin || [0, 0];
+    const org = State.cadSavedOrigin || p.canonical_origin || [0, 0];
+    State.spatialProfile.canonical_origin = org.slice();
     const oxEl = document.getElementById('oOriginX'); if (oxEl) oxEl.value = org[0];
     const oyEl = document.getElementById('oOriginY'); if (oyEl) oyEl.value = org[1];
     setDisplayOrient(disp);
@@ -1269,6 +1651,13 @@ function onOrientChange() {
   const disp = _currentDisplay();
   setDisplayOrient(disp);
   draw();
+  State.cadSavedDisplay = {...disp};
+  if (State.cadFrameId) {
+    cadMarkDirty();
+    const tip = document.getElementById('orientSaveTip');
+    if (tip) tip.textContent = '待保存到标定草稿';
+    return;
+  }
   const tip = document.getElementById('orientSaveTip');
   if (tip) tip.textContent = '保存中…';
   clearTimeout(_orientSaveTimer);
@@ -1276,7 +1665,7 @@ function onOrientChange() {
     try {
       const r = await fetch('/api/v2/spatial/profile', {
         method: 'PUT', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ue_transform: {display: disp}})
+        body: JSON.stringify({expected_project_id:FloorConfig.projectId,ue_transform: {display: disp}})
       });
       if (tip) tip.textContent = r.ok ? '已保存' : '未保存（无激活项目）';
     } catch(e) { if (tip) tip.textContent = '保存失败'; }
@@ -1310,10 +1699,16 @@ async function _saveOrigin() {
   const oy = parseFloat(document.getElementById('oOriginY').value) || 0;
   if (State.spatialProfile) State.spatialProfile.canonical_origin = [ox, oy];
   const tip = document.getElementById('originSaveTip'); if (tip) tip.textContent = '保存中…';
+  State.cadSavedOrigin = [ox, oy];
+  if (State.cadFrameId) {
+    cadMarkDirty();
+    if (tip) tip.textContent = '待保存到标定草稿';
+    return;
+  }
   try {
     const r = await fetch('/api/v2/spatial/profile', {
       method: 'PUT', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({canonical_origin: [ox, oy]})
+      body: JSON.stringify({expected_project_id:FloorConfig.projectId,canonical_origin: [ox, oy]})
     });
     if (tip) tip.textContent = r.ok ? '已保存(全场已重算)' : '未保存(无激活项目)';
   } catch(e) { if (tip) tip.textContent = '保存失败'; }
@@ -1386,6 +1781,9 @@ canvas.addEventListener('mouseup', e => {
   }
   isDragging = false; 
   canvas.style.cursor = 'crosshair'; 
+
+  // 标定阶段一次点击只负责新增锚点，不能在 mouseup 再解释为构件导航。
+  if (State.mode === 'dxf' && State.currentStep === 3) return;
   
   // Click on instance
   if (e.button === 0 && State.highlightId) {
@@ -1407,9 +1805,8 @@ canvas.addEventListener('mouseup', e => {
           setTimeout(() => { item.style.backgroundColor = ''; }, 1500);
         }
       }, 50);
-    } else if (State.matrix) {
-      // 如果已标定，且不在图层步骤：跳转到构件列表并定位
-      if (State.currentStep < 4) goToStep(4);
+    } else if (State.currentStep === 4 && State.matrix) {
+      // 仅在构件步骤内定位；画布点击不承担步骤跳转。
       setTimeout(() => {
         const tr = document.querySelector(`tr[data-id="${State.highlightId}"]`);
         if (tr) {
@@ -1736,43 +2133,255 @@ function getMaxStep() {
 }
 
 // ── Step 1: Upload ──
+function cadMetricsFromFrame(frame) {
+  const metrics=frame?.transform?.metrics;
+  if(!metrics)return null;
+  return {
+    rmse:Number(metrics.rmse_cm||0),
+    scaleX:Number(metrics.scale_x||0),
+    scaleY:Number(metrics.scale_y||0),
+    scaleConsistencyPct:Number(metrics.scale_consistency_pct||0),
+    perAnchorResiduals:(metrics.per_anchor_residuals||[]).map(item=>Number(item.residual_cm||0)),
+  };
+}
+
+function cadSyncFrameForm() {
+  const name=document.getElementById('cadFrameName');
+  const floor=document.getElementById('cadFrameFloor');
+  const level=document.getElementById('cadFrameLevel');
+  if(name)name.value=State.cadFrameName||State.lastUploadedFile?.name||'';
+  if(floor)floor.value=State.cadFloor||1;
+  if(level)level.value=State.cadUeLevel||'';
+}
+
+function cadCalibrationPublishable() {
+  if(State.anchors.length<3||!State.matrix||!State.metrics||Number(State.metrics.rmse)>=200)return false;
+  const m=State.matrix;
+  return !!(m?.[0]&&m?.[1]&&Math.abs(Number(m[0][0])*Number(m[1][1])-Number(m[0][1])*Number(m[1][0]))>1e-12);
+}
+
+function cadRenderPersistStatus() {
+  const el=document.getElementById('cadPersistStatus');
+  if(!el)return;
+  const published=State.cadPersistStatus==='published';
+  const dirty=State.cadPersistStatus==='dirty';
+  let text='当前 CAD 尚未保存为项目标定草稿';
+  if(dirty)text=`有未保存的标定更改 · 草稿版本 ${Number(State.cadDraftRevision||0)}`;
+  else if(published)text=`已发布 · 标定版本 ${Number(State.cadCalibrationRevision||0)}`;
+  else if(State.cadFrameId)text=`标定草稿 · 草稿版本 ${Number(State.cadDraftRevision||0)}`;
+  el.className='image-persist-status '+(published?'published':'draft');
+  el.innerHTML=`<span class="dot ${published?'dot-ok':'dot-warn'}"></span><span>${text}</span>`;
+  const canSave=!State.cadPersistBusy&&!!State.cadFrameId&&State.anchors.length>=3&&!!State.matrix;
+  const save=document.getElementById('cadSaveDraftBtn');
+  const publish=document.getElementById('cadPublishBtn');
+  if(save)save.disabled=!canSave;
+  if(publish)publish.disabled=!canSave||!cadCalibrationPublishable()||!floorConfigIsConfigured('dxf');
+}
+
+function cadMarkDirty() {
+  State.cadPersistStatus=State.cadFrameId?'dirty':'new';
+  cadRenderPersistStatus();
+  scheduleSave();
+}
+
+function cadUpdateFrameField(field,value) {
+  if(field==='name')State.cadFrameName=String(value||'');
+  if(field==='ueLevel')State.cadUeLevel=String(value||'');
+  if(field==='floor'){
+    const floor=Math.max(1,Math.min(10000,Number(value)||1));
+    State.cadFloor=floor;State.cadFloorId=`floor-${floor}`;
+    FloorConfig.expanded.dxf=!floorConfigIsConfigured('dxf');
+    floorConfigSync('dxf');
+  }
+  cadMarkDirty();
+}
+
+async function cadRefreshFrameList(selectedId='') {
+  const select=document.getElementById('cadFrameSelect');
+  const button=document.getElementById('cadLoadFrameBtn');
+  if(!select||!button)return;
+  try{
+    const res=await fetch('/api/v2/spatial-frames?kind=cad');
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.message||data.error||'加载失败');
+    const frames=data.frames||[];
+    select.innerHTML='';
+    if(!frames.length){
+      const option=document.createElement('option');option.value='';option.textContent='暂无已保存底图';select.appendChild(option);
+      button.disabled=true;return;
+    }
+    frames.forEach(frame=>{
+      const option=document.createElement('option');option.value=frame.id;
+      option.textContent=`${frame.name||frame.id} · ${frame.status==='published'?'已发布':'草稿'} · 第 ${frame.floor||1} 层`;
+      select.appendChild(option);
+    });
+    select.value=selectedId||State.cadFrameId||frames[0].id;
+    button.disabled=!select.value;
+    select.onchange=()=>{button.disabled=!select.value;};
+  }catch(error){
+    select.innerHTML='<option value="">底图列表加载失败</option>';button.disabled=true;
+    console.warn('CAD 空间底图列表加载失败',error);
+  }
+}
+
+function cadAdoptFrame(frame) {
+  State.cadFrameId=frame.id||'';
+  State.cadDraftRevision=Number(frame.draft_revision||0);
+  State.cadCalibrationRevision=Number(frame.calibration_revision||0);
+  State.cadPersistStatus=frame.status||'draft';
+  State.cadFrameName=frame.name||frame.cad?.original_name||State.lastUploadedFile?.name||'CAD 空间底图';
+  State.cadFloor=Number(frame.floor||1);
+  State.cadFloorId=frame.floor_id||`floor-${State.cadFloor}`;
+  State.cadUeLevel=frame.ue_level||'';
+  State.cadSavedOrigin=(frame.canonical_origin||[0,0]).map(Number);
+  State.cadSavedDisplay={...(frame.display||{})};
+  cadSyncFrameForm();floorConfigSync('dxf');cadRenderPersistStatus();
+}
+
+async function cadParseFile(file,allowMock=true) {
+  let usedMock=false;
+  try{
+    const fd=new FormData();fd.append('file',file);
+    const resp=await fetch('/api/v2/coord/preview',{method:'POST',body:fd});
+    const data=await resp.json();
+    if(!resp.ok||data.error)throw new Error(data.error||`HTTP ${resp.status}`);
+    State.previewData=data;
+    LAYER_COLORS={};data.layers.forEach(l=>LAYER_COLORS[l.name]=l.color);
+    applyPreviewData();
+  }catch(error){
+    if(!allowMock)throw error;
+    console.warn('preview API 不可用，使用 Mock 数据:',error.message);
+    usedMock=true;State.previewData=MOCK_PREVIEW;LAYER_COLORS={};
+    MOCK_PREVIEW.layers.forEach(l=>LAYER_COLORS[l.name]=l.color);applyPreviewData();
+  }
+  return !usedMock;
+}
+
+async function cadCreateFrameAsset(file) {
+  const form=new FormData();form.append('file',file);
+  form.append('name',file.name||`cad-${Date.now()}.dxf`);
+  form.append('floor','1');form.append('floor_id','floor-1');
+  form.append('expected_project_id',FloorConfig.projectId);
+  const res=await fetch('/api/v2/spatial-frames/cad-assets',{method:'POST',body:form});
+  const data=await res.json();
+  if(!res.ok)throw new Error(data.message||data.error||'项目草稿创建失败');
+  cadAdoptFrame(data.frame);
+  await cadRefreshFrameList(data.frame.id);
+  toast('DXF 已保存为项目标定草稿','ok');
+}
+
 async function handleUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
+  const uploadZone=document.querySelector('#cadPanels .upload-zone');
+  uploadZone.style.pointerEvents='none';uploadZone.style.opacity='.55';
   State.lastUploadedFile = file;
-
-  // 1) 调 /coord/preview 取图层 + 几何
-  let usedMock = false;
-  try {
-    const fd = new FormData();
-    fd.append('file', file);
-    const resp = await fetch('/api/v2/coord/preview', { method: 'POST', body: fd });
-    if (resp.ok) {
-      const data = await resp.json();
-      if (!data.error) {
-        State.previewData = data;
-        LAYER_COLORS = {};
-        data.layers.forEach(l => LAYER_COLORS[l.name] = l.color);
-        applyPreviewData();
-      } else {
-        usedMock = true;
-      }
-    } else {
-      usedMock = true;
+  State.anchors=[];State.matrix=null;State.metrics=null;
+  State.cadFrameId='';State.cadDraftRevision=0;State.cadCalibrationRevision=0;State.cadPersistStatus='new';
+  State.cadFrameName=file.name||'';State.cadFloor=1;State.cadFloorId='floor-1';State.cadUeLevel='';
+  State.cadSavedOrigin=null;State.cadSavedDisplay=null;cadSyncFrameForm();floorConfigSync('dxf');cadRenderPersistStatus();
+  try{
+    const parsed=await cadParseFile(file,true);
+    if(parsed){
+      try{await cadCreateFrameAsset(file);}
+      catch(error){toast('DXF 已解析，但项目草稿保存失败：'+error.message,'err',4200);}
     }
-  } catch(err) {
-    console.warn('preview API 不可用，使用 Mock 数据:', err.message);
-    usedMock = true;
+    fetchTypeScan(file);
+  }finally{
+    uploadZone.style.pointerEvents='';uploadZone.style.opacity='';
   }
-  if (usedMock) {
-    State.previewData = MOCK_PREVIEW;
-    LAYER_COLORS = {};
-    MOCK_PREVIEW.layers.forEach(l => LAYER_COLORS[l.name] = l.color);
-    applyPreviewData();
-  }
+}
 
-  // 2) 并发触发 2.9.2 类型审核扫描（不阻塞 UI；用户进入 step2 时再渲染）
-  fetchTypeScan(file);
+async function cadLoadSelectedFrame() {
+  const frameId=document.getElementById('cadFrameSelect')?.value;
+  if(!frameId)return;
+  const button=document.getElementById('cadLoadFrameBtn');
+  if(button){button.disabled=true;button.textContent='加载中';}
+  try{
+    const frameRes=await fetch(`/api/v2/spatial-frames/${encodeURIComponent(frameId)}`);
+    const frame=await frameRes.json();
+    if(!frameRes.ok)throw new Error(frame.message||frame.error||'底图读取失败');
+    const sourceRes=await fetch(frame.source_url||`/api/v2/spatial-frames/${encodeURIComponent(frameId)}/source`);
+    if(!sourceRes.ok)throw new Error('原始 DXF 读取失败');
+    const blob=await sourceRes.blob();
+    const file=new File([blob],frame.cad?.original_name||'drawing.dxf',{type:frame.cad?.mime_type||'application/dxf'});
+    State.lastUploadedFile=file;
+    await cadParseFile(file,false);
+    await fetchTypeScan(file);
+    cadAdoptFrame(frame);
+    State.calibTarget='ue';
+    State.anchors=(frame.anchors||[]).map((anchor,index)=>({
+      id:String(anchor.id||`anchor-${index+1}`),
+      cadXY:(anchor.source_xy_mm||[0,0]).map(Number),
+      readings:{ue:(anchor.ue_world_cm||[0,0]).slice(0,2).map(Number)},
+    }));
+    State.matrix=frame.to_ue?.matrix||null;
+    State.metrics=cadMetricsFromFrame(frame);
+    if(State.spatialProfile){
+      State.spatialProfile.canonical_origin=State.cadSavedOrigin.slice();
+      if(!State.spatialProfile.ue_transform)State.spatialProfile.ue_transform={};
+      State.spatialProfile.ue_transform.display={...State.cadSavedDisplay};
+    }
+    const rotEl=document.getElementById('oRot');if(rotEl)rotEl.value=String(State.cadSavedDisplay?.rotation_deg||0);
+    const flipEl=document.getElementById('oFlip');if(flipEl)flipEl.checked=!!State.cadSavedDisplay?.flip;
+    const oxEl=document.getElementById('oOriginX');if(oxEl)oxEl.value=State.cadSavedOrigin[0]||0;
+    const oyEl=document.getElementById('oOriginY');if(oyEl)oyEl.value=State.cadSavedOrigin[1]||0;
+    setDisplayOrient(State.cadSavedDisplay||{});
+    renderAnchorList();
+    if(State.metrics)renderMetrics();
+    else document.getElementById('metricsPanel').style.display='none';
+    draw();scheduleSave();
+    toast('CAD 空间底图已加载','ok');
+  }catch(error){toast('加载失败：'+error.message,'err');}
+  finally{if(button){button.disabled=false;button.textContent='加载';}}
+}
+
+async function cadSaveFrameDraft(publishAfter=false) {
+  if(!State.cadFrameId){toast('请先上传 DXF 并保存为项目草稿','warn');return;}
+  if(State.anchors.length<3||!State.matrix){toast('请先使用至少 3 个不共线锚点计算变换','warn');return;}
+  if(publishAfter&&!cadCalibrationPublishable()){toast('当前标定误差过大或矩阵不可逆，不能发布','warn');return;}
+  if(publishAfter&&!floorConfigIsConfigured('dxf')){toast('请先保存当前楼层的空间配置','warn');return;}
+  const saveButton=document.getElementById('cadSaveDraftBtn');
+  const publishButton=document.getElementById('cadPublishBtn');
+  const activeButton=publishAfter?publishButton:saveButton;
+  const oldText=activeButton.textContent;
+  State.cadPersistBusy=true;cadRenderPersistStatus();activeButton.textContent=publishAfter?'发布中':'保存中';
+  try{
+    const origin=[Number(document.getElementById('oOriginX')?.value||0),Number(document.getElementById('oOriginY')?.value||0)];
+    const payload={
+      expected_project_id:FloorConfig.projectId,
+      expected_draft_revision:State.cadDraftRevision,
+      name:State.cadFrameName||State.lastUploadedFile?.name||'CAD 空间底图',
+      floor:State.cadFloor,floor_id:State.cadFloorId,ue_level:State.cadUeLevel.trim(),
+      canonical_origin:origin,display:_currentDisplay(),
+      anchors:State.anchors.map((anchor,index)=>({
+        id:String(anchor.id||`anchor-${index+1}`),
+        source_xy_mm:anchor.cadXY.map(Number),
+        ue_world_cm:_curReading(anchor).slice(0,2).map(Number),
+      })),
+    };
+    const draftRes=await fetch(`/api/v2/spatial-frames/${encodeURIComponent(State.cadFrameId)}/draft`,{
+      method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),
+    });
+    const draftData=await draftRes.json();
+    if(!draftRes.ok)throw new Error(draftData.message||draftData.error||'草稿保存失败');
+    const draft=draftData.frame;cadAdoptFrame(draft);
+    State.matrix=draft.to_ue?.matrix||State.matrix;State.metrics=cadMetricsFromFrame(draft)||State.metrics;
+    renderMetrics();
+    if(!publishAfter){
+      await cadRefreshFrameList(State.cadFrameId);toast('标定草稿已保存','ok');scheduleSave();return;
+    }
+    const publishRes=await fetch(`/api/v2/spatial-frames/${encodeURIComponent(State.cadFrameId)}/publish`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({expected_project_id:FloorConfig.projectId,expected_draft_revision:State.cadDraftRevision}),
+    });
+    const publishData=await publishRes.json();
+    if(!publishRes.ok)throw new Error(publishData.message||publishData.error||'发布失败');
+    cadAdoptFrame(publishData.frame);
+    await cadRefreshFrameList(State.cadFrameId);
+    toast('CAD 空间底图已发布','ok',4200);scheduleSave();
+  }catch(error){toast((publishAfter?'发布失败：':'保存失败：')+error.message,'err');}
+  finally{State.cadPersistBusy=false;activeButton.textContent=oldText;cadRenderPersistStatus();}
 }
 
 // 2.9.2 — 异步拉取候选类型列表
@@ -1987,9 +2596,175 @@ function renderAssetCatalogStatus() {
   bar.querySelector('.asset-catalog-status').innerHTML = `<span class="status-dot ${dot}"></span><span>${escapeHTML(text)}</span>`;
 }
 
+function assetsInsideRecommendationFolder(folder) {
+  const normalized = normalizeAssetFolder(folder).toLowerCase();
+  if (!normalized || !State.assetCatalog) return [];
+  return (State.assetCatalog.assets || []).filter(asset => {
+    if (!asset.recommendable) return false;
+    const assetFolder = normalizeAssetFolder(asset.folder_path || '').toLowerCase();
+    return assetFolder === normalized || assetFolder.startsWith(normalized + '/');
+  });
+}
+
+function renderAssetRecommendationScope() {
+  const input = document.getElementById('assetRecommendationFolder');
+  const options = document.getElementById('assetRecommendationFolderOptions');
+  const button = document.getElementById('assetRecommendationApply');
+  const note = document.getElementById('assetRecommendationScopeNote');
+  if (!input || !options || !button || !note) return;
+  const folderOptions = assetPickerFolderOptions();
+  options.innerHTML = '<option value="">从已同步目录选择</option>'
+    + folderOptions.map(path => `<option value="${escapeAttr(path)}">${escapeHTML(path)}</option>`).join('');
+  input.value = State.assetRecommendationFolder || '';
+  options.value = folderOptions.includes(State.assetRecommendationFolder) ? State.assetRecommendationFolder : '';
+  const ready = State.assetCatalogState === 'ready' && !!State.assetCatalog;
+  const waiting = State.assetScanStatus === 'pending';
+  input.disabled = !ready || waiting;
+  options.disabled = !ready || waiting;
+  button.disabled = !ready || waiting;
+  button.textContent = waiting ? '等待 UE 同步' : '同步并推荐';
+  if (!ready) {
+    note.textContent = 'UE 工程目录信息加载完成后才可指定推荐范围。';
+    return;
+  }
+  if (waiting) {
+    note.textContent = State.assetRecommendationMessage
+      || `已请求 UE 扫描 ${State.assetRecommendationFolder}，正在等待工程返回资产清单…`;
+    return;
+  }
+  if (State.assetScanStatus === 'failed') {
+    note.textContent = State.assetRecommendationMessage || 'UE 目录同步失败，可修改目录后重试。';
+    return;
+  }
+  if (!State.assetRecommendationFolder
+      || State.assetRecommendationProject !== State.assetCatalog.ue_project_id) {
+    note.textContent = '选择已上报的 UE 目录，或直接填写任意 /Game/...；未指定时不会推荐。';
+    return;
+  }
+  const count = assetsInsideRecommendationFolder(State.assetRecommendationFolder).length;
+  note.textContent = State.assetRecommendationMessage
+    || `只在 ${State.assetRecommendationFolder} 及其子目录的 ${count} 个可运行资产中匹配。`;
+}
+
+function selectAssetRecommendationFolder(folder) {
+  const input = document.getElementById('assetRecommendationFolder');
+  if (input && folder) input.value = folder;
+}
+
+async function applyAssetRecommendationFolder() {
+  if (!State.assetCatalog) return;
+  const input = document.getElementById('assetRecommendationFolder');
+  const folder = normalizeAssetFolder(input?.value);
+  if (!folder) {
+    State.assetRecommendationFolder = '';
+    State.assetRecommendationProject = State.assetCatalog.ue_project_id;
+    State.assetRecommendationMessage = '';
+    State.assetRecommendations = {};
+    stopAssetScanPolling();
+    State.assetScanRequestId = '';
+    State.assetScanStatus = 'idle';
+    renderAssetRecommendationScope();
+    renderAuditList();
+    scheduleSave();
+    toast('已清除推荐目录；自动推荐已停止', 'ok');
+    return;
+  }
+  if (folder !== '/Game' && !folder.startsWith('/Game/')) {
+    toast('模型目录必须是 /Game 或其子目录', 'warn');
+    return;
+  }
+  if ((folder.split('/').pop() || '').includes('.')) {
+    toast('请填写 UE 目录，不要填写具体资产路径', 'warn');
+    return;
+  }
+  State.assetRecommendationFolder = folder;
+  State.assetRecommendationProject = State.assetCatalog.ue_project_id;
+  State.assetRecommendationMessage = `正在向 UE 请求扫描 ${folder}…`;
+  State.assetRecommendations = {};
+  stopAssetScanPolling();
+  State.assetScanRequestId = '';
+  State.assetScanStatus = 'pending';
+  renderAssetRecommendationScope();
+  renderAuditList();
+  scheduleSave();
+  try {
+    const res = await fetch('/api/v2/ue/assets/scan-requests', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        ue_project_id: State.assetCatalog.ue_project_id,
+        folder_path: folder,
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || '无法创建 UE 目录同步请求');
+    State.assetScanRequestId = data.request_id || '';
+    State.assetScanStatus = 'pending';
+    State.assetRecommendationMessage = `已请求 UE 扫描 ${folder}，正在等待工程返回资产清单…`;
+    renderAssetRecommendationScope();
+    pollAssetScanRequest();
+  } catch (e) {
+    State.assetScanStatus = 'failed';
+    State.assetRecommendationMessage = '目录同步请求失败：' + e.message;
+    renderAssetRecommendationScope();
+    toast(State.assetRecommendationMessage, 'err');
+  }
+}
+
+function stopAssetScanPolling() {
+  if (State.assetScanPollTimer) clearTimeout(State.assetScanPollTimer);
+  State.assetScanPollTimer = null;
+}
+
+async function pollAssetScanRequest() {
+  stopAssetScanPolling();
+  const requestId = State.assetScanRequestId;
+  const ueProjectId = State.assetRecommendationProject;
+  if (!requestId || !ueProjectId || State.assetScanStatus !== 'pending') return;
+  try {
+    const res = await fetch(`/api/v2/ue/assets/scan-requests?ue_project_id=${encodeURIComponent(ueProjectId)}`);
+    const data = await res.json();
+    if (requestId !== State.assetScanRequestId || ueProjectId !== State.assetRecommendationProject) return;
+    if (!res.ok) throw new Error(data.message || '无法读取 UE 目录同步状态');
+    if (data.request_id && data.request_id !== requestId) {
+      throw new Error('目录同步请求已被新的请求替代');
+    }
+    if (data.status === 'completed') {
+      State.assetScanStatus = 'completed';
+      State.assetRecommendationMessage = `UE 已返回 ${data.asset_count || 0} 个资产，正在生成推荐…`;
+      renderAssetRecommendationScope();
+      await refreshAssetCatalogForTarget(false);
+      await fetchAssetRecommendations();
+      scheduleSave();
+      return;
+    }
+    if (data.status === 'failed') {
+      State.assetScanStatus = 'failed';
+      State.assetRecommendationMessage = data.error || 'UE 无法扫描该目录';
+      renderAssetRecommendationScope();
+      renderAuditList();
+      toast(State.assetRecommendationMessage, 'err');
+      return;
+    }
+    State.assetRecommendationMessage = `等待 UE 扫描 ${State.assetRecommendationFolder}；请保持对应 UE 工程打开。`;
+    renderAssetRecommendationScope();
+    State.assetScanPollTimer = setTimeout(pollAssetScanRequest, 1500);
+  } catch (e) {
+    if (requestId !== State.assetScanRequestId) return;
+    State.assetRecommendationMessage = '等待 UE 连接：' + e.message;
+    renderAssetRecommendationScope();
+    State.assetScanPollTimer = setTimeout(pollAssetScanRequest, 2500);
+  }
+}
+
 async function onMergeTargetChange() {
+  stopAssetScanPolling();
   State.assetCatalog = null;
   State.assetRecommendations = {};
+  State.assetRecommendationFolder = '';
+  State.assetRecommendationProject = '';
+  State.assetRecommendationMessage = '';
+  State.assetScanRequestId = '';
+  State.assetScanStatus = 'idle';
   await refreshAssetCatalogForTarget(true);
   renderAuditList();
 }
@@ -2004,6 +2779,7 @@ async function refreshAssetCatalogForTarget(refreshRecommendations) {
     State.assetCatalogState = 'missing';
     State.assetCatalogMessage = '目标类型库尚未绑定 UE 工程；可保持未绑定后提交';
     renderAssetCatalogStatus();
+    renderAssetRecommendationScope();
     if (State.currentStep === 2 && State.scanResult) renderAuditList();
     return;
   }
@@ -2014,8 +2790,13 @@ async function refreshAssetCatalogForTarget(refreshRecommendations) {
   State.assetCatalogState = 'loading';
   State.assetCatalogMessage = `正在读取 ${target.bound_ue_project_name || ueProjectId} 的资产目录…`;
   renderAssetCatalogStatus();
+  renderAssetRecommendationScope();
   try {
     const res = await fetch(`/api/v2/ue/assets/catalog?ue_project_id=${encodeURIComponent(ueProjectId)}`);
+    const contentType = (res.headers.get('content-type') || '').toLowerCase();
+    if (!contentType.includes('application/json')) {
+      throw new Error(`后端资产目录接口未加载（HTTP ${res.status}），请重启 OntoTwin 后端`);
+    }
     const data = await res.json();
     if (requestId !== State.assetCatalogRequest) return;
     if (!res.ok) {
@@ -2024,24 +2805,43 @@ async function refreshAssetCatalogForTarget(refreshRecommendations) {
       State.assetCatalogState = res.status === 404 ? 'missing' : 'error';
       State.assetCatalogMessage = data.message || 'UE 资产目录读取失败';
       renderAssetCatalogStatus();
+      renderAssetRecommendationScope();
       if (State.currentStep === 2 && State.scanResult) renderAuditList();
       return;
     }
     State.assetCatalog = data;
-    const validPaths = new Set((data.assets || []).filter(asset => asset.supported).map(asset => asset.object_path));
-    Object.keys(State.auditAssetConfirmed).forEach(blockName => {
-      if (State.auditAssetProject[blockName] === data.ue_project_id
-          && !validPaths.has(State.auditAsset[blockName])) {
-        State.auditAssetConfirmed[blockName] = false;
-        State.auditAsset[blockName] = '';
-        State.auditAssetSource[blockName] = '';
-        State.auditAssetProject[blockName] = '';
+    if (State.assetRecommendationProject !== data.ue_project_id) {
+      stopAssetScanPolling();
+      State.assetRecommendationFolder = '';
+      State.assetRecommendationProject = '';
+      State.assetRecommendationMessage = '';
+      State.assetRecommendations = {};
+      State.assetScanRequestId = '';
+      State.assetScanStatus = 'idle';
+    }
+    const serverScan = data.scan_request || {};
+    if (serverScan.status === 'pending' && serverScan.request_id) {
+      State.assetRecommendationFolder = serverScan.folder_path || State.assetRecommendationFolder;
+      State.assetRecommendationProject = data.ue_project_id;
+      State.assetScanRequestId = serverScan.request_id;
+      State.assetScanStatus = 'pending';
+      State.assetRecommendationMessage = `等待 UE 扫描 ${State.assetRecommendationFolder}；请保持对应 UE 工程打开。`;
+      pollAssetScanRequest();
+    } else if (serverScan.request_id && serverScan.request_id === State.assetScanRequestId) {
+      State.assetScanStatus = serverScan.status || State.assetScanStatus;
+      if (serverScan.status === 'failed') {
+        State.assetRecommendationMessage = serverScan.error || 'UE 无法扫描该目录';
       }
-    });
+    }
+    // 按需目录簿只覆盖本次选择的目录，不能据此判定其他目录中的已确认资产失效。
+    // 切换推荐目录时保留已有人工确认，由用户显式更换或清除。
     State.assetCatalogState = 'ready';
-    State.assetCatalogMessage = `${data.ue_project_name || ueProjectId} · ${data.supported_count || 0} 个可绑定资产 / ${data.asset_count || 0} 个总资产 · ${data.synced_at || '已同步'}`;
+    State.assetCatalogMessage = `${data.ue_project_name || ueProjectId} · ${data.recommendable_count || 0} 个可推荐资产 / ${data.runtime_supported_count || 0} 个运行时可加载 · ${data.synced_at || '已同步'}`;
     renderAssetCatalogStatus();
-    if (refreshRecommendations && State.scanResult) await fetchAssetRecommendations();
+    renderAssetRecommendationScope();
+    if (refreshRecommendations && State.scanResult && State.assetScanStatus !== 'pending') {
+      await fetchAssetRecommendations();
+    }
   } catch (e) {
     if (requestId !== State.assetCatalogRequest) return;
     State.assetCatalog = null;
@@ -2049,13 +2849,25 @@ async function refreshAssetCatalogForTarget(refreshRecommendations) {
     State.assetCatalogState = 'error';
     State.assetCatalogMessage = 'UE 资产目录连接失败：' + e.message;
     renderAssetCatalogStatus();
+    renderAssetRecommendationScope();
   }
   if (State.currentStep === 2 && State.scanResult) renderAuditList();
 }
 
 async function fetchAssetRecommendations() {
   if (!State.assetCatalog || !State.scanResult) return;
+  if (State.assetScanStatus === 'pending') return;
   const ueProjectId = State.assetCatalog.ue_project_id;
+  const folder = State.assetRecommendationProject === ueProjectId
+    ? normalizeAssetFolder(State.assetRecommendationFolder) : '';
+  if (!folder) {
+    State.assetRecommendations = {};
+    State.assetRecommendationMessage = '';
+    renderAssetRecommendationScope();
+    if (State.currentStep === 2) renderAuditList();
+    return;
+  }
+  const requestId = ++State.assetRecommendationRequest;
   const items = (State.scanResult.candidates || []).map(c => ({
     block_name: c.block_name,
     name: State.auditName[c.block_name] || c.suggested_name,
@@ -2067,14 +2879,28 @@ async function fetchAssetRecommendations() {
   try {
     const res = await fetch('/api/v2/ue/assets/recommend', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ue_project_id: ueProjectId, items, limit: 3})
+      body: JSON.stringify({ue_project_id: ueProjectId, folder_path: folder, items, limit: 3})
     });
     const data = await res.json();
-    if (!res.ok || ueProjectId !== State.assetCatalog?.ue_project_id) return;
+    if (requestId !== State.assetRecommendationRequest
+        || ueProjectId !== State.assetCatalog?.ue_project_id
+        || folder !== State.assetRecommendationFolder) return;
+    if (!res.ok) {
+      State.assetRecommendations = {};
+      State.assetRecommendationMessage = data.message || '目录推荐失败';
+      renderAssetRecommendationScope();
+      renderAuditList();
+      return;
+    }
     State.assetRecommendations = {};
     (data.recommendations || []).forEach(item => { State.assetRecommendations[item.block_name] = item.candidates || []; });
+    State.assetRecommendationMessage = `已限定 ${folder} · 参与匹配 ${data.candidate_asset_count || 0} 个资产。`;
+    renderAssetRecommendationScope();
+    if (State.currentStep === 2) renderAuditList();
   } catch (e) {
     console.warn('资产推荐失败:', e.message);
+    State.assetRecommendationMessage = '目录推荐连接失败：' + e.message;
+    renderAssetRecommendationScope();
   }
 }
 
@@ -2095,23 +2921,27 @@ function renderAuditAssetChoice(candidate) {
       <div class="asset-choice-actions"><button class="btn btn-sm" onclick="openAssetPicker('${escapeQ(blockName)}')">更换</button><button class="btn btn-ghost btn-sm" onclick="clearConfirmedAsset('${escapeQ(blockName)}')">清除</button></div>
     </div>`;
   }
-  const top = (State.assetRecommendations[blockName] || [])[0];
+  const top = (State.assetRecommendations[blockName] || []).find(item => item.recommended);
   if (top) {
     const percent = Math.round((top.score || 0) * 100);
     const reason = (top.reasons || [])[0] || '请人工核对';
+    const runtimeNote = top.runtime_supported ? '' : ` · ${top.runtime_reason || `${top.asset_kind} 当前不可运行`}`;
     return `<div class="asset-choice">
       <div class="asset-choice-head"><span class="status-dot warn"></span><span class="asset-choice-name">推荐 ${escapeHTML(top.display_name || top.asset_name)}</span><span class="asset-score">${percent}%</span></div>
       <div class="asset-choice-path" data-tip="${escapeAttr(top.object_path)}">${escapeHTML(top.object_path)}</div>
-      <div class="asset-choice-reason">${escapeHTML(reason)} · 尚未确认</div>
-      <div class="asset-choice-actions"><button class="btn btn-primary btn-sm" onclick="adoptAssetRecommendation('${escapeQ(blockName)}')">采用</button><button class="btn btn-sm" onclick="openAssetPicker('${escapeQ(blockName)}')">查看其他</button></div>
+      <div class="asset-choice-reason">${escapeHTML(reason + runtimeNote)} · 尚未确认</div>
+      <div class="asset-choice-actions"><button class="btn btn-primary btn-sm" onclick="adoptAssetRecommendation('${escapeQ(blockName)}')">采用配置</button><button class="btn btn-sm" onclick="openAssetPicker('${escapeQ(blockName)}')">查看其他</button></div>
     </div>`;
   }
-  return `<div class="asset-choice"><div class="asset-choice-reason">${State.assetCatalogState === 'ready' ? '没有可靠推荐，可人工选择' : '资产目录不可用，可保持未绑定'}</div><div class="asset-choice-actions"><button class="btn btn-sm" ${State.assetCatalogState === 'ready' ? '' : 'disabled'} onclick="openAssetPicker('${escapeQ(blockName)}')">选择资产</button></div></div>`;
+  const recommendationReason = State.assetCatalogState !== 'ready'
+    ? '资产目录不可用，可保持未绑定'
+    : (!State.assetRecommendationFolder ? '请先在上方指定推荐模型目录' : '此目录内没有可靠推荐，可人工选择');
+  return `<div class="asset-choice"><div class="asset-choice-reason">${recommendationReason}</div><div class="asset-choice-actions"><button class="btn btn-sm" ${State.assetCatalogState === 'ready' ? '' : 'disabled'} onclick="openAssetPicker('${escapeQ(blockName)}')">选择资产</button></div></div>`;
 }
 
 function adoptAssetRecommendation(blockName) {
-  const top = (State.assetRecommendations[blockName] || [])[0];
-  if (!top || !top.supported) return;
+  const top = (State.assetRecommendations[blockName] || []).find(item => item.recommended);
+  if (!top || !top.recommendable) return;
   State.auditAsset[blockName] = top.object_path;
   State.auditAssetConfirmed[blockName] = true;
   State.auditAssetSource[blockName] = 'recommendation';
@@ -2135,9 +2965,15 @@ async function openAssetPicker(blockName) {
   State.assetPickerSelection = State.auditAssetConfirmed[blockName]
     && State.auditAssetProject[blockName] === State.assetCatalog.ue_project_id
     ? (State.auditAsset[blockName] || '') : '';
+  const folderOptions = assetPickerFolderOptions().map(path => `<option value="${escapeAttr(path)}"></option>`).join('');
   const result = await UI.modal({
     title: '选择类型默认资产',
-    bodyHTML: `<div class="asset-picker-tools"><input id="assetPickerSearch" placeholder="搜索名称或路径" oninput="renderAssetPickerResults()"><select id="assetPickerKind" onchange="renderAssetPickerResults()"><option value="supported">可绑定</option><option value="all">全部资产</option></select></div><div class="asset-picker-list" id="assetPickerList"></div>`,
+    bodyHTML: `<div class="asset-picker-tools">
+      <input id="assetPickerSearch" placeholder="搜索名称或路径" oninput="renderAssetPickerResults()">
+      <select id="assetPickerKind" onchange="renderAssetPickerResults()"><option value="recommendable">可推荐模型</option><option value="StaticMesh">StaticMesh</option><option value="SkeletalMesh">SkeletalMesh</option><option value="Blueprint">Blueprint</option><option value="all">全部资产</option></select>
+      <input class="asset-picker-wide" id="assetPickerFolder" list="assetPickerFolderOptions" value="${escapeAttr(State.assetRecommendationProject === State.assetCatalog.ue_project_id ? State.assetRecommendationFolder : '')}" placeholder="目录范围（可选择或填写，如 /Game/项目名/Art）" oninput="renderAssetPickerResults()"><datalist id="assetPickerFolderOptions">${folderOptions}</datalist>
+      <div class="asset-picker-path-entry"><input id="assetPickerDirectPath" value="${escapeAttr(State.assetPickerSelection)}" placeholder="填写完整资产路径，如 /Game/Factory/Pump.Pump"><button class="btn btn-sm" type="button" onclick="locateTypedAssetPath()">定位资产</button></div>
+    </div><div class="asset-picker-list" id="assetPickerList"></div>`,
     actions: [
       {label:'取消', value:null},
       {label:'保持未绑定', value:'clear'},
@@ -2153,8 +2989,8 @@ async function openAssetPicker(blockName) {
       toast('请先选择一个资产', 'warn');
       return;
     }
-    if (!asset.supported) {
-      toast('当前 TwinInstance 仅支持 StaticMesh', 'warn');
+    if (!asset.recommendable) {
+      toast('该资产类型不能作为类型默认模型', 'warn');
       return;
     }
     State.auditAsset[blockName] = asset.object_path;
@@ -2166,15 +3002,69 @@ async function openAssetPicker(blockName) {
   }
 }
 
+function normalizeAssetFolder(path) {
+  let value = String(path || '').trim().replaceAll('\\', '/');
+  while (value.length > 1 && value.endsWith('/')) value = value.slice(0, -1);
+  return value;
+}
+
+function assetPickerFolderOptions() {
+  if (!State.assetCatalog) return [];
+  const folders = new Set((State.assetCatalog.available_folders || []).map(normalizeAssetFolder).filter(Boolean));
+  (State.assetCatalog.roots || []).map(normalizeAssetFolder).filter(Boolean).forEach(folder => folders.add(folder));
+  (State.assetCatalog.assets || []).forEach(asset => {
+    const folder = normalizeAssetFolder(asset.folder_path);
+    if (folder) folders.add(folder);
+  });
+  return [...folders].sort((left, right) => left.localeCompare(right));
+}
+
+function findCatalogAssetByTypedPath(path) {
+  const value = String(path || '').trim();
+  if (!value || !State.assetCatalog) return null;
+  return (State.assetCatalog.assets || []).find(asset =>
+    asset.object_path === value || asset.package_name === value) || null;
+}
+
+function locateTypedAssetPath() {
+  const input = document.getElementById('assetPickerDirectPath');
+  const asset = findCatalogAssetByTypedPath(input?.value);
+  if (!asset) {
+    toast('该路径不在当前同步目录中；请检查 UE 扫描根目录并重新同步', 'warn');
+    return;
+  }
+  if (!asset.recommendable) {
+    toast(asset.runtime_reason || '该资产不能作为类型默认模型', 'warn');
+    return;
+  }
+  State.assetPickerSelection = asset.object_path;
+  if (input) input.value = asset.object_path;
+  const folderInput = document.getElementById('assetPickerFolder');
+  if (folderInput) folderInput.value = asset.folder_path || '';
+  const searchInput = document.getElementById('assetPickerSearch');
+  if (searchInput) searchInput.value = asset.asset_name || '';
+  renderAssetPickerResults();
+}
+
 function renderAssetPickerResults() {
   const list = document.getElementById('assetPickerList');
   if (!list || !State.assetCatalog) return;
   const keyword = (document.getElementById('assetPickerSearch')?.value || '').trim().toLowerCase();
-  const kind = document.getElementById('assetPickerKind')?.value || 'supported';
+  const kind = document.getElementById('assetPickerKind')?.value || 'recommendable';
+  const folder = normalizeAssetFolder(document.getElementById('assetPickerFolder')?.value).toLowerCase();
+  const recommendationRank = new Map((State.assetRecommendations[State.assetPickerBlock] || [])
+    .map((asset, index) => [asset.object_path, {index, score:asset.score}]));
   const assets = (State.assetCatalog.assets || []).filter(asset => {
-    if (kind === 'supported' && !asset.supported) return false;
+    if (kind === 'recommendable' && !asset.recommendable) return false;
+    if (!['recommendable', 'all'].includes(kind) && asset.asset_kind !== kind) return false;
+    const assetFolder = normalizeAssetFolder(asset.folder_path || asset.object_path).toLowerCase();
+    if (folder && assetFolder !== folder && !assetFolder.startsWith(folder + '/')) return false;
     const hay = `${asset.asset_name || ''} ${asset.display_name || ''} ${asset.object_path || ''}`.toLowerCase();
     return !keyword || hay.includes(keyword);
+  }).sort((left, right) => {
+    const leftRank = recommendationRank.get(left.object_path)?.index ?? Number.MAX_SAFE_INTEGER;
+    const rightRank = recommendationRank.get(right.object_path)?.index ?? Number.MAX_SAFE_INTEGER;
+    return leftRank - rightRank || String(left.object_path).localeCompare(String(right.object_path));
   }).slice(0, 300);
   if (!assets.length) {
     list.innerHTML = '<div class="asset-picker-empty">没有符合条件的资产</div>';
@@ -2184,11 +3074,14 @@ function renderAssetPickerResults() {
     const selected = State.assetPickerSelection === asset.object_path;
     const thumb = asset.thumbnail_data_url ? `<img src="${escapeAttr(asset.thumbnail_data_url)}" alt="">` : escapeHTML(asset.asset_kind === 'StaticMesh' ? 'SM' : asset.asset_kind);
     const size = asset.size_cm ? `${Number(asset.size_cm.x||0).toFixed(0)} × ${Number(asset.size_cm.y||0).toFixed(0)} × ${Number(asset.size_cm.z||0).toFixed(0)} cm` : '尺寸未知';
-    const supportText = asset.supported ? size : `${asset.asset_kind} · 当前不可绑定`;
-    return `<label class="asset-picker-item ${asset.supported?'':'unsupported'}">
+    const ranked = recommendationRank.get(asset.object_path);
+    const scoreText = ranked ? ` · 推荐分 ${Math.round((ranked.score || 0) * 100)}%` : '';
+    const supportText = asset.runtime_supported ? `${asset.asset_kind} · ${size}${scoreText}` : `${asset.asset_kind} · ${asset.runtime_reason || '当前不可运行'}${scoreText}`;
+    const stateClass = asset.recommendable ? '' : 'unsupported';
+    return `<label class="asset-picker-item ${stateClass}">
       <span class="asset-thumb">${thumb}</span>
       <span><div class="asset-picker-name">${escapeHTML(asset.display_name || asset.asset_name)}</div><div class="asset-picker-path">${escapeHTML(asset.object_path)}</div><div class="asset-picker-meta">${escapeHTML(supportText)}</div></span>
-      <input type="radio" name="assetPickerChoice" value="${escapeAttr(asset.object_path)}" ${selected?'checked':''} ${asset.supported?'':'disabled'} onchange="State.assetPickerSelection=this.value">
+      <input type="radio" name="assetPickerChoice" value="${escapeAttr(asset.object_path)}" ${selected?'checked':''} ${asset.recommendable?'':'disabled'} onchange="State.assetPickerSelection=this.value;const input=document.getElementById('assetPickerDirectPath');if(input)input.value=this.value">
     </label>`;
   }).join('');
 }
@@ -2330,16 +3223,17 @@ function confirmPublishOtherCollision(otherList) {
 }
 
 function confirmMergeConflict(targetList) {
-  // 返回 Promise<string|null>: 'skip' / 'overwrite' / null（取消）
+  // 返回 Promise<string|null>: 'skip'（保留结构、仍更新确认模型）/ 'overwrite' / null（取消）
   const rows = targetList.slice(0, 8).map(c => `<div class="ui-list-row">${escapeHTML(c.rid)}</div>`).join('');
   return UI.modal({
     title: `有 ${targetList.length} 个类型已存在`,
     bodyHTML: `以下类型在目标数据集中已存在，请选择处理方式：
       <div class="ui-list">${rows}</div>
       <div class="ui-choices">
-        <label><input type="radio" name="mcs" value="skip" checked> 全部跳过（保留原有定义）</label>
-        <label><input type="radio" name="mcs" value="overwrite"> 全部覆盖（用新解析的定义替换）</label>
-      </div>`,
+        <label><input type="radio" name="mcs" value="skip" checked> 保留原类型结构（仍更新本次确认模型）</label>
+        <label><input type="radio" name="mcs" value="overwrite"> 覆盖类型结构和模型</label>
+      </div>
+      <div style="color:var(--ink-3);font-size:var(--t-xs);margin-top:var(--s2)">人工确认的模型会单独保存，不受类型结构处理方式影响。</div>`,
     actions: [
       { label: '取消', value: '__cancel' },
       { label: '确认', value: '__ok', primary: true }
@@ -2411,6 +3305,7 @@ function _collectSpawnItems() {
     .map(ins => ({
       block_name: ins.block_name,
       cad_xy: ins.position,
+      floor: State.cadFloor,
       rotation: ins.rotation || 0,
       attribs: ins.attribs || {},
     }));
@@ -2422,12 +3317,25 @@ async function spawnInstances() {
     toast('请先完成标定', 'warn');
     return;
   }
+  if (!State.cadFrameId || State.cadPersistStatus !== 'published') {
+    toast('请先在标定步骤发布 CAD 空间底图', 'warn');
+    return;
+  }
+  if(!floorConfigIsConfigured('dxf')){
+    toast('请先在③标定保存当前楼层的空间配置','warn');
+    return;
+  }
   const items = _collectSpawnItems();
   if (items.length === 0) {
     toast('没有勾选任何构件', 'warn');
     return;
   }
-  const payload = { transform_matrix: State.matrix, items };
+  const payload = {
+    mode:'dxf', frame_id:State.cadFrameId,
+    expected_project_id:FloorConfig.projectId,
+    source_label:State.lastUploadedFile?.name||State.cadFrameName||'',
+    transform_matrix: State.matrix, items,
+  };
   try {
     const res = await fetch('/api/v2/coord/save_components', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -2435,7 +3343,7 @@ async function spawnInstances() {
     });
     const data = await res.json();
     if (!res.ok) {
-      toast('保存失败：' + (data.error || res.status), 'err');
+      toast('保存失败：' + (data.message || data.error || res.status), 'err');
       return;
     }
     const errN = (data.errors || []).length;
@@ -2443,7 +3351,7 @@ async function spawnInstances() {
       + (errN ? `<br><span style="color:var(--danger)">${errN} 个未保存（类型未并入类型库）。</span>` : '')
       + `<br><br>构件还没有实例编号，请前往『实例绑定台』绑定身份、铸造实例。`;
     if (await UI.confirm({ title: '构件已保存', bodyHTML, confirmText: '前往实例绑定台', cancelText: '留在本页' })) {
-      openInNewTab('/binding');
+      openNexusPage('/binding');
     }
   } catch(e) {
     toast('请求失败：' + e.message, 'err');
@@ -2514,7 +3422,7 @@ function spawnSuccessDialog(data) {
       { label: '关闭', value: null },
       { label: '前往实例运维中心', value: 'go', primary: true }
     ]
-  }).then(v => { if (v === 'go') openInNewTab('/instance'); });
+  }).then(v => { if (v === 'go') openNexusPage('/instance'); });
 }
 
 function showCommitSuccess(data) {
@@ -2522,9 +3430,10 @@ function showCommitSuccess(data) {
   // 主次随进度：提交成功后，黑底交给成功框里的"下一步：标定"，提交按钮降为次级白底
   document.getElementById('btnCommit').classList.remove('btn-primary');
   // 不隐藏编辑区：成功后仍可继续勾选追加、或换数据集再提交（可逆）
+  const assetBindingCount = data.asset_bindings_applied ?? data.asset_mapping_updated ?? 0;
   const summary = data.mode === 'publish'
     ? `数据集"${escapeHTML(data.dataset_name)}"已创建并激活<br>写入 <b>${data.written_count}</b> 个类型，记住资产对应 <b>${data.asset_mapping_updated}</b> 项`
-    : `已并入"${escapeHTML(data.target_dataset_name)}"<br>新增 <b>${data.added}</b>，覆盖 <b>${data.overwritten}</b>，跳过 <b>${data.skipped}</b>；人工确认资产 <b>${data.asset_mapping_updated}</b> 项`;
+    : `已并入"${escapeHTML(data.target_dataset_name)}"<br>新增 <b>${data.added}</b>，覆盖 <b>${data.overwritten}</b>，保留原结构 <b>${data.skipped}</b>；人工确认模型已写入 <b>${assetBindingCount}</b> 项`;
   el.style.display = 'block';
   el.innerHTML = `
     <div class="success-panel">
@@ -2532,7 +3441,7 @@ function showCommitSuccess(data) {
       <div class="succ-summary">${summary}</div>
       <div class="succ-hint">${escapeHTML(data.hint || '')}</div>
       <div class="succ-actions">
-        <button class="btn btn-sm" onclick="openInNewTab('/ontology_graph')">查看类型库</button>
+        <button class="btn btn-sm" onclick="openNexusPage('/ontology_graph')">查看类型库</button>
         <button class="btn btn-primary btn-sm" onclick="goToStep(3)">下一步：标定</button>
       </div>
       <div class="succ-foot">如需补充类型，可继续在上方勾选后再次提交。</div>
@@ -2570,10 +3479,22 @@ function escapeQ(s) { return String(s).replace(/'/g, "\\'"); }
 function escapeAttr(s) { return String(s).replace(/"/g, '&quot;'); }
 function escapeHTML(s) { return String(s||'').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m])); }
 
-// 跨页跳转 helper：优先新标签页；被拦截则同窗口跳
-function openInNewTab(url) {
-  const w = window.open(url, '_blank');
-  if (!w) window.location.href = url;
+// Nexus 内嵌页优先复用外层内容区，保留侧栏菜单与激活态。
+function openNexusPage(url) {
+  if (query.get('nexus') === 'true' && window.parent !== window) {
+    try {
+      const frame = window.parent.document.getElementById('main-frame');
+      if (frame) {
+        const target = new URL(url, window.location.origin);
+        target.searchParams.set('nexus', 'true');
+        frame.src = `${target.pathname}${target.search}${target.hash}`;
+        return;
+      }
+    } catch (e) {
+      console.warn('Nexus 内导航失败，改用当前页跳转:', e);
+    }
+  }
+  window.location.href = url;
 }
 
 function applyPreviewData() {
@@ -2778,9 +3699,9 @@ function _targetLabel() {
 }
 
 function addAnchor(wx, wy) {
-  State.anchors.push({ cadXY: [Math.round(wx), Math.round(wy)], readings: {} });
+  State.anchors.push({ id:`anchor-${Date.now()}-${State.anchors.length+1}`, cadXY: [Math.round(wx), Math.round(wy)], readings: {} });
   renderAnchorList();
-  draw();
+  draw();cadMarkDirty();
 }
 
 function renderAnchorList() {
@@ -2804,22 +3725,24 @@ function renderAnchorList() {
       <span class="del-btn" onclick="deleteAnchor(${i})" data-tip="删除锚点"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span>`;
     el.appendChild(div);
   });
-  document.getElementById('btnCalibrate').disabled = State.anchors.length < 2;
+  document.getElementById('btnCalibrate').disabled = State.anchors.length < 3;
   const tgt = State.calibTarget === 'ue' ? '' : `→${_targetLabel()}`;
   document.getElementById('btnCalibrate').textContent =
-    State.anchors.length < 2 ? '计算变换（至少 2 个锚点）' : `计算变换（${State.anchors.length} 个锚点）${tgt}`;
+    State.anchors.length < 3 ? '计算变换（至少 3 个锚点）' : `计算变换（${State.anchors.length} 个锚点）${tgt}`;
+  cadRenderPersistStatus();
 }
 
 function updateAnchorReading(idx, axis, val) {
   _curReading(State.anchors[idx])[axis] = parseFloat(val) || 0;
   if (State.calibTarget === 'ue' && State.matrix) doCalibrate(); // 仅 UE 自动重算（自定义源走后端，按钮触发）
+  else if(State.calibTarget==='ue')cadMarkDirty();
 }
 
 function deleteAnchor(idx) {
   State.anchors.splice(idx, 1);
-  if (State.calibTarget === 'ue' && State.anchors.length >= 2) doCalibrate();
-  else if (State.anchors.length < 2) { State.matrix = null; State.metrics = null; document.getElementById('metricsPanel').style.display='none'; document.getElementById('btnToStep4').style.display='none'; document.getElementById('btnCalibrate').classList.add('btn-primary'); }
-  renderAnchorList(); draw();
+  if (State.calibTarget === 'ue' && State.anchors.length >= 3) doCalibrate();
+  else if (State.anchors.length < 3) { State.matrix = null; State.metrics = null; document.getElementById('metricsPanel').style.display='none'; document.getElementById('btnToStep4').style.display='none'; document.getElementById('btnCalibrate').classList.add('btn-primary'); }
+  renderAnchorList(); draw();cadMarkDirty();
 }
 
 function doCalibrate() {
@@ -2833,7 +3756,7 @@ function doCalibrate() {
     renderMetrics();
     renderAnchorList();
     draw();
-    scheduleSave();
+    cadMarkDirty();
   } catch(e) {
     toast('标定失败：' + e.message, 'err');
   }
@@ -2919,6 +3842,7 @@ function renderMetrics() {
   document.getElementById('btnToStep4').style.display = proceed ? '' : 'none';
   // 主次随进度：算出可用变换后，黑底交给"下一步"，计算按钮降为次级白底
   document.getElementById('btnCalibrate').classList.toggle('btn-primary', !proceed);
+  cadRenderPersistStatus();
 }
 
 // ── Step 3: Entity Table ──
@@ -3113,14 +4037,20 @@ function downloadCSV() {
 
 function resetAll() {
   SessionDB.clear();  // U6: 重新开始即清掉会话缓存
+  stopAssetScanPolling();
   if (State.mode === 'dxf') {
     State.previewData = null; State.anchors = []; State.matrix = null; State.metrics = null; State.calibTarget = 'ue';
     State.currentStep = 1; State.highlightId = null;
     // M2 类型审核状态清空
     State.scanResult = null; State.auditChecked = {}; State.auditName = {}; State.auditAsset = {}; State.polyAuditChecked = {};
     State.auditAssetConfirmed = {}; State.auditAssetSource = {}; State.auditAssetProject = {}; State.assetRecommendations = {};
+    State.assetRecommendationFolder = ''; State.assetRecommendationProject = ''; State.assetRecommendationMessage = '';
+    State.assetScanRequestId = ''; State.assetScanStatus = 'idle';
     State.layerVisible = {}; State.layerSelected = {};   // 2.9.2.2
     State.lastUploadedFile = null;
+    State.cadFrameId='';State.cadDraftRevision=0;State.cadCalibrationRevision=0;State.cadPersistStatus='new';
+    State.cadFrameName='';State.cadFloor=1;State.cadFloorId='floor-1';State.cadUeLevel='';
+    State.cadSavedOrigin=null;State.cadSavedDisplay=null;State.cadPersistBusy=false;cadSyncFrameForm();floorConfigSync('dxf');cadRenderPersistStatus();cadRefreshFrameList();
     document.getElementById('layerPanel').style.display = 'none';
     document.querySelector('#cadPanels .upload-zone').style.display = '';
     document.getElementById('btnReset').style.display = 'none';
@@ -3156,7 +4086,7 @@ function resetAll() {
     document.getElementById('imgAnchorList').innerHTML = '';
     document.getElementById('markerList').innerHTML = '';
     document.getElementById('imgFileInput').value = '';
-    imgSyncFrameForm(); imgRenderPersistStatus(); imgRefreshFrameList();
+    imgSyncFrameForm();floorConfigSync('image');imgRenderPersistStatus();imgRefreshFrameList();
     imgGoToStep(1); draw();
   }
 }
@@ -3167,13 +4097,19 @@ function resetAll() {
 State.mode = 'dxf';
 
 function switchMode(mode) {
-  if (mode === State.mode) return;
   State.mode = mode;
   document.getElementById('modeTabCad').classList.toggle('active', mode === 'dxf');
   document.getElementById('modeTabImg').classList.toggle('active', mode === 'image');
   document.getElementById('cadPanels').style.display = mode === 'dxf' ? '' : 'none';
   document.getElementById('imgPanels').style.display = mode === 'image' ? 'flex' : 'none';
   document.getElementById('btnReset').style.display = 'none';
+  floorConfigSync(mode);
+  if(mode==='image'){
+    let step=imgState.currentStep||1;
+    if(!imgCalibrationPublishable(imgState.metrics))step=1;
+    else if(step>2&&!imgState.markers.length)step=2;
+    imgGoToStep(step);
+  }
   draw();
 }
 
@@ -3251,6 +4187,8 @@ function imgUpdateFrameField(field,value) {
   if(field==='floor'){
     const floor=Math.max(1,Math.min(10000,Number(value)||1));
     imgState.floor=floor;imgState.floorId=`floor-${floor}`;
+    FloorConfig.expanded.image=!floorConfigIsConfigured('image');
+    floorConfigSync('image');
   }
   imgState.persistStatus='draft';
   imgRenderPersistStatus();
@@ -3270,7 +4208,7 @@ function imgRenderPersistStatus() {
   const publish=document.getElementById('imgPublishBtn');
   const routes=document.getElementById('imgGoRoutesBtn');
   if(save)save.disabled=!imgState.frameId||!canCalibrate;
-  if(publish)publish.disabled=!imgState.frameId||!canCalibrate||!imgState.matrix||!imgCalibrationPublishable(imgState.metrics)||!imgState.floorReferenceAnchorId||!imgState.ueLevel.trim();
+  if(publish)publish.disabled=!imgState.frameId||!canCalibrate||!imgState.matrix||!imgCalibrationPublishable(imgState.metrics)||!imgState.floorReferenceAnchorId||!imgState.ueLevel.trim()||!floorConfigIsConfigured('image');
   if(routes)routes.style.display=published?'':'none';
 }
 
@@ -3284,7 +4222,7 @@ async function imgRefreshFrameList(selectedId='') {
   const button=document.getElementById('imgLoadFrameBtn');
   if(!select||!button)return;
   try{
-    const res=await fetch('/api/v2/spatial-frames');
+    const res=await fetch('/api/v2/spatial-frames?kind=image');
     const data=await res.json();
     if(!res.ok)throw new Error(data.message||data.error||'加载失败');
     const frames=data.frames||[];
@@ -3344,7 +4282,7 @@ async function imgApplyFrame(frame) {
   document.getElementById('imgAnchorPanel').style.display='';
   document.querySelector('#imgPanels .upload-zone').style.display='none';
   document.getElementById('btnReset').style.display='';
-  imgSyncFrameForm();imgRenderAnchorList();imgRenderMarkerList();imgRenderPersistStatus();
+  imgSyncFrameForm();floorConfigSync('image');imgRenderAnchorList();imgRenderMarkerList();imgRenderPersistStatus();
   if(imgState.metrics)imgRenderMetrics();
   else document.getElementById('imgMetricsPanel').style.display='none';
   imgGoToStep(1);
@@ -3378,6 +4316,7 @@ async function imgHandleUpload(e) {
     form.append('name',file.name||`image-${Date.now()}`);
     form.append('floor','1');
     form.append('floor_id','floor-1');
+    form.append('expected_project_id',FloorConfig.projectId);
     const res=await fetch('/api/v2/spatial-frames/assets',{method:'POST',body:form});
     const data=await res.json();
     if(!res.ok)throw new Error(data.message||data.error||'上传失败');
@@ -3468,6 +4407,7 @@ function imgRenderAnchorList() {
 function imgUpdateAnchorUE(idx, axis, val) {
   imgState.anchors[idx].ueXYZ[axis] = parseFloat(val) || 0;
   imgState.persistStatus='draft';
+  if(axis===2&&imgState.anchors[idx].id===imgState.floorReferenceAnchorId)floorConfigSync('image',true);
   if (imgState.matrix) imgDoCalibrate();
   else {imgRenderPersistStatus();scheduleSave();}
 }
@@ -3475,6 +4415,7 @@ function imgUpdateAnchorUE(idx, axis, val) {
 function imgSelectFloorReference(anchorId) {
   imgState.floorReferenceAnchorId=anchorId;
   imgState.persistStatus='draft';
+  floorConfigSync('image',true);
   imgRenderPersistStatus();
   scheduleSave();
 }
@@ -3484,6 +4425,7 @@ function imgDeleteAnchor(idx) {
   imgState.anchors.splice(idx, 1);
   if(removed&&removed.id===imgState.floorReferenceAnchorId)imgState.floorReferenceAnchorId='';
   imgState.persistStatus='draft';
+  floorConfigSync('image',true);
   if (imgState.anchors.length >= 3) imgDoCalibrate();
   else {
     imgState.matrix = null; imgState.metrics = null;
@@ -3534,9 +4476,24 @@ function imgRenderMetrics() {
 async function imgSaveFrameDraft(publishAfter=false) {
   if(!imgState.frameId){toast('请先上传并保存图片','warn');return;}
   if(imgState.anchors.length<3||!imgState.matrix){toast('请先使用至少 3 个不共线锚点计算变换','warn');return;}
+  if(publishAfter&&!floorConfigIsConfigured('image')){toast('请先保存当前楼层的空间配置','warn');return;}
   if(publishAfter&&!imgState.floorReferenceAnchorId){toast('请选择一个实际地面锚点作为 Z 基准','warn');return;}
   if(publishAfter&&!imgState.ueLevel.trim()){toast('发布前请填写绑定的 UE Level','warn');return;}
   if(publishAfter&&!imgCalibrationPublishable(imgState.metrics)){toast('当前标定误差仍超过透视底图发布容差','warn');return;}
+  if(publishAfter){
+    const current=floorConfigEntry('image');
+    const anchor=floorConfigGroundAnchor();
+    const oldGround=current?.ue_ground_z_cm;
+    const newGround=Number(anchor?.ueXYZ?.[2]);
+    if(oldGround!==null&&oldGround!==undefined&&anchor&&Number(oldGround)!==newGround){
+      const confirmed=await UI.confirm({
+        title:'更新 UE 实际地面 Z',
+        bodyHTML:`当前楼层地面 Z 为 <b>${Number(oldGround)} cm</b>，所选地面锚点为 <b>${newGround} cm</b>。发布后将更新人物路线和地面检测使用的高度；普通 CAD 构件 Z 不变。`,
+        confirmText:'更新并发布',cancelText:'取消',
+      });
+      if(!confirmed)return;
+    }
+  }
   const saveButton=document.getElementById('imgSaveDraftBtn');
   const publishButton=document.getElementById('imgPublishBtn');
   const activeButton=publishAfter?publishButton:saveButton;
@@ -3544,6 +4501,7 @@ async function imgSaveFrameDraft(publishAfter=false) {
   activeButton.disabled=true;activeButton.textContent=publishAfter?'发布中':'保存中';
   try{
     const payload={
+      expected_project_id:FloorConfig.projectId,
       expected_draft_revision:imgState.draftRevision,
       name:imgState.frameName||imgState.sourceName||'图片空间底图',
       floor:imgState.floor,
@@ -3572,7 +4530,7 @@ async function imgSaveFrameDraft(publishAfter=false) {
     }
     const publishRes=await fetch(`/api/v2/spatial-frames/${encodeURIComponent(imgState.frameId)}/publish`,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({expected_draft_revision:imgState.draftRevision}),
+      body:JSON.stringify({expected_project_id:FloorConfig.projectId,expected_draft_revision:imgState.draftRevision}),
     });
     const publishData=await publishRes.json();
     if(!publishRes.ok)throw new Error(publishData.message||publishData.error||'发布失败');
@@ -3582,6 +4540,7 @@ async function imgSaveFrameDraft(publishAfter=false) {
     imgState.draftRevision=Number(published.draft_revision||imgState.draftRevision);
     imgRenderPersistStatus();
     await imgRefreshFrameList(imgState.frameId);
+    await loadFloorProfiles(true);
     toast('空间底图已发布，可用于人物漫游路线','ok',4200);
     scheduleSave();
   }catch(error){toast((publishAfter?'发布失败：':'保存失败：')+error.message,'err');}
@@ -3741,6 +4700,10 @@ async function imgSaveComponents() {
     toast('请先完成图片标定', 'warn');
     return;
   }
+  if(!floorConfigIsConfigured('image')){
+    toast('请先保存当前楼层的空间配置','warn');
+    return;
+  }
 
   const clearingSource = imgState.markers.length === 0;
   if (clearingSource) {
@@ -3759,6 +4722,7 @@ async function imgSaveComponents() {
       block_name: m.type,
       source_xy: m.pixelXY,
       cad_xy: m.pixelXY,                  // 兼容后端旧字段；图片模式语义为像素坐标
+      floor: imgState.floor,
       rotation: 0,
       attribs: {
         ...(m.deviceId ? {EQUIP_ID: m.deviceId} : {}),
@@ -3773,6 +4737,7 @@ async function imgSaveComponents() {
   }
 
   const payload = {
+    expected_project_id:FloorConfig.projectId,
     source_label: 'image:' + (imgState.sourceKey || imgState.sourceName || document.getElementById('imgFileInput')?.files[0]?.name || `image-${Date.now()}`),
     mode: 'image',
     frame_id: imgState.frameId || null,
@@ -3792,7 +4757,7 @@ async function imgSaveComponents() {
     return;
   }
   if (!res.ok) {
-    toast('保存失败：' + (data.error || res.status), 'err');
+    toast('保存失败：' + (data.message || data.error || res.status), 'err');
     return;
   }
 

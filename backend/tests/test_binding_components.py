@@ -79,6 +79,47 @@ class BindingComponentApiTestCase(unittest.TestCase):
         self.assertEqual(1, response.get_json()["removed"])
         self.assertEqual(["cmp_cad"], list(self.store.get_components()))
 
+    def test_dynamic_cad_frame_save_preserves_frame_and_uses_its_calibration(self):
+        frame_id = "frame.cad.acceptance"
+        self.store.set_spatial_profile({
+            "canonical_origin": [100.0, 200.0],
+            "ue_transform": {
+                "matrix": [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+                "display": {},
+                "scale_to_cm": 0.1,
+            },
+            "floor_table": [{"floor": 1, "floor_id": "floor-1", "z_base_mm": 0.0}],
+        })
+        self.store.upsert_frame({
+            "id": frame_id,
+            "name": "验收 CAD",
+            "kind": "cad",
+            "status": "published",
+            "cad": {"original_name": "acceptance.dxf", "sha256": "test"},
+            "to_ue": {"method": "anchor", "matrix": [[0.1, 0, 10], [0, 0.1, 20], [0, 0, 1]]},
+            "calibration_revision": 1,
+        })
+
+        with mock.patch.object(app_module, "_object_types", {
+            "test.rotor": {"rid": "test.rotor", "name": "旋翼航空器"},
+        }):
+            response = self.client.post("/api/v2/coord/save_components", json={
+                "mode": "dxf",
+                "frame_id": frame_id,
+                "source_label": "acceptance.dxf",
+                "transform_matrix": [[0.1, 0, 10], [0, 0.1, 20], [0, 0, 1]],
+                "items": [{"block_name": "test.rotor", "cad_xy": [1100, 2200]}],
+            })
+
+        self.assertEqual(200, response.status_code, response.get_json())
+        component = next(iter(self.store.get_components().values()))
+        self.assertEqual(frame_id, component["frame_id"])
+        self.assertEqual([1000.0, 2000.0], component["canonical_xy"])
+        self.assertEqual([120.0, 240.0], component["ue_xy"])
+        frame = self.store.get_frame(frame_id)
+        self.assertEqual("published", frame["status"])
+        self.assertEqual(1, frame["calibration_revision"])
+
 
 if __name__ == "__main__":
     unittest.main()

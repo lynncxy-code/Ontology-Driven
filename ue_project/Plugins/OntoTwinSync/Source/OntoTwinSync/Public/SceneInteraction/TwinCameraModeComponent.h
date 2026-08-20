@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "SceneInteraction/TwinCameraVisibility.h"
 #include "SceneInteraction/TwinRoamingTypes.h"
 #include "TimerManager.h"
 #include "TwinCameraModeComponent.generated.h"
@@ -39,6 +40,7 @@ public:
     bool Cycle(APlayerController* PlayerController, ATwinGodViewAnchor* StartAnchor, FString& OutError);
     bool FocusAtTransform(
         APlayerController* PlayerController,
+        ATwinGodViewAnchor* VisibilityAnchor,
         const FTransform& TargetTransform,
         float FovDegrees,
         FString& OutError);
@@ -62,8 +64,11 @@ private:
     UPROPERTY()
     ATwinGodViewPawn* GodPawn = nullptr;
 
+    FTwinCameraVisibilityState GodViewVisibilityState;
     FTimerHandle TransitionTimer;
     bool EnsureGodPawn(ATwinGodViewAnchor* StartAnchor, FString& OutError);
     void FinishViewTargetTransition();
     void ApplyPersonControlRotation(APlayerController* PlayerController, ETwinRoamingCameraMode PersonMode);
+    void ApplyGodViewVisibility(APlayerController* PlayerController, ATwinGodViewAnchor* Anchor);
+    void ClearGodViewVisibility(APlayerController* PlayerController);
 };

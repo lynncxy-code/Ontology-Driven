@@ -1,5 +1,6 @@
 #include "SceneInteraction/TwinCameraModeComponent.h"
 
+#include "SceneInteraction/TwinCameraVisibility.h"
 #include "SceneInteraction/TwinGodViewPawn.h"
 #include "SceneInteraction/TwinRoamingCharacter.h"
 #include "Camera/CameraComponent.h"
@@ -38,6 +39,33 @@ void UTwinCameraModeComponent::Configure(
     {
         GodPawn->Configure(GodSettings.MoveSpeedCmS, GodSettings.LookSensitivity);
     }
+}
+
+void UTwinCameraModeComponent::ApplyGodViewVisibility(
+    APlayerController* PlayerController,
+    ATwinGodViewAnchor* Anchor)
+{
+    TArray<AActor*> HiddenActors;
+    const TArray<FName> EmptyNames;
+    OntoTwinCameraVisibility::ResolveHiddenActors(
+        GetWorld(),
+        ETwinCameraVisibilityProfile::GodView,
+        Anchor ? Anchor->HiddenActorNames : EmptyNames,
+        Anchor ? Anchor->HiddenLevelNames : EmptyNames,
+        HiddenActors);
+    OntoTwinCameraVisibility::ApplyToPlayer(
+        PlayerController, HiddenActors, GodViewVisibilityState);
+    UE_LOG(LogTemp, Log,
+        TEXT("OntoTwin god-view visibility applied: hidden_actors=%d suppressed_lights=%d"),
+        GodViewVisibilityState.AddedPlayerHiddenActors.Num(),
+        GodViewVisibilityState.SuppressedLights.Num());
+}
+
+void UTwinCameraModeComponent::ClearGodViewVisibility(
+    APlayerController* PlayerController)
+{
+    OntoTwinCameraVisibility::ClearFromPlayer(
+        PlayerController, GodViewVisibilityState);
 }
 
 bool UTwinCameraModeComponent::EnsureGodPawn(
@@ -111,6 +139,10 @@ bool UTwinCameraModeComponent::ActivateMode(
     {
         return false;
     }
+    if (NewMode == ETwinRoamingCameraMode::God)
+    {
+        ApplyGodViewVisibility(PlayerController, StartAnchor);
+    }
 
     const ETwinRoamingCameraMode PreviousMode = Mode;
     PendingMode = NewMode;
@@ -131,6 +163,7 @@ bool UTwinCameraModeComponent::ActivateMode(
             Character->ActivatePersonCamera(NewMode, 0.0f);
             PlayerController->Possess(Character);
             ApplyPersonControlRotation(PlayerController, NewMode);
+            ClearGodViewVisibility(PlayerController);
         }
         return true;
     }
@@ -139,6 +172,7 @@ bool UTwinCameraModeComponent::ActivateMode(
         && NewMode != ETwinRoamingCameraMode::God)
     {
         Character->ActivatePersonCamera(NewMode, PersonCameraBlendSeconds);
+        ClearGodViewVisibility(PlayerController);
         return true;
     }
 
@@ -187,6 +221,7 @@ void UTwinCameraModeComponent::FinishViewTargetTransition()
         {
             PlayerController->Possess(Character);
             ApplyPersonControlRotation(PlayerController, PendingMode);
+            ClearGodViewVisibility(PlayerController);
         }
     }
     bViewTargetTransitioning = false;
@@ -244,6 +279,7 @@ bool UTwinCameraModeComponent::Cycle(
 
 bool UTwinCameraModeComponent::FocusAtTransform(
     APlayerController* PlayerController,
+    ATwinGodViewAnchor* VisibilityAnchor,
     const FTransform& TargetTransform,
     float FovDegrees,
     FString& OutError)
@@ -282,6 +318,7 @@ bool UTwinCameraModeComponent::FocusAtTransform(
         && PlayerController->GetPawn() == GodPawn;
     if (bAlreadyObserving)
     {
+        ApplyGodViewVisibility(PlayerController, VisibilityAnchor);
         GodPawn->FocusToTransform(TargetTransform, GlobalCameraBlendSeconds);
         return true;
     }
@@ -290,7 +327,7 @@ bool UTwinCameraModeComponent::FocusAtTransform(
     return ActivateMode(
         ETwinRoamingCameraMode::God,
         PlayerController,
-        nullptr,
+        VisibilityAnchor,
         OutError,
         false);
 }
@@ -305,6 +342,7 @@ bool UTwinCameraModeComponent::IsTransitioning() const
 void UTwinCameraModeComponent::Shutdown(APlayerController* PlayerController)
 {
     if (GetWorld()) GetWorld()->GetTimerManager().ClearTimer(TransitionTimer);
+    ClearGodViewVisibility(PlayerController);
     bViewTargetTransitioning = false;
     TransitionController = nullptr;
     if (ATwinRoamingCharacter* Character = Cast<ATwinRoamingCharacter>(GetOwner()))

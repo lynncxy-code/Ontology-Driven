@@ -5,6 +5,7 @@
 #include "SceneInteraction/Minimap/TwinMinimapAnchor.h"
 #include "SceneInteraction/OntoTwinRoamingHUDWidget.h"
 #include "SceneInteraction/TwinCameraModeComponent.h"
+#include "SceneInteraction/TwinCameraVisibility.h"
 #include "SceneInteraction/TwinGodViewPawn.h"
 #include "SceneInteraction/TwinRoamingCharacter.h"
 #include "SceneInteraction/TwinRoamingRoute.h"
@@ -384,6 +385,8 @@ void UTwinInteractionManagerComponent::EndPlay(const EEndPlayReason::Type EndPla
 {
     bShuttingDown = true;
     ExitRoaming();
+    OntoTwinCameraVisibility::ClearFromPlayer(
+        PlayerController, StartupViewVisibilityState);
     DestroyHud();
     RemoveInput();
     Super::EndPlay(EndPlayReason);
@@ -1147,11 +1150,13 @@ ATwinGodViewAnchor* UTwinInteractionManagerComponent::FindGodViewAnchor(const FS
 
 void UTwinInteractionManagerComponent::ApplyStartupView(bool bForce)
 {
-    if (!PlayerController || (!bForce && bRoamingActive))
+    if (bShuttingDown || !PlayerController || (!bForce && bRoamingActive))
     {
         return;
     }
 
+    OntoTwinCameraVisibility::ClearFromPlayer(
+        PlayerController, StartupViewVisibilityState);
     StartupViewAnchor = FindGodViewAnchor(StartupViewCameraId);
     if (!StartupViewAnchor
         && StartupViewCameraId != TEXT("camera.god.default"))
@@ -1159,6 +1164,16 @@ void UTwinInteractionManagerComponent::ApplyStartupView(bool bForce)
         StartupViewAnchor = FindGodViewAnchor(TEXT("camera.god.default"));
     }
     if (!StartupViewAnchor) return;
+
+    TArray<AActor*> HiddenActors;
+    OntoTwinCameraVisibility::ResolveHiddenActors(
+        GetWorld(),
+        ETwinCameraVisibilityProfile::GodView,
+        StartupViewAnchor->HiddenActorNames,
+        StartupViewAnchor->HiddenLevelNames,
+        HiddenActors);
+    OntoTwinCameraVisibility::ApplyToPlayer(
+        PlayerController, HiddenActors, StartupViewVisibilityState);
     if (PlayerController->GetViewTarget() != StartupViewAnchor)
     {
         PlayerController->SetViewTarget(StartupViewAnchor);
@@ -1370,6 +1385,17 @@ bool UTwinInteractionManagerComponent::InitializeMinimap(FString& OutError)
             MinimapCapture->HiddenActors.Add(GodPawn);
         }
     }
+    TArray<AActor*> VisibilityHiddenActors;
+    OntoTwinCameraVisibility::ResolveHiddenActors(
+        GetWorld(),
+        ETwinCameraVisibilityProfile::Minimap,
+        MinimapAnchor->HiddenActorNames,
+        MinimapAnchor->HiddenLevelNames,
+        VisibilityHiddenActors);
+    for (AActor* HiddenActor : VisibilityHiddenActors)
+    {
+        if (IsValid(HiddenActor)) MinimapCapture->HiddenActors.AddUnique(HiddenActor);
+    }
 
     FMinimalViewInfo ViewInfo;
     AnchorCamera->GetCameraView(0.0f, ViewInfo);
@@ -1406,6 +1432,8 @@ bool UTwinInteractionManagerComponent::InitializeMinimap(FString& OutError)
     MinimapCapture->RegisterComponent();
 
     TArray<TWeakObjectPtr<ULightComponent>> SuppressedLights;
+    OntoTwinCameraVisibility::SuppressLights(
+        VisibilityHiddenActors, SuppressedLights);
     if (!MinimapAnchor->CaptureSuppressedLightTag.IsNone())
     {
         for (TActorIterator<ALight> It(GetWorld()); It; ++It)
@@ -1429,13 +1457,7 @@ bool UTwinInteractionManagerComponent::InitializeMinimap(FString& OutError)
 
     // CaptureScene pushes the hidden-light state before submitting this one-shot capture.
     // Restore immediately so the main viewport never inherits the minimap-only lighting.
-    for (const TWeakObjectPtr<ULightComponent>& LightComponent : SuppressedLights)
-    {
-        if (LightComponent.IsValid())
-        {
-            LightComponent->SetVisibility(true);
-        }
-    }
+    OntoTwinCameraVisibility::RestoreLights(SuppressedLights);
 
     RoamingHUD->SetMinimapTexture(MinimapRenderTarget, MinimapCaptureSize);
     SetMinimapState(TEXT("ready"));
@@ -1646,6 +1668,8 @@ bool UTwinInteractionManagerComponent::EnterRoaming(FString& OutError)
 
     GodViewAnchor = FindGodViewAnchor(CurrentConfig.GodCamera.CameraId);
     if (!GodViewAnchor) DegradedFeatures.AddUnique(TEXT("god_camera_missing"));
+    OntoTwinCameraVisibility::ClearFromPlayer(
+        PlayerController, StartupViewVisibilityState);
     RoamingCharacter->CameraMode->ActivateNear(PlayerController, true);
     bRoamingActive = true;
     ActivateRoamingInput();
@@ -2888,6 +2912,7 @@ bool UTwinInteractionManagerComponent::FocusInstanceCamera(
     }
     const bool bFocused = RoamingCharacter->CameraMode->FocusAtTransform(
         PlayerController,
+        GodViewAnchor,
         TargetTransform,
         FovDegrees,
         OutError);

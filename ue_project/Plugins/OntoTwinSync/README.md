@@ -31,6 +31,13 @@ Web“UE 运行状态”会显示小地图当前状态。若显示“缺少地�
 - 漫游视角锚点：`CameraId = camera.god.default`，用于 F7 漫游中的默认上帝视角。
 - 固定视角锚点：`CameraId` 与 `StartupViewCameraId` 一致（默认 `camera.startup.default`），用于运行时开局、F7 退出漫游及 F8 退出模型编辑后的固定视角；缺失时兼容回退到 `camera.god.default`。
 
+相机专属隐藏可在 Project Settings 的 `OntoTwin Camera Visibility` 中配置，也可在单个
+`TwinMinimapAnchor` / `TwinGodViewAnchor` 的 `Hidden Actor Names` 与 `Hidden Level Names`
+中追加。Actor 规则同时匹配运行时对象名和编辑器标签，并默认递归包含附属 Actor；Level
+规则填写流送关卡短名，例如 `L_SCC_ENV_Site`。小地图通过 SceneCapture 隐藏，God/Startup
+视角通过本地 PlayerController 隐藏，并在离开对应视角时恢复；隐藏关卡中的灯光组件也会
+随视角临时关闭和恢复。
+
 漫游默认视角为上帝视角；按 `V` 依次按“上帝视角 → 过肩视角 → 第一人称 → 上帝视角”循环。`F7` 仍只负责进入或退出漫游。
 
 小地图默认从锚点视野的四边各裁剪 20%，玩家方向标记使用最高 70% 不透明度的红色呼吸三角。运行时右上角地图按钮可将面板在约 220ms 内折叠为图标或重新展开；第一人称模式下先按 Tab 进入 HUD 交互。

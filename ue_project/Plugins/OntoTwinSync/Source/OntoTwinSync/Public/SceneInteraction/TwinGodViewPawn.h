@@ -18,6 +18,14 @@ class ONTOTWINSYNC_API ATwinGodViewAnchor : public ACameraActor
 public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="OntoTwin")
     FString CameraId = TEXT("camera.god.default");
+
+    /** Additional Actor object names or editor labels hidden while this view is active. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="OntoTwin|Camera Visibility")
+    TArray<FName> HiddenActorNames;
+
+    /** Additional short streamed-level names hidden while this view is active. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="OntoTwin|Camera Visibility")
+    TArray<FName> HiddenLevelNames;
 };
 
 /** 与人物解耦的自由观察 Pawn；不提供自动定位人物。 */

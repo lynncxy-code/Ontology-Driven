@@ -16,8 +16,8 @@ EXPECTED_SKELETON = (
     f"{PACK_CHARACTER_DIR}/00_rp_master/Mannequin/"
     "UE4_Mannequin_Skeleton.UE4_Mannequin_Skeleton"
 )
-OBSERVER_CHARACTER = "/Game/OntoTwin/SceneInteraction/Characters/ObserverBase"
-OBSERVER_SKIN = "/Game/OntoTwin/SceneInteraction/Skins/ObserverGray"
+OBSERVER_CHARACTER = "/OntoTwinCharacterPack_Core/Characters/ObserverBase"
+OBSERVER_SKIN = "/OntoTwinCharacterPack_Core/Skins/ObserverGray"
 CHARACTERS = (
     ("Carla", "rp_carla_rigged_001_ue4"),
     ("Claudia", "rp_claudia_rigged_002_ue4"),

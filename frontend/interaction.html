@@ -1832,7 +1832,16 @@ createApp({
                 axios.get('/api/v2/spatial/profile'),
             ]);
             setRouteDisplay(profileRes.data?.ue_transform?.display||{});
-            routeEditor.frames=(frameRes.data.frames||[]).filter(item=>item.status==='published');
+            const liveFloors=profileRes.data?.floor_table||[];
+            routeEditor.frames=(frameRes.data.frames||[]).filter(item=>item.status==='published').map(frame=>{
+                const floor=liveFloors.find(item=>item.floor_id===frame.floor_id||Number(item.floor)===Number(frame.floor));
+                if(!floor)return frame;
+                return {...frame,floor_reference:{
+                    ...(frame.floor_reference||{}),
+                    canonical_z_base_mm:floor.z_base_mm,
+                    ue_ground_z_cm:floor.ue_ground_z_cm,
+                }};
+            });
             routeEditor.items=routeRes.data.routes||[];routeEditor.revision=Number(routeRes.data.revision||0);routeEditor.projectId=routeRes.data.project_id||'';routeEditor.defaultRouteId=routeRes.data.default_route_id||'';
             routeEditor.narrationDefaults={...routeEditor.narrationDefaults,...(routeRes.data.narration_defaults||{})};if(!routeEditor.defaultsDirty)routeEditor.narrationDefaultsDraft=clone(routeEditor.narrationDefaults);routeEditor.narrationProvider={...routeEditor.narrationProvider,...(routeRes.data.narration_provider||{})};
             const target=preferredId||routeEditor.selectedId;

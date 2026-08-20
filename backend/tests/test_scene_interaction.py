@@ -138,12 +138,24 @@ class SceneInteractionTestCase(unittest.TestCase):
 
     def test_catalog_has_mvp_resources(self):
         catalog = self.service.catalog_snapshot()
-        self.assertEqual("2026.07.9", catalog["catalog_version"])
-        self.assertEqual(7, len(catalog["characters"]))
-        self.assertGreaterEqual(len(catalog["skins"]), 8)
+        self.assertEqual("2026.08.1", catalog["catalog_version"])
+        self.assertEqual(8, len(catalog["characters"]))
+        self.assertGreaterEqual(len(catalog["skins"]), 9)
         self.assertEqual(1, len(catalog["spawn_anchors"]))
         self.assertEqual(1, len(catalog["routes"]))
         self.assertEqual(1, len(catalog["god_cameras"]))
+
+    def test_manny_robot_catalog_contract(self):
+        catalog = self.service.catalog_snapshot()
+        characters = {item["id"]: item for item in catalog["characters"]}
+        skins = {item["id"]: item for item in catalog["skins"]}
+        character = characters["character.manny.robot"]
+        skin = skins["skin.manny.robot.default"]
+        self.assertEqual("Manny 机器人", character["display_name"])
+        self.assertEqual("TwinCharacter:MannyRobot", character["ue_primary_asset_id"])
+        self.assertEqual(character["id"], skin["character_id"])
+        self.assertEqual("TwinSkin:MannyRobotDefault", skin["ue_primary_asset_id"])
+        self.assertEqual(character["skeleton_id"], skin["skeleton_id"])
 
     def test_renderpeople_catalog_contract(self):
         catalog = self.service.catalog_snapshot()

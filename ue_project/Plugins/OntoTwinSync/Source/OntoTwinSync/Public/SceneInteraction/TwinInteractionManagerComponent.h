@@ -5,6 +5,7 @@
 #include "Dom/JsonObject.h"
 #include "Interfaces/IHttpRequest.h"
 #include "InputCoreTypes.h"
+#include "SceneInteraction/TwinCameraVisibility.h"
 #include "SceneInteraction/TwinRoamingTypes.h"
 #include "TwinInteractionManagerComponent.generated.h"
 
@@ -293,6 +294,7 @@ private:
     TSharedPtr<IHttpRequest, ESPMode::ThreadSafe> NarrationAudioRequest;
     FMatrix MinimapViewProjection = FMatrix::Identity;
     FIntPoint MinimapCaptureSize = FIntPoint::ZeroValue;
+    FTwinCameraVisibilityState StartupViewVisibilityState;
 
     void PollRuntimeProjection();
     void HandleRuntimeProjection(const TSharedPtr<FJsonObject>& Payload);

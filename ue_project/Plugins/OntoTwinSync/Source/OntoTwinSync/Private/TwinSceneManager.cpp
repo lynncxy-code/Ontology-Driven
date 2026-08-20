@@ -149,6 +149,22 @@ FString CollisionEnabledToMigrationString(const ECollisionEnabled::Type Collisio
     default:                                  return TEXT("NoCollision");
     }
 }
+
+ATwinInstance* ResolveTwinInstanceActor(AActor* Candidate)
+{
+    TSet<const AActor*> Visited;
+    for (int32 Depth = 0; Candidate && Depth < 8 && !Visited.Contains(Candidate); ++Depth)
+    {
+        Visited.Add(Candidate);
+        if (ATwinInstance* Instance = Cast<ATwinInstance>(Candidate))
+        {
+            return Instance;
+        }
+        AActor* Parent = Candidate->GetAttachParentActor();
+        Candidate = Parent ? Parent : Candidate->GetOwner();
+    }
+    return nullptr;
+}
 }
 
 // ── 构造函数 ─────────────────────────────────────────────────────────────────
@@ -420,7 +436,7 @@ void ATwinSceneManager::TickOverlays()
     if (bGlobalSelectionClick)
     {
         ATwinInstance* HitInstance = bHasGlobalSelectionHit
-            ? Cast<ATwinInstance>(GlobalSelectionHit.GetActor())
+            ? ResolveTwinInstanceActor(GlobalSelectionHit.GetActor())
             : nullptr;
         if (HitInstance && HitInstance->HasSelectedOverlay())
         {
@@ -1278,7 +1294,7 @@ void ATwinSceneManager::GetManagedInstances(TArray<ATwinInstance*>& OutInstances
 void ATwinSceneManager::FocusManagedInstance(ATwinInstance* Instance) const
 {
     if (!Instance || !IsValid(Instance)) return;
-    FBox Bounds = Instance->GetComponentsBoundingBox(true, true);
+    FBox Bounds = Instance->GetRepresentationWorldBounds(true);
     if (!Bounds.IsValid) Bounds += Instance->GetActorLocation();
     FocusManagedBounds(Bounds, Instance->GetInstanceId(), 1);
 }
@@ -1297,7 +1313,7 @@ void ATwinSceneManager::FocusManagedInstances(const TSet<FString>& InstanceIds) 
         {
             continue;
         }
-        const FBox InstanceBounds = Instance->GetComponentsBoundingBox(true, true);
+        const FBox InstanceBounds = Instance->GetRepresentationWorldBounds(true);
         if (InstanceBounds.IsValid) CombinedBounds += InstanceBounds;
         else CombinedBounds += Instance->GetActorLocation();
         ++IncludedCount;
@@ -1435,7 +1451,7 @@ ATwinInstance* ATwinSceneManager::FindOverlayInstanceNearHit(
         ATwinInstance* Instance = Pair.Value;
         if (!Instance || !IsValid(Instance) || !Instance->HasOverlay()) continue;
 
-        const FBox Bounds = Instance->GetComponentsBoundingBox(true);
+        const FBox Bounds = Instance->GetRepresentationWorldBounds(true);
         const FVector Closest = Bounds.IsValid
             ? Bounds.GetClosestPointTo(HitLocation)
             : Instance->GetActorLocation();
@@ -1678,13 +1694,18 @@ void ATwinSceneManager::BindCurrentUEProjectToActiveDataset()
     HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
     AddUEProjectHeaders(HttpRequest);
     HttpRequest->SetContentAsString(BodyStr);
-    HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bOk)
+    const TWeakObjectPtr<ATwinSceneManager> WeakThis(this);
+    HttpRequest->OnProcessRequestComplete().BindLambda([WeakThis](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bOk)
     {
         const int32 Code = Resp.IsValid() ? Resp->GetResponseCode() : -1;
         const bool bSuccess = bOk && Resp.IsValid() && Code == 200;
         if (bSuccess)
         {
             UE_LOG(LogTemp, Log, TEXT("[UE绑定] 绑定当前 UE 工程到激活数据集成功 (code=%d)"), Code);
+            if (ATwinSceneManager* SceneManager = WeakThis.Get())
+            {
+                SceneManager->SyncUEAssetCatalog();
+            }
         }
         else
         {
@@ -2711,7 +2732,7 @@ void ATwinSceneManager::TickRuntimeEditor(float DeltaTime)
 
             if (!bRuntimeDragging)
             {
-                if (ATwinInstance* HitInstance = Cast<ATwinInstance>(Hit.GetActor()))
+                if (ATwinInstance* HitInstance = ResolveTwinInstanceActor(Hit.GetActor()))
                 {
                     SelectRuntimeInstance(HitInstance, bShiftDown);
                 }
@@ -3198,6 +3219,11 @@ bool ATwinSceneManager::CalculateRuntimeEditLocalBounds(AActor* Actor, FBox& Out
     if (!Actor || !IsValid(Actor))
     {
         return false;
+    }
+
+    if (const ATwinInstance* TwinInstance = Cast<ATwinInstance>(Actor))
+    {
+        return TwinInstance->GetRepresentationLocalBounds(OutLocalBounds);
     }
 
     const FTransform WorldToActor = Actor->GetActorTransform().Inverse();

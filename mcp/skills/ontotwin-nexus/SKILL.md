@@ -5,7 +5,7 @@ description: 编排 OntoTwin Nexus MCP 工具搭建/运维数字孪生场景。�
 
 # OntoTwin Nexus 编排手册
 
-Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」。所有工具**只认当前激活项目**——切错项目 = 写错场景。本手册教你用 30 个 MCP 工具把「一份 DXF + 一份设备清单」变成可运维的数字孪生。
+Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」。所有工具**只认当前激活项目**——切错项目 = 写错场景。本手册教你用这套 MCP 工具把「一份 DXF + 一份设备清单」变成可运维的数字孪生，并配上信息面板、漫游路线、Web 业务视图与语音讲解。
 
 ## 四段流水线心智图
 
@@ -22,8 +22,9 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 | 构件 | 解析 DXF、标定坐标、存构件 | 读 `list_components` `get_spatial_profile` · 计算 `parse_cad_dxf` `calibrate_coordinates` · 写 `save_components` |
 | 实例 | 花名册撮合、绑定、铸造 | 读 `list_roster` · 计算 `automatch_bindings` · 写 `upload_roster` `bind_instance` `bind_instances_batch` `unbind_instance` `mint_instances` |
 | 运行 | 查状态、改状态、看快照 | 读 `list_instances` `get_instance_state` `get_instance_snapshot` `get_state_snapshots` · 写 `set_instance_state` |
-| 项目/元 | 选场景、确认可写 | 读 `list_projects` `get_active_project` |
+| 项目/元 | 选场景、确认可写 | 读 `list_projects` `get_active_project` `list_scenes` · 写 `clear_scene` |
 | 二期诊断 | 查位置变换 / UE 绑定态 / 空间坐标系（均只读） | 读 `get_instance_transform` `get_ue_binding_status` `list_spatial_frames` |
+| 误删找回 | 删除后从回收站恢复 | 读 `list_trash` · 写 `restore_trash_item` `delete_trash_item` `purge_trash` |
 
 `parse_cad_dxf` / `calibrate_coordinates` / `automatch_bindings` 是**无副作用的计算或暂存**，可放心多跑；带「会修改当前激活项目」的才是落库写（persist-write），须走下面的铁律。
 
@@ -203,6 +204,92 @@ Nexus 把一个工厂/楼层场景的全部数据装进「当前激活项目」�
 - 「把规范原点设成 (1,1)」
 - 「用这几组锚点标定 world 帧」
 - 「导出当前 CAD 场景 JSON」
+
+## Web 交互与业务视图联动（3.8）
+
+把 Web 页面 / 业务视图挂到三维场景上。一份项目级配置，走**草稿 → 校验 → 发布**三段——
+草稿改了不影响运行时，发布才生效。
+
+- **读**：`get_web_interaction()` 拿 `revision` + `draft` + `published`（写前必读）。
+- **改草稿**：`save_web_interaction_draft(draft, expected_revision)`。
+- **校验**：`validate_web_interaction()` 校验当前草稿（或传 `config` 校验指定内容），返回 `errors` / `warnings`。
+- **预览**：`preview_web_interaction(source="draft")` 解析数据绑定看实际取到什么值，**不写**。
+- **发布**：`publish_web_interaction(expected_revision)`。有 `errors` 必失败；只有 `warnings` 时要 `confirm_warnings=True` 才放行。
+- **一步到位**：`apply_web_interaction(config, expected_revision)` = 校验 + 直接发布，跳过草稿。
+- **回滚**：`rollback_web_interaction(expected_revision)` 回到上一个已发布版本。
+
+**金规**
+1. 顺序别跳：改完草稿先 `validate` 再 `publish`，errors 非空时 publish 必然失败，白跑一轮。
+2. 每次写都会 +1 revision，连续多步写必须用**上一步返回的最新 revision**，别复用最初读到的。
+3. `confirm_warnings` 是给人确认的口子，不要默认打开——先把 warnings 念给人听。
+
+**触发示例**
+- 「把能耗看板挂到三楼配电房那个设备上」
+- 「先存草稿别发布，我看过再说」
+- 「刚发布那版有问题，回滚」
+
+## 路点语音讲解（narration）
+
+给漫游路线的路点配语音讲解与字幕。讲解**文案**写在路线的 `waypoints[].narration` 里
+（走 `update_route`）；本组工具只管「声音」。
+
+- **先看供应商**：`get_narration_provider_status()` 返回 `configured` / `ready` 与音色目录（`voices`）。
+  `configured=false` 说明服务端没填 TTS 凭据，此时不要调 generate。
+- **设默认**：`save_narration_defaults(defaults, expected_revision)` 定项目级音色 / 语速 / 音量。
+  ⚠️ 它会顺带规范化各路线已有路点的 narration，**可能抬升路线 revision**。
+- **合成**：`generate_route_narration(route_id, expected_revision)` 真正调 TTS，**耗时且可能计费**。
+  只想重做几个路点就传 `waypoint_ids=[...]`，别整条重跑。
+
+**金规**
+1. `expected_revision` 取自 `get_roaming_config` —— narration 与漫游共用同一个 scene revision 计数器。
+2. 合成前先确认 `configured=true`，否则纯属浪费一轮往返。
+3. 合成是收费动作，动手前把「要给哪条路线的哪几个路点合成」向人复述一遍。
+
+**触发示例**
+- 「看看语音合成配好了没，有哪些音色」
+- 「把讲解默认音色换成知小白」
+- 「只重做巡检路线第 3、5 个路点的语音」
+
+## UE 资产目录与推荐
+
+UE 侧插件把工程里的资产盘点后同步上来（一个 UE 工程一份，按 `ue_project_id` 隔离），
+给「本体类型选哪个模型」提供候选。
+
+- **看目录**：`get_ue_asset_catalog(ue_project_id="")`。
+- **要推荐**：`recommend_ue_assets(items, limit=3)`，`items` 每项形如 `{"block_name": "CNC"}`；
+  返回候选 + 打分 + 理由。**只读，不写**。
+- **记住选择**：`remember_ue_asset_selections([{"block_name":..., "object_path":...}])` —— 人工确认后调它，
+  下次推荐会把这个置顶。
+- **整表替换**：`replace_ue_asset_catalog(assets, ue_project_id)` 通常由 UE 插件自动调，人工少用。
+
+**打分依据**：曾人工确认（1.0）> 命中旧版对应记录（0.9）> 名称相似度。所以 `remember` 用得越多推荐越准。
+
+⚠️ `ue_project_id` 是 **UE 工程身份**（形如 `ueproj_XXX`），不是 Nexus 项目 id，别传混。
+
+**收到 409 `ue_project_not_bound` 怎么办**：省略 `ue_project_id` 时后端回落到「当前激活项目所绑的
+UE 工程」，该项目没绑过就报这个。不是故障——要么显式传 `ue_project_id`，要么先让 UE 侧完成绑定
+（`get_ue_binding_status()` 查当前绑定态）。
+
+**触发示例**
+- 「这批 CNC 类型在 UE 里有哪些模型可用」
+- 「就用这个模型，记住这个对应关系」
+
+## 回收站（误删找回）
+
+删项目 / 清空场景 / 删实例都不直接抹掉，先进回收站。
+
+- `list_trash()` 看有什么可恢复（`kind` 分 project / scene / instance），拿条目 id。
+- `restore_trash_item(trash_id)` 恢复到原位置——**冲突策略是覆盖**，同 id 已存在会被盖掉。
+- `delete_trash_item(trash_id)` / `purge_trash()` —— **不可恢复**，调前必须先 `list_trash` 确认。
+
+条目 id 是不透明字符串（文件后端形如 `project_123_ab`，PG 后端形如 `pg:inst:<pid>:<iid>`），
+从 `list_trash` 取，**别自己拼**。
+
+两种后端行为不同但接口一致：文件后端存快照、默认 90 天自动清；PG 后端走 `deleted_at` 软删、不自动清。
+
+**触发示例**
+- 「刚才误删的那个项目还能找回来吗」
+- 「回收站里有什么」 / 「把回收站清了」
 
 ## 并发已知限制
 

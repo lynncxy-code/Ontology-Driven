@@ -140,8 +140,20 @@ def register(mcp, client, registry):
             "save_overlay_media_policy", "/api/v2/overlays/media/policy",
             json=body)
 
+    @mcp.tool()
+    def resolve_overlay_media(instance_id: str) -> dict:
+        """只读：解析某实例信息面板里的媒体地址，返回过策略校验后的播放信息。
+
+        用来排查「面板里视频放不出来」：返回会说明是地址空、域名未过白名单，
+        还是解析正常。不写任何东西。
+        """
+        return client.post_json(
+            "resolve_overlay_media", "/api/v2/overlays/media/resolve",
+            json={"instance_id": instance_id})
+
     for f in (list_overlay_templates, get_overlay_context, preview_overlay,
               get_overlay_media_policy, enable_info_panel, save_overlay_type_config,
               save_overlay_instance_override, clear_overlay_instance_override,
-              batch_overlay_instance_override, save_overlay_media_policy):
+              batch_overlay_instance_override, save_overlay_media_policy,
+              resolve_overlay_media):
         registry[f.__name__] = f

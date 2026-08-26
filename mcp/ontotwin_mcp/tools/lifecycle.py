@@ -63,6 +63,37 @@ def register(mcp, client, registry):
         return client.post_json(
             "writeback_instance_transform", "/api/v2/state/writeback", json=body)
 
+    @mcp.tool()
+    def writeback_transforms_batch(changes: list,
+                                   expected_project_id: str = "") -> dict:
+        """本操作会修改当前激活项目：原子回写一批实例的空间变换（UE cm）。
+
+        changes 每项形如 {"instance_id": "...", "transform": {tx,ty,tz,rx,ry,rz,sx,sy,sz}}，
+        单次最多 100 条。整批要么全成要么全不成——比逐条 writeback_instance_transform
+        更适合保存一次 Runtime Editor 会话。
+        """
+        body = {"changes": changes}
+        if expected_project_id:
+            body["expected_project_id"] = expected_project_id
+        return client.post_json(
+            "writeback_transforms_batch", "/api/v2/state/writeback/batch", json=body)
+
+    @mcp.tool()
+    def writeback_material_overrides(changes: list,
+                                     expected_project_id: str = "") -> dict:
+        """本操作会修改当前激活项目：原子落库装配体各部件的材质覆盖。
+
+        changes 每项描述一个实例上某部件的材质替换，来自编辑器预览。
+        与空间回写分开，改材质不动位置。
+        """
+        body = {"changes": changes}
+        if expected_project_id:
+            body["expected_project_id"] = expected_project_id
+        return client.post_json(
+            "writeback_material_overrides", "/api/v2/state/material-writeback",
+            json=body)
+
     for f in (create_instance, delete_instance, set_instance_transform,
-              writeback_instance_transform):
+              writeback_instance_transform, writeback_transforms_batch,
+              writeback_material_overrides):
         registry[f.__name__] = f

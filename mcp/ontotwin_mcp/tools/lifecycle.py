@@ -64,19 +64,19 @@ def register(mcp, client, registry):
             "writeback_instance_transform", "/api/v2/state/writeback", json=body)
 
     @mcp.tool()
-    def writeback_transforms_batch(changes: list,
-                                   expected_project_id: str = "") -> dict:
+    def writeback_transforms_batch(changes: list) -> dict:
         """本操作会修改当前激活项目：原子回写一批实例的空间变换（UE cm）。
 
         changes 每项形如 {"instance_id": "...", "transform": {tx,ty,tz,rx,ry,rz,sx,sy,sz}}，
         单次最多 100 条。整批要么全成要么全不成——比逐条 writeback_instance_transform
         更适合保存一次 Runtime Editor 会话。
+
+        ⚠️ 本端点**没有** expected_project_id 护栏（后端 apply_batch_writeback 不接受该参数），
+        写期间若激活项目被切走不会被拦截。要这层保护就逐条用 writeback_instance_transform。
         """
-        body = {"changes": changes}
-        if expected_project_id:
-            body["expected_project_id"] = expected_project_id
         return client.post_json(
-            "writeback_transforms_batch", "/api/v2/state/writeback/batch", json=body)
+            "writeback_transforms_batch", "/api/v2/state/writeback/batch",
+            json={"changes": changes})
 
     @mcp.tool()
     def writeback_material_overrides(changes: list,

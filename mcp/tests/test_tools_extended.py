@@ -57,6 +57,16 @@ def test_writeback_batch_is_separate_from_single():
     assert batch == "/api/v2/state/writeback/batch"
 
 
+def test_writeback_batch_has_no_project_guard_param():
+    """后端 apply_batch_writeback 不接受 expected_project_id——工具就不该提供它，
+    否则参数被静默忽略，等于谎称有护栏。docstring 必须点明这个缺口。"""
+    import inspect
+    c = C(); mcp = build_server(c)
+    fn = _t(mcp, "writeback_transforms_batch")
+    assert "expected_project_id" not in inspect.signature(fn).parameters
+    assert "expected_project_id" in (fn.__doc__ or "")
+
+
 def test_material_writeback_endpoint():
     c = C(); mcp = build_server(c)
     _t(mcp, "writeback_material_overrides")([{"instance_id": "i1"}],

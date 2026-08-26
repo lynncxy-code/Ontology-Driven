@@ -295,3 +295,4 @@ UE 工程」，该项目没绑过就报这个。不是故障——要么显式�
 
 - **配置/分区写已绑项目身份**：overlay/scene/routes/zones 的写在 `expected_project_id` 非空时锁内校验激活项目（防「切项目后误写」）。`expected_revision` 只防**同项目**的丢失更新——跨项目漂移靠 `expected_project_id` 兜底，写这些配置时建议一并带上（从 `get_active_project` 取）。
 - **多步写端点非整段原子**：CAD 批量投产（`spawn_cad_instances`）、空间回写（`writeback_instance_transform`）、以及 `set_spatial_profile`/`set_instance_transform` 触发的全场重算，是多步逐个加锁。中途切激活项目可能「部分写 + 409」——重试前请核对已写状态（如 `list_instances`），避免重复 id 冲突。
+- **`writeback_transforms_batch` 没有项目身份护栏**：后端 `apply_batch_writeback` 不接受 `expected_project_id`，所以该工具也不提供这个参数（提供了也会被静默忽略，反而误导）。批量回写期间若激活项目被切走**不会被拦截**。需要这层保护时改用逐条 `writeback_instance_transform`；或先 `get_active_project` 确认、写完再复核一次。

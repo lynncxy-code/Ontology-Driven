@@ -27,6 +27,32 @@ def register_ue_asset_catalog_routes(app, project_store, catalog_root=None):
     def get_catalog():
         return execute(lambda: service.get_catalog(request.args.get("ue_project_id")))
 
+    @blueprint.post("/api/v2/ue/assets/folders")
+    def replace_folder_index():
+        payload = request.get_json(silent=True) or {}
+        ue = request_ue_project(request)
+        return execute(lambda: service.replace_folder_index(payload, ue), 201)
+
+    @blueprint.post("/api/v2/ue/assets/scan-requests")
+    def create_scan_request():
+        payload = request.get_json(silent=True) or {}
+        return execute(lambda: service.create_scan_request(payload), 201)
+
+    @blueprint.get("/api/v2/ue/assets/scan-requests")
+    def get_scan_request():
+        return execute(lambda: service.get_scan_request(request.args.get("ue_project_id")))
+
+    @blueprint.get("/api/v2/ue/assets/scan-requests/pending")
+    def get_pending_scan_request():
+        ue = request_ue_project(request)
+        return execute(lambda: service.get_pending_scan_request(ue))
+
+    @blueprint.post("/api/v2/ue/assets/scan-requests/result")
+    def report_scan_result():
+        payload = request.get_json(silent=True) or {}
+        ue = request_ue_project(request)
+        return execute(lambda: service.report_scan_result(payload, ue))
+
     @blueprint.post("/api/v2/ue/assets/recommend")
     def recommend_assets():
         payload = request.get_json(silent=True) or {}

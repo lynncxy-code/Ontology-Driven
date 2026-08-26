@@ -40,6 +40,16 @@ def project_dataset_to_object_types(dataset, existing_types=None, demo_types=Non
                 if node.get("ue_asset_path") is not None
                 else old.get("ue_asset_path")
             ),
+            "container_blueprint_id": (
+                node.get("container_blueprint_id")
+                if node.get("container_blueprint_id") is not None
+                else old.get("container_blueprint_id")
+            ),
+            "container_slot": (
+                node.get("container_slot")
+                if node.get("container_slot") is not None
+                else old.get("container_slot", "primary")
+            ),
             "mock_instances": copy.deepcopy(
                 node.get("mock_instances", []) or old.get("mock_instances", [])
             ),

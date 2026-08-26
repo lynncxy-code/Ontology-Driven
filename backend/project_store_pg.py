@@ -14,6 +14,7 @@ ProjectStorePG —— PostgreSQL 后端（OntoTwin 3.4）
 ⚠️ 需要一个可连的 PostgreSQL（docker compose 的 db 服务或本地 PG）。
 """
 
+import json
 import time
 import threading
 
@@ -76,6 +77,28 @@ class ProjectStorePG(ProjectStore):
                     """INSERT INTO app_singleton (k, v) VALUES ('active_project_id', %s)
                        ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v""",
                     (self._active_id,),
+                )
+
+    def get_runtime_setting(self, key):
+        with pg.get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT v FROM app_singleton WHERE k = %s", (str(key),))
+                row = cur.fetchone()
+        if not row or not row[0]:
+            return None
+        try:
+            return json.loads(row[0])
+        except (TypeError, ValueError):
+            return None
+
+    def set_runtime_setting(self, key, value):
+        encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        with pg.get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO app_singleton (k, v) VALUES (%s, %s)
+                       ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v""",
+                    (str(key), encoded),
                 )
 
     # ── 读单个项目：从分表重组成内存 dict ────────────────────
@@ -289,6 +312,28 @@ class ProjectStorePG(ProjectStore):
                                 Jsonb(rec.get("render_config") or {}),
                                 Jsonb(rec.get("raw_state") or {}),
                             ),
+                        )
+
+                    # The in-memory project is a complete snapshot. When an
+                    # offline edit removes an instance, it disappears from
+                    # ``insts`` and therefore receives no upsert above. Keep
+                    # the relational table in the same state by soft-deleting
+                    # rows that are absent from the snapshot. Without this
+                    # convergence step, a delete/replace operation appears to
+                    # succeed in memory but the old model is returned again on
+                    # the next project reload.
+                    if insts:
+                        cur.execute(
+                            """UPDATE instance SET deleted_at = COALESCE(deleted_at, now())
+                               WHERE project_id = %s AND deleted_at IS NULL
+                                 AND id <> ALL(%s)""",
+                            (pid, list(insts.keys())),
+                        )
+                    else:
+                        cur.execute(
+                            """UPDATE instance SET deleted_at = COALESCE(deleted_at, now())
+                               WHERE project_id = %s AND deleted_at IS NULL""",
+                            (pid,),
                         )
         self._dirty = False
 

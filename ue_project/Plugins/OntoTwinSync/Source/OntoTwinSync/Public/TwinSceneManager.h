@@ -195,7 +195,7 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="场景交互|Web")
     UOntoTwinWebInteractionComponent* WebInteractionManager;
 
-    /** UE 项目资产目录同步工具；默认扫描 /Game/Art，供 CAD 类型审核选择与推荐。 */
+    /** UE 项目资产目录同步工具；发布目录树并响应 Web 端按需扫描，供 CAD 类型审核选择与推荐。 */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="连接|资产目录")
     UOntoTwinUEAssetCatalogSyncComponent* AssetCatalogSync;
 
@@ -323,6 +323,9 @@ public:
     FString GetRuntimeEditorStatusText() const;
     FString GetRuntimeEditorHeaderStateText() const;
     FString GetRuntimeEditorDisplayName() const;
+    FString GetRuntimeEditorDisplayNameRaw() const;
+    FString GetRuntimeEditorTypeName() const;
+    FString GetRuntimeEditorTypeNameRaw() const;
     FString GetRuntimeEditorInstanceIdText() const;
     bool GetRuntimeEditorTransform(FVector& OutLocation, float& OutYaw) const;
     EOntoTwinRuntimeAccessState GetRuntimeEditorAccessState() const;
@@ -373,6 +376,9 @@ public:
 
     /** 构造不含坐标的 WebSocket 健康快照，随现有 UE 心跳回报后端。 */
     TSharedRef<FJsonObject> BuildRealtimeChannelHealth() const;
+
+    /** 应用外部数据监控台下发的实时流开关；HTTP 快照轮询不受影响。 */
+    void ApplyRealtimeWebSocketEnabled(bool bEnabled);
 
     /** 把当前 UE 工程身份绑定到后端当前激活数据集（数据集之后只接受该工程的 UE 请求） */
     UFUNCTION(CallInEditor, Category="连接",
@@ -569,6 +575,13 @@ private:
     int32 OverlayMediaRetryIndex = 0;
 
     bool bRuntimeEditMode = false;
+    /** Opt-in, non-persistent command-line acceptance test for F8 singleton selection. */
+    bool bRuntimeEditSelfTestRequested = false;
+    bool bRuntimeEditSelfTestComplete = false;
+    bool bRuntimeEditSelfTestQuit = false;
+    int32 RuntimeEditSelfTestExpectedInstances = -1;
+    int32 RuntimeEditSelfTestExpectedTypes = -1;
+    double RuntimeEditSelfTestStartSeconds = 0.0;
     bool bRuntimeEditDirty = false;
     bool bRuntimeEditSaving = false;
     bool bRuntimeBindingRequestInFlight = false;
@@ -785,6 +798,7 @@ private:
         const TSharedPtr<FJsonObject>& Source) const;
     void GetRuntimeSelectedInstanceIds(TArray<FString>& OutInstanceIds) const;
     void UpdateRuntimeSelectionGeometry(bool bKeepDragPivot = false);
+    void RunRuntimeEditSelfTest();
     bool CanStageRuntimeSelection() const;
     void RecordRuntimeCommand(FRuntimeEditCommand&& Command);
     void ApplyRuntimeCommand(const FRuntimeEditCommand& Command, bool bUseAfter);

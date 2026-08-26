@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/vendor/vue-3.3.4.global.prod.js" integrity="sha384-QLgwzsuau/sa8LhRgjRzkvQS0LyUzCM2B8FPwVoSu1KDel940/orifPaumNXp9hK" crossorigin="anonymous"></script>
     <script src="/vendor/axios-1.7.9.min.js" integrity="sha384-jLwhcmGu/RL8PSTUEl/559f8QVLL4QqM+HBvoZlt4F7XCdsdoDGAwW4nPFfoM7lU" crossorigin="anonymous"></script>
+    <script src="/artstudio_upload.js"></script>
     <script src="/hierarchy_menu.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.3.2/bin/jsencrypt.min.js" integrity="sha384-FwzUI3CDdHbj2MEKbnjj0eCvB+gYurE3x3pW/udNFOVUbrCrl3REWMQ1FBTolvoj" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="/nexus_titlebar.css" />
@@ -89,7 +90,7 @@
                     <div class="flex items-center gap-3">
                         <label class="w-12 text-xs font-medium text-gray-500 shrink-0">类型</label>
                         <select v-model="spawnForm.objectTypeRid" aria-label="投产设备类型"
-                                class="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition">
+                                class="flex-1 min-w-0 border border-gray-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition">
                             <option value="">-- 选择设备类型 --</option>
                             <option v-for="ot in readyTypes" :key="ot.rid" :value="ot.rid">{{ ot.name }}</option>
                         </select>
@@ -200,7 +201,7 @@
                                  ]">
                                 <div :class="[
                                     'w-2.5 h-2.5 rounded-full flex-shrink-0',
-                                    inst.status === 'online' ? 'bg-green-500 shadow-[0_0_0_2px_rgba(34,197,94,0.2)]' : 'bg-red-500 shadow-[0_0_0_2px_rgba(239,68,68,0.2)]'
+                                    instanceLivenessTag(inst).dot
                                 ]"></div>
                                 <div class="flex-1 min-w-0">
                                     <div class="font-mono text-sm font-bold text-gray-900 truncate">{{ inst.display_name || inst.id }}</div>
@@ -209,15 +210,9 @@
                                 </div>
                                 <div class="flex flex-col items-end gap-1.5 shrink-0">
                                     <span :class="[
-                                        'text-[9px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wider',
-                                        inst.status === 'online' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
-                                    ]" title="OntoTwin 实例状态">{{ inst.status === 'online' ? '在线' : '失联' }}</span>
-                                    <span v-if="inst.realtime_channel"
-                                          :class="['text-[9px] font-medium px-1.5 py-0.5 rounded border flex items-center gap-1', realtimeChannelTag(inst.realtime_channel).classes]"
-                                          :title="realtimeChannelTag(inst.realtime_channel).title">
-                                        <span :class="['w-1.5 h-1.5 rounded-full', realtimeChannelTag(inst.realtime_channel).dot]"></span>
-                                        {{ realtimeChannelTag(inst.realtime_channel).label }}
-                                    </span>
+                                        'text-[9px] font-medium px-1.5 py-0.5 rounded border tracking-wide',
+                                        instanceLivenessTag(inst).classes
+                                    ]" :aria-label="instanceLivenessTag(inst).detail">{{ instanceLivenessTag(inst).label }}</span>
 
                                     <div v-if="pendingDelete === inst.id" class="flex items-center gap-1.5">
                                         <button @click.stop="deleteInstance(inst.id)" class="text-[10px] px-2 py-0.5 rounded bg-red-600 text-white font-medium hover:bg-red-700 transition">销毁</button>
@@ -247,18 +242,6 @@
                             ]">
                         实例控制
                         <span v-if="activeMonitorTab === 'control'" class="absolute inset-x-0 bottom-0 h-0.5 bg-gray-950"></span>
-                    </button>
-                    <button id="instance-tab-model"
-                            type="button"
-                            role="tab"
-                            :aria-selected="activeMonitorTab === 'model'"
-                            @click="switchMonitorTab('model')"
-                            :class="[
-                                'relative py-3 px-1 text-sm font-medium transition focus:outline-none focus-visible:bg-gray-100 focus-visible:text-gray-950',
-                                activeMonitorTab === 'model' ? 'text-gray-950' : 'text-gray-500 hover:text-gray-900'
-                            ]">
-                        模型配置
-                        <span v-if="activeMonitorTab === 'model'" class="absolute inset-x-0 bottom-0 h-0.5 bg-gray-950"></span>
                     </button>
                     <button id="instance-tab-json"
                             type="button"
@@ -370,17 +353,10 @@
                         <span class="text-xl font-bold font-mono text-gray-900">{{ selectedInst.id }}</span>
                         <span :class="[
                             'text-xs font-bold px-2.5 py-1 rounded-md border flex items-center gap-1.5',
-                            currentSnap?.online ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
-                        ]" title="OntoTwin 实例状态">
-                            <svg v-if="currentSnap?.online" class="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
-                            <svg v-else class="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
-                            {{ currentSnap?.online ? 'OntoTwin 在线' : 'OntoTwin 失联' }}
-                        </span>
-                        <span v-if="selectedInst.realtime_channel"
-                              :class="['text-xs font-semibold px-2.5 py-1 rounded-md border flex items-center gap-1.5', realtimeChannelTag(selectedInst.realtime_channel).classes]"
-                              :title="realtimeChannelTag(selectedInst.realtime_channel).title">
-                            <span :class="['w-2 h-2 rounded-full', realtimeChannelTag(selectedInst.realtime_channel).dot]"></span>
-                            {{ realtimeChannelTag(selectedInst.realtime_channel).label }}
+                            instanceLivenessTag(selectedInst).classes
+                        ]" :aria-label="instanceLivenessTag(selectedInst).detail">
+                            <span :class="['w-2 h-2 rounded-full', instanceLivenessTag(selectedInst).dot]"></span>
+                            {{ instanceLivenessTag(selectedInst).label }}
                         </span>
                     </div>
                     <div class="flex items-center gap-4 text-xs">
@@ -404,9 +380,16 @@
 
                 <div class="flex-1 overflow-y-auto p-6">
 
-                    <div class="mx-auto max-w-5xl">
+                    <div class="mx-auto max-w-5xl flex flex-col gap-4">
                         <!-- Instance model binding (3.3.3) -->
-                        <div v-show="activeMonitorTab === 'model'" class="space-y-4">
+                        <div v-show="activeMonitorTab === 'control'" class="order-2 space-y-4">
+                            <div class="flex flex-wrap items-end justify-between gap-3 px-1 pt-1">
+                                <div>
+                                    <h3 class="text-sm font-semibold text-gray-900">模型配置</h3>
+                                    <p class="mt-1 text-[11px] leading-relaxed text-gray-500">仅影响当前实例，保存后持久生效；上方热干预仍用于临时运行控制。</p>
+                                </div>
+                                <span class="text-[10px] font-medium px-2 py-1 rounded-md border border-gray-200 bg-white text-gray-500">持久配置</span>
+                            </div>
                             <div v-if="modelBindingLoading" class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm" aria-live="polite">
                                 <div class="h-4 w-32 rounded bg-gray-200 animate-pulse"></div>
                                 <div class="mt-4 h-20 rounded-lg bg-gray-100 animate-pulse"></div>
@@ -446,6 +429,17 @@
                                                     </div>
                                                     <div class="mt-2 text-[11px] text-gray-500">来源：{{ modelSourceLabel(modelBinding.effective_model.source) }}</div>
                                                     <div v-if="modelBinding.effective_model.ue_asset_path" class="mt-1 text-[11px] font-mono text-gray-500 break-all">{{ modelBinding.effective_model.ue_asset_path }}</div>
+                                                    <div class="mt-3 rounded-md border border-gray-200 bg-white px-3 py-2 text-[11px] text-gray-600">
+                                                        <div class="flex items-center gap-1.5">
+                                                            <span :class="['w-1.5 h-1.5 rounded-full', modelBinding.effective_container?.enabled ? 'bg-gray-900' : 'bg-gray-300']"></span>
+                                                            <span class="font-medium text-gray-800">{{ modelBinding.effective_container?.enabled ? 'Blueprint 容器表现' : '直接资产表现' }}</span>
+                                                        </div>
+                                                        <template v-if="modelBinding.effective_container?.enabled">
+                                                            <div class="mt-1 font-mono break-all">{{ modelBinding.effective_container.container_blueprint_id }}</div>
+                                                            <div class="mt-1 text-gray-500">槽位：<span class="font-mono">{{ modelBinding.effective_container.container_slot }}</span></div>
+                                                        </template>
+                                                        <div v-else class="mt-1 text-gray-500">{{ modelBinding.effective_container?.message || '模型由 TwinInstance 直接加载。' }}</div>
+                                                    </div>
                                                 </div>
                                                 <div class="flex shrink-0 items-center gap-2">
                                                     <button type="button" @click="openModelPicker" :disabled="!modelBinding.capability.enabled"
@@ -497,7 +491,7 @@
                         </div>
 
                         <!-- Interface Snapshot (JSON) -->
-                        <div v-if="currentSnap" v-show="activeMonitorTab === 'json'" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <div v-if="currentSnap" v-show="activeMonitorTab === 'json'" class="order-1 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                             <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
                                 <div>
                                     <div class="text-xs font-semibold text-gray-700">端点响应</div>
@@ -511,7 +505,7 @@
                         </div>
 
                         <!-- Manual Override Panel -->
-                        <div v-if="currentSnap" v-show="activeMonitorTab === 'control'" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <div v-if="currentSnap" v-show="activeMonitorTab === 'control'" class="order-1 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                             <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
                                 <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">热干预终端 (Override)</span>
                                 <span class="text-[9px] font-mono bg-gray-100 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded tracking-widest">DEBUG CONTROL</span>
@@ -921,6 +915,7 @@
                         <input v-model.number="pos.rotation" type="number" class="w-20 text-xs font-mono border border-gray-200 rounded px-2 py-1 outline-none focus:border-gray-900">
                     </label>
                 </div>
+                <div class="mt-2 text-[11px] leading-relaxed text-gray-500">{{ posFloorHint() }}</div>
                 <div class="flex justify-end gap-2 mt-5">
                     <button @click="posOpen=false" class="text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition">取消</button>
                     <button @click="savePos" :disabled="posSaving" class="text-xs px-3 py-1.5 rounded-md bg-gray-900 text-white hover:bg-black transition disabled:opacity-50">{{ posSaving ? '保存中…' : '保存' }}</button>
@@ -947,10 +942,14 @@
                 </div>
 
                 <div class="shrink-0 px-6 pt-4 border-b border-gray-100">
-                    <div class="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-1">
-                        <button type="button" @click="switchModelAssetMode('studio')" :class="['px-3 py-1.5 rounded-md text-xs font-medium transition', modelAssetMode === 'studio' ? 'bg-white text-gray-950 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-900']">ArtStudio 资产库</button>
-                        <button type="button" @click="switchModelAssetMode('mine')" :class="['px-3 py-1.5 rounded-md text-xs font-medium transition', modelAssetMode === 'mine' ? 'bg-white text-gray-950 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-900']">我的资产</button>
-                        <button type="button" @click="switchModelAssetMode('manual')" :class="['px-3 py-1.5 rounded-md text-xs font-medium transition', modelAssetMode === 'manual' ? 'bg-white text-gray-950 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-900']">路径直连</button>
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-1">
+                            <button type="button" @click="switchModelAssetMode('studio')" :class="['px-3 py-1.5 rounded-md text-xs font-medium transition', modelAssetMode === 'studio' ? 'bg-white text-gray-950 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-900']">ArtStudio 资产库</button>
+                            <button type="button" @click="switchModelAssetMode('mine')" :class="['px-3 py-1.5 rounded-md text-xs font-medium transition', modelAssetMode === 'mine' ? 'bg-white text-gray-950 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-900']">我的资产</button>
+                            <button type="button" @click="switchModelAssetMode('manual')" :class="['px-3 py-1.5 rounded-md text-xs font-medium transition', modelAssetMode === 'manual' ? 'bg-white text-gray-950 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-900']">路径直连</button>
+                        </div>
+                        <button ref="modelUploadTriggerRef" type="button" @click="openModelUpload"
+                                class="text-xs font-medium px-3 py-2 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black whitespace-nowrap">上传模型</button>
                     </div>
                     <div v-if="modelAssetMode === 'mine'" class="py-3 text-[11px] leading-relaxed text-gray-600">
                         <span v-if="artstudioIdentityLoading">正在确认 ArtStudio 登录状态…</span>
@@ -1061,6 +1060,72 @@
                     <button type="button" @click="restoreInstanceModel" :disabled="modelBindingSaving" class="text-xs font-medium px-4 py-2 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black disabled:opacity-40">{{ modelBindingSaving ? '正在取消…' : '取消覆盖' }}</button>
                 </div>
             </div>
+        </div>
+    </transition>
+
+    <!-- ArtStudio 模型上传 -->
+    <transition name="fade">
+        <div v-if="modelUploadOpen" class="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 px-4"
+             @click.self="closeModelUpload" @keydown.esc.stop="closeModelUpload">
+            <form ref="modelUploadDialogRef" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="instance-model-upload-title"
+                  @submit.prevent="submitModelUpload"
+                  class="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-6 shadow-2xl outline-none">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h3 id="instance-model-upload-title" class="text-base font-semibold text-gray-900">上传 GLB 模型</h3>
+                        <p class="mt-1 text-xs leading-relaxed text-gray-500">上传后会自动选中。只有继续点击“应用到此实例”，才会修改当前实例。</p>
+                    </div>
+                    <button type="button" @click="closeModelUpload" :disabled="modelUploadLoading"
+                            class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-40" aria-label="关闭上传窗口">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+                    </button>
+                </div>
+                <div class="mt-5 space-y-4">
+                    <label class="block">
+                        <span class="mb-1.5 block text-xs font-medium text-gray-700">GLB 模型文件</span>
+                        <input ref="modelUploadFileInputRef" type="file" accept=".glb,model/gltf-binary" :disabled="modelUploadLoading"
+                               @change="onModelUploadFileChange"
+                               class="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-xs text-gray-600 file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-gray-800 hover:file:bg-gray-200 disabled:bg-gray-50" />
+                        <span class="mt-1.5 block text-[11px] text-gray-500">仅支持单个、自包含的 GLB 2.0 文件，最大 500 MB。</span>
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-xs font-medium text-gray-700">资产名称</span>
+                        <input v-model.trim="modelUploadForm.name" type="text" maxlength="64" :disabled="modelUploadLoading" placeholder="请输入模型名称"
+                               class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100 disabled:bg-gray-50" />
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-xs font-medium text-gray-700">描述（选填）</span>
+                        <textarea v-model.trim="modelUploadForm.description" maxlength="1000" rows="2" :disabled="modelUploadLoading" placeholder="简要说明模型用途"
+                                  class="w-full resize-none rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100 disabled:bg-gray-50"></textarea>
+                    </label>
+                    <fieldset>
+                        <legend class="mb-2 text-xs font-medium text-gray-700">可见性</legend>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label :class="['cursor-pointer rounded-lg border p-3', modelUploadForm.visibility === 'public' ? 'border-gray-900 bg-gray-50' : 'border-gray-200 bg-white']">
+                                <span class="flex items-center gap-2 text-xs font-semibold text-gray-900"><input v-model="modelUploadForm.visibility" type="radio" value="public" :disabled="modelUploadLoading" class="accent-gray-900" />公共资产</span>
+                                <span class="mt-1 block pl-5 text-[11px] leading-relaxed text-gray-500">上传后立即上架，其他用户可以搜索和使用。</span>
+                            </label>
+                            <label :class="['cursor-pointer rounded-lg border p-3', modelUploadForm.visibility === 'private' ? 'border-gray-900 bg-gray-50' : 'border-gray-200 bg-white']">
+                                <span class="flex items-center gap-2 text-xs font-semibold text-gray-900"><input v-model="modelUploadForm.visibility" type="radio" value="private" :disabled="modelUploadLoading" class="accent-gray-900" />私人资产</span>
+                                <span class="mt-1 block pl-5 text-[11px] leading-relaxed text-gray-500">仅当前 ArtStudio 账号可以查看和使用。</span>
+                            </label>
+                        </div>
+                    </fieldset>
+                    <div v-if="modelUploadLoading" class="rounded-lg border border-gray-200 bg-gray-50 p-3" aria-live="polite">
+                        <div class="flex items-center justify-between text-[11px] text-gray-600"><span>{{ modelUploadStageLabel }}</span><span>{{ modelUploadProgress }}%</span></div>
+                        <div class="mt-2 h-1.5 overflow-hidden rounded bg-gray-200"><div class="h-full bg-gray-900 transition-all" :style="{ width: modelUploadProgress + '%' }"></div></div>
+                    </div>
+                    <div v-if="modelUploadError" class="border-l-2 border-red-300 pl-3 text-xs leading-relaxed text-red-700" role="alert">{{ modelUploadError }}</div>
+                </div>
+                <div class="mt-5 flex justify-end gap-2">
+                    <button type="button" @click="closeModelUpload" :disabled="modelUploadLoading"
+                            class="rounded-md border border-gray-300 bg-white px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-40">取消</button>
+                    <button type="submit" :disabled="modelUploadLoading || !modelUploadFile || !modelUploadForm.name.trim()"
+                            class="rounded-md border border-gray-900 bg-gray-900 px-4 py-2 text-xs font-medium text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-40">
+                        {{ modelUploadLoading ? '正在上传…' : (modelUploadForm.visibility === 'public' ? '上传公共模型' : '上传私人模型') }}
+                    </button>
+                </div>
+            </form>
         </div>
     </transition>
 
@@ -1202,7 +1267,7 @@
                             <div class="font-mono text-sm font-bold text-gray-900 truncate">{{ inst.id }}</div>
                             <div class="text-[11px] text-gray-500">{{ inst.object_type_name }}</div>
                         </div>
-                        <div :class="['w-2 h-2 rounded-full flex-shrink-0', inst.status === 'online' ? 'bg-green-400' : 'bg-red-400']"></div>
+                        <div :class="['w-2 h-2 rounded-full flex-shrink-0', instanceLivenessTag(inst).dot]"></div>
                     </label>
                 </div>
 
@@ -1326,30 +1391,36 @@ function _r2(v) { return Math.round((Number(v)||0) * 100) / 100; }
 const RUNTIME_STREAM_STORAGE_KEY = 'ontotwin.pixelStreaming.url';
 const RUNTIME_STREAM_OLD_DEFAULT_URL = 'http://127.0.0.1:80/';
 const RUNTIME_STREAM_DEFAULT_URL = 'http://127.0.0.1:8888/';
-const REALTIME_CHANNEL_TAGS = Object.freeze({
-    realtime: {
-        label: 'WS 实时',
-        classes: 'bg-gray-900 text-white border-gray-900',
-        dot: 'bg-white',
-        title: 'WebSocket 状态帧新鲜，且当前目标已应用到 UE 实例'
+const INSTANCE_LIVENESS_TAGS = Object.freeze({
+    static: {
+        label: '静态实例',
+        classes: 'bg-gray-50 text-gray-600 border-gray-200',
+        dot: 'bg-gray-400',
+        detail: '未配置实时数据源，不参与失联判定'
     },
-    http_fallback: {
+    online: {
+        label: '实时在线',
+        classes: 'bg-green-50 text-green-700 border-green-200',
+        dot: 'bg-green-500',
+        detail: '实时数据源正在驱动该实例'
+    },
+    degraded: {
         label: 'HTTP 接管',
         classes: 'bg-amber-50 text-amber-800 border-amber-200',
         dot: 'bg-amber-500',
-        title: 'WebSocket 未生效，UE 当前由 HTTP 快照接管'
+        detail: '实时通道未生效，当前使用 HTTP 快照'
     },
-    target_lost: {
-        label: 'WS 无目标',
+    offline: {
+        label: '目标失联',
         classes: 'bg-red-50 text-red-700 border-red-200',
         dot: 'bg-red-500',
-        title: 'WebSocket 通道有新帧，但当前实例没有可应用的目标'
+        detail: '实时通道没有可应用到该实例的目标'
     },
     unknown: {
-        label: '通道未知',
+        label: '等待通道',
         classes: 'bg-gray-50 text-gray-500 border-gray-200',
         dot: 'bg-gray-300',
-        title: '尚未收到有效的 UE WebSocket 健康回报'
+        detail: '尚未收到有效的实时通道健康回报'
     }
 });
 
@@ -1364,7 +1435,7 @@ createApp({
         const currentSnap = ref(null);
         const spawning = ref(false);
         const overriding = ref(false);
-        const activeMonitorTab = ref('stream');
+        const activeMonitorTab = ref('control');
         const toasts = ref([]);
         // 3.3.3：实例级模型覆盖
         const modelBinding = ref(null);
@@ -1389,6 +1460,18 @@ createApp({
         const modelManualPath = ref('');
         const modelAssetSearchRef = ref(null);
         const modelManualPathRef = ref(null);
+        const modelUploadOpen = ref(false);
+        const modelUploadLoading = ref(false);
+        const modelUploadError = ref('');
+        const modelUploadStage = ref('idle');
+        const modelUploadProgress = ref(0);
+        const modelUploadFile = ref(null);
+        const modelUploadForm = ref({ name: '', description: '', visibility: 'public' });
+        const modelUploadDialogRef = ref(null);
+        const modelUploadFileInputRef = ref(null);
+        const modelUploadTriggerRef = ref(null);
+        let modelUploadReturnFocus = null;
+        let modelUploadAfterLogin = false;
         let modelAssetLoadSeq = 0;
         const MODEL_ASSET_PAGE_SIZE = 9;
         const modelAssetCategories = [
@@ -1748,6 +1831,12 @@ createApp({
             const asset = selectedModelAsset.value;
             return asset ? `${asset.name || '未命名资产'} · ${asset.file_number}` : '尚未选择资产';
         });
+        const modelUploadStageLabel = computed(() => ({
+            checking: '正在检查模型文件',
+            uploading: '正在上传到 OntoTwin',
+            publishing: '正在发布到 ArtStudio',
+            done: '上传完成',
+        }[modelUploadStage.value] || '准备上传'));
 
         const runtimeStreamStatusLabel = computed(() => {
             if (runtimeStreamStatus.value === 'loading') return '正在加载';
@@ -1789,7 +1878,7 @@ createApp({
         async function refreshInstances() {
             const instRes = await axios.get('/api/v2/instances');
             applyInstanceList(instRes.data);
-            if (activeMonitorTab.value === 'model' && selectedInst.value) {
+            if (activeMonitorTab.value === 'control' && selectedInst.value) {
                 loadModelBinding(true).catch(() => {});
             }
         }
@@ -1846,7 +1935,7 @@ createApp({
 
         async function switchMonitorTab(tab) {
             activeMonitorTab.value = tab;
-            if (tab === 'model' && selectedInst.value) await loadModelBinding();
+            if (tab === 'control' && selectedInst.value) await loadModelBinding();
         }
 
         async function loadModelBinding(silent = false) {
@@ -2070,6 +2159,84 @@ createApp({
             }
         }
 
+        async function openModelUpload() {
+            if (!artstudioIdentity.value?.authenticated) {
+                modelUploadAfterLogin = true;
+                await openArtstudioLogin();
+                return;
+            }
+            modelUploadAfterLogin = false;
+            modelUploadReturnFocus = document.activeElement;
+            modelUploadFile.value = null;
+            modelUploadForm.value = { name: '', description: '', visibility: 'public' };
+            modelUploadError.value = '';
+            modelUploadStage.value = 'idle';
+            modelUploadProgress.value = 0;
+            modelUploadOpen.value = true;
+            await nextTick();
+            modelUploadDialogRef.value?.focus();
+        }
+
+        function closeModelUpload(force = false) {
+            if (modelUploadLoading.value && !force) return;
+            modelUploadOpen.value = false;
+            modelUploadError.value = '';
+            nextTick(() => modelUploadReturnFocus?.focus?.());
+        }
+
+        function onModelUploadFileChange(event) {
+            const file = event.target.files?.[0] || null;
+            modelUploadFile.value = file;
+            modelUploadError.value = '';
+            if (file && !modelUploadForm.value.name.trim()) {
+                modelUploadForm.value.name = OntoTwinAssetUpload.defaultName(file.name);
+            }
+        }
+
+        function selectUploadedModelAsset(asset) {
+            if (!asset) return;
+            ++modelAssetLoadSeq;
+            modelAssetMode.value = 'mine';
+            modelAssetPage.value = 1;
+            modelAssets.value = [asset, ...modelAssets.value.filter(item => item.file_number !== asset.file_number)];
+            modelAssetTotal.value = Math.max(modelAssetTotal.value + 1, modelAssets.value.length);
+            selectedModelAssetId.value = asset.file_number;
+            modelAssetsError.value = '';
+        }
+
+        async function submitModelUpload() {
+            if (modelUploadLoading.value) return;
+            modelUploadError.value = '';
+            modelUploadLoading.value = true;
+            try {
+                const result = await OntoTwinAssetUpload.upload({
+                    file: modelUploadFile.value,
+                    name: modelUploadForm.value.name,
+                    description: modelUploadForm.value.description,
+                    visibility: modelUploadForm.value.visibility,
+                    onState(stage, progress) {
+                        modelUploadStage.value = stage;
+                        modelUploadProgress.value = progress;
+                    },
+                });
+                selectUploadedModelAsset(result.asset);
+                closeModelUpload(true);
+                toast('ok', result.message || '模型已上传并选中');
+            } catch (e) {
+                const data = e.response?.data || {};
+                const createdAsset = data.fields?.asset_created ? data.fields.asset : null;
+                if (createdAsset) {
+                    selectUploadedModelAsset(createdAsset);
+                    closeModelUpload(true);
+                    toast('err', data.message || '资产已创建，但公共发布失败。');
+                } else {
+                    modelUploadError.value = data.message || e.message || '模型上传失败，请重试。';
+                }
+            } finally {
+                modelUploadLoading.value = false;
+            }
+        }
+
         async function disconnectArtstudio() {
             artstudioDisconnecting.value = true;
             try {
@@ -2135,6 +2302,7 @@ createApp({
 
         function closeArtstudioLogin(force = false) {
             if (artstudioLoginLoading.value && force !== true) return;
+            if (!force) modelUploadAfterLogin = false;
             artstudioLoginOpen.value = false;
             artstudioLoginForm.value.password = '';
             artstudioLoginForm.value.captcha = '';
@@ -2178,12 +2346,15 @@ createApp({
                 });
                 artstudioIdentity.value = { authenticated: true, configured: true, user: data.user || {} };
                 artstudioIdentityError.value = '';
+                const shouldOpenUpload = modelUploadAfterLogin;
+                modelUploadAfterLogin = false;
                 closeArtstudioLogin(true);
                 toast('ok', 'ArtStudio 账号已连接');
                 if (modelAssetMode.value === 'mine') {
                     modelAssetPage.value = 1;
                     await loadModelAssets();
                 }
+                if (shouldOpenUpload) await openModelUpload();
             } catch (e) {
                 artstudioLoginForm.value.password = '';
                 artstudioLoginError.value = e.response?.data?.message || e.message || '登录失败，请检查账号信息后重试。';
@@ -2193,8 +2364,14 @@ createApp({
             }
         }
 
-        function realtimeChannelTag(channel) {
-            return REALTIME_CHANNEL_TAGS[channel?.state] || REALTIME_CHANNEL_TAGS.unknown;
+        function instanceLivenessTag(instance) {
+            const state = instance?.liveness?.state || 'static';
+            const fallback = INSTANCE_LIVENESS_TAGS[state] || INSTANCE_LIVENESS_TAGS.unknown;
+            return {
+                ...fallback,
+                label: instance?.liveness?.label || fallback.label,
+                detail: instance?.liveness?.detail || fallback.detail,
+            };
         }
 
         async function loadActiveDatasetContext() {
@@ -2692,12 +2869,13 @@ createApp({
 
         function selectInstance(inst) {
             selectedInst.value = inst;
+            activeMonitorTab.value = 'control';
             modelBinding.value = null;
             modelBindingError.value = '';
             stopPoll();
             fetchSnap();
             pollTimer = setInterval(fetchSnap, 500);
-            if (activeMonitorTab.value === 'model') loadModelBinding();
+            loadModelBinding();
         }
 
         async function fetchSnap() {
@@ -2705,8 +2883,6 @@ createApp({
             try {
                 const res = await axios.get(`/api/v2/state/snapshot?id=${selectedInst.value.id}`);
                 currentSnap.value = res.data;
-                const found = instances.value.find(i => i.id === selectedInst.value.id);
-                if (found) found.status = res.data.online ? 'online' : 'offline';
             } catch (_) {}
         }
 
@@ -2818,6 +2994,15 @@ createApp({
             pos.value.canonical.z = _floorZ(pos.value.floor);   // 切楼层 → Z 跳新层基准
             _posRecompute();
         }
+        function posFloorHint() {
+            if (pos.value.mode === 'free_instance') {
+                return '自由实例使用自身绝对 UE 坐标，不随项目楼层基准批量移动。';
+            }
+            const base = _floorZ(pos.value.floor);
+            const offset = _r2(Number(pos.value.canonical.z || 0) - base);
+            const ueBase = _r2(base * Number(posX.scale || 0.1));
+            return `${Number(pos.value.floor || 1)}F 基准：${base} mm / ${ueBase} cm；当前实例个别 Z 微调：${offset >= 0 ? '+' : ''}${offset} mm。整层高度请在坐标标定工作台维护。`;
+        }
         async function savePos() {
             if (!selectedInst.value) return;
             posSaving.value = true;
@@ -2872,10 +3057,13 @@ createApp({
             modelAssetPage, modelAssetTotal, modelAssetTotalPages, modelAssetQuery,
             modelAssetCategory, modelAssetOwner, modelAssetCategories, selectedModelAssetId,
             modelManualPath, modelAssetSearchRef, modelManualPathRef,
+            modelUploadOpen, modelUploadLoading, modelUploadError, modelUploadProgress, modelUploadFile, modelUploadForm,
+            modelUploadDialogRef, modelUploadFileInputRef, modelUploadTriggerRef, modelUploadStageLabel,
             modelApplyReady, selectedModelSummary,
             modelModeLabel, modelSourceLabel, modelFallbackText, loadModelBinding, openModelPicker, closeModelPicker,
             switchModelAssetMode, loadModelAssets, reloadModelAssets, changeModelAssetPage,
             selectModelAsset, applyInstanceModel, openModelRestoreConfirm,
+            openModelUpload, closeModelUpload, onModelUploadFileChange, submitModelUpload,
             closeModelRestoreConfirm, restoreInstanceModel,
             artstudioIdentity, artstudioIdentityLoading, artstudioIdentityError, artstudioDisconnecting,
             artstudioLoginOpen, artstudioLoginLoading, artstudioChallengeLoading,
@@ -2889,10 +3077,10 @@ createApp({
             connectRuntimeStream, disconnectRuntimeStream, clearRuntimeStreamUrl, handleRuntimeStreamLoad,
             handleRuntimeStreamError, openRuntimeStreamWindow, fullscreenRuntimeStream,
             loadInstances, spawnInstance, deleteInstance, selectInstance, applyOverride, resetOverride,
-            realtimeChannelTag,
+            instanceLivenessTag,
             // FR-7 规范坐标微调
             posOpen, posSaving, pos, posX, openPos, savePos, posEditCanonical, posEditUE, posEditFrame, posEditFloor,
-            posSourceLabel, posSourceHint,
+            posSourceLabel, posSourceHint, posFloorHint,
             // instance list filter
             instanceSearch, instanceTypeFilter, instanceZoneFilter, availableZones, filteredInstances, instanceTreeGroups,
             zoneListLabel, zoneTargetLabel,

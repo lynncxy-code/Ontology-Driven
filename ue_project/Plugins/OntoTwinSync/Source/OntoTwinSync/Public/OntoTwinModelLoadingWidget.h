@@ -24,8 +24,18 @@ public:
 
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
+    virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+    enum class ELoadingVisualPhase : uint8
+    {
+        Waiting,
+        Applying,
+        Completing,
+        Failed,
+        Finished,
+    };
+
     UPROPERTY()
     UTextBlock* TitleText = nullptr;
 
@@ -38,7 +48,14 @@ private:
     UPROPERTY()
     UProgressBar* ProgressBar = nullptr;
 
+    ELoadingVisualPhase VisualPhase = ELoadingVisualPhase::Waiting;
+    float DisplayedPercent = 0.0f;
+    float TargetPercent = 0.0f;
+    int32 LatestCompleted = 0;
+    int32 LatestTotal = 0;
+
     void BuildDefaultLayout();
+    void RefreshProgressText();
     void SetState(
         const FString& Title,
         const FString& Detail,

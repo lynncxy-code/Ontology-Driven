@@ -5,6 +5,7 @@
 #include "Dom/JsonObject.h"
 #include "Interfaces/IHttpRequest.h"
 #include "InputCoreTypes.h"
+#include "SceneInteraction/TwinCameraVisibility.h"
 #include "SceneInteraction/TwinRoamingTypes.h"
 #include "TwinInteractionManagerComponent.generated.h"
 
@@ -22,6 +23,7 @@ class UInputMappingContext;
 class UOntoTwinCrosshairWidget;
 class UOntoTwinNarrationHUDWidget;
 class UOntoTwinRoamingHUDWidget;
+class UOntoTwinRuntimeDockWidget;
 class UAudioComponent;
 class USoundWaveProcedural;
 class USceneCaptureComponent2D;
@@ -81,12 +83,18 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|Input")
     FKey ResumeRouteKey = EKeys::R;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|Input")
+    FKey PauseRouteKey = EKeys::P;
+
     /** Configurable fixed runtime/home camera; falls back to camera.god.default when absent. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|Camera")
     FString StartupViewCameraId = TEXT("camera.startup.default");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|UI")
     TSubclassOf<UOntoTwinRoamingHUDWidget> RoamingHUDClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|UI")
+    TSubclassOf<UOntoTwinRuntimeDockWidget> RuntimeDockClass;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|UI")
     TSubclassOf<UOntoTwinNarrationHUDWidget> NarrationHUDClass;
@@ -122,6 +130,9 @@ public:
     bool SelectRuntimeRoute(const FString& RouteId);
 
     UFUNCTION(BlueprintCallable, Category="Scene Interaction")
+    bool SelectRuntimeCharacter(const FString& CharacterId);
+
+    UFUNCTION(BlueprintCallable, Category="Scene Interaction")
     void ApplyPendingReload();
 
     bool IsRoamingActive() const { return bRoamingActive; }
@@ -148,12 +159,23 @@ public:
         TArray<FString>& OutRouteIds,
         TArray<FString>& OutDisplayNames,
         TArray<bool>& OutDefaultFlags) const;
+    void GetAvailableRuntimeCharacters(
+        TArray<FString>& OutCharacterIds,
+        TArray<FString>& OutDisplayNames) const;
     void GetAvailableWebZones(
         TArray<FString>& OutZoneIds,
         TArray<FString>& OutDisplayNames) const;
+    void GetAvailableWebZoneTree(
+        TArray<FString>& OutZoneIds,
+        TArray<FString>& OutDisplayNames,
+        TArray<FString>& OutParentZoneIds) const;
     void GetAvailableWebBusinessViews(
         TArray<FString>& OutBusinessViewIds,
         TArray<FString>& OutDisplayNames) const;
+    void GetAvailableWebBusinessViewSummaries(
+        TArray<FString>& OutBusinessViewIds,
+        TArray<FString>& OutDisplayNames,
+        TArray<int32>& OutMemberCounts) const;
     void ActivateRuntimeHome();
     void SetRuntimeEditorSuppressed(bool bSuppressed);
     bool OpenWebProjectHome();
@@ -164,7 +186,17 @@ public:
     void HandleGlobalPointerSelection(const FHitResult* Hit);
     FString GetActiveRuntimeRouteId() const { return CurrentConfig.RouteId; }
     bool IsRouteSwitching() const { return bRouteSwitchInProgress; }
+    FString GetActiveRuntimeCharacterId() const
+    {
+        return ActiveSessionCharacterId.IsEmpty()
+            ? CurrentConfig.CharacterId : ActiveSessionCharacterId;
+    }
+    bool IsCharacterSwitching() const { return bCharacterSwitchInProgress; }
     FString GetMinimapState() const { return MinimapState; }
+    bool CanUseMinimapTeleport() const;
+    void PreviewMinimapTeleport(const FVector2D& UV);
+    void RequestMinimapTeleport(const FVector2D& UV);
+    void UndoLastMinimapTeleport();
     FString GetHudDetailText() const;
     void NotifyRuntimeEditorBlocked();
 
@@ -206,6 +238,9 @@ private:
     UOntoTwinRoamingHUDWidget* RoamingHUD = nullptr;
 
     UPROPERTY()
+    UOntoTwinRuntimeDockWidget* RuntimeDock = nullptr;
+
+    UPROPERTY()
     UOntoTwinNarrationHUDWidget* NarrationHUD = nullptr;
 
     UPROPERTY()
@@ -238,6 +273,8 @@ private:
     UPROPERTY()
     UInputAction* RouteAction = nullptr;
     UPROPERTY()
+    UInputAction* PauseAction = nullptr;
+    UPROPERTY()
     UInputAction* JumpAction = nullptr;
     UPROPERTY()
     UInputAction* CrouchAction = nullptr;
@@ -260,6 +297,11 @@ private:
     FString BindingWarning;
     FString SessionSelectedRouteId;
     FString PendingRouteSwitchId;
+    FString ActiveSessionCharacterId;
+    FString ActiveSessionCharacterDisplayName;
+    FString ActiveSessionCharacterPrimaryAssetId;
+    FString ActiveSessionDefaultSkinId;
+    TMap<FString, FString> ActiveSessionSkinPrimaryAssetIds;
     FString MinimapState = TEXT("disabled");
     TArray<FString> DegradedFeatures;
     bool bBackendOnline = false;
@@ -276,6 +318,7 @@ private:
     bool bSceneBaselineReady = false;
     bool bCrosshairInteractive = false;
     bool bRouteSwitchInProgress = false;
+    bool bCharacterSwitchInProgress = false;
     bool bGlobalHudInputCaptured = false;
     bool bGlobalHudPreviousMouseCursor = false;
     bool bPreRoamingMouseCursor = false;
@@ -284,15 +327,30 @@ private:
     float PollAccumulator = 1000.0f;
     float HeartbeatAccumulator = 0.0f;
     float MinimapMarkerAccumulator = 0.0f;
+    double LastMinimapPointerEventSeconds = -1.0;
     int32 ConsecutiveFailures = 0;
     FTimerHandle RouteSwitchTimer;
     FTimerHandle NarrationTimer;
+    FTimerHandle MinimapRefreshTimer;
+    FTimerHandle MinimapTeleportTimer;
+    FTimerHandle MinimapUndoTimer;
+    FDelegateHandle RepresentationVisualReadyHandle;
+    FString PendingMinimapRefreshReason;
+    int32 PendingMinimapRefreshCaptures = 0;
     FTwinRoamingRuntimeWaypoint ActiveNarrationWaypoint;
     int32 ActiveNarrationSegmentIndex = -1;
     bool bNarrationActive = false;
     TSharedPtr<IHttpRequest, ESPMode::ThreadSafe> NarrationAudioRequest;
     FMatrix MinimapViewProjection = FMatrix::Identity;
     FIntPoint MinimapCaptureSize = FIntPoint::ZeroValue;
+    FVector PendingMinimapTeleportLocation = FVector::ZeroVector;
+    FVector MinimapUndoLocation = FVector::ZeroVector;
+    FVector2D PendingMinimapTeleportUV = FVector2D(0.5f, 0.5f);
+    bool bMinimapTeleportInProgress = false;
+    bool bPendingMinimapTeleportIsUndo = false;
+    bool bPendingMinimapTeleportSucceeded = false;
+    bool bMinimapUndoAvailable = false;
+    FTwinCameraVisibilityState StartupViewVisibilityState;
 
     void PollRuntimeProjection();
     void HandleRuntimeProjection(const TSharedPtr<FJsonObject>& Payload);
@@ -311,6 +369,8 @@ private:
         FTransform& OutTransform, FString& OutError) const;
     class UTwinCharacterAsset* ResolveCharacterAsset(FString& OutError) const;
     UObject* ResolvePrimaryAsset(const FString& PrimaryAssetId) const;
+    const FTwinRoamingRuntimeCharacter* FindRuntimeCharacter(
+        const FString& CharacterId) const;
     ATwinRoamingRoute* FindRoute(const FString& RouteId) const;
     ATwinRoamingRoute* BuildRuntimeRoute(FString& OutError);
     void DestroyRuntimeRoute();
@@ -325,10 +385,40 @@ private:
     ATwinMinimapAnchor* FindMinimapAnchor(FString& OutState) const;
     void ApplyMinimapConfig(bool bEnabled);
     bool InitializeMinimap(FString& OutError);
+    bool CaptureMinimapScene(const TCHAR* Reason);
+    void ScheduleMinimapRefreshSeries(
+        const TCHAR* Reason, int32 CaptureCount, float InitialDelaySeconds);
+    void HandleRepresentationVisualReady(ATwinInstance* Instance);
+    void RefreshMinimapAfterSceneSettled();
     void ShutdownMinimap(bool bResetState);
     void SetMinimapState(const FString& State);
     void UpdateMinimapMarker(float DeltaTime);
     bool ProjectMinimapPoint(const FVector& WorldPoint, FVector2D& OutUV) const;
+    bool DeprojectMinimapUV(
+        const FVector2D& UV,
+        float ReferenceFootZ,
+        FVector& OutDesiredFoot,
+        FString& OutError) const;
+    bool ResolveSafeMinimapLocation(
+        const FVector& DesiredFoot,
+        float ReferenceFootZ,
+        FVector& OutCapsuleCenter,
+        bool& bOutAdjusted,
+        FString& OutError) const;
+    bool ResolveMinimapTeleportTarget(
+        const FVector2D& UV,
+        FVector& OutCapsuleCenter,
+        FVector2D& OutResolvedUV,
+        bool& bOutAdjusted,
+        FString& OutError) const;
+    void BeginMinimapTeleport(
+        const FVector& TargetLocation,
+        const FVector2D& TargetUV,
+        bool bIsUndo);
+    void CompleteMinimapTeleportMove();
+    void FinishMinimapTeleport();
+    void ExpireMinimapUndo();
+    void CancelMinimapTeleport(bool bRestoreView);
     void CreateHud();
     void DestroyHud();
     void RefreshHud();
@@ -345,6 +435,7 @@ private:
     void UpdateCrosshairTarget();
     void SetHudInteraction(bool bOpen);
     void RestoreOriginalPawn();
+    void HandleRoutePauseAction();
 
     void SetupInput();
     void ActivateRoamingInput();
@@ -356,7 +447,10 @@ private:
     void SelectFromView(bool bCursorTrace);
     ATwinInstance* ResolveInteractionInstance(const FHitResult& Hit) const;
     void HandleWebInstanceSelection(ATwinInstance* Instance);
-    bool CompleteWebOpen(bool bOpened, const FString& FailureMessage);
+    bool CompleteWebOpen(
+        bool bOpened,
+        const FString& FailureMessage,
+        bool bRevealDockOnFailure = true);
 
     void OnMove(const FInputActionValue& Value);
     void OnLook(const FInputActionValue& Value);
@@ -365,6 +459,7 @@ private:
     void OnToggleHud(const FInputActionValue& Value);
     void OnInteract(const FInputActionValue& Value);
     void OnRoute(const FInputActionValue& Value);
+    void OnPauseRoute(const FInputActionValue& Value);
     void OnJump(const FInputActionValue& Value);
     void OnCrouchStarted(const FInputActionValue& Value);
     void OnCrouchEnded(const FInputActionValue& Value);

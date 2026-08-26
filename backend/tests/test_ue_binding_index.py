@@ -128,6 +128,27 @@ class UeBindingIndexTest(unittest.TestCase):
         self.assertEqual(info["error"], "ue_project_already_bound")
         self.assertEqual(info["bound_to"], p1["id"])
 
+    def test_bind_rebuilds_empty_process_index_before_exclusivity_check(self):
+        """Offline tools must discover bindings persisted by another process."""
+        p1 = self.ps.create_project(
+            "P1",
+            dataset={
+                "id": "p1",
+                "name": "P1",
+                "bound_ue_project_id": "ue_offline",
+                "bound_ue_project_name": "Offline UE",
+            },
+        )
+        self.ps.deactivate()
+        self.ps.create_project("P2", dataset={"id": "p2", "name": "P2"})
+        ub._ue_index.clear()  # Simulate a freshly started migration process.
+
+        ok, info = ub.bind_active_dataset(self.ps, "ue_offline", "Offline UE")
+
+        self.assertFalse(ok)
+        self.assertEqual(info["error"], "ue_project_already_bound")
+        self.assertEqual(info["bound_to"], p1["id"])
+
     def test_bind_force_migrates(self):
         p1 = self.ps.create_project("P1", dataset={"id": "p1", "name": "P1"})
         ub.bind_active_dataset(self.ps, "ue_beta", "ue_beta")

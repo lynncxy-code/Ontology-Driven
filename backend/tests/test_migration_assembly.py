@@ -263,6 +263,53 @@ class MigrationAssemblyTests(unittest.TestCase):
         self.assertNotIn("unsafe-mother", result)
         self.assertEqual(result["blocked_actors"][0]["ext_guid"], "unsafe-mother")
 
+    def test_declared_replacement_validates_hash_and_swaps_atomically(self):
+        new_id = "ue_child"
+        declaration = {
+            "replacement": {
+                "old_instance_ids": ["ue_group"],
+                "source_container_guids": ["GROUP-GUID"],
+                "expected_old_instance_count": 1,
+                "expected_new_instance_count": 1,
+                "new_instance_ids_hash": MIGRATION._instance_ids_hash([new_id]),
+                "expected_delete_actor_guid_count": 2,
+            }
+        }
+        instances = {
+            "ue_group": {"ext_guid": "GROUP-GUID"},
+            new_id: {"ext_guid": "CHILD-GUID"},
+        }
+        stats = {"blocked": 0, "skipped": 0, "legacy": 0, "replaced": 0}
+        cleanup, result = MIGRATION._apply_declared_replacement(
+            declaration,
+            instances,
+            {"CHILD-GUID": new_id},
+            stats,
+            ["CHILD-GUID"],
+        )
+        self.assertNotIn("ue_group", instances)
+        self.assertIn(new_id, instances)
+        self.assertEqual(cleanup, ["CHILD-GUID", "GROUP-GUID"])
+        self.assertEqual(stats["replaced"], 1)
+        self.assertEqual(result["old_instance_count"], 1)
+        self.assertEqual(result["new_instance_count"], 1)
+
+        bad = json.loads(json.dumps(declaration))
+        bad["replacement"]["new_instance_ids_hash"] = "sha256:tampered"
+        untouched = {
+            "ue_group": {"ext_guid": "GROUP-GUID"},
+            new_id: {"ext_guid": "CHILD-GUID"},
+        }
+        with self.assertRaises(SystemExit):
+            MIGRATION._apply_declared_replacement(
+                bad,
+                untouched,
+                {"CHILD-GUID": new_id},
+                {"blocked": 0, "skipped": 0, "legacy": 0, "replaced": 0},
+                ["CHILD-GUID"],
+            )
+        self.assertIn("ue_group", untouched)
+
     def test_skip_classification_action_excludes_non_device(self):
         self.assertEqual(MIGRATION._classification_action({"action": " SKIP "}), "skip")
         self.assertEqual(MIGRATION._classification_action(None), "")
@@ -337,6 +384,35 @@ class MigrationAssemblyTests(unittest.TestCase):
         )
         self.assertNotIn("render_parts", legacy)
         self.assertNotIn("assembly_signature", legacy)
+
+        container = APP_HELPERS["_build_representable_interface"](
+            "/Game/Machine/SM_A.SM_A",
+            "SM_A",
+            True,
+            None,
+            {
+                "enabled": True,
+                "container_blueprint_id": "/Game/SCC/BP_Item.BP_Item",
+                "container_slot": "primary",
+            },
+        )
+        self.assertEqual(
+            container["container_blueprint_id"],
+            "/Game/SCC/BP_Item.BP_Item",
+        )
+        self.assertEqual(container["container_slot"], "primary")
+
+        assembly_container = APP_HELPERS["_build_representable_interface"](
+            "/Game/A.A",
+            "/Game/A.A",
+            True,
+            config,
+            {
+                "enabled": True,
+                "container_blueprint_id": "/Game/SCC/BP_Item.BP_Item",
+            },
+        )
+        self.assertNotIn("container_blueprint_id", assembly_container)
 
     def test_type_default_overrides_assembly_instance_assets(self):
         resolve = APP_HELPERS["_resolve_instance_render_assets"]

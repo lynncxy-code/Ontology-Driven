@@ -4,7 +4,7 @@
 // 孪生体实例 Actor — 每个后端实例在 UE 中的渲染载体
 //
 // 功能说明：
-//   1. 根据 asset_id（UE 内容路径）动态加载 StaticMesh
+//   1. 根据 asset_id（UE 内容路径）动态加载 StaticMesh、SkeletalMesh 或 Actor Blueprint
 //   2. 接收 ATwinSceneManager 下发的 JSON 快照，驱动空间/材质/行为
 //   3. 支持编辑器模式固化：可手动放置到关卡并在编辑器里调整位置
 //   4. bLocalOverrideLock：锁定后忽略后端的空间变换数据
@@ -18,6 +18,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Components/ChildActorComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Components/WidgetComponent.h"
@@ -26,6 +28,14 @@
 
 class UDigitalTwinSyncComponent;
 class UOntoTwinOverlayWidget;
+class UMeshComponent;
+class UTwinRepresentationHostComponent;
+class ATwinInstance;
+
+/** Runtime representation mesh became renderable (for one-shot scene captures). */
+DECLARE_MULTICAST_DELEGATE_OneParam(
+    FOnTwinRepresentationVisualReady,
+    ATwinInstance*);
 
 // ============================================================================
 // 动画配方结构体（内置库使用）
@@ -69,6 +79,9 @@ class ONTOTWINSYNC_API ATwinInstance : public AActor
 public:
     ATwinInstance();
 
+    /** Process-local signal emitted after a runtime GLB has produced its final mesh. */
+    static FOnTwinRepresentationVisualReady OnRepresentationVisualReady;
+
     // ═══════════════════════════════════════════════════════════════════════
     // 编辑器可配置属性
     // ═══════════════════════════════════════════════════════════════════════
@@ -82,6 +95,11 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体|标识",
               meta=(DisplayName="实例显示名"))
     FString TwinDisplayName;
+
+    /** 后端对象类型名称，供 Runtime Editor 等运行时界面使用。 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体|标识",
+              meta=(DisplayName="类型名称"))
+    FString TwinObjectTypeName;
 
     /** OntoTwin 数据侧是否允许 F8 修改空间状态；缺失时兼容为允许。 */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体|同步控制",
@@ -97,6 +115,16 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|标识",
               meta=(DisplayName="UE资产路径"))
     FString AssetPath;
+
+    /** Optional project Blueprint used as a child-Actor representation container. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体|标识",
+              meta=(DisplayName="容器Blueprint路径"))
+    FString ContainerBlueprintPath;
+
+    /** Logical slot resolved by UTwinRepresentationHostComponent. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体|标识",
+              meta=(DisplayName="容器槽位"))
+    FString ContainerSlot = TEXT("primary");
 
     /** 🔒 本地锁定：锁定后，后端空间变换数据不会覆盖编辑器中的位置/旋转/缩放 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="孪生体|同步控制",
@@ -167,7 +195,12 @@ public:
     // ═══════════════════════════════════════════════════════════════════════
 
     /** 初始化孪生体：加载资产、配置同步组件 */
-    void InitializeTwin(const FString& InInstanceId, const FString& InAssetPath, const FString& InBackendBaseUrl);
+    void InitializeTwin(
+        const FString& InInstanceId,
+        const FString& InAssetPath,
+        const FString& InBackendBaseUrl,
+        const FString& InContainerBlueprintPath,
+        const FString& InContainerSlot);
 
     /** 应用后端快照到 Actor（由 SceneManager 每 500ms 调用） */
     void ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool bIsDelta = false);
@@ -183,6 +216,15 @@ public:
 
     /** 获取后端实例显示名；为空时回退到实例 ID。 */
     FString GetTwinDisplayName() const { return TwinDisplayName.IsEmpty() ? InstanceId : TwinDisplayName; }
+
+    /** 获取后端对象类型名称。 */
+    const FString& GetTwinObjectTypeName() const { return TwinObjectTypeName; }
+
+    /** 当前主表现（含 Blueprint 子 Actor）的世界包围盒。 */
+    FBox GetRepresentationWorldBounds(bool bIncludeNonColliding = true) const;
+
+    /** 当前主表现转换到 TwinInstance 局部空间后的包围盒。 */
+    bool GetRepresentationLocalBounds(FBox& OutLocalBounds) const;
 
     bool IsRuntimeSpatialEditable() const { return bRuntimeSpatialEditable; }
     const FString& GetRuntimeEditStateHash() const { return RuntimeEditStateHash; }
@@ -204,6 +246,7 @@ public:
 
     /** assembly_v1 预览审计：当前快照是否正在驱动复合表现。 */
     bool IsAssemblyRenderActive() const { return bAssemblyRenderActive; }
+    bool IsContainerRepresentationActive() const;
 
     /**
      * assembly_v1 预览审计：逐项核对已创建的部件与快照 render_parts。
@@ -246,6 +289,14 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体", meta=(AllowPrivateAccess="true"))
     UStaticMeshComponent* MeshComponent = nullptr;
 
+    /** 直接绑定 SkeletalMesh 时使用；不自动推断动画。 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体", meta=(AllowPrivateAccess="true"))
+    USkeletalMeshComponent* SkeletalMeshComponent = nullptr;
+
+    /** 直接绑定普通 Actor Blueprint 时使用；子 Actor 保留自身生命周期。 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体", meta=(AllowPrivateAccess="true"))
+    UChildActorComponent* BlueprintActorComponent = nullptr;
+
     /** assembly_v1 复合实例的动态渲染部件；母实例仍只有一个 Actor。 */
     UPROPERTY(Transient)
     TArray<UStaticMeshComponent*> RenderPartComponents;
@@ -261,6 +312,15 @@ protected:
     UWidgetComponent* OverlayWidgetComponent = nullptr;
 
 private:
+    enum class ERepresentationKind : uint8
+    {
+        None,
+        StaticMesh,
+        SkeletalMesh,
+        BlueprintActor,
+        ContainerBlueprint
+    };
+
     // ── 同步组件 ─────────────────────────────────────────────────────────────
 
     /** 同步组件（复用老插件） */
@@ -278,6 +338,12 @@ private:
     /** 当前是否由 I3D_Representable.render_parts 驱动。 */
     bool bAssemblyRenderActive = false;
 
+    /** 当前单资产表现类型；assembly_v1 仍由 bAssemblyRenderActive 标识。 */
+    ERepresentationKind ActiveRepresentationKind = ERepresentationKind::None;
+
+    /** I3D_Visual.is_visible 的最后值；与 Representable 的加载状态分离。 */
+    bool bVisualVisible = true;
+
     bool bRuntimeLoaded = true;
     bool bRuntimeEditorLoadedOverride = false;
 
@@ -289,8 +355,42 @@ private:
 
     // ── 内部方法 ─────────────────────────────────────────────────────────
 
-    /** 根据 asset_id 加载 StaticMesh（兼容 /Game 烘焙资产 与 运行时 glb 文件） */
+    /** 根据 asset_id 加载 StaticMesh、SkeletalMesh 或 Actor Blueprint。 */
     bool LoadMeshFromPath(const FString& MeshPath);
+
+    /** 清理当前单资产表现，不影响 assembly_v1 动态部件。 */
+    void ClearSingleAssetRepresentation();
+
+    /** 加载直接绑定的骨骼网格；只显示参考姿势。 */
+    bool LoadSkeletalMeshAsset(const FString& ObjectPath);
+
+    /** 加载普通 Actor Blueprint，并通过 ChildActorComponent 运行。 */
+    bool LoadBlueprintActorAsset(const FString& ObjectPath);
+
+    /** Create a project BP child Actor and inject a cooked StaticMesh into its host slot. */
+    bool LoadContainerBlueprintRepresentation(
+        const FString& BlueprintPath,
+        const FString& SlotName,
+        const FString& StaticMeshPath);
+
+    /** Reload current assembly-free representation after load/unload or hot changes. */
+    bool ReloadCurrentSingleRepresentation();
+
+    UTwinRepresentationHostComponent* FindContainerHost(
+        AActor* ChildActor,
+        const FString& SlotName) const;
+
+    /** 把 Blueprint 对象路径规范化为 Package.Asset_C 生成类路径。 */
+    static FString MakeBlueprintGeneratedClassPath(const FString& ObjectPath);
+
+    /** 校验 Blueprint 生成类是否属于 4.3.0 支持的普通表现 Actor。 */
+    static bool IsSupportedBlueprintActorClass(const UClass* ActorClass, FString& OutReason);
+
+    /** 当前直接网格表现，用于统一材质缓存与恢复。 */
+    UMeshComponent* GetActiveMeshComponent() const;
+
+    /** 应用 I3D_Visual 显隐，并显式同步 Blueprint 子 Actor。 */
+    void ApplyVisualVisibility(bool bVisible);
 
     /** assembly_v1：按母 Actor 相对变换创建多个静态网格部件。 */
     void ApplyRenderPartsFromSnapshot(
@@ -338,7 +438,9 @@ private:
     void ApplySpatialFromSnapshot(const TSharedPtr<FJsonObject>& SpatialObj);
     void ApplyVisualFromSnapshot(const TSharedPtr<FJsonObject>& VisualObj);
     void ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& BehaviorObj);
-    void ApplyRepresentableFromSnapshot(const TSharedPtr<FJsonObject>& RepObj);
+    void ApplyRepresentableFromSnapshot(
+        const TSharedPtr<FJsonObject>& RepObj,
+        bool bIsDelta);
     void ApplyRuntimeLoadedVisibility(bool bVisible);
     void ApplyOverlayFromSnapshot(const TSharedPtr<FJsonObject>& OverlayObj);
     void UpdateWorldOverlayRenderTarget();
@@ -355,6 +457,8 @@ private:
 
     /** 当前特效状态缓存 */
     FString CurrentFxTrigger;
+
+    TWeakObjectPtr<UTwinRepresentationHostComponent> ActiveContainerHost;
 
     /** 当前标签文字缓存（防止重复刷新）*/
     FString CurrentLabelContent;

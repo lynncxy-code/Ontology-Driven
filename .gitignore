@@ -61,6 +61,27 @@ backend/data/trash/
 # review-push 本地验证证据（报告与日志，不进业务提交）
 .review-push/
 
+# Local build, staging, backup, and generated export artifacts
+.backups/
+.build/
+.codex_staging/
+.deploy/
+artifacts/
+ssc2_backups/
+backend/customer_edit_backups/
+backend/offline_exports/
+backend/data/ue_asset_catalogs/
+backend/tools/*_backup*.json
+backend/tools/*_result.json
+backend/tools/*_review.csv
+backend/tools/*_review.json
+backend/tools/*_export_*.json
+scripts/patches/
+
+# Codex one-off inspection and workspace artifacts. Existing tracked files
+# under this directory remain tracked by Git.
+.codex/
+
 # .NET build outputs
 **/bin/
 **/obj/

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 400" role="img" aria-labelledby="title desc">
+  <title id="title">Manny 机器人</title>
+  <desc id="desc">黑白灰风格的人形机器人资源缩略图</desc>
+  <rect width="320" height="400" fill="#f4f4f2"/>
+  <path d="M104 93c0-35 22-61 56-61s56 26 56 61v31c0 33-24 58-56 58s-56-25-56-58z" fill="#fdfdfc" stroke="#171717" stroke-width="8"/>
+  <path d="M117 91h86v35c0 25-19 44-43 44s-43-19-43-44z" fill="#d9dddb" stroke="#171717" stroke-width="6"/>
+  <path d="M131 102h58" stroke="#171717" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="142" cy="122" r="6" fill="#171717"/>
+  <circle cx="178" cy="122" r="6" fill="#171717"/>
+  <path d="M139 149h42" stroke="#6d7471" stroke-width="5" stroke-linecap="round"/>
+  <path d="M126 180v27l-39 24-18 132h182l-18-132-39-24v-27" fill="#fdfdfc" stroke="#171717" stroke-width="8" stroke-linejoin="round"/>
+  <path d="m127 204 33 30 33-30 25 16-18 72h-80l-18-72z" fill="#c9cecb" stroke="#171717" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M121 292h78l13 71H108z" fill="#303432" stroke="#171717" stroke-width="7"/>
+  <path d="M89 233 50 276l-15 87h48l22-99M231 233l39 43 15 87h-48l-22-99" fill="#eceeec" stroke="#171717" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M143 253h34v22h-34z" fill="#fdfdfc" stroke="#171717" stroke-width="5"/>
+  <path d="M95 363h130" stroke="#171717" stroke-width="8" stroke-linecap="round"/>
+</svg>

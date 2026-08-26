@@ -4,822 +4,414 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>外部数据监控台 | OntoTwin Nexus</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/nexus_titlebar.css" />
-
     <style>
         :root {
-            --bg: #fafafa;
-            --surface: #ffffff;
-            --border: #eaeaea;
-            --border-soft: #f0f0f0;
-            --text-primary: #111111;
-            --text-secondary: #666666;
-            --text-muted: #999999;
-            --accent: #111111;
-            --accent-soft: #f5f5f5;
-            --green: #16a34a;
-            --green-bg: #f0fdf4;
-            --green-border: #bbf7d0;
-            --red: #dc2626;
-            --red-bg: #fef2f2;
-            --amber: #d97706;
-            --amber-bg: #fffbeb;
+            --bg: #f7f7f7;
+            --surface: #fff;
+            --border: #e7e7e7;
+            --text: #111;
+            --secondary: #666;
+            --muted: #999;
+            --green: #16803c;
+            --green-bg: #edf8f0;
+            --red: #c83232;
+            --red-bg: #fff1f1;
+            --amber: #b96808;
+            --amber-bg: #fff7e8;
             --blue: #2563eb;
             --blue-bg: #eff6ff;
-            --font: 'Inter', -apple-system, sans-serif;
-            --mono: 'JetBrains Mono', 'Fira Code', monospace;
-            --radius: 8px;
-            --radius-sm: 6px;
+            --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+            --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; min-height: 100%; }
+        body { background: var(--bg); color: var(--text); font-family: var(--sans); }
 
-        body {
-            font-family: var(--font);
-            background: var(--bg);
-            color: var(--text-primary);
-            -webkit-font-smoothing: antialiased;
-            height: 100vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* ── Status bar ─────────────────────────────── */
-        .status-toolbar {
+        .toolbar {
+            min-height: 52px;
             padding: 10px 24px;
-            flex-shrink: 0;
             background: var(--surface);
             border-bottom: 1px solid var(--border);
-        }
-
-        .status-bar {
             display: flex;
             align-items: center;
-            gap: 20px;
+            gap: 18px;
             flex-wrap: wrap;
         }
 
-        .status-pill {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            font-weight: 500;
-        }
+        .toolbar-status, .toolbar-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+        .toolbar-meta { color: var(--muted); }
+        .toolbar-meta strong { color: var(--secondary); font-weight: 500; }
+        .toolbar-actions { margin-left: auto; display: flex; gap: 8px; }
 
-        .status-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: var(--text-muted);
-            flex-shrink: 0;
-        }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
+        .dot.connected { background: var(--green); box-shadow: 0 0 0 3px var(--green-bg); }
+        .dot.error, .dot.disconnected { background: var(--red); box-shadow: 0 0 0 3px var(--red-bg); }
+        .dot.connecting, .dot.reconnecting { background: var(--amber); box-shadow: 0 0 0 3px var(--amber-bg); }
 
-        .status-dot.online {
-            background: var(--green);
-            box-shadow: 0 0 0 2px var(--green-bg);
-            animation: pulse 2s infinite;
-        }
-
-        .status-dot.offline {
-            background: var(--red);
-        }
-
-        @keyframes pulse {
-            0%, 100% { box-shadow: 0 0 0 2px var(--green-bg); }
-            50% { box-shadow: 0 0 0 4px var(--green-bg); }
-        }
-
-        .divider-v {
-            width: 1px;
-            height: 14px;
-            background: var(--border);
-        }
-
-        .last-updated {
-            font-size: 12px;
-            color: var(--text-muted);
-        }
-
-        .last-updated span {
-            color: var(--text-secondary);
-            font-weight: 500;
-        }
-
-        .btn-group {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-left: auto;
-        }
-
-        .btn {
-            height: 30px;
-            padding: 0 12px;
-            font-size: 12px;
-            font-weight: 500;
-            font-family: var(--font);
-            border-radius: var(--radius-sm);
-            border: 1px solid var(--border);
-            background: var(--surface);
-            color: var(--text-secondary);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            transition: all 0.15s;
-        }
-
-        .btn:hover {
-            background: var(--accent-soft);
-            color: var(--text-primary);
-            border-color: #d0d0d0;
-        }
-
-        .btn.active {
-            background: var(--text-primary);
-            color: white;
-            border-color: var(--text-primary);
-        }
-
-        .btn.mock-btn {
-            border-color: var(--amber);
-            color: var(--amber);
-        }
-        .btn.mock-btn.active {
-            background: var(--amber);
-            color: white;
-            border-color: var(--amber);
-        }
-
-        .btn svg { flex-shrink: 0; }
-
-        /* ── Mock Panel ─────────────────────────────── */
-        .mock-panel {
-            display: none; /* hidden by default */
-            padding: 12px 16px;
-            background: var(--amber-bg);
-            border-bottom: 1px solid var(--amber);
-            align-items: center;
-            gap: 12px;
-            font-size: 13px;
-            flex-shrink: 0;
-            color: var(--amber);
-        }
-        .mock-panel select, .mock-panel button {
-            height: 28px;
-            font-size: 12px;
-            border: 1px solid var(--amber);
-            border-radius: 4px;
-            padding: 0 8px;
-            background: white;
-            color: var(--amber);
-        }
-        .mock-panel button {
-            background: var(--amber);
-            color: white;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .mock-panel button:hover {
-            opacity: 0.9;
-        }
-
-        /* ── Main layout ─────────────────────────────── */
-        .main-content {
-            flex: 1;
-            overflow: hidden;
-            display: flex;
-            gap: 0;
-        }
-
-        /* ── Left panel: summary ─────────────────────── */
-        .left-panel {
-            width: 280px;
-            flex-shrink: 0;
-            border-right: 1px solid var(--border);
-            overflow-y: auto;
-            padding: 20px 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .panel-section-title {
-            font-size: 11px;
-            font-weight: 600;
-            letter-spacing: 0.06em;
-            color: var(--text-muted);
-            margin-bottom: 8px;
-        }
-
-        .stat-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-
-        .stat-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 12px;
-        }
-
-        .stat-value {
-            font-size: 22px;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-            line-height: 1;
-            margin-bottom: 4px;
-        }
-
-        .stat-label {
-            font-size: 11px;
-            color: var(--text-muted);
-        }
-
-        .stat-card.green .stat-value { color: var(--green); }
-        .stat-card.blue .stat-value { color: var(--blue); }
-
-        /* Worker cards */
-        .worker-list {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .worker-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 10px 12px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            transition: border-color 0.15s;
-        }
-
-        .worker-card:hover { border-color: #d0d0d0; }
-
-        .worker-avatar {
-            width: 32px;
+        .button {
             height: 32px;
-            border-radius: 50%;
-            background: var(--accent-soft);
+            padding: 0 12px;
             border: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            flex-shrink: 0;
-        }
-
-        .worker-info { flex: 1; min-width: 0; }
-
-        .worker-name {
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--text-primary);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .worker-station {
-            font-size: 11px;
-            color: var(--text-muted);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .status-badge {
-            font-size: 10px;
-            font-weight: 600;
-            padding: 2px 7px;
-            border-radius: 20px;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-
-        .status-badge.working {
-            background: var(--green-bg);
-            color: var(--green);
-            border: 1px solid var(--green-border);
-        }
-
-        .status-badge.idle {
-            background: var(--accent-soft);
-            color: var(--text-muted);
-            border: 1px solid var(--border);
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 24px 12px;
-            color: var(--text-muted);
-            font-size: 12px;
-        }
-
-        /* ── Right panel: JSON viewer ─────────────────── */
-        .right-panel {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .json-toolbar {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 12px 20px;
-            border-bottom: 1px solid var(--border);
+            border-radius: 6px;
             background: var(--surface);
-            flex-shrink: 0;
+            color: var(--secondary);
+            font: 500 12px var(--sans);
+            cursor: pointer;
+        }
+        .button:hover { border-color: #cfcfcf; color: var(--text); background: #fafafa; }
+        .button.active { background: var(--text); border-color: var(--text); color: white; }
+        .button:disabled { cursor: wait; opacity: .55; }
+
+        main {
+            max-width: 1320px;
+            margin: 0 auto;
+            padding: 24px;
+            display: grid;
+            grid-template-columns: minmax(440px, .95fr) minmax(420px, 1.05fr);
+            gap: 18px;
         }
 
-        .json-toolbar-title {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            letter-spacing: 0.04em;
+        .stack { display: flex; flex-direction: column; gap: 14px; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        .card-head { padding: 16px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .eyebrow { margin: 0 0 4px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+        .card-title { margin: 0; font-size: 16px; font-weight: 650; }
+        .card-body { padding: 18px; }
+
+        .identity { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .field { min-width: 0; }
+        .field-label { margin-bottom: 6px; color: var(--muted); font-size: 11px; }
+        .field-value { color: var(--text); font-size: 13px; font-weight: 550; overflow-wrap: anywhere; }
+        .field-value.mono { font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--secondary); }
+
+        .stream-summary { display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .stream-state { min-width: 0; }
+        .stream-state strong { display: block; font-size: 14px; }
+        .stream-state span { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; font-family: var(--mono); overflow-wrap: anywhere; }
+
+        .switch-wrap { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+        .switch-label { font-size: 12px; color: var(--secondary); min-width: 36px; text-align: right; }
+        .switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            padding: 0;
+            border: 0;
+            border-radius: 999px;
+            background: #d6d6d6;
+            cursor: pointer;
+            transition: background .18s ease;
         }
-
-        .json-source-tag {
-            font-size: 11px;
-            background: var(--blue-bg);
-            color: var(--blue);
-            border-radius: 4px;
-            padding: 2px 8px;
-            font-family: var(--mono);
-        }
-
-        .json-size-tag {
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-left: auto;
-        }
-
-        .json-viewer-wrap {
-            flex: 1;
-            overflow: auto;
-            padding: 20px;
-            background: var(--bg);
-        }
-
-        .json-viewer-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
-        .json-viewer-wrap::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
-
-        .json-pre {
-            font-family: var(--mono);
-            font-size: 12.5px;
-            line-height: 1.7;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 20px 24px;
-            white-space: pre;
-            min-height: 100%;
-        }
-
-        /* JSON syntax colors */
-        .json-key    { color: #0369a1; }
-        .json-str    { color: #16a34a; }
-        .json-num    { color: #7c3aed; }
-        .json-bool   { color: #d97706; }
-        .json-null   { color: #9ca3af; }
-        .json-punct  { color: #6b7280; }
-
-        /* Loading / error states */
-        .state-overlay {
+        .switch::after {
+            content: "";
             position: absolute;
-            inset: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            background: var(--bg);
-            z-index: 10;
-        }
-
-        .spinner {
-            width: 28px;
-            height: 28px;
-            border: 2px solid var(--border);
-            border-top-color: var(--text-primary);
+            top: 3px;
+            left: 3px;
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
-            animation: spin 0.7s linear infinite;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,.2);
+            transition: transform .18s ease;
         }
+        .switch.on { background: var(--green); }
+        .switch.on::after { transform: translateX(20px); }
+        .switch:disabled { cursor: not-allowed; opacity: .5; }
 
-        @keyframes spin { to { transform: rotate(360deg); } }
+        .sync-banner { margin-top: 16px; padding: 10px 12px; border-radius: 7px; background: var(--blue-bg); color: var(--blue); font-size: 12px; line-height: 1.45; }
+        .sync-banner.ok { background: var(--green-bg); color: var(--green); }
+        .sync-banner.warn { background: var(--amber-bg); color: var(--amber); }
+        .sync-banner.error { background: var(--red-bg); color: var(--red); }
 
-        .state-msg {
-            font-size: 13px;
-            color: var(--text-secondary);
+        .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .metric { padding: 13px 12px; border: 1px solid var(--border); border-radius: 8px; background: #fcfcfc; min-width: 0; }
+        .metric strong { display: block; margin-bottom: 5px; font-size: 17px; overflow-wrap: anywhere; }
+        .metric span { color: var(--muted); font-size: 10px; }
+
+        .safe-note { display: flex; gap: 10px; align-items: flex-start; padding: 14px 16px; background: var(--green-bg); border: 1px solid #cce9d5; border-radius: 9px; color: #24613a; font-size: 12px; line-height: 1.6; }
+        .safe-note strong { color: var(--green); }
+
+        .raw-card { min-height: 604px; display: flex; flex-direction: column; }
+        .raw-tag { padding: 4px 8px; border-radius: 4px; background: var(--blue-bg); color: var(--blue); font: 10px var(--mono); }
+        pre { flex: 1; margin: 0; padding: 18px; background: #fbfbfb; color: #333; font: 12px/1.7 var(--mono); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+        .empty { padding: 42px 20px; text-align: center; color: var(--muted); font-size: 13px; }
+        .error-text { margin-top: 14px; color: var(--red); font-size: 12px; overflow-wrap: anywhere; }
+
+        @media (max-width: 920px) {
+            main { grid-template-columns: 1fr; }
+            .raw-card { min-height: 420px; }
         }
-
-        .error-box {
-            background: var(--red-bg);
-            border: 1px solid #fecaca;
-            border-radius: var(--radius);
-            padding: 16px 20px;
-            max-width: 420px;
-            text-align: center;
+        @media (max-width: 560px) {
+            main { padding: 14px; }
+            .identity, .metrics { grid-template-columns: 1fr; }
+            .toolbar { padding: 10px 14px; }
+            .toolbar-actions { margin-left: 0; width: 100%; }
         }
-
-        .error-box h3 {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--red);
-            margin-bottom: 6px;
-        }
-
-        .error-box p {
-            font-size: 12px;
-            color: #7f1d1d;
-            line-height: 1.5;
-        }
-
-        .error-box code {
-            font-family: var(--mono);
-            font-size: 11px;
-            background: rgba(0,0,0,0.05);
-            padding: 1px 4px;
-            border-radius: 3px;
-        }
-
-        .json-viewer-wrap { position: relative; }
     </style>
 </head>
 <body>
-
-<!-- ── Page header ───────────────────────────────────── -->
-<header class="nexus-titlebar">
-    <div class="nexus-titlebar__main">
-        <h1 class="nexus-titlebar__title">外部数据监控台</h1>
-        <p class="nexus-titlebar__subtitle">实时查看 OntoTwin 中转站下行数据，透视工人与工位状态流</p>
-    </div>
-</header>
-
-<div class="status-toolbar">
-    <div class="status-bar">
-        <div class="status-pill">
-            <div class="status-dot" id="status-dot"></div>
-            <span id="status-text" style="color:var(--text-muted)">连接中...</span>
+    <header class="nexus-titlebar">
+        <div class="nexus-titlebar__main">
+            <h1 class="nexus-titlebar__title">外部数据监控台</h1>
+            <p class="nexus-titlebar__subtitle">监控当前激活 Database 的 WebSocket 实时流</p>
         </div>
+    </header>
 
-        <div class="divider-v"></div>
-
-        <div class="last-updated">
-            最后更新：<span id="last-update-time">—</span>
+    <div class="toolbar">
+        <div class="toolbar-status">
+            <span class="dot" id="toolbar-dot"></span>
+            <strong id="toolbar-state">读取状态中...</strong>
         </div>
-
-        <div class="divider-v"></div>
-
-        <div class="last-updated">
-            中转站：<span id="middleware-url" style="font-family:var(--mono);font-size:11px">—</span>
-        </div>
-
-        <div class="btn-group">
-            <button class="btn mock-btn" id="btn-mock" onclick="toggleMockOverride()">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                模拟覆写
-            </button>
-            <button class="btn active" id="btn-auto" onclick="toggleAutoRefresh()">
-                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><polyline points="8 5 8 8 10 10"/></svg>
-                <span id="auto-label">自动 5s</span>
-            </button>
-            <button class="btn" onclick="fetchSnapshot()" id="btn-refresh">
-                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="1.5 4 4 1.5 6.5 4"/><path d="M4 1.5v7A4.5 4.5 0 0 0 8.5 13H9"/><polyline points="14.5 12 12 14.5 9.5 12"/><path d="M12 14.5V7.5A4.5 4.5 0 0 0 7.5 3H7"/></svg>
-                立即刷新
-            </button>
+        <div class="toolbar-meta">最后更新 <strong id="last-updated">—</strong></div>
+        <div class="toolbar-actions">
+            <button class="button active" id="auto-button" type="button">自动 2s</button>
+            <button class="button" id="refresh-button" type="button">立即刷新</button>
         </div>
     </div>
-</div>
 
-<!-- ── Mock Panel ─────────────────────────────── -->
-<div class="mock-panel" id="mock-panel">
-    <strong>[调试模式]</strong> 数据覆写开启。所有 UE 请求将被拦截注入下面生成的数据。
-    <span style="margin-left: auto;">指派工人：</span>
-    <select id="mock-worker-select">
-        <option value="FW-01">FW-01 (张明)</option>
-        <option value="FW-02">FW-02 (李强)</option>
-        <option value="FW-03">FW-03 (王芳)</option>
-        <option value="FW-04">FW-04 (赵伟)</option>
-        <option value="FW-05">FW-05 (刘洋)</option>
-        <option value="FW-06">FW-06 (陈静)</option>
-    </select>
-    <span>前往工位：</span>
-    <select id="mock-ws-select">
-        <option value="WS-01|X100 主控板工位">WS-01 (X100 主控板工位)</option>
-        <option value="WS-02|X200 传感板工位">WS-02 (X200 传感板工位)</option>
-        <option value="WS-03|X300 驱动板工位">WS-03 (X300 驱动板工位)</option>
-        <option value="WS-04|X400 电源板工位">WS-04 (X400 电源板工位)</option>
-        <option value="WS-05|X500 射频板工位">WS-05 (X500 射频板工位)</option>
-        <option value="WS-00|休息区">WS-00 (休息区)</option>
-    </select>
-    <button onclick="sendMockMove()">下发移动指令</button>
-</div>
+    <main>
+        <section class="stack">
+            <article class="card">
+                <div class="card-head">
+                    <div>
+                        <p class="eyebrow">Active Database</p>
+                        <h2 class="card-title" id="database-name">读取中...</h2>
+                    </div>
+                </div>
+                <div class="card-body identity">
+                    <div class="field">
+                        <div class="field-label">Database ID</div>
+                        <div class="field-value mono" id="database-id">—</div>
+                    </div>
+                    <div class="field">
+                        <div class="field-label">绑定 UE 工程</div>
+                        <div class="field-value" id="ue-name">—</div>
+                        <div class="field-value mono" id="ue-id">—</div>
+                    </div>
+                </div>
+            </article>
 
-<!-- ── Main ──────────────────────────────────────────── -->
-<div class="main-content">
+            <article class="card">
+                <div class="card-head">
+                    <div class="stream-summary">
+                        <span class="dot" id="stream-dot"></span>
+                        <div class="stream-state">
+                            <strong id="stream-state">状态未知</strong>
+                            <span id="stream-url">—</span>
+                            <span id="stream-identity">—</span>
+                        </div>
+                    </div>
+                    <div class="switch-wrap">
+                        <span class="switch-label" id="switch-label">—</span>
+                        <button class="switch" id="stream-switch" type="button" role="switch" aria-checked="false" aria-label="WebSocket 实时流开关" disabled></button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="metrics">
+                        <div class="metric"><strong id="metric-ue">—</strong><span>UE 心跳</span></div>
+                        <div class="metric"><strong id="metric-frame-age">—</strong><span>最新帧延迟</span></div>
+                        <div class="metric"><strong id="metric-frames">—</strong><span>累计实时帧</span></div>
+                        <div class="metric"><strong id="metric-targets">—</strong><span>本帧目标</span></div>
+                        <div class="metric"><strong id="metric-applied">—</strong><span>已应用目标</span></div>
+                        <div class="metric"><strong id="metric-source">—</strong><span>当前空间数据源</span></div>
+                    </div>
+                    <div class="sync-banner" id="sync-banner">等待 UE 心跳...</div>
+                    <div class="error-text" id="stream-error" hidden></div>
+                </div>
+            </article>
 
-    <!-- Left: summary cards + worker list -->
-    <div class="left-panel">
-        <div>
-            <div class="panel-section-title">快照摘要</div>
-            <div class="stat-grid">
-                <div class="stat-card green">
-                    <div class="stat-value" id="stat-workers">—</div>
-                    <div class="stat-label">工人实体</div>
-                </div>
-                <div class="stat-card blue">
-                    <div class="stat-value" id="stat-event-id">—</div>
-                    <div class="stat-label">最新事件 ID</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="stat-working">—</div>
-                    <div class="stat-label">作业中</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="stat-idle">—</div>
-                    <div class="stat-label">空闲中</div>
-                </div>
+            <div class="safe-note">
+                <span>✓</span>
+                <div><strong>HTTP 快照始终继续运行。</strong><br />上面的开关只断开或恢复 WebSocket 实时流，不影响实例建档、模型绑定和非空间属性同步。</div>
             </div>
-        </div>
+        </section>
 
-        <div>
-            <div class="panel-section-title">工人状态</div>
-            <div class="worker-list" id="worker-list">
-                <div class="empty-state">等待数据...</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Right: JSON viewer -->
-    <div class="right-panel">
-        <div class="json-toolbar">
-            <span class="json-toolbar-title">RAW JSON</span>
-            <span class="json-source-tag" id="json-source-tag">GET /api/v2/floor_pulse/snapshot</span>
-            <span class="json-size-tag" id="json-size-tag"></span>
-        </div>
-        <div class="json-viewer-wrap" id="json-viewer-wrap">
-            <div class="state-overlay" id="loading-overlay">
-                <div class="spinner"></div>
-                <span class="state-msg">正在连接中转站...</span>
-            </div>
-            <pre class="json-pre" id="json-pre"></pre>
-        </div>
-    </div>
-
-</div>
-
-<script>
-    let autoRefreshTimer = null;
-    let isAutoRefresh = true;
-    let lastData = null;
-
-    // ── Formatters ─────────────────────────────────────
-
-    function syntaxHighlight(json) {
-        if (typeof json !== 'string') {
-            json = JSON.stringify(json, null, 2);
-        }
-        return json.replace(/("(\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
-            let cls = 'json-num';
-            if (/^"/.test(match)) {
-                cls = /:$/.test(match) ? 'json-key' : 'json-str';
-            } else if (/true|false/.test(match)) {
-                cls = 'json-bool';
-            } else if (/null/.test(match)) {
-                cls = 'json-null';
-            }
-            return `<span class="${cls}">${match}</span>`;
-        });
-    }
-
-    function formatBytes(bytes) {
-        if (bytes < 1024) return `${bytes} B`;
-        return `${(bytes / 1024).toFixed(1)} KB`;
-    }
-
-    function formatTime(iso) {
-        try {
-            const d = new Date(iso);
-            return d.toLocaleTimeString('zh-CN', { hour12: false });
-        } catch { return iso; }
-    }
-
-    function chineseInitial(name) {
-        return name ? name[0] : '?';
-    }
-
-    // ── Status ─────────────────────────────────────────
-
-    function setOnline(url) {
-        const dot = document.getElementById('status-dot');
-        dot.className = 'status-dot online';
-        document.getElementById('status-text').textContent = '中转站正常';
-        document.getElementById('status-text').style.color = 'var(--green)';
-        if (url) document.getElementById('middleware-url').textContent = url.replace('http://127.0.0.1', 'localhost');
-    }
-
-    function setOffline(msg) {
-        const dot = document.getElementById('status-dot');
-        dot.className = 'status-dot offline';
-        document.getElementById('status-text').textContent = msg || '连接断开';
-        document.getElementById('status-text').style.color = 'var(--red)';
-    }
-
-    // ── Fetch ──────────────────────────────────────────
-
-    async function fetchSnapshot() {
-        const btn = document.getElementById('btn-refresh');
-        btn.disabled = true;
-
-        try {
-            const resp = await fetch('/api/v2/floor_pulse/snapshot');
-            const data = await resp.json();
-
-            // Hide loading overlay
-            document.getElementById('loading-overlay').style.display = 'none';
-
-            if (!resp.ok || data.error) {
-                handleError(data);
-                return;
-            }
-
-            lastData = data;
-            renderData(data);
-
-        } catch (e) {
-            handleError({ error: '网络错误', message: e.message });
-        } finally {
-            btn.disabled = false;
-        }
-    }
-
-    function handleError(data) {
-        setOffline(data.error === 'middleware_unreachable' ? '中转站未启动' : '连接错误');
-
-        // Show error in JSON area
-        const pre = document.getElementById('json-pre');
-        pre.innerHTML = syntaxHighlight(data);
-        document.getElementById('loading-overlay').style.display = 'none';
-        document.getElementById('json-size-tag').textContent = '';
-
-        // Reset summary
-        ['stat-workers', 'stat-event-id', 'stat-working', 'stat-idle'].forEach(id => {
-            document.getElementById(id).textContent = '—';
-        });
-        document.getElementById('worker-list').innerHTML =
-            `<div class="empty-state" style="color:var(--red)">⚠ ${data.message || '无法获取数据'}</div>`;
-    }
-
-    function renderData(data) {
-        const now = new Date();
-
-        // Status
-        setOnline(data._middleware_url);
-        document.getElementById('last-update-time').textContent =
-            now.toLocaleTimeString('zh-CN', { hour12: false });
-
-        // JSON viewer
-        const jsonStr = JSON.stringify(data, null, 2);
-        document.getElementById('json-pre').innerHTML = syntaxHighlight(jsonStr);
-        document.getElementById('json-size-tag').textContent =
-            `${formatBytes(new Blob([jsonStr]).size)}  ·  ${now.toLocaleTimeString()}`;
-
-        // Summary stats
-        const items = data.items || [];
-        const working = items.filter(i => i.state?.status === 'working').length;
-        const idle = items.filter(i => i.state?.status === 'idle').length;
-
-        document.getElementById('stat-workers').textContent = items.length || '0';
-        document.getElementById('stat-event-id').textContent = data.latestEventId ?? '—';
-        document.getElementById('stat-working').textContent = working;
-        document.getElementById('stat-idle').textContent = idle;
-
-        // Worker cards
-        renderWorkerCards(items);
-    }
-
-    function renderWorkerCards(items) {
-        const container = document.getElementById('worker-list');
-        if (!items.length) {
-            container.innerHTML = '<div class="empty-state">暂无工人数据</div>';
-            return;
-        }
-
-        container.innerHTML = items.map(item => {
-            const name = item.metadata?.name || item.instanceId;
-            const status = item.state?.status || 'unknown';
-            const station = item.state?.workstationName || item.state?.workstationId || '—';
-            const initial = chineseInitial(name);
-            const badgeClass = status === 'working' ? 'working' : 'idle';
-            const badgeText = status === 'working' ? '作业中' : (status === 'idle' ? '空闲' : status);
-
-            return `
-            <div class="worker-card">
-                <div class="worker-avatar">${initial}</div>
-                <div class="worker-info">
-                    <div class="worker-name">${name}</div>
-                    <div class="worker-station">${station}</div>
+        <article class="card raw-card">
+            <div class="card-head">
+                <div>
+                    <p class="eyebrow">Runtime Status</p>
+                    <h2 class="card-title">连接状态原始数据</h2>
                 </div>
-                <span class="status-badge ${badgeClass}">${badgeText}</span>
-            </div>`;
-        }).join('');
-    }
+                <span class="raw-tag">GET /api/v2/external-data/realtime</span>
+            </div>
+            <pre id="raw-json">正在读取...</pre>
+        </article>
+    </main>
 
-    // ── Auto refresh ────────────────────────────────────
+    <script>
+        const STATUS_LABELS = {
+            connected: 'WebSocket 已连接',
+            connecting: 'WebSocket 连接中',
+            reconnecting: 'WebSocket 重连中',
+            disconnected: 'WebSocket 已断开',
+            disabled: 'WebSocket 已关闭',
+            error: 'WebSocket 连接错误',
+            unknown: 'WebSocket 状态未知'
+        };
 
-    function toggleAutoRefresh() {
-        isAutoRefresh = !isAutoRefresh;
-        const btn = document.getElementById('btn-auto');
-        const label = document.getElementById('auto-label');
-        if (isAutoRefresh) {
-            btn.classList.add('active');
-            label.textContent = '自动 5s';
-            startAutoRefresh();
-        } else {
-            btn.classList.remove('active');
-            label.textContent = '已暂停';
-            clearInterval(autoRefreshTimer);
+        let currentStatus = null;
+        let autoRefresh = true;
+        let refreshTimer = null;
+        let requestInFlight = false;
+
+        const byId = id => document.getElementById(id);
+        const text = (id, value, fallback = '—') => {
+            byId(id).textContent = value === null || value === undefined || value === '' ? fallback : String(value);
+        };
+
+        function formatFrameAge(value) {
+            if (value === null || value === undefined) return '—';
+            if (value < 1000) return `${Math.round(value)} ms`;
+            return `${(value / 1000).toFixed(1)} s`;
         }
-    }
 
-    function startAutoRefresh() {
-        clearInterval(autoRefreshTimer);
-        autoRefreshTimer = setInterval(fetchSnapshot, 5000);
-    }
+        function setDot(id, state) {
+            byId(id).className = `dot ${state || ''}`;
+        }
 
-    // ── Mock Override ────────────────────────────────────
+        function render(status) {
+            currentStatus = status;
+            const database = status.database || {};
+            const ue = status.ue || {};
+            const websocket = status.websocket || {};
+            const state = websocket.connection_state || 'unknown';
 
-    let isMockEnabled = false;
+            text('database-name', database.name, '未命名 Database');
+            text('database-id', database.id);
+            text('ue-name', ue.project_name, ue.online ? '未上报名称' : 'UE 离线');
+            text('ue-id', ue.project_id);
+            text('stream-state', STATUS_LABELS[state] || state);
+            text('stream-url', websocket.url, '尚未收到 WebSocket URL');
+            text(
+                'stream-identity',
+                [websocket.stream_id, websocket.owner].filter(Boolean).join(' · '),
+                '尚未识别实际连接驱动'
+            );
 
-    async function toggleMockOverride() {
-        isMockEnabled = !isMockEnabled;
-        const btn = document.getElementById('btn-mock');
-        const panel = document.getElementById('mock-panel');
+            setDot('stream-dot', state);
+            setDot('toolbar-dot', state);
+            text('toolbar-state', STATUS_LABELS[state] || state);
 
-        try {
-            await fetch('/api/v2/floor_pulse/mock/toggle', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled: isMockEnabled })
-            });
+            const desired = websocket.desired_enabled;
+            const streamSwitch = byId('stream-switch');
+            streamSwitch.disabled = requestInFlight || !database.id;
+            streamSwitch.classList.toggle('on', desired === true);
+            streamSwitch.setAttribute('aria-checked', desired === true ? 'true' : 'false');
+            text('switch-label', desired === null || desired === undefined ? '未设置' : (desired ? '开启' : '关闭'));
 
-            if (isMockEnabled) {
-                btn.classList.add('active');
-                panel.style.display = 'flex';
-                fetchSnapshot(); // refetch to show debug JSON
+            text('metric-ue', ue.online ? '在线' : '离线');
+            text('metric-frame-age', formatFrameAge(websocket.last_frame_age_ms));
+            text('metric-frames', websocket.frame_count ?? 0);
+            text('metric-targets', websocket.target_count ?? 0);
+            text('metric-applied', websocket.applied_target_count ?? 0);
+            text('metric-source', websocket.active_source === 'websocket' ? 'WebSocket' : (websocket.active_source === 'http_snapshot' ? 'HTTP 快照' : '—'));
+
+            const banner = byId('sync-banner');
+            if (!ue.online) {
+                banner.className = 'sync-banner warn';
+                banner.textContent = websocket.command_configured
+                    ? '期望状态已保存，等待 UE 恢复心跳后执行。'
+                    : 'UE 当前离线，尚无可确认的实时连接状态。';
+            } else if (desired === false && websocket.in_sync && state === 'disabled') {
+                banner.className = 'sync-banner ok';
+                banner.textContent = '开关已同步，WebSocket 已关闭；HTTP 快照继续运行。';
+            } else if (desired === true && websocket.in_sync && state === 'connected') {
+                banner.className = 'sync-banner ok';
+                banner.textContent = '开关已同步，WebSocket 已连接。';
+            } else if (desired === true && ['connecting', 'reconnecting'].includes(state)) {
+                banner.className = 'sync-banner warn';
+                banner.textContent = '开关已同步，正在建立 WebSocket 连接。';
+            } else if (desired === true && ['error', 'disconnected'].includes(state)) {
+                banner.className = 'sync-banner error';
+                banner.textContent = '开关已开启，但 WebSocket 尚未连接，请检查 URL、网络和服务端。';
             } else {
-                btn.classList.remove('active');
-                panel.style.display = 'none';
-                fetchSnapshot();
+                banner.className = 'sync-banner';
+                banner.textContent = '控制命令已送达后端，等待 UE 下一次心跳完成同步。';
             }
-        } catch (e) {
-            console.error(e);
-            alert("切换失败");
-            isMockEnabled = !isMockEnabled; // revert
+
+            const errorNode = byId('stream-error');
+            errorNode.hidden = !websocket.error;
+            errorNode.textContent = websocket.error ? `最近错误：${websocket.error}` : '';
+            byId('raw-json').textContent = JSON.stringify(status, null, 2);
+            text('last-updated', new Date().toLocaleTimeString('zh-CN', { hour12: false }));
         }
-    }
 
-    async function sendMockMove() {
-        if (!isMockEnabled) return;
-        const workerId = document.getElementById('mock-worker-select').value;
-        const wsVal = document.getElementById('mock-ws-select').value.split('|');
-        const wsId = wsVal[0];
-        const wsName = wsVal[1];
-
-        try {
-            await fetch('/api/v2/floor_pulse/mock/move', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    instanceId: workerId,
-                    workstationId: wsId,
-                    workstationName: wsName
-                })
-            });
-            fetchSnapshot(); // refresh immediately after sending
-        } catch (e) {
-            console.error(e);
-            alert("指令发送失败");
+        function renderFetchError(error) {
+            currentStatus = null;
+            setDot('toolbar-dot', 'error');
+            setDot('stream-dot', 'error');
+            text('toolbar-state', '监控接口不可用');
+            text('stream-state', error.message || '读取失败');
+            text('database-name', '无法读取当前 Database');
+            byId('stream-switch').disabled = true;
+            byId('sync-banner').className = 'sync-banner error';
+            byId('sync-banner').textContent = error.message || '无法读取连接状态';
+            byId('raw-json').textContent = JSON.stringify(error, null, 2);
         }
-    }
 
-    // ── Init ────────────────────────────────────────────
-    fetchSnapshot();
-    startAutoRefresh();
-</script>
+        async function fetchStatus() {
+            if (requestInFlight) return;
+            requestInFlight = true;
+            byId('refresh-button').disabled = true;
+            try {
+                const response = await fetch('/api/v2/external-data/realtime', { cache: 'no-store' });
+                const payload = await response.json();
+                if (!response.ok) throw payload;
+                render(payload);
+            } catch (error) {
+                renderFetchError(error && typeof error === 'object' ? error : { message: String(error) });
+            } finally {
+                requestInFlight = false;
+                byId('refresh-button').disabled = false;
+                if (currentStatus) byId('stream-switch').disabled = false;
+            }
+        }
+
+        async function toggleStream() {
+            if (!currentStatus || requestInFlight) return;
+            const databaseId = currentStatus.database && currentStatus.database.id;
+            if (!databaseId) return;
+            const desired = currentStatus.websocket && currentStatus.websocket.desired_enabled;
+            requestInFlight = true;
+            byId('stream-switch').disabled = true;
+            byId('sync-banner').className = 'sync-banner';
+            byId('sync-banner').textContent = '正在保存控制命令...';
+            try {
+                const response = await fetch('/api/v2/external-data/realtime', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        enabled: desired !== true,
+                        expected_database_id: databaseId
+                    })
+                });
+                const payload = await response.json();
+                if (!response.ok) throw payload;
+                render(payload);
+            } catch (error) {
+                renderFetchError(error && typeof error === 'object' ? error : { message: String(error) });
+            } finally {
+                requestInFlight = false;
+                byId('stream-switch').disabled = !currentStatus;
+            }
+        }
+
+        function toggleAutoRefresh() {
+            autoRefresh = !autoRefresh;
+            byId('auto-button').classList.toggle('active', autoRefresh);
+            byId('auto-button').textContent = autoRefresh ? '自动 2s' : '已暂停';
+            clearInterval(refreshTimer);
+            if (autoRefresh) refreshTimer = setInterval(fetchStatus, 2000);
+        }
+
+        byId('stream-switch').addEventListener('click', toggleStream);
+        byId('refresh-button').addEventListener('click', fetchStatus);
+        byId('auto-button').addEventListener('click', toggleAutoRefresh);
+        refreshTimer = setInterval(fetchStatus, 2000);
+        fetchStatus();
+    </script>
 </body>
 </html>

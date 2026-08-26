@@ -4,6 +4,32 @@ OntoTwin Nexus 的 UE5 数字孪生同步插件。把整个 `OntoTwinSync/` 文�
 
 源码迁移自仓库根目录 `ue5/`（原文件保留作参考，不再维护）。
 
+## 4.4 Blueprint 容器化表现
+
+`I3D_Representable` 可同时下发具体 Static Mesh 与项目 Blueprint 容器：
+
+```json
+{
+  "asset_id": "/Game/SCC/Art/SM_Machine.SM_Machine",
+  "container_blueprint_id": "/Game/SCC/Program/Function/Machine/BP_Item_base_SCC_Machine.BP_Item_base_SCC_Machine",
+  "container_slot": "primary",
+  "is_visible": true
+}
+```
+
+容器 BP 必须添加 `OntoTwin 表现宿主`（`UTwinRepresentationHostComponent`），并把
+`primary` 槽位的目标组件指向需要接收模型的 `StaticMeshComponent`。运行时结构为：
+
+```text
+ATwinInstance
+└── 项目容器 BP 子 Actor
+    └── HostComponent(primary) → 具体 Static Mesh
+```
+
+没有 `container_blueprint_id` 的旧快照继续走 4.3 的直接资产加载路径。4.4 首版容器模式
+只接受已 Cook 的 Static Mesh，且不与 `render_parts` 组合模型同时使用。父 `ATwinInstance`
+仍是唯一空间变换源；容器 BP 保留自身 Tick、碰撞和项目交互逻辑。
+
 ## 安装
 
 1. 把本文件夹整体复制到目标工程：`<你的工程>/Plugins/OntoTwinSync/`
@@ -30,6 +56,13 @@ Web“UE 运行状态”会显示小地图当前状态。若显示“缺少地�
 - `TwinMinimapAnchor_All`：`MinimapId = minimap.default`，只提供一次性小地图取景。
 - 漫游视角锚点：`CameraId = camera.god.default`，用于 F7 漫游中的默认上帝视角。
 - 固定视角锚点：`CameraId` 与 `StartupViewCameraId` 一致（默认 `camera.startup.default`），用于运行时开局、F7 退出漫游及 F8 退出模型编辑后的固定视角；缺失时兼容回退到 `camera.god.default`。
+
+相机专属隐藏可在 Project Settings 的 `OntoTwin Camera Visibility` 中配置，也可在单个
+`TwinMinimapAnchor` / `TwinGodViewAnchor` 的 `Hidden Actor Names` 与 `Hidden Level Names`
+中追加。Actor 规则同时匹配运行时对象名和编辑器标签，并默认递归包含附属 Actor；Level
+规则填写流送关卡短名，例如 `L_SCC_ENV_Site`。小地图通过 SceneCapture 隐藏，God/Startup
+视角通过本地 PlayerController 隐藏，并在离开对应视角时恢复；隐藏关卡中的灯光组件也会
+随视角临时关闭和恢复。
 
 漫游默认视角为上帝视角；按 `V` 依次按“上帝视角 → 过肩视角 → 第一人称 → 上帝视角”循环。`F7` 仍只负责进入或退出漫游。
 

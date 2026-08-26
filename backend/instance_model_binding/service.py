@@ -4,6 +4,11 @@ import copy
 import datetime as dt
 import time
 
+try:
+    from representation_container.service import resolve_effective_container
+except ModuleNotFoundError:
+    from ..representation_container.service import resolve_effective_container
+
 
 class InstanceModelBindingError(RuntimeError):
     def __init__(self, code, message, status=422, fields=None):
@@ -195,6 +200,9 @@ class InstanceModelBindingService:
         effective = resolve_effective_model(
             instance.get("raw_state"), render_config, object_type, self.asset_catalog
         )
+        effective_container = resolve_effective_container(
+            render_config, object_type, effective
+        )
         inherited_config = copy.deepcopy(render_config)
         inherited_config.pop("model_override", None)
         inherited = resolve_effective_model(
@@ -247,6 +255,7 @@ class InstanceModelBindingService:
                 "required": "I3D_Representable",
             },
             "effective_model": effective,
+            "effective_container": effective_container,
             "inherited_model": inherited,
             "type_default": type_default,
             "instance_override": copy.deepcopy(override) if isinstance(override, dict) else None,

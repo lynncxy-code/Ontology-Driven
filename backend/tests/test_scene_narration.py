@@ -102,6 +102,39 @@ class NarrationContractTests(unittest.TestCase):
         self.assertNotIn("audio_asset_id", second["segments"][0])
         self.assertEqual("pending", second["generation_state"])
 
+    def test_recorded_upload_survives_single_segment_subtitle_edit(self):
+        errors = []
+        profile = effective_voice_profile(DEFAULT_NARRATION_SETTINGS, {})
+        first = normalize_waypoint_narration({
+            "enabled": True,
+            "mode": "voice",
+            "text": "原始字幕。",
+        }, None, profile, errors, "waypoints[0].narration")
+        first["segments"][0].update({
+            "audio_asset_id": "narration_recorded",
+            "audio_sha256": "recorded-sha",
+            "audio_duration_sec": 46.621,
+        })
+        first["generation_state"] = "available"
+        first["last_generation"] = {
+            "provider_id": "uploaded.recorded",
+            "result": "success",
+        }
+
+        second = normalize_waypoint_narration({
+            "enabled": True,
+            "mode": "voice",
+            "text": "修改后的字幕。",
+        }, first, profile, errors, "waypoints[0].narration")
+
+        self.assertFalse(errors)
+        self.assertEqual("修改后的字幕。", second["segments"][0]["text"])
+        self.assertEqual("narration_recorded", second["segments"][0]["audio_asset_id"])
+        self.assertEqual("recorded-sha", second["segments"][0]["audio_sha256"])
+        self.assertEqual(46.621, second["segments"][0]["audio_duration_sec"])
+        self.assertEqual("available", second["generation_state"])
+        self.assertEqual("uploaded.recorded", second["last_generation"]["provider_id"])
+
 
 class NarrationAssetTests(unittest.TestCase):
     def test_store_and_resolve_wav_by_content(self):

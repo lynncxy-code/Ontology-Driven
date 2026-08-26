@@ -69,9 +69,19 @@ public:
         TArray<FString>& OutZoneIds,
         TArray<FString>& OutDisplayNames) const;
 
+    void GetAvailableZoneTree(
+        TArray<FString>& OutZoneIds,
+        TArray<FString>& OutDisplayNames,
+        TArray<FString>& OutParentZoneIds) const;
+
     void GetAvailableBusinessViews(
         TArray<FString>& OutBusinessViewIds,
         TArray<FString>& OutDisplayNames) const;
+
+    void GetAvailableBusinessViewSummaries(
+        TArray<FString>& OutBusinessViewIds,
+        TArray<FString>& OutDisplayNames,
+        TArray<int32>& OutMemberCounts) const;
 
     bool IsRuntimeReady() const { return AppliedRevision >= 0; }
     bool IsWebOpen() const { return bInputCaptured && !bRuntimeEditorSuppressed; }

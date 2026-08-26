@@ -401,8 +401,26 @@ def _validate_realtime_channel(value, errors):
         _error(errors, "realtime_channel.error", "必须是字符串")
         error = ""
 
+    url = value.get("url") or ""
+    if not isinstance(url, str):
+        _error(errors, "realtime_channel.url", "必须是字符串")
+        url = ""
+
+    stream_id = value.get("stream_id") or ""
+    if not isinstance(stream_id, str):
+        _error(errors, "realtime_channel.stream_id", "必须是字符串")
+        stream_id = ""
+
+    owner = value.get("owner") or ""
+    if not isinstance(owner, str):
+        _error(errors, "realtime_channel.owner", "必须是字符串")
+        owner = ""
+
     return {
         "enabled": enabled,
+        "url": url[:2048],
+        "stream_id": stream_id[:256],
+        "owner": owner[:128],
         "connection_state": connection_state,
         "active_source": active_source,
         "last_frame_age_ms": last_frame_age_ms,

@@ -1,5 +1,6 @@
 #include "OntoTwinModelLoadingWidget.h"
 
+#include "UI/OntoTwinGlassRenderer.h"
 #include "UI/OntoTwinGlassTheme.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateColorBrush.h"
@@ -16,12 +17,43 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Styling/CoreStyle.h"
+#if WITH_DEV_AUTOMATION_TESTS
+#include "Misc/AutomationTest.h"
+#endif
 
 namespace
 {
 const FLinearColor LoadingNeutral(0.92f, 0.92f, 0.92f, 1.0f);
 const FLinearColor LoadingGreen(0.10f, 0.58f, 0.36f, 1.0f);
 const FLinearColor LoadingWarning(0.82f, 0.54f, 0.16f, 1.0f);
+constexpr float WaitingProgressCeiling = 0.15f;
+constexpr float ApplyingProgressCeiling = 0.95f;
+constexpr float WaitingProgressPerSecond = 0.0075f;
+constexpr float ApplyingProgressPerSecond = 0.85f;
+constexpr float FinalProgressPerSecond = 0.35f;
+
+float AdvanceWaitingProgress(const float Current, const float DeltaSeconds)
+{
+    return FMath::Min(
+        WaitingProgressCeiling,
+        Current + FMath::Max(0.0f, DeltaSeconds) * WaitingProgressPerSecond);
+}
+
+float CalculateApplyingProgressTarget(const int32 Completed, const int32 Total)
+{
+    const int32 SafeTotal = FMath::Max(1, Total);
+    const int32 SafeCompleted = FMath::Clamp(Completed, 0, SafeTotal);
+    const float Ratio = static_cast<float>(SafeCompleted) / static_cast<float>(SafeTotal);
+    return WaitingProgressCeiling
+        + (ApplyingProgressCeiling - WaitingProgressCeiling) * Ratio;
+}
+
+float KeepProgressMonotonic(const float Displayed, const float Proposed)
+{
+    return FMath::Max(
+        FMath::Clamp(Displayed, 0.0f, 1.0f),
+        FMath::Clamp(Proposed, 0.0f, 1.0f));
+}
 }
 
 TSharedRef<SWidget> UOntoTwinModelLoadingWidget::RebuildWidget()
@@ -35,6 +67,75 @@ TSharedRef<SWidget> UOntoTwinModelLoadingWidget::RebuildWidget()
         BuildDefaultLayout();
     }
     return Super::RebuildWidget();
+}
+
+void UOntoTwinModelLoadingWidget::NativeTick(
+    const FGeometry& MyGeometry,
+    const float InDeltaTime)
+{
+    Super::NativeTick(MyGeometry, InDeltaTime);
+
+    if (!ProgressBar)
+    {
+        return;
+    }
+
+    if (FOntoTwinGlassRenderer::ShouldReduceMotion())
+    {
+        DisplayedPercent = TargetPercent;
+        if (VisualPhase == ELoadingVisualPhase::Completing)
+        {
+            DisplayedPercent = 1.0f;
+            VisualPhase = ELoadingVisualPhase::Finished;
+        }
+    }
+    else
+    {
+        switch (VisualPhase)
+        {
+        case ELoadingVisualPhase::Waiting:
+            DisplayedPercent = FMath::Min(
+                TargetPercent,
+                AdvanceWaitingProgress(DisplayedPercent, InDeltaTime));
+            break;
+        case ELoadingVisualPhase::Applying:
+            DisplayedPercent = FMath::FInterpConstantTo(
+                DisplayedPercent,
+                TargetPercent,
+                InDeltaTime,
+                ApplyingProgressPerSecond);
+            break;
+        case ELoadingVisualPhase::Completing:
+            if (DisplayedPercent < ApplyingProgressCeiling)
+            {
+                DisplayedPercent = FMath::FInterpConstantTo(
+                    DisplayedPercent,
+                    ApplyingProgressCeiling,
+                    InDeltaTime,
+                    ApplyingProgressPerSecond);
+            }
+            else
+            {
+                DisplayedPercent = FMath::FInterpConstantTo(
+                    DisplayedPercent,
+                    1.0f,
+                    InDeltaTime,
+                    FinalProgressPerSecond);
+                if (DisplayedPercent >= 1.0f - KINDA_SMALL_NUMBER)
+                {
+                    DisplayedPercent = 1.0f;
+                    VisualPhase = ELoadingVisualPhase::Finished;
+                }
+            }
+            break;
+        case ELoadingVisualPhase::Failed:
+        case ELoadingVisualPhase::Finished:
+            break;
+        }
+    }
+
+    ProgressBar->SetPercent(FMath::Clamp(DisplayedPercent, 0.0f, 1.0f));
+    RefreshProgressText();
 }
 
 void UOntoTwinModelLoadingWidget::BuildDefaultLayout()
@@ -185,56 +286,129 @@ void UOntoTwinModelLoadingWidget::SetState(
     if (ProgressBar)
     {
         ProgressBar->SetIsMarquee(bMarquee);
-        ProgressBar->SetPercent(FMath::Clamp(Percent, 0.0f, 1.0f));
         ProgressBar->SetFillColorAndOpacity(Accent);
+        TargetPercent = KeepProgressMonotonic(DisplayedPercent, Percent);
+        ProgressBar->SetPercent(FMath::Clamp(DisplayedPercent, 0.0f, 1.0f));
     }
     if (PercentText) PercentText->SetColorAndOpacity(Accent);
 }
 
+void UOntoTwinModelLoadingWidget::RefreshProgressText()
+{
+    if (!PercentText)
+    {
+        return;
+    }
+
+    switch (VisualPhase)
+    {
+    case ELoadingVisualPhase::Waiting:
+        PercentText->SetText(FText::FromString(TEXT("正在等待模型数据…")));
+        break;
+    case ELoadingVisualPhase::Applying:
+        PercentText->SetText(FText::FromString(FString::Printf(
+            TEXT("已处理 %d / %d    总体 %d%%"),
+            LatestCompleted,
+            LatestTotal,
+            FMath::RoundToInt(DisplayedPercent * 100.0f))));
+        break;
+    case ELoadingVisualPhase::Completing:
+        PercentText->SetText(FText::FromString(FString::Printf(
+            TEXT("正在完成场景准备…    %d%%"),
+            FMath::RoundToInt(DisplayedPercent * 100.0f))));
+        break;
+    case ELoadingVisualPhase::Failed:
+        PercentText->SetText(FText::FromString(TEXT("正在自动重试…")));
+        break;
+    case ELoadingVisualPhase::Finished:
+        if (TitleText) TitleText->SetText(FText::FromString(TEXT("模型加载完成")));
+        if (DetailText) DetailText->SetText(FText::FromString(
+            TEXT("数据模型已就绪，正在进入场景。")));
+        PercentText->SetText(FText::FromString(FString::Printf(
+            TEXT("已加载 %d / %d    100%%"), LatestTotal, LatestTotal)));
+        break;
+    }
+}
+
 void UOntoTwinModelLoadingWidget::ShowWaiting(const FString& Detail)
 {
-    SetState(TEXT("正在准备数据模型"), Detail, 0.0f, true, LoadingNeutral);
-    if (PercentText) PercentText->SetText(FText::FromString(TEXT("正在等待模型数据…")));
+    VisualPhase = ELoadingVisualPhase::Waiting;
+    SetState(
+        TEXT("正在准备数据模型"),
+        Detail,
+        WaitingProgressCeiling,
+        false,
+        LoadingNeutral);
+    RefreshProgressText();
 }
 
 void UOntoTwinModelLoadingWidget::ShowProgress(const int32 Completed, const int32 Total)
 {
-    const int32 SafeTotal = FMath::Max(1, Total);
-    const float Percent = static_cast<float>(FMath::Clamp(Completed, 0, SafeTotal))
-        / static_cast<float>(SafeTotal);
+    const float Percent = CalculateApplyingProgressTarget(Completed, Total);
+    VisualPhase = ELoadingVisualPhase::Applying;
+    LatestCompleted = FMath::Clamp(Completed, 0, FMath::Max(0, Total));
+    LatestTotal = FMath::Max(0, Total);
     SetState(
         TEXT("正在加载数据模型"),
         TEXT("模型加载完成后将启动当前项目配置的场景交互。"),
         Percent,
         false,
         LoadingNeutral);
-    if (PercentText)
-    {
-        PercentText->SetText(FText::FromString(FString::Printf(
-            TEXT("已加载 %d / %d    %d%%"),
-            FMath::Clamp(Completed, 0, SafeTotal),
-            Total,
-            FMath::RoundToInt(Percent * 100.0f))));
-    }
+    RefreshProgressText();
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOntoTwinModelLoadingProgressMathTest,
+    "OntoTwin.UI.ModelLoading.ProgressMath",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FOntoTwinModelLoadingProgressMathTest::RunTest(const FString& Parameters)
+{
+    TestTrue(
+        TEXT("等待二十秒到达 15% 封顶"),
+        FMath::IsNearlyEqual(AdvanceWaitingProgress(0.0f, 20.0f), 0.15f, 0.0001f));
+    TestTrue(
+        TEXT("等待超过二十秒不突破 15%"),
+        FMath::IsNearlyEqual(AdvanceWaitingProgress(0.14f, 20.0f), 0.15f, 0.0001f));
+    TestTrue(
+        TEXT("实例处理起点映射为 15%"),
+        FMath::IsNearlyEqual(CalculateApplyingProgressTarget(0, 100), 0.15f, 0.0001f));
+    TestTrue(
+        TEXT("实例处理一半映射为 55%"),
+        FMath::IsNearlyEqual(CalculateApplyingProgressTarget(50, 100), 0.55f, 0.0001f));
+    TestTrue(
+        TEXT("实例处理完成映射为 95%"),
+        FMath::IsNearlyEqual(CalculateApplyingProgressTarget(100, 100), 0.95f, 0.0001f));
+    TestTrue(
+        TEXT("重试目标不能让显示进度倒退"),
+        FMath::IsNearlyEqual(KeepProgressMonotonic(0.72f, 0.31f), 0.72f, 0.0001f));
+    return true;
+}
+#endif
 
 void UOntoTwinModelLoadingWidget::ShowFailure(const FString& Detail)
 {
-    SetState(TEXT("模型暂未加载完成"), Detail, 0.0f, true, LoadingWarning);
-    if (PercentText) PercentText->SetText(FText::FromString(TEXT("正在自动重试…")));
+    VisualPhase = ELoadingVisualPhase::Failed;
+    SetState(
+        TEXT("模型暂未加载完成"),
+        Detail,
+        DisplayedPercent,
+        !FOntoTwinGlassRenderer::ShouldReduceMotion(),
+        LoadingWarning);
+    RefreshProgressText();
 }
 
 void UOntoTwinModelLoadingWidget::ShowComplete(const int32 Total)
 {
+    VisualPhase = ELoadingVisualPhase::Completing;
+    LatestCompleted = FMath::Max(0, Total);
+    LatestTotal = FMath::Max(0, Total);
     SetState(
-        TEXT("模型加载完成"),
-        TEXT("数据模型已就绪，正在进入场景。"),
+        TEXT("正在完成数据模型"),
+        TEXT("首轮模型基线已就绪，正在完成场景准备。"),
         1.0f,
         false,
         LoadingGreen);
-    if (PercentText)
-    {
-        PercentText->SetText(FText::FromString(FString::Printf(
-            TEXT("已加载 %d / %d    100%%"), Total, Total)));
-    }
+    RefreshProgressText();
 }

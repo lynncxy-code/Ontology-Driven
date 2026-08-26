@@ -62,10 +62,14 @@ private:
     UAnimationAsset* AutoRouteAnimation = nullptr;
 
     UPROPERTY(Transient)
+    TSubclassOf<UAnimInstance> VisibleAnimClass;
+
+    UPROPERTY(Transient)
     TSubclassOf<UAnimInstance> AnimationSourceAnimClass;
 
     float AutoRouteAnimationReferenceSpeedCmS = 180.0f;
     bool bAutoRouteAnimationActive = false;
+    bool bVisibleAutoRouteAnimationActive = false;
     float WalkSpeedCmS = 250.0f;
     float SprintSpeedCmS = 500.0f;
     FTwinFirstPersonCameraSettings FirstPersonCameraSettings;

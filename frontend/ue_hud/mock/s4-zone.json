@@ -1,22 +1,117 @@
 {
-  "page": {"title":"A 区总装与调姿","heading":"分区总览","level":"S4 空间对象","path_label":"沈北园区 / M01 总装厂房 / A 区","context_query":"zone_id","context_id":"SF.SB.M01.ZA","status_label":"注意","status_level":"warning","description":"展示当前分区的生产状态、站位与待处置事项。","revision":"zone-demo-r1"},
-  "metrics": [
-    {"label":"在管事件","display_value":"6","note":"2 项需优先处理"},
-    {"label":"站位在线","display_value":"8 / 9","note":"1 个站位离线"},
-    {"label":"计划完成率","display_value":"84%","note":"当前班次"},
-    {"label":"环境合格率","display_value":"97%","note":"过去 1 小时"}
-  ],
-  "primary_groups": [{"title":"下级站位","hint":"进入 S5","items":[
-    {"title":"A区-01 装配站位","meta":"装配与调姿","value":"注意","level":"warning","action":{"type":"request_open_scope","payload":{"scope_type":"instance","instance_id":"WS-M01-A01"}}},
-    {"title":"A区-02 检测站位","meta":"尺寸与姿态检测","value":"正常","level":"normal","action":{"type":"request_open_scope","payload":{"scope_type":"instance","instance_id":"WS-M01-A02"}}},
-    {"title":"A区-03 保障站位","meta":"工具与工装保障","value":"正常","level":"normal","action":{"type":"request_open_scope","payload":{"scope_type":"instance","instance_id":"WS-M01-A03"}}}
-  ]}],
-  "secondary_groups": [
-    {"title":"待处置事件","hint":"当前分区","items":[
-      {"title":"装配站位温度接近上限","meta":"A区-01 · 2 分钟前","value":"查看","level":"warning","action":{"type":"request_open_page","payload":{"page_id":"page.event-detail","event_id":"EVT-M01-007"}}},
-      {"title":"工装校验即将到期","meta":"A区-03 · 35 分钟前","value":"查看","level":"info","action":{"type":"request_open_page","payload":{"page_id":"page.event-detail","event_id":"EVT-M01-021"}}}
-    ]},
-    {"title":"分区档案","items":[{"title":"空间编码","meta":"所属建筑 M01","value":"SF.SB.M01.ZA"},{"title":"主要业务","meta":"总装与调姿","value":"生产"},{"title":"责任班组","meta":"总装一班","value":"在岗"}]}
-  ],
-  "actions": [{"label":"聚焦分区","type":"request_open_scope","payload":{"scope_type":"zone","zone_id":"$context"}},{"label":"打开事件台账","primary":true,"type":"request_open_page","payload":{"page_id":"page.event-workbench"}}]
+  "default_variant": "scc_w19_1f_production",
+  "variants": {
+    "scc_w19_1f_production": {
+      "page": {
+        "title": "生产区",
+        "heading": "生产区总览",
+        "level": "S4 区域",
+        "path_label": "SCC W19 / 1F / 生产区",
+        "context_query": "zone_id",
+        "context_id": "scc_w19_1f_production",
+        "status_label": "正常",
+        "status_level": "normal",
+        "description": "生产设备均位于 1F；重点设备按编号顺序展示。",
+        "revision": "three-zones-r1"
+      },
+      "metrics": [
+        {"label": "区域设备", "display_value": "11", "note": "全部位于 1F"},
+        {"label": "重点设备", "display_value": "5", "note": "按 1–5 排列"},
+        {"label": "未分区", "display_value": "0", "note": "无遗漏"}
+      ],
+      "primary_groups": [{
+        "title": "重点生产设备",
+        "hint": "按编号排列",
+        "items": [
+          {"title": "1号自动上板机", "meta": "生产区 / 工位 01", "value": "1", "level": "normal", "action": {"type": "request_open_scope", "payload": {"scope_type": "instance", "instance_id": "ue_732C27F2-4870-223E-F5E7-9888CF2AF036"}}},
+          {"title": "2号机器人上下料单元", "meta": "生产区 / 工位 02", "value": "2", "level": "normal", "action": {"type": "request_open_scope", "payload": {"scope_type": "instance", "instance_id": "ue_8A44A1B4-4541-CF99-A2FB-50A991E7CE6D"}}},
+          {"title": "3号ICT测试机", "meta": "生产区 / 工位 03", "value": "3", "level": "normal", "action": {"type": "request_open_scope", "payload": {"scope_type": "instance", "instance_id": "ue_77B91DE4-42A1-7174-6AD2-9EA1F0CA5996"}}},
+          {"title": "4号自动分板机", "meta": "生产区 / 工位 04", "value": "4", "level": "normal", "action": {"type": "request_open_scope", "payload": {"scope_type": "instance", "instance_id": "ue_3DE531C6-44FE-4163-C0FC-2DAD8A55FE8E"}}},
+          {"title": "5号机器人下料单元", "meta": "生产区 / 工位 05", "value": "5", "level": "normal", "action": {"type": "request_open_scope", "payload": {"scope_type": "instance", "instance_id": "ue_663D2B5D-4490-0F92-5165-4788DE02278B"}}}
+        ]
+      }],
+      "secondary_groups": [{
+        "title": "区域档案",
+        "items": [
+          {"title": "区域编码", "meta": "所属楼层 1F", "value": "scc_w19_1f_production"},
+          {"title": "主要业务", "meta": "上板、上下料、测试与分板", "value": "生产"}
+        ]
+      }],
+      "actions": [
+        {"label": "聚焦生产区", "type": "focus_current_scope"},
+        {"label": "进入生产区", "primary": true, "type": "close_page"}
+      ]
+    },
+    "scc_w19_1f_logistics": {
+      "page": {
+        "title": "物流区",
+        "heading": "物流区总览",
+        "level": "S4 区域",
+        "path_label": "SCC W19 / 1F / 物流区",
+        "context_query": "zone_id",
+        "context_id": "scc_w19_1f_logistics",
+        "status_label": "正常",
+        "status_level": "normal",
+        "description": "物流设备统一归入 1F 物流区。",
+        "revision": "three-zones-r1"
+      },
+      "metrics": [
+        {"label": "区域设备", "display_value": "4", "note": "全部位于 1F"},
+        {"label": "未分区", "display_value": "0", "note": "无遗漏"}
+      ],
+      "primary_groups": [{
+        "title": "物流设备",
+        "items": [
+          {"title": "物流叉车 FL-01", "meta": "物流区", "value": "叉车"},
+          {"title": "跨区配送 AGV-02", "meta": "物流区", "value": "AGV"},
+          {"title": "待装配周转箱 CT-01", "meta": "物流区", "value": "周转箱"},
+          {"title": "临时待定物料托盘 PL-99", "meta": "已归入物流区", "value": "托盘"}
+        ]
+      }],
+      "secondary_groups": [{
+        "title": "区域档案",
+        "items": [{"title": "区域编码", "meta": "所属楼层 1F", "value": "scc_w19_1f_logistics"}]
+      }],
+      "actions": [
+        {"label": "聚焦物流区", "type": "focus_current_scope"},
+        {"label": "进入物流区", "primary": true, "type": "close_page"}
+      ]
+    },
+    "scc_w19_1f_energy": {
+      "page": {
+        "title": "能源区",
+        "heading": "能源区总览",
+        "level": "S4 区域",
+        "path_label": "SCC W19 / 1F / 能源区",
+        "context_query": "zone_id",
+        "context_id": "scc_w19_1f_energy",
+        "status_label": "正常",
+        "status_level": "normal",
+        "description": "全部能源设备统一归入 1F 能源区，不再使用室外能源分区。",
+        "revision": "three-zones-r1"
+      },
+      "metrics": [
+        {"label": "区域设备", "display_value": "5", "note": "全部归入 1F"},
+        {"label": "室外分区", "display_value": "0", "note": "已移除"}
+      ],
+      "primary_groups": [{
+        "title": "能源设备",
+        "items": [
+          {"title": "屋顶光伏阵列 01", "meta": "能源区", "value": "光伏"},
+          {"title": "厂区风力发电机 01", "meta": "能源区", "value": "风电"},
+          {"title": "储能电池柜 BESS-01", "meta": "能源区", "value": "储能"},
+          {"title": "柴油应急发电机 DG-01", "meta": "能源区", "value": "备用电源"},
+          {"title": "能源站循环油泵 P-01", "meta": "能源区", "value": "循环泵"}
+        ]
+      }],
+      "secondary_groups": [{
+        "title": "区域档案",
+        "items": [{"title": "区域编码", "meta": "所属楼层 1F", "value": "scc_w19_1f_energy"}]
+      }],
+      "actions": [
+        {"label": "聚焦能源区", "type": "focus_current_scope"},
+        {"label": "进入能源区", "primary": true, "type": "close_page"}
+      ]
+    }
+  }
 }

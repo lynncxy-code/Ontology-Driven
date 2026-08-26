@@ -21,6 +21,7 @@ ProjectStore (v2.9.4 数据模型重构)
 
 import json
 import os
+import re
 import time
 import threading
 import copy
@@ -416,6 +417,41 @@ class ProjectStore:
 
     def _save_active(self):
         self._write_json(self._active_file, {"active_project_id": self._active_id})
+
+    def _runtime_settings_path(self):
+        return os.path.join(
+            os.path.dirname(os.path.abspath(self._active_file)),
+            "runtime_settings.json",
+        )
+
+    def get_runtime_setting(self, key):
+        """Read one low-frequency service setting without changing project data."""
+        with self._lock:
+            path = self._runtime_settings_path()
+            if not os.path.exists(path):
+                return None
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    values = json.load(handle)
+            except (OSError, ValueError):
+                return None
+            return copy.deepcopy(values.get(str(key))) if isinstance(values, dict) else None
+
+    def set_runtime_setting(self, key, value):
+        """Persist one low-frequency service setting in the JSON deployment."""
+        with self._lock:
+            path = self._runtime_settings_path()
+            values = {}
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as handle:
+                        loaded = json.load(handle)
+                    if isinstance(loaded, dict):
+                        values = loaded
+                except (OSError, ValueError):
+                    values = {}
+            values[str(key)] = copy.deepcopy(value)
+            self._write_json(path, values)
 
     # ── 项目级 ───────────────────────────────────────────────
     def list_projects(self):
@@ -1224,6 +1260,161 @@ class ProjectStore:
             self._current["instance_roster"] = list(by_id.values())
             self._save_current()
 
+    @staticmethod
+    def _auto_number_sort_key(component):
+        """Return a deterministic, human-oriented ordering key for auto numbering."""
+        source_xy = component.get("source_xy") or component.get("cad_xy") or [0, 0]
+        try:
+            source_x = float(source_xy[0])
+        except (TypeError, ValueError, IndexError):
+            source_x = 0.0
+        try:
+            source_y = float(source_xy[1])
+        except (TypeError, ValueError, IndexError):
+            source_y = 0.0
+        try:
+            floor = int(component.get("floor") or 1)
+        except (TypeError, ValueError):
+            floor = 1
+        return (
+            str(component.get("source_label") or ""),
+            floor,
+            str(component.get("type_name") or component.get("object_type_rid") or ""),
+            source_y,
+            source_x,
+            str(component.get("id") or ""),
+        )
+
+    def _plan_auto_number(self, snapshot, prefix="AUTO", width=4, component_ids=None):
+        """Plan project-scoped instance IDs without mutating ``snapshot``."""
+        normalized_prefix = str(prefix or "AUTO").strip().upper()
+        if not re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{0,23}", normalized_prefix):
+            raise ValueError("编号前缀须为 1–24 位英文字母、数字、短横线或下划线")
+        if isinstance(width, bool) or not isinstance(width, int) or width < 2 or width > 8:
+            raise ValueError("序号位数须为 2–8 的整数")
+
+        comps = (snapshot or {}).get("components") or {}
+        requested_ids = None
+        if component_ids is not None:
+            if not isinstance(component_ids, list):
+                raise ValueError("component_ids must be a JSON array")
+            if len(component_ids) > 10000:
+                raise ValueError("单次自动编号最多处理 10000 个构件")
+            requested_ids = []
+            seen_component_ids = set()
+            for raw_id in component_ids:
+                cid = str(raw_id or "").strip()
+                if not cid:
+                    raise ValueError("component_ids 不能包含空值")
+                if cid in seen_component_ids:
+                    raise ValueError(f"component_ids 包含重复构件：{cid}")
+                seen_component_ids.add(cid)
+                requested_ids.append(cid)
+
+            missing = [cid for cid in requested_ids if cid not in comps]
+            if missing:
+                raise ValueError(f"构件不存在或已删除：{missing[0]}")
+            already_bound = [cid for cid in requested_ids if comps[cid].get("bound_instance_id")]
+            if already_bound:
+                raise ValueError(f"构件状态已变化，请刷新后重试：{already_bound[0]} 已绑定")
+            targets = [comps[cid] for cid in requested_ids]
+        else:
+            targets = [c for c in comps.values() if not c.get("bound_instance_id")]
+
+        targets = sorted(targets, key=self._auto_number_sort_key)
+        occupied = set()
+        for entry in (snapshot or {}).get("instance_roster") or []:
+            iid = str((entry or {}).get("instance_id") or "").strip()
+            if iid:
+                occupied.add(iid.upper())
+        for iid, instance in ((snapshot or {}).get("instances") or {}).items():
+            for value in (iid, (instance or {}).get("id")):
+                normalized = str(value or "").strip().upper()
+                if normalized:
+                    occupied.add(normalized)
+        for component in comps.values():
+            iid = str(component.get("bound_instance_id") or "").strip()
+            if iid:
+                occupied.add(iid.upper())
+
+        suffix_pattern = re.compile(rf"^{re.escape(normalized_prefix)}-(\d+)$", re.IGNORECASE)
+        used_serials = []
+        for iid in occupied:
+            match = suffix_pattern.fullmatch(iid)
+            if match:
+                used_serials.append(int(match.group(1)))
+        serial = (max(used_serials) + 1) if used_serials else 1
+        first_serial = serial
+        pairs = []
+        for component in targets:
+            candidate = f"{normalized_prefix}-{serial:0{width}d}"
+            while candidate.upper() in occupied:
+                serial += 1
+                candidate = f"{normalized_prefix}-{serial:0{width}d}"
+            pairs.append({
+                "component_id": component.get("id"),
+                "instance_id": candidate,
+                "type_name": component.get("type_name") or component.get("object_type_rid") or "未命名类型",
+            })
+            occupied.add(candidate.upper())
+            serial += 1
+
+        return {
+            "project_id": (snapshot or {}).get("id"),
+            "count": len(pairs),
+            "prefix": normalized_prefix,
+            "width": width,
+            "start": first_serial,
+            "end": (serial - 1) if pairs else None,
+            "pairs": pairs,
+        }
+
+    def auto_number_bind(self, prefix="AUTO", width=4, component_ids=None,
+                         dry_run=True, expected_project_id=None):
+        """Preview or atomically generate roster entries and bind unbound components."""
+        with self._lock:
+            if not self._current:
+                raise RuntimeError("no active project")
+            if expected_project_id is not None and self._active_id != expected_project_id:
+                raise ProjectMismatch(expected_project_id, self._active_id)
+
+            working = copy.deepcopy(self._current)
+            plan = self._plan_auto_number(
+                working,
+                prefix=prefix,
+                width=width,
+                component_ids=component_ids,
+            )
+            if dry_run or not plan["pairs"]:
+                return plan
+
+            roster = working.setdefault("instance_roster", [])
+            comps = working.setdefault("components", {})
+            for pair in plan["pairs"]:
+                component = comps[pair["component_id"]]
+                ok, reason = self._bind_into(
+                    working,
+                    pair["component_id"],
+                    pair["instance_id"],
+                )
+                if not ok:
+                    raise ValueError(reason or f"绑定失败：{pair['component_id']}")
+                roster.append({
+                    "instance_id": pair["instance_id"],
+                    "type": component.get("type_name") or component.get("object_type_rid") or "",
+                    "name": component.get("type_name") or component.get("object_type_rid") or "",
+                    "source": "auto",
+                })
+
+            previous = self._current
+            self._current = working
+            try:
+                self._save_current()
+            except Exception:
+                self._current = previous
+                raise
+            return plan
+
     # ── 绑定（构件 ↔ 身份证号，1:1） ──────────────────────────
     def _bind_into(self, working, component_id, instance_id):
         """在工作副本上做「构件存在 + 目标身份证号 1:1 未占用」校验并写入。
@@ -1345,9 +1536,18 @@ class ProjectStore:
                 if changed:
                     to_update.append(iid)
             else:
+                component_ue_z = comp.get("ue_z")
+                if component_ue_z is None:
+                    canonical_z = comp.get("canonical_z")
+                    try:
+                        component_ue_z = float(canonical_z) * scale if canonical_z is not None else None
+                    except (TypeError, ValueError):
+                        component_ue_z = None
+                if component_ue_z is None:
+                    component_ue_z = floor_z_cm.get(comp.get("floor", 1), 0.0)
                 pos = {"x": (comp.get("ue_xy") or [0, 0])[0],
                        "y": (comp.get("ue_xy") or [0, 0])[1],
-                       "z": floor_z_cm.get(comp.get("floor", 1), 0.0)}
+                       "z": component_ue_z}
                 rec = {
                     "id": iid,
                     "component_id": comp.get("id"),

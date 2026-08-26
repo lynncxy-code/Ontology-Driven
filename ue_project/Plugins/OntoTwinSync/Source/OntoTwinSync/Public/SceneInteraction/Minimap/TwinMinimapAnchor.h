@@ -33,4 +33,12 @@ public:
     /** Lights carrying this Actor tag are disabled only while the minimap is captured. */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="OntoTwin|Minimap")
     FName CaptureSuppressedLightTag = TEXT("OntoTwin.Minimap.SuppressLight");
+
+    /** Additional Actor object names or editor labels hidden only from this minimap capture. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="OntoTwin|Minimap|Visibility")
+    TArray<FName> HiddenActorNames;
+
+    /** Additional short streamed-level names hidden only from this minimap capture. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="OntoTwin|Minimap|Visibility")
+    TArray<FName> HiddenLevelNames;
 };

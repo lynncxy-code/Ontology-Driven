@@ -134,6 +134,17 @@ struct ONTOTWINSYNC_API FTwinRoamingRuntimeRoute
     TArray<FTwinRoamingRuntimeWaypoint> Waypoints;
 };
 
+/** UE Dock 可在当前会话内原地切换的人物资源。 */
+struct ONTOTWINSYNC_API FTwinRoamingRuntimeCharacter
+{
+    FString CharacterId;
+    FString DisplayName;
+    FString PrimaryAssetId;
+    FString SkeletonId;
+    FString DefaultSkinId;
+    TMap<FString, FString> SkinPrimaryAssetIds;
+};
+
 struct ONTOTWINSYNC_API FTwinRoamingRuntimeConfig
 {
     bool bEnabled = false;
@@ -169,6 +180,7 @@ struct ONTOTWINSYNC_API FTwinRoamingRuntimeConfig
     TArray<FVector> RuntimeRoutePoints;
     TArray<FTwinRoamingRuntimeWaypoint> RuntimeRouteWaypoints;
     TArray<FTwinRoamingRuntimeRoute> AvailableRoutes;
+    TArray<FTwinRoamingRuntimeCharacter> AvailableCharacters;
 };
 
 /**

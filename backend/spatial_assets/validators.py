@@ -5,6 +5,8 @@ import os
 
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MAX_IMAGE_DIMENSION = 30000
+MAX_CAD_BYTES = 512 * 1024 * 1024
+CAD_HEADER_BYTES = 64 * 1024
 MAX_ANCHORS = 64
 
 
@@ -154,6 +156,34 @@ def inspect_image(data, original_name=""):
     }
 
 
+def inspect_cad_upload(header, size_bytes, original_name=""):
+    extension = os.path.splitext(str(original_name or ""))[1].lower()
+    if extension != ".dxf":
+        raise SpatialFrameValidationError(
+            "cad_format_unsupported", "CAD 空间底图仅支持 DXF 文件", status=415
+        )
+    if not size_bytes:
+        raise SpatialFrameValidationError("cad_empty", "DXF 文件为空", status=400)
+    if size_bytes > MAX_CAD_BYTES:
+        raise SpatialFrameValidationError("cad_too_large", "DXF 文件不能超过 512 MB", status=413)
+    header = bytes(header or b"")[:CAD_HEADER_BYTES]
+    is_binary = header.startswith(b"AutoCAD Binary DXF")
+    is_ascii = b"SECTION" in header.upper()
+    if not is_binary and not is_ascii:
+        raise SpatialFrameValidationError(
+            "cad_content_invalid", "无法识别 DXF 文件内容", status=415
+        )
+    return {
+        "extension": "dxf",
+        "mime_type": "application/dxf",
+        "size_bytes": int(size_bytes),
+    }
+
+
+def inspect_cad(data, original_name=""):
+    return inspect_cad_upload(data[:CAD_HEADER_BYTES], len(data), original_name)
+
+
 def normalize_anchors(value):
     if not isinstance(value, list):
         raise SpatialFrameValidationError("anchors_invalid", "anchors 必须是数组")
@@ -189,10 +219,44 @@ def normalize_anchors(value):
     return result
 
 
-def ensure_non_collinear(anchors):
+def normalize_cad_anchors(value):
+    if not isinstance(value, list):
+        raise SpatialFrameValidationError("anchors_invalid", "anchors 必须是数组")
+    if len(value) > MAX_ANCHORS:
+        raise SpatialFrameValidationError("anchors_too_many", f"标定锚点不能超过 {MAX_ANCHORS} 个")
+    result = []
+    ids = set()
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise SpatialFrameValidationError("anchor_invalid", f"第 {index + 1} 个锚点必须是对象")
+        anchor_id = str(item.get("id") or f"anchor-{index + 1}").strip()
+        if not anchor_id or anchor_id in ids:
+            raise SpatialFrameValidationError("anchor_id_invalid", "锚点 ID 不能为空或重复")
+        ids.add(anchor_id)
+        source = item.get("source_xy_mm")
+        world = item.get("ue_world_cm")
+        if not isinstance(source, (list, tuple)) or len(source) != 2:
+            raise SpatialFrameValidationError("anchor_source_invalid", f"第 {index + 1} 个锚点缺少 CAD 坐标")
+        if not isinstance(world, (list, tuple)) or len(world) < 2:
+            raise SpatialFrameValidationError("anchor_world_invalid", f"第 {index + 1} 个锚点缺少 UE XY")
+        result.append({
+            "id": anchor_id,
+            "source_xy_mm": [
+                finite_number(source[0], f"anchors[{index}].source_xy_mm[0]"),
+                finite_number(source[1], f"anchors[{index}].source_xy_mm[1]"),
+            ],
+            "ue_world_cm": [
+                finite_number(world[0], f"anchors[{index}].ue_world_cm[0]"),
+                finite_number(world[1], f"anchors[{index}].ue_world_cm[1]"),
+            ],
+        })
+    return result
+
+
+def ensure_non_collinear(anchors, source_key="source_px"):
     if len(anchors) < 3:
         raise SpatialFrameValidationError("anchors_insufficient", "发布至少需要 3 个标定锚点")
-    points = [item["source_px"] for item in anchors]
+    points = [item[source_key] for item in anchors]
     span = max(
         max(point[0] for point in points) - min(point[0] for point in points),
         max(point[1] for point in points) - min(point[1] for point in points),

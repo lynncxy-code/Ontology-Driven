@@ -113,7 +113,10 @@ void UTwinRouteFollowerComponent::CompleteNarration()
 {
     if (RouteState != ETwinRoamingRouteState::PausedForNarration) return;
     ++NextWaypointIndex;
-    RouteState = ETwinRoamingRouteState::AutoRoute;
+    RouteState = bPauseAfterNarration
+        ? ETwinRoamingRouteState::PausedByUser
+        : ETwinRoamingRouteState::AutoRoute;
+    bPauseAfterNarration = false;
     ResetStallDetection();
 }
 
@@ -122,11 +125,22 @@ void UTwinRouteFollowerComponent::InterruptNarrationByUser()
     if (RouteState != ETwinRoamingRouteState::PausedForNarration) return;
     ++NextWaypointIndex;
     RouteState = ETwinRoamingRouteState::PausedByUser;
+    bPauseAfterNarration = false;
     ResetStallDetection();
     if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
     {
         ClearRouteAnimationMotion(Character);
     }
+}
+
+bool UTwinRouteFollowerComponent::TogglePauseAfterNarration()
+{
+    if (RouteState != ETwinRoamingRouteState::PausedForNarration)
+    {
+        return false;
+    }
+    bPauseAfterNarration = !bPauseAfterNarration;
+    return true;
 }
 
 bool UTwinRouteFollowerComponent::IsSafeJoin(const FVector& Target, FString& OutError) const
@@ -283,6 +297,7 @@ bool UTwinRouteFollowerComponent::RestartFromBeginning(FString& OutError)
 void UTwinRouteFollowerComponent::StopRoute()
 {
     RouteState = Route ? ETwinRoamingRouteState::Idle : ETwinRoamingRouteState::Unavailable;
+    bPauseAfterNarration = false;
     ResetStallDetection();
     if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
     {
@@ -294,6 +309,8 @@ void UTwinRouteFollowerComponent::ResetNarrationSession()
 {
     NextWaypointIndex = 0;
     PreviousSplineDistance = 0.0f;
+    bPauseAfterNarration = false;
+    BlockedDiagnosticText.Reset();
 }
 
 void UTwinRouteFollowerComponent::AdvancePassedWaypoints(float SplineLength)
@@ -445,12 +462,55 @@ bool UTwinRouteFollowerComponent::HasTimedOutWithoutProgress(float DeltaTime)
     return NoProgressSeconds >= RouteBlockedTimeoutSeconds;
 }
 
-void UTwinRouteFollowerComponent::MarkBlocked()
+void UTwinRouteFollowerComponent::MarkBlocked(const FVector& Target, const TCHAR* Phase)
 {
     RouteState = ETwinRoamingRouteState::Blocked;
     ResetStallDetection();
     if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
     {
+        const FVector Current = Character->GetActorLocation();
+        const UCharacterMovementComponent* Movement = Character->GetCharacterMovement();
+        const FHitResult* FloorHit = Movement && Movement->CurrentFloor.bBlockingHit
+            ? &Movement->CurrentFloor.HitResult : nullptr;
+
+        FHitResult SweepHit;
+        FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(TwinRouteBlockedDiagnostic), false, Character);
+        const UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
+        const FVector SweepEnd(Target.X, Target.Y, Current.Z);
+        if (GetWorld() && Capsule)
+        {
+            GetWorld()->SweepSingleByChannel(
+                SweepHit,
+                Current,
+                SweepEnd,
+                FQuat::Identity,
+                ECC_Pawn,
+                FCollisionShape::MakeCapsule(
+                    Capsule->GetScaledCapsuleRadius(),
+                    Capsule->GetScaledCapsuleHalfHeight()),
+                QueryParams);
+        }
+
+        BlockedDiagnosticText = FString::Printf(
+            TEXT("X %.0f / Y %.0f · %s"),
+            Current.X,
+            Current.Y,
+            SweepHit.GetActor() ? *SweepHit.GetActor()->GetName() : TEXT("未捕获前方碰撞物"));
+
+        UE_LOG(LogTemp, Error,
+            TEXT("OntoTwin route blocked: phase=%s current=(%.1f, %.1f, %.1f) target=(%.1f, %.1f, %.1f) movement_mode=%d velocity=(%.1f, %.1f, %.1f) floor_actor=%s floor_component=%s sweep_actor=%s sweep_component=%s sweep_impact=(%.1f, %.1f, %.1f)"),
+            Phase ? Phase : TEXT("unknown"),
+            Current.X, Current.Y, Current.Z,
+            Target.X, Target.Y, Target.Z,
+            Movement ? static_cast<int32>(Movement->MovementMode) : -1,
+            Movement ? Movement->Velocity.X : 0.0f,
+            Movement ? Movement->Velocity.Y : 0.0f,
+            Movement ? Movement->Velocity.Z : 0.0f,
+            FloorHit && FloorHit->GetActor() ? *FloorHit->GetActor()->GetName() : TEXT("none"),
+            FloorHit && FloorHit->GetComponent() ? *FloorHit->GetComponent()->GetName() : TEXT("none"),
+            SweepHit.GetActor() ? *SweepHit.GetActor()->GetName() : TEXT("none"),
+            SweepHit.GetComponent() ? *SweepHit.GetComponent()->GetName() : TEXT("none"),
+            SweepHit.ImpactPoint.X, SweepHit.ImpactPoint.Y, SweepHit.ImpactPoint.Z);
         ClearRouteAnimationMotion(Character);
     }
 }
@@ -479,7 +539,7 @@ void UTwinRouteFollowerComponent::TickComponent(
         if (!RequestCharacterMovement(MotionTarget, JoinTarget - Current, DeltaTime)
             || HasTimedOutWithoutProgress(DeltaTime))
         {
-            MarkBlocked();
+            MarkBlocked(MotionTarget, TEXT("joining"));
         }
         return;
     }
@@ -566,7 +626,7 @@ void UTwinRouteFollowerComponent::TickComponent(
     if (!RequestCharacterMovement(Target, FacingDirection, DeltaTime)
         || HasTimedOutWithoutProgress(DeltaTime))
     {
-        MarkBlocked();
+        MarkBlocked(Target, TEXT("auto_route"));
     }
 }
 

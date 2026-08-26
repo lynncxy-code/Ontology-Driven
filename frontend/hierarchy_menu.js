@@ -84,13 +84,43 @@
         return result;
     }
 
-    function groupObjectTypes(objectTypes, instances) {
-        const pathsByType = dominantPathsByType(instances);
-        return groupItems(
+    function isCadGenerated(item) {
+        return String(item && item.source || '').trim().toLowerCase().startsWith('cad_auto:');
+    }
+
+    // The type catalog is classified by the type's own category.  For CAD
+    // types this value is the original primary layer; for other types it is
+    // the business category.  Instance hierarchy_path remains an instance
+    // navigation concern and must not decide the type catalog outline.
+    function objectTypeCategoryPath(item) {
+        return normalizePath(item && item.category);
+    }
+
+    function objectTypeGroupPath(item) {
+        const originLabel = isCadGenerated(item) ? '原 CAD 图层' : '业务分类';
+        return [originLabel, ...objectTypeCategoryPath(item)];
+    }
+
+    function groupObjectTypes(objectTypes) {
+        const groups = groupItems(
             objectTypes,
-            item => pathsByType.get(item.rid) || [DEFAULT_UNASSIGNED_LABEL],
+            item => objectTypeGroupPath(item),
             item => item.name || item.rid
         );
+        for (const group of groups) {
+            const categoryPath = group.path.slice(1);
+            group.originLabel = group.path[0];
+            group.categoryLabel = pathLabel(categoryPath);
+            group.label = `${group.originLabel}：${group.categoryLabel}`;
+            group.fullLabel = group.label;
+        }
+        groups.sort((left, right) => {
+            const rank = label => label === '原 CAD 图层' ? 0 : 1;
+            const originOrder = rank(left.originLabel) - rank(right.originLabel);
+            if (originOrder) return originOrder;
+            return comparePaths(left.path.slice(1), right.path.slice(1));
+        });
+        return groups;
     }
 
     function groupInstances(instances) {
@@ -108,6 +138,9 @@
         pathLabel,
         leafLabel,
         dominantPathsByType,
+        isCadGenerated,
+        objectTypeCategoryPath,
+        objectTypeGroupPath,
         groupObjectTypes,
         groupInstances,
     };

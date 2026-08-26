@@ -6,6 +6,8 @@
 
 class UBorder;
 class UButton;
+class UOverlay;
+class USizeBox;
 class UTextBlock;
 class UTwinInteractionManagerComponent;
 
@@ -34,13 +36,13 @@ private:
     UTwinInteractionManagerComponent* Manager = nullptr;
 
     UPROPERTY()
-    UBorder* Surface = nullptr;
+    USizeBox* Bounds = nullptr;
+
+    UPROPERTY()
+    UOverlay* Surface = nullptr;
 
     UPROPERTY()
     UTextBlock* ProgressText = nullptr;
-
-    UPROPERTY()
-    UTextBlock* ModeText = nullptr;
 
     UPROPERTY()
     UTextBlock* BodyText = nullptr;

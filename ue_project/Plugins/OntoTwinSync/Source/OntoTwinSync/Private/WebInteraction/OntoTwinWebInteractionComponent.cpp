@@ -427,6 +427,20 @@ void UOntoTwinWebInteractionComponent::GetAvailableZones(
     }
 }
 
+void UOntoTwinWebInteractionComponent::GetAvailableZoneTree(
+    TArray<FString>& OutZoneIds,
+    TArray<FString>& OutDisplayNames,
+    TArray<FString>& OutParentZoneIds) const
+{
+    GetAvailableZones(OutZoneIds, OutDisplayNames);
+    OutParentZoneIds.Reset();
+    OutParentZoneIds.Reserve(OutZoneIds.Num());
+    for (const FString& ZoneId : OutZoneIds)
+    {
+        OutParentZoneIds.Add(ZoneParents.FindRef(ZoneId));
+    }
+}
+
 void UOntoTwinWebInteractionComponent::GetAvailableBusinessViews(
     TArray<FString>& OutBusinessViewIds,
     TArray<FString>& OutDisplayNames) const
@@ -448,6 +462,21 @@ void UOntoTwinWebInteractionComponent::GetAvailableBusinessViews(
     {
         const FString Name = BusinessViewDisplayNames.FindRef(BusinessViewId);
         OutDisplayNames.Add(Name.IsEmpty() ? BusinessViewId : Name);
+    }
+}
+
+void UOntoTwinWebInteractionComponent::GetAvailableBusinessViewSummaries(
+    TArray<FString>& OutBusinessViewIds,
+    TArray<FString>& OutDisplayNames,
+    TArray<int32>& OutMemberCounts) const
+{
+    GetAvailableBusinessViews(OutBusinessViewIds, OutDisplayNames);
+    OutMemberCounts.Reset();
+    OutMemberCounts.Reserve(OutBusinessViewIds.Num());
+    for (const FString& BusinessViewId : OutBusinessViewIds)
+    {
+        const TSet<FString>* Members = BusinessViewMembers.Find(BusinessViewId);
+        OutMemberCounts.Add(Members ? Members->Num() : 0);
     }
 }
 

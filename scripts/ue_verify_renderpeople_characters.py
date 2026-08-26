@@ -7,6 +7,20 @@ import unreal
 CHARACTER_DIR = "/Game/OntoTwin/SceneInteraction/Characters/RenderPeople"
 SKIN_DIR = "/Game/OntoTwin/SceneInteraction/Skins/RenderPeople"
 CHARACTERS = ("Carla", "Claudia", "Eric", "Manuel", "Nathan", "Sophia")
+GROUND_ROOT = "/Game/Art/A08_Characters/00_Ground_Staff/ThirdPerson"
+EXPECTED_VISIBLE_ANIM = (
+    f"{GROUND_ROOT}/SkeletonIK/myAnimBlueprint.myAnimBlueprint_C"
+)
+EXPECTED_SOURCE_MESH = (
+    f"{GROUND_ROOT}/Meshes/SKM_Quinn_Simple.SKM_Quinn_Simple"
+)
+EXPECTED_SOURCE_ANIM = (
+    f"{GROUND_ROOT}/Mannequin/Mannequins/Animations/ABP_Quinn.ABP_Quinn_C"
+)
+EXPECTED_ROUTE_ANIMATION = (
+    f"{GROUND_ROOT}/Mannequin/Mannequins/Animations/Quinn/"
+    "MF_Walk_Fwd.MF_Walk_Fwd"
+)
 
 
 def path_name(value):
@@ -55,6 +69,16 @@ for display_name in CHARACTERS:
                 ),
             }
         )
+        source_mesh = character.get_editor_property("animation_source_mesh")
+        route_animation = character.get_editor_property("auto_route_animation")
+        item["source_skeleton"] = path_name(
+            source_mesh.get_editor_property("skeleton") if source_mesh else None
+        )
+        item["route_skeleton"] = path_name(
+            route_animation.get_editor_property("skeleton")
+            if route_animation
+            else None
+        )
     item["success"] = (
         item["character_loaded"]
         and item["skin_loaded"]
@@ -63,11 +87,13 @@ for display_name in CHARACTERS:
         and item.get("skin_skeleton_id") == "skeleton.renderpeople.ue4.v1"
         and bool(item.get("character_mesh"))
         and item.get("character_mesh") == item.get("skin_mesh")
-        and bool(item.get("character_anim_class"))
-        and item.get("character_anim_class") == item.get("skin_anim_class")
-        and bool(item.get("source_mesh"))
-        and bool(item.get("source_anim_class"))
-        and bool(item.get("route_animation"))
+        and item.get("character_anim_class") == EXPECTED_VISIBLE_ANIM
+        and item.get("skin_anim_class") == EXPECTED_VISIBLE_ANIM
+        and item.get("source_mesh") == EXPECTED_SOURCE_MESH
+        and item.get("source_anim_class") == EXPECTED_SOURCE_ANIM
+        and item.get("route_animation") == EXPECTED_ROUTE_ANIMATION
+        and bool(item.get("source_skeleton"))
+        and item.get("source_skeleton") == item.get("route_skeleton")
     )
     results.append(item)
 

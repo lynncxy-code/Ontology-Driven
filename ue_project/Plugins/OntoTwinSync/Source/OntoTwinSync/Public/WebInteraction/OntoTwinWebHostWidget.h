@@ -69,5 +69,4 @@ private:
     bool HandleBeforeNavigation(const FString& Url, const FWebNavigationRequest& Request);
     FReply HandleBackClicked();
     FReply HandleCloseClicked();
-    FReply HandleRetryClicked();
 };

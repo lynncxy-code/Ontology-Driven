@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "SceneInteraction/Minimap/TwinMinimapTypes.h"
 #include "Types/SlateEnums.h"
 #include "OntoTwinRoamingHUDWidget.generated.h"
 
@@ -30,6 +31,12 @@ public:
     void SetInteractionOpen(bool bOpen);
     void SetMinimapTexture(UTextureRenderTarget2D* Texture, const FIntPoint& CaptureSize);
     void SetMinimapMarker(const FVector2D& UV, float AngleDegrees, bool bOffMap);
+    void SetMinimapTeleportFeedback(
+        const FVector2D& UV,
+        ETwinMinimapTeleportFeedback Feedback,
+        const FString& Message);
+    void SetMinimapUndoAvailable(bool bAvailable);
+    void ClearMinimapTeleportFeedback();
     void HideMinimapMarker();
     void ClearMinimap();
 
@@ -63,6 +70,9 @@ private:
     UWidget* RoamingRouteRow = nullptr;
 
     UPROPERTY()
+    UWidget* RoamingCharacterRow = nullptr;
+
+    UPROPERTY()
     UWidget* RoamingViewModes = nullptr;
 
     UPROPERTY()
@@ -73,6 +83,9 @@ private:
 
     UPROPERTY()
     UComboBoxString* RouteSelector = nullptr;
+
+    UPROPERTY()
+    UComboBoxString* CharacterSelector = nullptr;
 
     UPROPERTY()
     UButton* HomeTabButton = nullptr;
@@ -104,6 +117,11 @@ private:
     UPROPERTY()
     UComboBoxString* WebBusinessZoneSelector = nullptr;
 
+    // UComboBoxString keeps only the generated Slate widget. Retain the
+    // backing UTextBlock objects so GC cannot invalidate Slate brush pointers.
+    UPROPERTY(Transient)
+    TArray<TObjectPtr<UTextBlock>> RetainedComboTextWidgets;
+
     UPROPERTY()
     UButton* FirstPersonButton = nullptr;
 
@@ -115,9 +133,12 @@ private:
 
     FString ShortcutSignature;
     FString RouteSignature;
+    FString CharacterSignature;
     FString WebCatalogSignature;
     TArray<FString> RouteOptionIds;
     TArray<FString> RouteOptionLabels;
+    TArray<FString> CharacterOptionIds;
+    TArray<FString> CharacterOptionLabels;
     TArray<FString> WebZoneOptionIds;
     TArray<FString> WebZoneOptionLabels;
     TArray<FString> WebBusinessOptionIds;
@@ -125,6 +146,7 @@ private:
     TArray<FString> WebBusinessZoneOptionIds;
     TArray<FString> WebBusinessZoneOptionLabels;
     bool bRefreshingRouteSelector = false;
+    bool bRefreshingCharacterSelector = false;
     bool bRefreshingWebSelectors = false;
     int32 ActiveDockTab = 1;
     float StatusPulsePhase = 0.0f;
@@ -136,6 +158,7 @@ private:
         float Radius);
     void RefreshShortcutList();
     void RefreshRouteSelector();
+    void RefreshCharacterSelector();
     void RefreshWebSelectors();
     void SetDockTab(int32 TabIndex);
     void AddShortcutRow(int32 Index, const FString& Key, const FString& Description);
@@ -167,6 +190,9 @@ private:
 
     UFUNCTION()
     void OnRouteSelected(FString SelectedItem, ESelectInfo::Type SelectionType);
+
+    UFUNCTION()
+    void OnCharacterSelected(FString SelectedItem, ESelectInfo::Type SelectionType);
 
     UFUNCTION()
     void OnHomeTab();

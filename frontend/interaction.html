@@ -750,18 +750,25 @@
             <section class="section">
                 <div class="section-head"><h2 class="section-title">漫游路线</h2><button class="btn btn-sm" :disabled="!routeEditor.frames.length || routeEditor.dirty" @click="newRoute">新建路线</button></div>
                 <div class="route-list">
+                    <div v-if="newRouteDraftVisible" class="route-row active" aria-current="true">
+                        <span class="row-main">
+                            <span class="row-name">{{ routeEditor.draft.name || '新建路线' }}</span>
+                            <span class="row-meta">{{ routeEditor.draft.waypoints.length }} 个点 · {{ Number(routeEditor.draft.speed_cm_s || 0).toFixed(0) }} cm/s</span>
+                        </span>
+                        <span class="badge"><span class="dot dot-warn"></span>未保存</span>
+                    </div>
                     <button v-for="item in routeEditor.items" :key="item.id" class="route-row" :class="{active:item.id===routeEditor.selectedId}" @click="selectRoute(item.id)">
                         <span class="row-main"><span class="row-name">{{ item.name }}</span><span class="row-meta">{{ item.waypoint_count }} 个点 · {{ Number(item.speed_cm_s || 0).toFixed(0) }} cm/s</span></span>
                         <span class="dot" :class="routeStateDot(item.review_state)"></span>
                     </button>
-                    <div v-if="!routeEditor.items.length" class="empty">还没有项目路线。选择空间底图后新建路线。</div>
+                    <div v-if="!routeEditor.items.length && !newRouteDraftVisible" class="empty">还没有项目路线。选择空间底图后新建路线。</div>
                 </div>
             </section>
         </aside>
 
         <section class="route-canvas-panel">
             <div class="canvas-toolbar">
-                <div><h2>{{ routeEditor.draft.name || '漫游路线编辑器' }}</h2><p>单击添加路线点，拖动调整位置。路线点按列表顺序连接。</p></div>
+                <div><h2>{{ routeEditor.draft.name || (newRouteDraftVisible ? '新建路线（未保存）' : '漫游路线编辑器') }}</h2><p>单击添加路线点，拖动调整位置。路线点按列表顺序连接。</p></div>
                 <div class="canvas-actions">
                     <span v-if="routeEditor.draft.id && routeEditor.draft.id===routeEditor.defaultRouteId" class="badge"><span class="dot dot-ok"></span>当前默认</span>
                     <span v-if="routeEditor.draft.review_state" class="badge"><span class="dot" :class="routeStateDot(routeEditor.draft.review_state)"></span>{{ routeStateLabel(routeEditor.draft.review_state) }}</span>
@@ -801,7 +808,7 @@
             <section class="section">
                 <h2 class="section-title">路线属性</h2>
                 <div class="form-stack">
-                    <div class="form-row"><label class="label">路线名称</label><input class="field" maxlength="80" v-model.trim="routeEditor.draft.name" placeholder="例如：一层默认参观路线" @input="markRouteDirty"></div>
+                    <div class="form-row"><label class="label">路线名称</label><input ref="routeNameInput" class="field" maxlength="80" v-model.trim="routeEditor.draft.name" placeholder="例如：一层默认参观路线" @input="markRouteDirty"></div>
                     <div class="grid-2">
                         <div class="form-row"><label class="label">移动速度（cm/s）</label><input class="field" type="number" min="20" max="800" v-model.number="routeEditor.draft.speed_cm_s" @input="markRouteDirty"></div>
                         <div class="form-row"><label class="label">路线状态</label><label class="check-row" style="min-height:34px"><input type="checkbox" v-model="routeEditor.draft.enabled" @change="markRouteDirty">启用路线</label></div>
@@ -822,8 +829,8 @@
                             <div class="form-row"><label class="label">音量</label><input class="field" type="number" min="0" max="100" v-model.number="routeEditor.narrationDefaultsDraft.volume" @input="markNarrationDefaultsDirty"></div>
                             <div class="form-row"><label class="label">触发半径（cm）</label><input class="field" type="number" min="30" max="500" v-model.number="routeEditor.narrationDefaultsDraft.trigger_radius_cm" @input="markNarrationDefaultsDirty"></div>
                         </div>
-                        <button class="btn btn-sm" :disabled="routeEditor.defaultsSaving || !routeEditor.defaultsDirty || routeEditor.dirty || !narrationDefaultsValid" @click="saveNarrationDefaults">{{ routeEditor.defaultsSaving?'正在保存...':'保存项目默认声音' }}</button>
-                        <p v-if="routeEditor.dirty && routeEditor.defaultsDirty" class="hint" style="margin:0">请先保存或放弃当前路线修改。</p>
+                        <button class="btn btn-sm" :disabled="routeEditor.defaultsSaving || routeEditor.saving || !routeEditor.defaultsDirty || !narrationDefaultsValid" @click="saveNarrationDefaults">{{ routeEditor.defaultsSaving?'正在保存...':'保存项目默认声音' }}</button>
+                        <p v-if="routeEditor.defaultsDirty" class="hint" style="margin:0">项目默认声音可独立保存，不会覆盖当前路线草稿。</p>
                     </div>
                 </div>
             </section>
@@ -899,8 +906,8 @@
                 <p class="hint">默认路线不能直接删除，请先把另一条路线设为默认。</p>
             </section>
             <div class="route-save">
-                <button v-if="routeEditor.draft.id && routeEditor.draft.id!==routeEditor.defaultRouteId" class="btn" :disabled="routeEditor.saving || routeEditor.dirty || routeEditor.defaultsDirty || routeEditor.draft.review_state!=='ready'" @click="setDefaultRoute">设为默认</button>
-                <button class="btn btn-primary" :disabled="routeEditor.saving || routeEditor.defaultsDirty || (!routeEditor.dirty && routeEditor.draft.review_state!=='needs_review') || routeEditor.validation.length" @click="saveRoute">{{ routeEditor.saving?'正在保存...':(routeEditor.draft.review_state==='needs_review'?'确认复核并保存':'保存路线') }}</button>
+                <button v-if="routeEditor.draft.id && routeEditor.draft.id!==routeEditor.defaultRouteId" class="btn" :disabled="routeEditor.saving || routeEditor.defaultsSaving || routeEditor.dirty || routeEditor.draft.review_state!=='ready'" @click="setDefaultRoute">设为默认</button>
+                <button class="btn btn-primary" :disabled="routeEditor.saving || routeEditor.defaultsSaving || (!routeEditor.dirty && routeEditor.draft.review_state!=='needs_review') || routeEditor.validation.length" @click="saveRoute">{{ routeEditor.saving?'正在保存...':(routeEditor.draft.review_state==='needs_review'?'确认复核并保存':'保存路线') }}</button>
             </div>
         </aside>
     </main>
@@ -936,6 +943,7 @@ createApp({
         document.title=`${featureMeta.value.title} | OntoTwin Nexus`;
         const roamingCanvas=ref(null);
         const routeCanvas=ref(null);
+        const routeNameInput=ref(null);
         const roaming=reactive({
             saving:false,refreshing:false,dirty:false,revision:0,imageReady:false,imageName:'',validation:[],manualFrameId:'',
             gridVisible:true,gridStep:50,panning:false,pointerPx:null,
@@ -953,6 +961,7 @@ createApp({
             narrationProvider:{configured:false,ready:false,message:'语音服务尚未配置',voices:[]},
             draft:{id:'',name:'',enabled:true,frame_id:'',loop:false,speed_cm_s:150,review_state:'draft',narration_profile:{inherit_project:true},waypoints:[]},
         });
+        const newRouteDraftVisible=computed(()=>routeEditor.dirty&&!routeEditor.draft.id);
         const mediaPolicy=reactive({
             saving:false,dirty:false,enforced:false,
             platform:{allowed_hosts:[],http_exceptions:[]},
@@ -1782,12 +1791,12 @@ createApp({
         }
         function markNarrationDefaultsDirty(){routeEditor.defaultsDirty=true}
         async function saveNarrationDefaults(){
-            if(!routeEditor.defaultsDirty||routeEditor.dirty||!narrationDefaultsValid.value)return;routeEditor.defaultsSaving=true;
+            if(routeEditor.saving||!routeEditor.defaultsDirty||!narrationDefaultsValid.value)return;routeEditor.defaultsSaving=true;
             try{
                 const defaults={...clone(routeEditor.narrationDefaultsDraft),language:'zh-CN',provider_id:'alibaba.isi.standard'};
                 const res=await axios.put('/api/v2/scene-interactions/narration/defaults',{expected_revision:routeEditor.revision,expected_project_id:routeEditor.projectId,defaults});
                 routeEditor.revision=Number(res.data.revision);routeEditor.narrationDefaults=clone(res.data.narration_defaults);routeEditor.narrationDefaultsDraft=clone(res.data.narration_defaults);routeEditor.defaultsDirty=false;
-                if(routeEditor.draft.id)await doSelectRoute(routeEditor.draft.id);else routeEditor.draft.narration_profile={inherit_project:true};
+                if(routeEditor.draft.id&&!routeEditor.dirty)await doSelectRoute(routeEditor.draft.id);else if(!routeEditor.draft.id&&!routeEditor.dirty)routeEditor.draft.narration_profile={inherit_project:true};
                 const list=await axios.get('/api/v2/scene-interactions/routes');routeEditor.items=list.data.routes||[];toast('项目默认声音已保存；继承路线的旧语音已按新参数失效','ok');
             }catch(error){toast(error.response?.data?.message||(error.response?.data?.fields||[]).map(item=>item.message).join('；')||'项目默认声音保存失败','err')}
             finally{routeEditor.defaultsSaving=false}
@@ -1832,7 +1841,16 @@ createApp({
                 axios.get('/api/v2/spatial/profile'),
             ]);
             setRouteDisplay(profileRes.data?.ue_transform?.display||{});
-            routeEditor.frames=(frameRes.data.frames||[]).filter(item=>item.status==='published');
+            const liveFloors=profileRes.data?.floor_table||[];
+            routeEditor.frames=(frameRes.data.frames||[]).filter(item=>item.status==='published').map(frame=>{
+                const floor=liveFloors.find(item=>item.floor_id===frame.floor_id||Number(item.floor)===Number(frame.floor));
+                if(!floor)return frame;
+                return {...frame,floor_reference:{
+                    ...(frame.floor_reference||{}),
+                    canonical_z_base_mm:floor.z_base_mm,
+                    ue_ground_z_cm:floor.ue_ground_z_cm,
+                }};
+            });
             routeEditor.items=routeRes.data.routes||[];routeEditor.revision=Number(routeRes.data.revision||0);routeEditor.projectId=routeRes.data.project_id||'';routeEditor.defaultRouteId=routeRes.data.default_route_id||'';
             routeEditor.narrationDefaults={...routeEditor.narrationDefaults,...(routeRes.data.narration_defaults||{})};if(!routeEditor.defaultsDirty)routeEditor.narrationDefaultsDraft=clone(routeEditor.narrationDefaults);routeEditor.narrationProvider={...routeEditor.narrationProvider,...(routeRes.data.narration_provider||{})};
             const target=preferredId||routeEditor.selectedId;
@@ -1842,7 +1860,7 @@ createApp({
         }
         function newRoute(){
             routeEditor.selectedId='';routeEditor.draft=emptyRouteDraft(routeEditor.frameId||routeEditor.frames[0]?.id||'');routeEditor.frameId=routeEditor.draft.frame_id;
-            routeEditor.selectedPoint=-1;routeEditor.dirty=true;validateRouteDraft();loadRouteImage(currentRouteFrame.value);nextTick(()=>drawRouteCanvas());
+            routeEditor.selectedPoint=-1;routeEditor.dirty=true;validateRouteDraft();loadRouteImage(currentRouteFrame.value);nextTick(()=>{drawRouteCanvas();routeNameInput.value?.focus()});
         }
         function selectRoute(id){
             if(id===routeEditor.selectedId)return;
@@ -1988,7 +2006,7 @@ createApp({
             return {name:routeEditor.draft.name,enabled:Boolean(routeEditor.draft.enabled),frame_id:routeEditor.frameId,loop:Boolean(routeEditor.draft.loop),speed_cm_s:Number(routeEditor.draft.speed_cm_s),narration_profile:clone(profile),waypoints:routeEditor.draft.waypoints.map(item=>({id:item.id,source_px:[Number(item.source_px[0]),Number(item.source_px[1])],narration:item.narration?.enabled?{enabled:true,mode:item.narration.mode,language:'zh-CN',text:item.narration.text,manual_break_offsets:[...(item.narration.manual_break_offsets||[])],duration_mode:item.narration.duration_mode,duration_sec:item.narration.duration_mode==='manual'?Number(item.narration.duration_sec):null,trigger_radius_cm:item.narration.trigger_radius_cm===null||item.narration.trigger_radius_cm===undefined?null:Number(item.narration.trigger_radius_cm)}:{enabled:false}}))};
         }
         async function saveRoute(){
-            if(validateRouteDraft().length)return;routeEditor.saving=true;
+            if(routeEditor.defaultsSaving||validateRouteDraft().length)return;routeEditor.saving=true;
             try{
                 const body={expected_revision:routeEditor.revision,route:routePayload()};const id=routeEditor.draft.id;
                 const res=id?await axios.put(`/api/v2/scene-interactions/routes/${encodeURIComponent(id)}`,body):await axios.post('/api/v2/scene-interactions/routes',body);
@@ -2045,7 +2063,7 @@ createApp({
         init();
         return {
             loading,saving,dirty,webDirty,feature,featureMeta,roaming,roamingCanvas,roamingFrames,roamingSkins,roamingRouteOptions,selectedRoamingRoute,routeProjectReady,catalogRouteActive,routeSpawnBlocked,routeSpawnBlockMessage,manualSpawnRequired,roamingPointCaption,roamingCanvasFrameCaption,roamingCanvasEmptyText,calibrationLabel,calibrationDot,runtimeStateLabel,cameraModeLabel,minimapStateLabel,minimapStateDot,degradedFeatureLabels,modal,mediaPolicy,
-            routeEditor,routeCanvas,currentRouteFrame,routeFloorZLabel,routeGroundZLabel,routeLevelLabel,selectedRoutePoint,narrationVoiceOptions,voiceOptionLabel,voiceDisplayName,effectiveRouteVoice,selectedNarrationSegments,narrationEstimatedTotal,narrationDefaultsValid,
+            routeEditor,routeCanvas,routeNameInput,newRouteDraftVisible,currentRouteFrame,routeFloorZLabel,routeGroundZLabel,routeLevelLabel,selectedRoutePoint,narrationVoiceOptions,voiceOptionLabel,voiceDisplayName,effectiveRouteVoice,selectedNarrationSegments,narrationEstimatedTotal,narrationDefaultsValid,
             typeSearch,filteredTypes,templates,context,draft,selectedTypeRid,selectedInstanceId,previewInstanceId,scope,scopeText,overrideFields,batchIds,batchRestore,preview,previewLoading,previewError,toasts,statusLevels,statusLevelOptions,statusColorOptions,textSlots,currentRevision,
             qualityOptions,isPresentationLocked,requestedQualityLabel,presentationSourceText,previewGauge,
             goBack,closeModal,confirmModal,slotLabel,fieldsFor,templateChanged,hasOverride,isInherited,toggleOverride,togglePresentationOverride,restorePresentationInheritance,qualityChanged,metricsVisualChanged,bindingSourceChanged,mediaAutoplayChanged,mediaKindChanged,mediaPreviewLabel,markMediaPolicyDirty,toggleMediaHost,toggleMediaHttp,saveMediaPolicy,addMetric,removeMetric,syncMetricId,statusDot,selectType,selectInstance,setScope,markDirty,schedulePreview,attachCapability,requestSave,clearInstanceOverride,

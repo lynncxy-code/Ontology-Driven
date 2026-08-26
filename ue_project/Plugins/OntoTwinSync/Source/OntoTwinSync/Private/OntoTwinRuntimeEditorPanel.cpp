@@ -23,6 +23,7 @@
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "Framework/Application/SlateApplication.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "InputCoreTypes.h"
 #include "Styling/CoreStyle.h"
 #include "Styling/SlateColor.h"
@@ -55,6 +56,18 @@ FButtonStyle BuildButtonStyle(const FButtonStyle& BaseStyle, bool bPrimary)
     Style.SetDisabled(FSlateRoundedBoxBrush(FLinearColor(1.0f, 1.0f, 1.0f, 0.035f), 6.0f));
     Style.SetNormalPadding(FMargin(8.0f, 5.0f));
     Style.SetPressedPadding(FMargin(8.0f, 6.0f, 8.0f, 4.0f));
+    return Style;
+}
+
+FButtonStyle BuildCopyValueButtonStyle(const FButtonStyle& BaseStyle)
+{
+    FButtonStyle Style = BaseStyle;
+    Style.SetNormal(FSlateRoundedBoxBrush(FLinearColor::Transparent, 4.0f));
+    Style.SetHovered(FSlateRoundedBoxBrush(HoverBackground, 4.0f));
+    Style.SetPressed(FSlateRoundedBoxBrush(PressedBackground, 4.0f));
+    Style.SetDisabled(FSlateRoundedBoxBrush(FLinearColor::Transparent, 4.0f));
+    Style.SetNormalPadding(FMargin(4.0f, 1.0f));
+    Style.SetPressedPadding(FMargin(4.0f, 2.0f, 4.0f, 0.0f));
     return Style;
 }
 
@@ -159,6 +172,18 @@ void UOntoTwinRuntimeEditorPanel::NativeConstruct()
     {
         AccessActionButton->OnClicked.RemoveAll(this);
         AccessActionButton->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandleAccessActionClicked);
+    }
+    if (DisplayNameCopyButton)
+    {
+        DisplayNameCopyButton->OnClicked.RemoveAll(this);
+        DisplayNameCopyButton->OnClicked.AddDynamic(
+            this, &UOntoTwinRuntimeEditorPanel::HandleDisplayNameCopyClicked);
+    }
+    if (TypeNameCopyButton)
+    {
+        TypeNameCopyButton->OnClicked.RemoveAll(this);
+        TypeNameCopyButton->OnClicked.AddDynamic(
+            this, &UOntoTwinRuntimeEditorPanel::HandleTypeNameCopyClicked);
     }
     if (CloseButton)
     {
@@ -378,18 +403,38 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     UTextBlock* NameLabel = CreateText(TEXT("NameLabel"), TEXT("实例名称"), 11, MutedText, true);
     UGridSlot* NameLabelSlot = IdentityGrid->AddChildToGrid(NameLabel, 0, 0);
     NameLabelSlot->SetPadding(FMargin(0.0f, 2.0f, 12.0f, 2.0f));
+    DisplayNameCopyButton = WidgetTree->ConstructWidget<UButton>(
+        UButton::StaticClass(), TEXT("DisplayNameCopyButton"));
+    DisplayNameCopyButton->SetStyle(BuildCopyValueButtonStyle(DisplayNameCopyButton->GetStyle()));
+    DisplayNameCopyButton->SetToolTipText(FText::FromString(TEXT("点击复制完整实例名称")));
     DisplayNameText = CreateText(TEXT("DisplayNameText"), TEXT("未选择实例"), 12, PrimaryText, true);
     DisplayNameText->SetAutoWrapText(true);
-    DisplayNameText->SetWrapTextAt(280.0f);
-    UGridSlot* DisplayNameSlot = IdentityGrid->AddChildToGrid(DisplayNameText, 0, 1);
-    DisplayNameSlot->SetPadding(FMargin(0.0f, 2.0f));
-    DisplayNameSlot->SetHorizontalAlignment(HAlign_Right);
+    DisplayNameText->SetWrapTextAt(250.0f);
+    DisplayNameText->SetJustification(ETextJustify::Right);
+    DisplayNameCopyButton->SetContent(DisplayNameText);
+    UGridSlot* DisplayNameSlot = IdentityGrid->AddChildToGrid(DisplayNameCopyButton, 0, 1);
+    DisplayNameSlot->SetHorizontalAlignment(HAlign_Fill);
+
+    UTextBlock* TypeLabel = CreateText(TEXT("TypeLabel"), TEXT("类型名称"), 11, MutedText, true);
+    UGridSlot* TypeLabelSlot = IdentityGrid->AddChildToGrid(TypeLabel, 1, 0);
+    TypeLabelSlot->SetPadding(FMargin(0.0f, 2.0f, 12.0f, 2.0f));
+    TypeNameCopyButton = WidgetTree->ConstructWidget<UButton>(
+        UButton::StaticClass(), TEXT("TypeNameCopyButton"));
+    TypeNameCopyButton->SetStyle(BuildCopyValueButtonStyle(TypeNameCopyButton->GetStyle()));
+    TypeNameCopyButton->SetToolTipText(FText::FromString(TEXT("点击复制完整类型名称")));
+    TypeNameText = CreateText(TEXT("TypeNameText"), TEXT("-"), 11, SecondaryText, true);
+    TypeNameText->SetAutoWrapText(true);
+    TypeNameText->SetWrapTextAt(250.0f);
+    TypeNameText->SetJustification(ETextJustify::Right);
+    TypeNameCopyButton->SetContent(TypeNameText);
+    UGridSlot* TypeNameSlot = IdentityGrid->AddChildToGrid(TypeNameCopyButton, 1, 1);
+    TypeNameSlot->SetHorizontalAlignment(HAlign_Fill);
 
     UTextBlock* IdLabel = CreateText(TEXT("IdLabel"), TEXT("实例 ID"), 11, MutedText, true);
-    UGridSlot* IdLabelSlot = IdentityGrid->AddChildToGrid(IdLabel, 1, 0);
+    UGridSlot* IdLabelSlot = IdentityGrid->AddChildToGrid(IdLabel, 2, 0);
     IdLabelSlot->SetPadding(FMargin(0.0f, 2.0f, 12.0f, 2.0f));
     InstanceIdText = CreateText(TEXT("InstanceIdText"), TEXT("-"), 11, SecondaryText);
-    UGridSlot* InstanceIdSlot = IdentityGrid->AddChildToGrid(InstanceIdText, 1, 1);
+    UGridSlot* InstanceIdSlot = IdentityGrid->AddChildToGrid(InstanceIdText, 2, 1);
     InstanceIdSlot->SetPadding(FMargin(0.0f, 2.0f));
     InstanceIdSlot->SetHorizontalAlignment(HAlign_Right);
 
@@ -933,6 +978,7 @@ UWidget* UOntoTwinRuntimeEditorPanel::GenerateBusinessOptionWidget(FString Item)
     Text->SetColorAndOpacity(FSlateColor(PrimaryText));
     Text->SetFont(FOntoTwinGlassTheme::Font(10.0f));
     Text->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    RetainedComboTextWidgets.Add(Text);
     return Text;
 }
 
@@ -960,6 +1006,27 @@ void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
     if (DisplayNameText)
     {
         DisplayNameText->SetText(FText::FromString(SceneManager->GetRuntimeEditorDisplayName()));
+    }
+    const bool bCanCopyIdentity = SceneManager->GetRuntimeEditSelectionCount() == 1;
+    const FString DisplayNameRaw = SceneManager->GetRuntimeEditorDisplayNameRaw();
+    if (DisplayNameCopyButton)
+    {
+        DisplayNameCopyButton->SetIsEnabled(bCanCopyIdentity && !DisplayNameRaw.IsEmpty());
+        DisplayNameCopyButton->SetToolTipText(FText::FromString(
+            bCanCopyIdentity ? TEXT("点击复制完整实例名称") : TEXT("单选一个实例后可复制名称")));
+    }
+    if (TypeNameText)
+    {
+        TypeNameText->SetText(FText::FromString(SceneManager->GetRuntimeEditorTypeName()));
+    }
+    const FString TypeNameRaw = SceneManager->GetRuntimeEditorTypeNameRaw();
+    if (TypeNameCopyButton)
+    {
+        TypeNameCopyButton->SetIsEnabled(bCanCopyIdentity && !TypeNameRaw.IsEmpty());
+        TypeNameCopyButton->SetToolTipText(FText::FromString(
+            bCanCopyIdentity && !TypeNameRaw.IsEmpty()
+                ? TEXT("点击复制完整类型名称")
+                : TEXT("单选且类型名称可用时可复制")));
     }
     if (InstanceIdText)
     {
@@ -1073,6 +1140,24 @@ void UOntoTwinRuntimeEditorPanel::HandleAccessActionClicked()
     {
         SceneManager->RetryRuntimeBindingStatus();
     }
+}
+
+void UOntoTwinRuntimeEditorPanel::HandleDisplayNameCopyClicked()
+{
+    if (!SceneManager) return;
+    const FString Value = SceneManager->GetRuntimeEditorDisplayNameRaw();
+    if (Value.IsEmpty()) return;
+    FPlatformApplicationMisc::ClipboardCopy(*Value);
+    ShowToast(TEXT("已复制实例名称"), EOntoTwinRuntimeToastType::Success);
+}
+
+void UOntoTwinRuntimeEditorPanel::HandleTypeNameCopyClicked()
+{
+    if (!SceneManager) return;
+    const FString Value = SceneManager->GetRuntimeEditorTypeNameRaw();
+    if (Value.IsEmpty()) return;
+    FPlatformApplicationMisc::ClipboardCopy(*Value);
+    ShowToast(TEXT("已复制类型名称"), EOntoTwinRuntimeToastType::Success);
 }
 
 void UOntoTwinRuntimeEditorPanel::HandleCloseClicked()

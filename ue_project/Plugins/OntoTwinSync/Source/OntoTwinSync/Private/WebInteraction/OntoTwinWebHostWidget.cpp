@@ -64,23 +64,32 @@ TSharedRef<SWidget> UOntoTwinWebHostWidget::RebuildWidget()
                     })
                     .OnClicked_UObject(this, &UOntoTwinWebHostWidget::HandleBackClicked)
                 ]
-                + SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 8.0f, 0.0f)
-                [
-                    SNew(SButton)
-                    .Text(FText::FromString(TEXT("重试")))
-                    .OnClicked_UObject(this, &UOntoTwinWebHostWidget::HandleRetryClicked)
-                ]
                 + SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
                 [
                     SAssignNew(StatusText, STextBlock)
                     .Text(FText::FromString(TEXT("准备打开页面")))
                     .ColorAndOpacity(FSlateColor(FLinearColor(0.90f, 0.90f, 0.90f, 1.0f)))
                 ]
-                + SHorizontalBox::Slot().AutoWidth()
+                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
                 [
-                    SNew(SButton)
-                    .Text(FText::FromString(TEXT("关闭")))
-                    .OnClicked_UObject(this, &UOntoTwinWebHostWidget::HandleCloseClicked)
+                    SNew(SBox)
+                    .WidthOverride(20.0f)
+                    .HeightOverride(20.0f)
+                    [
+                        SNew(SButton)
+                        .ButtonStyle(&FCoreStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("NoBorder")))
+                        .ContentPadding(FMargin(0.0f))
+                        .HAlign(HAlign_Center)
+                        .VAlign(VAlign_Center)
+                        .ToolTipText(FText::FromString(TEXT("关闭网页")))
+                        .OnClicked_UObject(this, &UOntoTwinWebHostWidget::HandleCloseClicked)
+                        [
+                            SNew(STextBlock)
+                            .Text(FText::FromString(TEXT("×")))
+                            .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
+                            .ColorAndOpacity(FSlateColor(FLinearColor(0.72f, 0.76f, 0.80f, 0.52f)))
+                        ]
+                    ]
                 ]
             ]
             + SVerticalBox::Slot().FillHeight(1.0f).Padding(12.0f, 0.0f, 12.0f, 12.0f)
@@ -199,7 +208,7 @@ void UOntoTwinWebHostWidget::HandleLoadCompleted()
 
 void UOntoTwinWebHostWidget::HandleLoadError()
 {
-    SetHostStatus(TEXT("页面加载失败，可重试、返回或关闭"), true);
+    SetHostStatus(TEXT("页面加载失败，请返回或关闭"), true);
     if (OwnerComponent) OwnerComponent->HandlePageLoadError();
 }
 
@@ -230,11 +239,5 @@ FReply UOntoTwinWebHostWidget::HandleBackClicked()
 FReply UOntoTwinWebHostWidget::HandleCloseClicked()
 {
     if (OwnerComponent) OwnerComponent->Close();
-    return FReply::Handled();
-}
-
-FReply UOntoTwinWebHostWidget::HandleRetryClicked()
-{
-    if (OwnerComponent) OwnerComponent->Retry();
     return FReply::Handled();
 }

@@ -49,6 +49,29 @@
             background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
             background-size: 24px 24px;
         }
+        .business-graph-toggle {
+            position: absolute;
+            top: 58px;
+            left: 16px;
+            z-index: 9;
+            display: none;
+            align-items: center;
+            min-height: 32px;
+            padding: 7px 10px;
+            border: 1px solid #d4d4d4;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #1a1a1a;
+            box-shadow: 0 4px 16px rgba(20,20,20,.08);
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .business-graph-toggle:hover { background: #f3f3f3; }
+        .business-graph-toggle[aria-pressed="true"] {
+            border-color: #1a1a1a;
+            box-shadow: inset 2px 0 0 #1a1a1a, 0 4px 16px rgba(20,20,20,.08);
+        }
 
         /* ── 右侧详情侧栏 ──────────────────────────── */
         .detail-panel {
@@ -236,7 +259,8 @@
         .load-btn:hover { background: #333; }
         .load-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .load-status {
-            font-size: 12px; color: var(--text-secondary); text-align: center;
+            min-height: 18px; margin-top: 12px;
+            font-size: 12px; line-height: 1.5; color: var(--text-secondary); text-align: center;
         }
         .load-status.error { color: #dc2626; }
         .load-status.success { color: #16a34a; }
@@ -486,6 +510,416 @@
             display: inline-block; flex-shrink: 0;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── SCC W18：业务主图 + CAD 类型映射 ── */
+        .main-content.mapping-panel-open #graph-container {
+            flex: 0 0 calc(100% - 390px);
+            width: calc(100% - 390px);
+            min-width: 0;
+        }
+        .detail-panel.mapping-panel {
+            width: 390px;
+        }
+        .detail-panel.mapping-panel .panel-toolbar,
+        .detail-panel.mapping-panel .node-title-row,
+        .detail-panel.mapping-panel > .panel-body,
+        .detail-panel.mapping-panel > .panel-footer,
+        .detail-panel.mapping-panel #panel-notes-controls {
+            display: none !important;
+        }
+        .mapping-panel-content {
+            display: none;
+            min-height: 0;
+            flex: 1;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .detail-panel.mapping-panel .mapping-panel-content {
+            display: flex;
+        }
+        .mapping-summary {
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        .mapping-eyebrow {
+            color: #8a8a8a;
+            font-size: 11px;
+            margin-bottom: 4px;
+        }
+        .mapping-title-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .mapping-title {
+            margin: 0;
+            color: #1a1a1a;
+            font-size: 18px;
+            line-height: 1.35;
+            font-weight: 600;
+        }
+        .mapping-subtitle {
+            margin: 3px 0 0;
+            color: #5c5c5c;
+            font-size: 12px;
+        }
+        .mapping-scope-control {
+            display: grid;
+            grid-template-columns: 56px minmax(0, 1fr);
+            align-items: center;
+            gap: 6px 8px;
+            margin-top: 10px;
+        }
+        .mapping-scope-control label {
+            color: #5c5c5c;
+            font-size: 10px;
+        }
+        .mapping-scope-select {
+            width: 100%;
+            height: 32px;
+            padding: 0 9px;
+            border: 1px solid #d4d4d4;
+            border-radius: 6px;
+            outline: none;
+            background: #ffffff;
+            color: #1a1a1a;
+            font-size: 12px;
+        }
+        .mapping-scope-select:focus {
+            border-color: #1a1a1a;
+            box-shadow: 0 0 0 3px rgba(26,26,26,.06);
+        }
+        .mapping-scope-note {
+            grid-column: 2;
+            color: #8a8a8a;
+            font-size: 9px;
+            line-height: 1.4;
+        }
+        .mapping-intro {
+            margin-top: 12px;
+            color: #333333;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .mapping-intro strong { color: #1a1a1a; }
+        .mapping-flow {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr);
+            align-items: center;
+            gap: 6px;
+            margin-top: 10px;
+        }
+        .mapping-flow-node {
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+        }
+        .mapping-flow-node > div { min-width: 0; }
+        .mapping-flow-node span,
+        .mapping-flow-node strong {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .mapping-flow-node span { font-size: 9px; }
+        .mapping-flow-node strong { margin-top: 2px; font-size: 12px; }
+        .mapping-flow-dot {
+            width: 30px;
+            height: 30px;
+            flex: 0 0 30px;
+            border: 3px solid #1a1a1a;
+            border-radius: 50%;
+            box-sizing: border-box;
+        }
+        .mapping-flow-node.cad,
+        .mapping-flow-node.business { color: #1a1a1a; }
+        .mapping-flow-node.cad .mapping-flow-dot { background: #ffffff; }
+        .mapping-flow-node.business .mapping-flow-dot { background: #1a1a1a; }
+        .mapping-flow-arrow {
+            color: #1a1a1a;
+            text-align: center;
+            font-size: 9px;
+        }
+        .mapping-flow-arrow b {
+            display: block;
+            margin-top: -2px;
+            font-size: 18px;
+            font-weight: 500;
+        }
+        .mapping-list-help {
+            margin-top: 8px;
+            color: #5c5c5c;
+            font-size: 10px;
+            line-height: 1.45;
+        }
+        .mapping-flow.is-pending .mapping-flow-node.business { color: #5c5c5c; }
+        .mapping-flow.is-pending .mapping-flow-node.business .mapping-flow-dot {
+            border-color: #8a8a8a;
+            background: #f3f3f3;
+        }
+        .mapping-flow.is-pending .mapping-flow-arrow { color: #8a8a8a; }
+        .mapping-type-tag {
+            padding: 4px 8px;
+            border: 1px solid #d4d4d4;
+            border-radius: 6px;
+            color: #5c5c5c;
+            background: #fafafa;
+            font-size: 10px;
+            white-space: nowrap;
+        }
+        .mapping-counts {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 14px;
+        }
+        .mapping-count {
+            padding: 9px 10px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .mapping-count span {
+            display: block;
+            color: #8a8a8a;
+            font-size: 10px;
+        }
+        .mapping-count strong {
+            display: block;
+            margin-top: 2px;
+            color: #1a1a1a;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .mapping-count.confirmed { border-left: 3px solid #1a1a1a; }
+        .mapping-count.pending { border-style: dashed; }
+        .mapping-count.confirmed strong { color: #1a1a1a; }
+        .mapping-count.pending strong { color: #5c5c5c; }
+        .mapping-controls {
+            padding: 12px 14px 8px;
+            flex-shrink: 0;
+        }
+        .mapping-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+        }
+        .mapping-tab {
+            min-height: 34px;
+            border: 1px solid #d4d4d4;
+            background: #ffffff;
+            color: #5c5c5c;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .mapping-tab:first-child { border-radius: 8px 0 0 8px; }
+        .mapping-tab:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
+        .mapping-tab[aria-selected="true"] {
+            background: #1a1a1a;
+            color: #ffffff;
+            border-color: #1a1a1a;
+        }
+        .mapping-search {
+            width: 100%;
+            height: 34px;
+            margin-top: 9px;
+            padding: 0 10px;
+            border: 1px solid #d4d4d4;
+            border-radius: 6px;
+            outline: none;
+            background: #ffffff;
+            color: #1a1a1a;
+            font-size: 12px;
+            box-sizing: border-box;
+        }
+        .mapping-search:focus {
+            border-color: #1a1a1a;
+            box-shadow: 0 0 0 3px rgba(26,26,26,.06);
+        }
+        .mapping-scroll {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 0 10px 10px;
+        }
+        .mapping-section-label {
+            padding: 8px 4px 6px;
+            color: #8a8a8a;
+            font-size: 10px;
+            letter-spacing: .02em;
+        }
+        .mapping-group-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+        }
+        .mapping-group-btn {
+            min-width: 0;
+            min-height: 36px;
+            padding: 7px 9px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            text-align: left;
+            border: 1px solid #e8e8e8;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #1a1a1a;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .mapping-group-btn:hover { background: #f3f3f3; }
+        .mapping-group-btn[aria-pressed="true"] {
+            border-color: #1a1a1a;
+            box-shadow: inset 2px 0 0 #1a1a1a;
+            background: #fafafa;
+        }
+        .mapping-group-btn span:first-child {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .mapping-group-btn small { color: #8a8a8a; }
+        .mapping-type-list {
+            display: grid;
+            gap: 5px;
+        }
+        .mapping-type-btn {
+            width: 100%;
+            min-height: 44px;
+            padding: 8px 9px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            text-align: left;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            background: #fafafa;
+            color: #1a1a1a;
+            cursor: pointer;
+        }
+        .mapping-type-btn:hover { background: #f3f3f3; }
+        .mapping-type-btn[aria-pressed="true"] {
+            border-color: #1a1a1a;
+            box-shadow: inset 2px 0 0 #1a1a1a;
+        }
+        .mapping-type-main { min-width: 0; }
+        .mapping-type-name {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .mapping-type-meta {
+            display: block;
+            margin-top: 3px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #8a8a8a;
+            font-size: 10px;
+        }
+        .mapping-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            flex: 0 0 auto;
+            color: #067647;
+            font-size: 10px;
+        }
+        .mapping-status::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #067647;
+        }
+        .mapping-status.pending { color: #5c5c5c; }
+        .mapping-status.pending::before { background: #8a8a8a; }
+        .mapping-empty {
+            padding: 18px 10px;
+            text-align: center;
+            color: #8a8a8a;
+            border: 1px dashed #d4d4d4;
+            border-radius: 8px;
+            font-size: 12px;
+        }
+        .mapping-detail {
+            flex-shrink: 0;
+            padding: 12px 16px 14px;
+            border-top: 1px solid #e8e8e8;
+            background: #fafafa;
+        }
+        .mapping-detail-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .mapping-detail-head strong {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #1a1a1a;
+            font-size: 13px;
+        }
+        .mapping-detail-grid {
+            display: grid;
+            grid-template-columns: 64px minmax(0, 1fr);
+            gap: 5px 8px;
+            margin: 0;
+            font-size: 11px;
+            line-height: 1.45;
+        }
+        .mapping-detail-grid dt { color: #8a8a8a; }
+        .mapping-detail-grid dd { margin: 0; color: #1a1a1a; overflow-wrap: anywhere; }
+        .mapping-pending-note {
+            margin-top: 8px;
+            padding: 7px 8px;
+            border-left: 2px solid #8a8a8a;
+            background: #f3f3f3;
+            color: #5c5c5c;
+            font-size: 11px;
+            line-height: 1.45;
+        }
+        .mapping-footnote {
+            padding: 8px 16px;
+            border-top: 1px solid #e8e8e8;
+            color: #8a8a8a;
+            font-size: 10px;
+            flex-shrink: 0;
+        }
+        @media (max-width: 860px) {
+            .main-content.mapping-panel-open #graph-container {
+                flex-basis: calc(100% - 340px);
+                width: calc(100% - 340px);
+            }
+            .detail-panel.mapping-panel { width: 340px; }
+            .mapping-group-list { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 640px) {
+            .main-content.mapping-panel-open #graph-container {
+                flex-basis: calc(100% - 340px);
+                width: calc(100% - 340px);
+            }
+            .detail-panel.mapping-panel { width: 340px; max-width: calc(100vw - 230px); }
+        }
+        @media (max-width: 520px) {
+            .main-content.mapping-panel-open #graph-container { flex-basis: 100%; width: 100%; }
+            .detail-panel.mapping-panel { width: 100vw; max-width: none; }
+        }
     </style>
 </head>
 
@@ -505,6 +939,7 @@
             <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
             返回数据集列表
         </button>
+        <button class="business-graph-toggle" id="business-graph-toggle" type="button" aria-pressed="false">查看完整业务本体</button>
 
         <!-- 发布数据横幅 (仅在预览自定义数据时可见) -->
         <div id="publish-banner" style="display: none; position: absolute; top: 48px; left: 50%; transform: translateX(-50%); z-index: 10; background: #fff; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); border: 1px solid #e5e7eb; align-items: center; gap: 16px;">
@@ -628,6 +1063,8 @@
                                 导入并预览图谱
                             </button>
                         </div>
+
+                        <div class="load-status" id="load-status" role="status" aria-live="polite"></div>
                     </div>
                 </div>
             </div>
@@ -638,39 +1075,99 @@
 
             <!-- 顶部标题栏 -->
             <div class="panel-topbar">
-                <div class="panel-topbar-title">信息视窗</div>
+                <div class="panel-topbar-title" id="panel-topbar-title">信息视窗</div>
                 <div class="toggle-row">
-                    显示备注
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="show-notes-toggle" checked />
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <button class="tb-btn" onclick="closePanel()" title="关闭" style="margin-left:4px;">
+                    <span id="panel-notes-controls" style="display:flex;align-items:center;gap:8px;">
+                        显示备注
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="show-notes-toggle" checked />
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </span>
+                    <button class="tb-btn" onclick="closePanel()" aria-label="关闭侧栏" style="margin-left:4px;">
                         <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                 </div>
             </div>
 
+            <!-- SCC W18：业务设备类型与 CAD 名称归类 -->
+            <section class="mapping-panel-content" id="mapping-panel-content" aria-label="CAD 设备归类">
+                <div class="mapping-summary">
+                    <div class="mapping-eyebrow">这页在做什么</div>
+                    <div class="mapping-title-row">
+                        <div>
+                            <h2 class="mapping-title">把 CAD 名称归到业务类型</h2>
+                            <p class="mapping-subtitle" id="mapping-scope">W18 三楼 · CAD 设备名称归类</p>
+                        </div>
+                        <span class="mapping-type-tag">设备</span>
+                    </div>
+                    <div class="mapping-scope-control">
+                        <label for="mapping-scope-select">查看范围</label>
+                        <select class="mapping-scope-select" id="mapping-scope-select" aria-label="选择楼层查看范围"></select>
+                        <div class="mapping-scope-note">楼层只过滤 CAD 名称和归类记录，业务类型仍全局共用。</div>
+                    </div>
+                    <div class="mapping-intro" id="mapping-intro">先从下面选择一个 CAD 名称。未选择时，左图只显示业务类型关系。</div>
+                    <div class="mapping-flow" id="mapping-flow">
+                        <div class="mapping-flow-node cad"><i class="mapping-flow-dot" aria-hidden="true"></i><div><span>CAD 里的名称</span><strong id="mapping-flow-source">阻焊DI1</strong></div></div>
+                        <div class="mapping-flow-arrow"><span id="mapping-flow-action">归到</span><b>→</b></div>
+                        <div class="mapping-flow-node business"><i class="mapping-flow-dot" aria-hidden="true"></i><div><span>业务里的类型</span><strong id="mapping-flow-target">设备</strong></div></div>
+                    </div>
+                    <div class="mapping-list-help" id="mapping-list-help">右侧是 135 个 CAD 名称的清单。点下面任意一项，左图空心圆会跟着切换。</div>
+                    <div class="mapping-counts">
+                        <div class="mapping-count confirmed"><span>已经归到“设备”</span><strong id="mapping-confirmed-count">0</strong></div>
+                        <div class="mapping-count pending"><span>还没判断</span><strong id="mapping-pending-count">0</strong></div>
+                    </div>
+                </div>
+                <div class="mapping-controls">
+                    <div class="mapping-tabs" role="tablist" aria-label="归类状态">
+                        <button class="mapping-tab" id="mapping-confirmed-tab" type="button" role="tab" aria-selected="true">已归类</button>
+                        <button class="mapping-tab" id="mapping-pending-tab" type="button" role="tab" aria-selected="false">待判断</button>
+                    </div>
+                    <input class="mapping-search" id="mapping-search" type="search" aria-label="搜索 CAD 里的名称" placeholder="搜索 CAD 里的名称">
+                </div>
+                <div class="mapping-scroll">
+                    <div id="mapping-groups-wrap">
+                        <div class="mapping-section-label">按现场工艺整理，方便查找（不会新增业务类型）</div>
+                        <div class="mapping-group-list" id="mapping-group-list"></div>
+                    </div>
+                    <div class="mapping-section-label" id="mapping-list-label">CAD 里的名称</div>
+                    <div class="mapping-type-list" id="mapping-type-list"></div>
+                </div>
+                <div class="mapping-detail" aria-live="polite">
+                    <div class="mapping-detail-head">
+                        <strong id="mapping-detail-name">—</strong>
+                        <span class="mapping-status" id="mapping-detail-status">已归类</span>
+                    </div>
+                    <dl class="mapping-detail-grid">
+                        <dt>归到哪里</dt><dd id="mapping-detail-target">设备（业务类型）</dd>
+                        <dt>来自哪里</dt><dd id="mapping-detail-source">W18 · 三楼</dd>
+                        <dt>为什么</dt><dd id="mapping-detail-reason">—</dd>
+                    </dl>
+                    <div class="mapping-pending-note" id="mapping-pending-note" hidden>这个名称还没判断是不是生产设备，所以先不放进业务图。</div>
+                </div>
+                <div class="mapping-footnote" id="mapping-footnote">左图＝业务类型及关系；空心圆＝右侧当前选中的 CAD 名称；右侧＝CAD 名称的审核清单。</div>
+            </section>
+
             <!-- 工具栏 -->
             <div class="panel-toolbar">
-                <button class="tb-btn" title="全屏展开">
+                <button class="tb-btn" aria-label="全屏展开">
                     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
                 </button>
-                <button class="tb-btn" title="收起">
+                <button class="tb-btn" aria-label="收起">
                     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/></svg>
                 </button>
                 <div class="tb-sep"></div>
-                <button class="tb-btn" title="编辑">
+                <button class="tb-btn" aria-label="编辑">
                     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
-                <button class="tb-btn" title="从图中移除">
+                <button class="tb-btn" aria-label="从图中移除">
                     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
                 </button>
-                <button class="tb-btn" title="固定到图上">
+                <button class="tb-btn" aria-label="固定到图上">
                     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z"/></svg>
                 </button>
                 <div class="tb-sep"></div>
-                <button class="tb-btn" title="更多操作">
+                <button class="tb-btn" aria-label="更多操作">
                     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
                 </button>
             </div>
@@ -759,7 +1256,7 @@
             </div>
 
             <!-- 底部跳转按钮 -->
-            <div style="padding: 16px 18px; border-top: 1px solid var(--border-color); flex-shrink: 0; background: #fafafa;">
+            <div class="panel-footer" style="padding: 16px 18px; border-top: 1px solid var(--border-color); flex-shrink: 0; background: #fafafa;">
                 <a id="add-ontology-btn" href="/ontology" style="display: flex; align-items: center; justify-content: center; width: 100%; padding: 10px; background: var(--text-main); color: #fff; text-decoration: none; border-radius: 6px; font-size: 13px; font-weight: 500; transition: opacity 0.2s;">
                     + 添加三维能力接口
                 </a>
@@ -776,6 +1273,15 @@
 
         let myChart = null;
         let graphData = null;
+        let equipmentMappingPanelInitialized = false;
+        const equipmentMappingState = {
+            mode: 'confirmed',
+            scopeId: 'all',
+            groupId: 'all',
+            selectedId: null,
+            query: '',
+            showAllBusiness: true
+        };
 
         // Typeless 极简配色盘
         const colorPalette = {
@@ -791,6 +1297,38 @@
             'Line': '#f43f5e',       // 红 (产线)
             'Event': '#ef4444'       // 亮红 (事件/告警)
         };
+        const generatedCategoryPalette = [
+            '#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de',
+            '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc'
+        ];
+        let activeCategoryColors = {};
+
+        function resolveCategoryColors(data) {
+            const specsByName = new Map();
+            const names = [];
+            const addName = (name, spec = {}) => {
+                if (!name || specsByName.has(name)) return;
+                names.push(name);
+                specsByName.set(name, spec);
+            };
+
+            (data.categories || []).forEach(category => {
+                const spec = typeof category === 'string' ? { name: category } : category;
+                addName(spec.name, spec);
+            });
+            (data.nodes || []).forEach(node => addName(node.category));
+
+            const resolved = {};
+            let generatedIndex = 0;
+            names.forEach(name => {
+                const spec = specsByName.get(name) || {};
+                resolved[name] = spec.itemStyle?.color
+                    || spec.color
+                    || colorPalette[name]
+                    || generatedCategoryPalette[generatedIndex++ % generatedCategoryPalette.length];
+            });
+            return resolved;
+        }
 
         async function initGraph() {
             try {
@@ -824,123 +1362,267 @@
             }
         }
 
+        function currentMappingView() {
+            return graphData?.mapping_view?.enabled ? graphData.mapping_view : null;
+        }
+
+        function currentConfirmedMapping() {
+            const view = currentMappingView();
+            if (!view || equipmentMappingState.mode !== 'confirmed' || !equipmentMappingState.selectedId) return null;
+            return confirmedMappingsForScope(view).find(item => item.id === equipmentMappingState.selectedId) || null;
+        }
+
+        function buildGraphProjection() {
+            const mappingView = currentMappingView();
+            if (!mappingView) {
+                return { nodes: graphData.nodes || [], links: graphData.links || [], mappingView: null, foldedBusinessCount: 0 };
+            }
+
+            const allBusinessNodes = (graphData.nodes || []).filter(
+                node => node.category === mappingView.business_category
+            );
+            const neighbourhoodIds = new Set([mappingView.equipment_id]);
+            (graphData.links || []).forEach(link => {
+                if (link.source === mappingView.equipment_id) neighbourhoodIds.add(link.target);
+                if (link.target === mappingView.equipment_id) neighbourhoodIds.add(link.source);
+            });
+            const focusedBusinessNodes = allBusinessNodes.filter(node => neighbourhoodIds.has(node.id));
+            const foldedBusinessCount = Math.max(0, allBusinessNodes.length - focusedBusinessNodes.length);
+            const businessNodes = equipmentMappingState.showAllBusiness ? allBusinessNodes : focusedBusinessNodes;
+            const businessIds = new Set(businessNodes.map(node => node.id));
+            const projectedNodes = businessNodes.map(node => ({
+                ...node,
+                symbolSize: node.id === mappingView.equipment_id ? 56 : (node.symbolSize || 32),
+                is_business_node: true
+            }));
+            const projectedLinks = (graphData.links || []).filter(
+                link => businessIds.has(link.source) && businessIds.has(link.target)
+            );
+
+            const selected = currentConfirmedMapping();
+            if (selected) {
+                const sourceNode = (graphData.nodes || []).find(
+                    node => node.id === selected.id || node.name === selected.name
+                );
+                if (sourceNode) {
+                    projectedNodes.push({
+                        ...sourceNode,
+                        id: sourceNode.id,
+                        name: sourceNode.name,
+                        category: 'CAD类型',
+                        symbolSize: 42,
+                        is_cad_mapping: true,
+                        mapping_reason: selected.reason,
+                        mapping_source: selected.source
+                    });
+                    projectedLinks.push({
+                        source: sourceNode.id,
+                        target: mappingView.equipment_id,
+                        label: '归到',
+                        mapping_link: true
+                    });
+                }
+            }
+            return { nodes: projectedNodes, links: projectedLinks, mappingView, foldedBusinessCount };
+        }
+
+        function resizeOntologyGraph() {
+            if (myChart) myChart.resize();
+        }
+
+        function updateBusinessGraphToggle(projection) {
+            const button = document.getElementById('business-graph-toggle');
+            if (!projection.mappingView || projection.foldedBusinessCount <= 0) {
+                button.style.display = 'none';
+                return;
+            }
+            button.style.display = 'inline-flex';
+            button.setAttribute('aria-pressed', String(equipmentMappingState.showAllBusiness));
+            button.textContent = equipmentMappingState.showAllBusiness
+                ? '收起到设备关系'
+                : `查看完整业务本体（另 ${projection.foldedBusinessCount} 个类型）`;
+        }
+
         function renderGraph() {
             const chartDom = document.getElementById('graph-container');
+            const projection = buildGraphProjection();
+            if (projection.mappingView) {
+                document.getElementById('detail-panel').classList.add('mapping-panel', 'open');
+                document.querySelector('.main-content').classList.add('mapping-panel-open');
+                document.getElementById('panel-topbar-title').textContent = 'CAD 设备归类';
+            }
+            updateBusinessGraphToggle(projection);
+            if (myChart) myChart.dispose();
             myChart = echarts.init(chartDom);
 
-            // 处理数据映射 ECharts 格式
-            const nodes = graphData.nodes.map(node => ({
+            activeCategoryColors = projection.mappingView
+                ? { [projection.mappingView.business_category]: '#1a1a1a', 'CAD类型': '#ffffff' }
+                : resolveCategoryColors(graphData);
+
+            const equipmentAnchorX = Math.max(190, chartDom.clientWidth * 0.58);
+            const equipmentAnchorY = Math.max(220, chartDom.clientHeight * 0.54);
+
+            const nodes = projection.nodes.map(node => ({
                 id: node.id,
                 name: node.name,
                 category: node.category,
-                symbolSize: node.symbolSize || 30,
+                symbol: 'circle',
+                symbolSize: node.is_cad_mapping ? 50 : (node.symbolSize || 30),
+                x: node.id === projection.mappingView?.equipment_id ? equipmentAnchorX
+                    : node.is_cad_mapping ? Math.max(72, equipmentAnchorX - 170) : undefined,
+                y: node.id === projection.mappingView?.equipment_id || node.is_cad_mapping ? equipmentAnchorY : undefined,
+                fixed: Boolean(projection.mappingView && (
+                    node.id === projection.mappingView.equipment_id || node.is_cad_mapping
+                )),
                 itemStyle: {
-                    color: colorPalette[node.category] || '#999',
-                    borderColor: '#ffffff',
-                    borderWidth: 2,
-                    shadowColor: 'rgba(0,0,0,0.1)',
-                    shadowBlur: 10
+                    color: node.is_cad_mapping ? '#ffffff'
+                        : (node.itemStyle?.color || activeCategoryColors[node.category] || '#1a1a1a'),
+                    borderColor: node.is_cad_mapping ? '#1a1a1a'
+                        : node.id === projection.mappingView?.equipment_id ? '#8a8a8a'
+                        : '#ffffff',
+                    borderWidth: node.is_cad_mapping ? 3
+                        : node.id === projection.mappingView?.equipment_id ? 5 : 2,
+                    borderType: 'solid',
+                    shadowColor: 'rgba(20,20,20,.18)',
+                    shadowBlur: node.is_cad_mapping || node.id === projection.mappingView?.equipment_id ? 12 : 6
                 },
-                originalData: node // 携带原始数据备用
+                originalData: node
             }));
 
-            const links = graphData.links.map(link => ({
+            const links = projection.links.map(link => ({
                 source: link.source,
                 target: link.target,
                 label: {
                     show: true,
                     formatter: link.label,
-                    fontSize: 10,
-                    color: '#999',
-                    backgroundColor: 'rgba(255,255,255,0.7)',
+                    fontSize: link.mapping_link ? 11 : 10,
+                    fontWeight: link.mapping_link ? 600 : 400,
+                    color: link.mapping_link ? '#1a1a1a' : '#8a8a8a',
+                    backgroundColor: 'rgba(255,255,255,0.92)',
                     padding: [2, 4],
                     borderRadius: 2
                 },
                 lineStyle: {
-                    width: 1.5,
-                    color: '#dddddd',
-                    curveness: 0.1
-                }
+                    width: link.mapping_link ? 4 : 1.5,
+                    type: link.mapping_link ? 'dashed' : 'solid',
+                    color: link.mapping_link ? '#1a1a1a' : '#d4d4d4',
+                    curveness: link.mapping_link ? 0 : 0.1
+                },
+                originalData: link
             }));
 
-            const categories = graphData.categories.map(c => ({
-                name: c.name,
-                itemStyle: { color: colorPalette[c.name] }
+            const categorySpecs = new Map((graphData.categories || []).map(category => {
+                const spec = typeof category === 'string' ? { name: category } : category;
+                return [spec.name, spec];
             }));
+            const categories = Object.keys(activeCategoryColors).map(name => {
+                const spec = categorySpecs.get(name) || { name };
+                return {
+                    ...spec,
+                    name,
+                    itemStyle: {
+                        ...(spec.itemStyle || {}),
+                        color: activeCategoryColors[name],
+                        borderColor: name === 'CAD类型' ? '#1a1a1a' : '#ffffff',
+                        borderWidth: name === 'CAD类型' ? 2 : 0
+                    }
+                };
+            });
 
             const option = {
                 tooltip: {
                     trigger: 'item',
                     backgroundColor: '#ffffff',
-                    borderColor: '#eaeaea',
-                    textStyle: { color: '#111' },
+                    borderColor: '#e8e8e8',
+                    textStyle: { color: '#1a1a1a' },
                     formatter: function (params) {
-                        return `<div style="font-weight:600;margin-bottom:4px;">${params.data.name}</div>
-                                <div style="font-size:12px;color:#666;">类型: ${params.data.category}</div>`;
+                        if (params.dataType === 'edge') {
+                            return params.data.originalData?.label || '';
+                        }
+                        const original = params.data.originalData || {};
+                        const typeLabel = original.is_cad_mapping ? 'CAD 类型' :
+                            (projection.mappingView ? '业务类型' : params.data.category);
+                        return `<div style="font-weight:600;margin-bottom:4px;">${escapeHtml(params.data.name)}</div>
+                                <div style="font-size:12px;color:#666;">${escapeHtml(typeLabel)}</div>`;
                     }
                 },
                 legend: [{
-                    data: categories.map(a => a.name),
+                    data: categories.map(item => ({
+                        name: item.name,
+                        icon: 'circle'
+                    })),
                     bottom: 24,
                     left: 'center',
-                    icon: 'circle',
-                    itemWidth: 10,
-                    textStyle: { color: '#666', fontSize: 12, fontFamily: 'Inter' }
+                    itemWidth: 12,
+                    itemHeight: 12,
+                    formatter: name => name === projection.mappingView?.business_category
+                        ? '实心圆：业务类型' : '空心圆：CAD 名称',
+                    textStyle: { color: '#5c5c5c', fontSize: 11, fontFamily: 'Inter' }
                 }],
-                series: [
-                    {
-                        name: 'Ontology Graph',
-                        type: 'graph',
-                        layout: 'force',
-                        data: nodes,
-                        links: links,
-                        categories: categories,
-                        roam: true, // 开启鼠标缩放和平移漫游
-                        label: {
-                            show: true,
-                            position: 'bottom',
-                            formatter: function (params) {
-                                const hasI3D = params.data.originalData?.interfaces?.includes('I3D_Representable');
-                                return hasI3D ? '{dot|} ' + params.data.name : params.data.name;
-                            },
-                            rich: {
-                                dot: {
-                                    backgroundColor: '#22c55e',
-                                    width: 8,
-                                    height: 8,
-                                    borderRadius: 4
-                                }
-                            },
-                            distance: 8,
-                            color: '#333',
-                            fontSize: 12,
-                            fontFamily: 'Inter',
-                            fontWeight: 500
+                series: [{
+                    name: 'Ontology Graph',
+                    type: 'graph',
+                    layout: 'force',
+                    data: nodes,
+                    links,
+                    categories,
+                    roam: true,
+                    label: {
+                        show: true,
+                        position: 'bottom',
+                        formatter: function (params) {
+                            const original = params.data.originalData || {};
+                            if (original.is_cad_mapping) return `{cad|CAD} ${params.data.name}`;
+                            if (params.data.id === projection.mappingView?.equipment_id) return `{biz|业务} ${params.data.name}`;
+                            const hasI3D = params.data.originalData?.interfaces?.includes('I3D_Representable');
+                            return hasI3D ? '{dot|} ' + params.data.name : params.data.name;
                         },
-                        force: {
-                            repulsion: 800,
-                            edgeLength: [100, 200],
-                            gravity: 0.1
+                        rich: {
+                            dot: { backgroundColor: '#067647', width: 8, height: 8, borderRadius: 4 },
+                            cad: { color: '#1a1a1a', backgroundColor: '#ffffff', borderColor: '#1a1a1a', borderWidth: 1, padding: [2, 4], borderRadius: 2, fontSize: 10 },
+                            biz: { color: '#ffffff', backgroundColor: '#1a1a1a', padding: [2, 4], borderRadius: 2, fontSize: 10 }
                         },
-                        emphasis: {
-                            focus: 'adjacency',
-                            lineStyle: { width: 3, color: '#999' }
-                        }
+                        distance: 8,
+                        color: '#333',
+                        fontSize: 12,
+                        fontFamily: 'Inter',
+                        fontWeight: 500
+                    },
+                    force: {
+                        repulsion: projection.mappingView ? 1050 : 800,
+                        edgeLength: projection.mappingView ? [115, 210] : [100, 200],
+                        gravity: 0.1
+                    },
+                    emphasis: {
+                        focus: 'adjacency',
+                        lineStyle: { width: 3.5 }
                     }
-                ]
+                }]
             };
 
             myChart.setOption(option);
-
-            // 监听节点点击事件，打开侧栏
             myChart.on('click', function (params) {
-                if (params.dataType === 'node') {
-                    openPanel(params.data.originalData);
+                if (params.dataType !== 'node') return;
+                const node = params.data.originalData;
+                if (projection.mappingView && node.id === projection.mappingView.equipment_id) {
+                    openEquipmentMappingPanel();
+                } else if (node.is_cad_mapping) {
+                    openEquipmentMappingPanel();
+                } else {
+                    openPanel(node);
                 }
             });
 
-            // 窗口自适应
-            window.addEventListener('resize', () => myChart.resize());
+            window.removeEventListener('resize', resizeOntologyGraph);
+            window.addEventListener('resize', resizeOntologyGraph);
+
+            if (projection.mappingView) {
+                renderEquipmentMappingPanel();
+                if (!equipmentMappingPanelInitialized) {
+                    equipmentMappingPanelInitialized = true;
+                    openEquipmentMappingPanel();
+                }
+            }
         }
 
         // 类型颜色映射
@@ -957,6 +1639,263 @@
             'Line': '产线', 'Event': '事件'
         };
 
+        function allConfirmedMappings(view) {
+            return (view?.groups || []).flatMap(group =>
+                (group.types || []).map(item => ({ ...item, groupId: group.id, groupName: group.name }))
+            );
+        }
+
+        function mappingScopes(view) {
+            const discovered = Array.isArray(view?.scopes) && view.scopes.length
+                ? view.scopes
+                : [{
+                    id: `${view?.scope?.building || 'W18'}_${view?.scope?.floor || '3F'}`.toLocaleLowerCase(),
+                    building: view?.scope?.building || 'W18',
+                    floor: view?.scope?.floor || '3F',
+                    label: `${view?.scope?.building || 'W18'} 三楼`,
+                    cad_total: view?.cad_total || 0,
+                    confirmed_count: view?.confirmed_count || 0,
+                    pending_count: view?.pending_count || 0
+                }];
+            return [{
+                id: 'all',
+                label: '全部楼层',
+                cad_total: view?.cad_total || 0,
+                confirmed_count: view?.confirmed_count || 0,
+                pending_count: view?.pending_count || 0
+            }, ...discovered];
+        }
+
+        function currentMappingScope(view) {
+            const scopes = mappingScopes(view);
+            const scope = scopes.find(item => item.id === equipmentMappingState.scopeId) || scopes[0];
+            if (scope.id !== equipmentMappingState.scopeId) equipmentMappingState.scopeId = scope.id;
+            return scope;
+        }
+
+        function mappingItemMatchesScope(item) {
+            return equipmentMappingState.scopeId === 'all' || item.scope_id === equipmentMappingState.scopeId;
+        }
+
+        function confirmedMappingsForScope(view) {
+            return allConfirmedMappings(view).filter(mappingItemMatchesScope);
+        }
+
+        function pendingMappingsForScope(view) {
+            return (view?.pending || []).filter(mappingItemMatchesScope);
+        }
+
+        function mappingGroupsForScope(view) {
+            return (view?.groups || []).map(group => {
+                const types = (group.types || []).filter(mappingItemMatchesScope);
+                return { ...group, types, count: types.length };
+            }).filter(group => group.count > 0);
+        }
+
+        function setMappingDetail(item) {
+            const confirmed = equipmentMappingState.mode === 'confirmed';
+            const activeScope = currentMappingScope(currentMappingView());
+            const status = document.getElementById('mapping-detail-status');
+            const selectedName = item?.name || '—';
+            document.getElementById('mapping-detail-name').textContent = item?.name || '未选择 CAD 名称';
+            document.getElementById('mapping-intro').textContent = item
+                ? (confirmed
+                    ? `CAD 里叫“${selectedName}”，业务上统一把它看作“设备”。`
+                    : `CAD 里叫“${selectedName}”，现在还没判断它是不是生产设备。`)
+                : '先从下面选择一个 CAD 名称。未选择时，左图只显示业务类型关系。';
+            document.getElementById('mapping-flow-source').textContent = selectedName;
+            document.getElementById('mapping-flow-action').textContent = item
+                ? (confirmed ? '归到' : '还没判断') : '选择后查看';
+            document.getElementById('mapping-flow-target').textContent = item
+                ? (confirmed ? '设备' : '暂不归类') : '业务类型';
+            document.getElementById('mapping-flow').classList.toggle('is-pending', !confirmed || !item);
+            document.getElementById('mapping-detail-target').textContent = item
+                ? (confirmed ? '设备（业务类型）' : '暂不归类') : '—';
+            document.getElementById('mapping-detail-source').textContent = item
+                ? `${item.scope_label || activeScope.label} · ${item.source || 'CAD 解析批次'}`
+                : activeScope.label;
+            document.getElementById('mapping-detail-reason').textContent = item?.reason || '点选清单中的名称后显示';
+            status.textContent = item ? (confirmed ? '已归类' : '待判断') : '未选择';
+            status.classList.toggle('pending', !confirmed || !item);
+            document.getElementById('mapping-pending-note').hidden = confirmed || !item;
+        }
+
+        function createMappingTypeButton(item, confirmed) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'mapping-type-btn';
+            button.setAttribute('aria-pressed', String(equipmentMappingState.selectedId === item.id));
+
+            const main = document.createElement('span');
+            main.className = 'mapping-type-main';
+            const name = document.createElement('span');
+            name.className = 'mapping-type-name';
+            name.textContent = item.name;
+            const meta = document.createElement('span');
+            meta.className = 'mapping-type-meta';
+            meta.textContent = confirmed
+                ? `${item.category || 'CAD 类型'} · ${item.scope_label || '未识别楼层'}`
+                : `${item.scope_label || '未识别楼层'} · ${item.reason}`;
+            main.append(name, meta);
+
+            const status = document.createElement('span');
+            status.className = `mapping-status${confirmed ? '' : ' pending'}`;
+            status.textContent = confirmed ? '已归到设备' : '待判断';
+            button.append(main, status);
+            button.addEventListener('click', () => {
+                equipmentMappingState.selectedId = equipmentMappingState.selectedId === item.id ? null : item.id;
+                renderEquipmentMappingPanel();
+                renderGraph();
+            });
+            return button;
+        }
+
+        function renderEquipmentMappingPanel() {
+            const view = currentMappingView();
+            if (!view) return;
+
+            const scopes = mappingScopes(view);
+            const activeScope = currentMappingScope(view);
+            const scopedConfirmed = confirmedMappingsForScope(view);
+            const scopedPending = pendingMappingsForScope(view);
+            const scopedCadTotal = scopedConfirmed.length + scopedPending.length;
+            const scopeSelect = document.getElementById('mapping-scope-select');
+            scopeSelect.innerHTML = '';
+            scopes.forEach(scope => {
+                const option = document.createElement('option');
+                option.value = scope.id;
+                option.textContent = `${scope.label} · ${scope.cad_total ?? 0}`;
+                scopeSelect.appendChild(option);
+            });
+            scopeSelect.value = activeScope.id;
+
+            document.getElementById('mapping-confirmed-count').textContent = scopedConfirmed.length;
+            document.getElementById('mapping-pending-count').textContent = scopedPending.length;
+            document.getElementById('mapping-scope').textContent = `${activeScope.label} · CAD 设备名称归类`;
+            document.getElementById('mapping-list-help').textContent =
+                `右侧列出${activeScope.label}的 ${scopedCadTotal} 个 CAD 名称。点下面任意一项，左图空心圆会跟着切换。`;
+
+            const confirmed = equipmentMappingState.mode === 'confirmed';
+            document.getElementById('mapping-confirmed-tab').setAttribute('aria-selected', String(confirmed));
+            document.getElementById('mapping-pending-tab').setAttribute('aria-selected', String(!confirmed));
+            document.getElementById('mapping-confirmed-tab').textContent = `已归类 ${scopedConfirmed.length}`;
+            document.getElementById('mapping-pending-tab').textContent = `待判断 ${scopedPending.length}`;
+            document.getElementById('mapping-groups-wrap').style.display = confirmed ? '' : 'none';
+
+            const groupList = document.getElementById('mapping-group-list');
+            groupList.innerHTML = '';
+            if (confirmed) {
+                const scopedGroups = mappingGroupsForScope(view);
+                const filterGroups = [
+                    { id: 'all', name: '全部工艺', count: scopedConfirmed.length },
+                    ...scopedGroups
+                ];
+                filterGroups.forEach(group => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'mapping-group-btn';
+                    button.setAttribute('aria-pressed', String(group.id === equipmentMappingState.groupId));
+                    const name = document.createElement('span');
+                    name.textContent = group.name;
+                    const count = document.createElement('small');
+                    count.textContent = group.count;
+                    button.append(name, count);
+                    button.addEventListener('click', () => {
+                        equipmentMappingState.groupId = group.id;
+                        equipmentMappingState.query = '';
+                        document.getElementById('mapping-search').value = '';
+                        equipmentMappingState.selectedId = null;
+                        renderEquipmentMappingPanel();
+                        renderGraph();
+                    });
+                    groupList.appendChild(button);
+                });
+            }
+
+            const query = equipmentMappingState.query.trim().toLocaleLowerCase();
+            let items;
+            let listLabel;
+            if (confirmed) {
+                const allItems = scopedConfirmed;
+                const group = mappingGroupsForScope(view).find(item => item.id === equipmentMappingState.groupId);
+                if (equipmentMappingState.groupId !== 'all' && !group) equipmentMappingState.groupId = 'all';
+                items = query
+                    ? allItems.filter(item => item.name.toLocaleLowerCase().includes(query))
+                    : equipmentMappingState.groupId === 'all' ? allItems : (group?.types || []);
+                listLabel = query ? `搜索结果 · ${items.length}`
+                    : equipmentMappingState.groupId === 'all' ? `全部工艺 · ${items.length} 个 CAD 名称`
+                    : `${group?.name || '已归类'} · ${items.length} 个 CAD 名称`;
+            } else {
+                items = scopedPending.filter(item => !query || item.name.toLocaleLowerCase().includes(query));
+                listLabel = `待判断 · ${items.length} / ${scopedPending.length}`;
+            }
+
+            if (!items.some(item => item.id === equipmentMappingState.selectedId)) {
+                equipmentMappingState.selectedId = null;
+            }
+            document.getElementById('mapping-list-label').textContent = listLabel;
+            const typeList = document.getElementById('mapping-type-list');
+            typeList.innerHTML = '';
+            if (!items.length) {
+                const empty = document.createElement('div');
+                empty.className = 'mapping-empty';
+                empty.textContent = '没有匹配的 CAD 名称';
+                typeList.appendChild(empty);
+                setMappingDetail(null);
+                return;
+            }
+            items.forEach(item => typeList.appendChild(createMappingTypeButton(item, confirmed)));
+            setMappingDetail(items.find(item => item.id === equipmentMappingState.selectedId) || null);
+        }
+
+        function openEquipmentMappingPanel() {
+            if (!currentMappingView()) return;
+            const panel = document.getElementById('detail-panel');
+            panel.classList.add('mapping-panel', 'open');
+            document.querySelector('.main-content').classList.add('mapping-panel-open');
+            document.getElementById('panel-topbar-title').textContent = 'CAD 设备归类';
+            renderEquipmentMappingPanel();
+            requestAnimationFrame(resizeOntologyGraph);
+        }
+
+        function setupEquipmentMappingPanel() {
+            document.getElementById('business-graph-toggle').addEventListener('click', () => {
+                equipmentMappingState.showAllBusiness = !equipmentMappingState.showAllBusiness;
+                renderGraph();
+            });
+            document.getElementById('mapping-scope-select').addEventListener('change', event => {
+                equipmentMappingState.scopeId = event.target.value;
+                equipmentMappingState.groupId = 'all';
+                equipmentMappingState.query = '';
+                equipmentMappingState.selectedId = null;
+                document.getElementById('mapping-search').value = '';
+                renderEquipmentMappingPanel();
+                renderGraph();
+            });
+            document.getElementById('mapping-confirmed-tab').addEventListener('click', () => {
+                equipmentMappingState.mode = 'confirmed';
+                equipmentMappingState.groupId = 'all';
+                equipmentMappingState.query = '';
+                document.getElementById('mapping-search').value = '';
+                equipmentMappingState.selectedId = null;
+                renderEquipmentMappingPanel();
+                renderGraph();
+            });
+            document.getElementById('mapping-pending-tab').addEventListener('click', () => {
+                equipmentMappingState.mode = 'pending';
+                equipmentMappingState.query = '';
+                document.getElementById('mapping-search').value = '';
+                equipmentMappingState.selectedId = null;
+                renderEquipmentMappingPanel();
+                renderGraph();
+            });
+            document.getElementById('mapping-search').addEventListener('input', event => {
+                equipmentMappingState.query = event.target.value;
+                renderEquipmentMappingPanel();
+                renderGraph();
+            });
+        }
+
         function setField(id, value, cls) {
             const el = document.getElementById(id);
             if (!el) return;
@@ -966,14 +1905,19 @@
         }
 
         function openPanel(node) {
-            document.getElementById('detail-panel').classList.add('open');
+            const panel = document.getElementById('detail-panel');
+            panel.classList.remove('mapping-panel');
+            panel.classList.add('open');
+            document.querySelector('.main-content').classList.remove('mapping-panel-open');
+            document.getElementById('panel-topbar-title').textContent = '信息视窗';
+            requestAnimationFrame(resizeOntologyGraph);
 
             // 节点名称
             document.getElementById('node-name').textContent = node.name || node.id;
 
             // 类型芯片
             const cat = node.category || 'Core';
-            const color = colorPalette[cat] || '#888';
+            const color = activeCategoryColors[cat] || colorPalette[cat] || '#888';
             const avatar = document.getElementById('type-chip-avatar');
             avatar.style.background = color;
             avatar.textContent = (categoryLabels[cat] || cat).charAt(0);
@@ -1030,14 +1974,24 @@
         }
 
         function closePanel() {
-            document.getElementById('detail-panel').classList.remove('open');
+            const panel = document.getElementById('detail-panel');
+            panel.classList.remove('open', 'mapping-panel');
+            document.querySelector('.main-content').classList.remove('mapping-panel-open');
             if (myChart) {
                 myChart.dispatchAction({ type: 'downplay' });
+                requestAnimationFrame(resizeOntologyGraph);
             }
         }
 
         // ── Tab Switching ──────────────────────────────
         let currentDataSource = 'demo';
+
+        function setLoadStatus(message = '', type = '') {
+            const status = document.getElementById('load-status');
+            if (!status) return;
+            status.textContent = message;
+            status.className = type ? `load-status ${type}` : 'load-status';
+        }
 
         function switchTab(tab) {
             const graphArea       = document.getElementById('graph-container');
@@ -1046,7 +2000,6 @@
             const subLoadData     = document.getElementById('sub-panel-loaddata');
             const btnDatasets     = document.getElementById('tab-datasets');
             const btnLoad         = document.getElementById('tab-loaddata');
-            const status          = document.getElementById('load-status');
             const backBtn         = document.getElementById('btn-back-to-workbench');
 
             // 隐藏图表，显示工作台卡片
@@ -1062,7 +2015,8 @@
             
             document.getElementById('publish-banner').style.display = 'none';
             document.getElementById('dataset-preview-banner').style.display = 'none';
-            document.getElementById('detail-panel').classList.remove('open');
+            document.getElementById('detail-panel').classList.remove('open', 'mapping-panel');
+            document.querySelector('.main-content').classList.remove('mapping-panel-open');
 
             if (tab === 'datasets') {
                 btnDatasets.classList.add('active');
@@ -1071,8 +2025,7 @@
             } else {
                 btnLoad.classList.add('active');
                 subLoadData.style.display = 'flex';
-                status.textContent = '';
-                status.className = 'load-status';
+                setLoadStatus();
             }
         }
 
@@ -1087,9 +2040,7 @@
             const csvPanel = document.getElementById('sub-panel-csv');
             const btnGraph = document.getElementById('sub-tab-graph');
             const btnCsv = document.getElementById('sub-tab-csv');
-            const status = document.getElementById('load-status');
-            status.textContent = '';
-            status.className = 'load-status';
+            setLoadStatus();
 
             const isGraph = (sub === 'graph');
             graphPanel.style.display = isGraph ? '' : 'none';
@@ -1165,11 +2116,11 @@
 
         // ── CSV Upload ──────────────────────────────
         async function handleCsvUpload() {
-            const status = document.getElementById('load-status');
             const btn = document.getElementById('csv-upload-btn');
-            status.textContent = '正在上传并解析 CSV 文件...';
-            status.className = 'load-status';
+            setLoadStatus('正在上传并解析 CSV 文件...');
             btn.disabled = true;
+            btn.textContent = '正在导入...';
+            btn.setAttribute('aria-busy', 'true');
 
             const formData = new FormData();
             for (const [name, file] of selectedFiles) {
@@ -1181,52 +2132,49 @@
                 const data = await res.json();
 
                 if (!res.ok) {
-                    status.textContent = '❌ ' + (data.error || '上传失败');
-                    status.className = 'load-status error';
-                    btn.disabled = false;
+                    setLoadStatus(data.error || '上传失败', 'error');
                     return;
                 }
 
-                status.textContent = `✅ 解析成功！共 ${data.node_count} 个节点, ${data.link_count} 条关系, ${data.category_count} 个分类`;
-                status.className = 'load-status success';
+                setLoadStatus(`解析成功：共 ${data.node_count} 个节点、${data.link_count} 条关系、${data.category_count} 个分类`, 'success');
 
                 // 切换到图谱视图并渲染
                 renderCustomGraph(data.graph_data);
             } catch (e) {
-                status.textContent = '❌ 网络或服务器错误: ' + e.message;
-                status.className = 'load-status error';
-                btn.disabled = false;
+                setLoadStatus('网络或服务器错误: ' + e.message, 'error');
+            } finally {
+                btn.textContent = '导入并预览图谱';
+                btn.disabled = REQUIRED.some(name => !selectedFiles.has(name));
+                btn.removeAttribute('aria-busy');
             }
         }
 
         // ── 本体图库直读（3.4：替代外部 API 拉取的首选项）──────────
         async function handleGraphLoad() {
-            const status = document.getElementById('load-status');
             const btn = document.getElementById('graph-load-btn');
-            status.textContent = '正在连接本体图库...';
-            status.className = 'load-status';
+            setLoadStatus('正在连接本体图库...');
             btn.disabled = true;
+            btn.textContent = '正在连接...';
+            btn.setAttribute('aria-busy', 'true');
 
             try {
                 const res = await fetch('/api/v2/ontology/graph_from_registry', { method: 'POST' });
                 const data = await res.json();
 
                 if (!res.ok) {
-                    status.textContent = data.error || '连接本体图库失败';
-                    status.className = 'load-status error';
-                    btn.disabled = false;
+                    setLoadStatus(data.error || '连接本体图库失败', 'error');
                     return;
                 }
 
-                status.textContent = `读取成功：共 ${data.node_count} 个节点、${data.link_count} 条关系`;
-                status.className = 'load-status success';
-                btn.disabled = false;
+                setLoadStatus(`读取成功：共 ${data.node_count} 个节点、${data.link_count} 条关系`, 'success');
 
                 renderCustomGraph(data.graph_data);
             } catch (e) {
-                status.textContent = '网络或服务器错误: ' + e.message;
-                status.className = 'load-status error';
+                setLoadStatus('网络或服务器错误: ' + e.message, 'error');
+            } finally {
+                btn.textContent = '连接本体图库并预览';
                 btn.disabled = false;
+                btn.removeAttribute('aria-busy');
             }
         }
 
@@ -1485,6 +2433,14 @@
         function renderCustomGraph(data, showBanner = true) {
             currentDataSource = 'custom';
             graphData = data;
+            equipmentMappingPanelInitialized = false;
+            equipmentMappingState.mode = 'confirmed';
+            equipmentMappingState.scopeId = 'all';
+            equipmentMappingState.groupId = 'all';
+            equipmentMappingState.selectedId = null;
+            equipmentMappingState.query = '';
+            equipmentMappingState.showAllBusiness = true;
+            document.getElementById('mapping-search').value = '';
 
             // 切换到图谱视图
             const graphArea = document.getElementById('graph-container');
@@ -1591,6 +2547,7 @@
         };
 
         // 启动：先隐藏 loading 遮罩，然后默认展示"我的数据集"面板
+        setupEquipmentMappingPanel();
         document.getElementById('loading').style.display = 'none';
         switchTab('datasets');
     </script>

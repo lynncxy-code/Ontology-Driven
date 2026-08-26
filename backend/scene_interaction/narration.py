@@ -241,7 +241,17 @@ def normalize_waypoint_narration(raw, current, effective_profile, errors, path):
 
     texts = split_text(text, breaks) if text else []
     digest = content_digest(text, breaks, effective_profile)
-    previous = current if isinstance(current, dict) and current.get("content_digest") == digest else {}
+    current_value = current if isinstance(current, dict) else {}
+    same_content = current_value.get("content_digest") == digest
+    current_segments = current_value.get("segments") or []
+    last_generation = current_value.get("last_generation") or {}
+    preserve_recorded_upload = (
+        mode in VOICE_MODES
+        and last_generation.get("provider_id") == "uploaded.recorded"
+        and len(current_segments) == 1
+        and len(texts) == 1
+    )
+    previous = current_value if same_content or preserve_recorded_upload else {}
     previous_by_order = {
         int(item.get("order") or 0): item for item in previous.get("segments") or []
         if isinstance(item, dict)
@@ -265,7 +275,10 @@ def normalize_waypoint_narration(raw, current, effective_profile, errors, path):
         }
         if (
             mode in VOICE_MODES
-            and previous_segment.get("text") == segment_text
+            and (
+                previous_segment.get("text") == segment_text
+                or preserve_recorded_upload
+            )
             and previous_segment.get("audio_asset_id")
             and previous_segment.get("audio_sha256")
         ):

@@ -7,7 +7,11 @@ BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 
-from realtime_channel import project_instance_realtime_channel
+from realtime_channel import (
+    enrich_instances_with_realtime_channel,
+    project_instance_liveness,
+    project_instance_realtime_channel,
+)
 from scene_interaction.validators import SceneInteractionValidationError, validate_runtime_status
 
 
@@ -20,6 +24,9 @@ def runtime_status(active_source="websocket", targets=None, online=True):
         "last_seen_at": "2026-07-17T00:00:00Z",
         "realtime_channel": {
             "enabled": True,
+            "stream_id": "metaverse.targets.primary",
+            "owner": "MetaverseClient",
+            "url": "ws://10.191.12.40:8080/ws/targets",
             "connection_state": "connected",
             "active_source": active_source,
             "last_frame_age_ms": 20,
@@ -59,12 +66,42 @@ class RealtimeChannelProjectionTests(unittest.TestCase):
         projected = project_instance_realtime_channel(AGV_ID, runtime_status(targets=[]))
         self.assertEqual("target_lost", projected["state"])
 
+    def test_static_instance_is_not_labelled_offline(self):
+        projected = project_instance_liveness("cad:display-case-04", None)
+        self.assertEqual("static", projected["mode"])
+        self.assertEqual("static", projected["state"])
+        self.assertEqual("静态实例", projected["label"])
+
+    def test_realtime_liveness_uses_channel_health(self):
+        projected = project_instance_liveness(AGV_ID, runtime_status(targets=[{
+            "instance_id": AGV_ID,
+            "state": "active",
+            "applied": True,
+        }]))
+        self.assertEqual("realtime", projected["mode"])
+        self.assertEqual("online", projected["state"])
+        self.assertEqual("实时在线", projected["label"])
+
+    def test_instance_projection_preserves_legacy_status(self):
+        projected = enrich_instances_with_realtime_channel([{
+            "id": "cad:display-case-04",
+            "status": "offline",
+        }], None)[0]
+        self.assertEqual("offline", projected["status"])
+        self.assertEqual("static", projected["liveness"]["state"])
+
     def test_runtime_validator_accepts_health_without_coordinates(self):
         normalized = validate_runtime_status({
             "runtime_state": "available",
             "realtime_channel": runtime_status()["realtime_channel"],
         })
         self.assertEqual("connected", normalized["realtime_channel"]["connection_state"])
+        self.assertEqual(
+            "ws://10.191.12.40:8080/ws/targets",
+            normalized["realtime_channel"]["url"],
+        )
+        self.assertEqual("metaverse.targets.primary", normalized["realtime_channel"]["stream_id"])
+        self.assertEqual("MetaverseClient", normalized["realtime_channel"]["owner"])
 
     def test_runtime_validator_rejects_target_coordinates(self):
         payload = runtime_status(targets=[{

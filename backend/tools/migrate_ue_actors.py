@@ -31,6 +31,7 @@ import re
 import json
 import csv
 import argparse
+import hashlib
 import uuid
 
 from project_store import ProjectStore, _default_raw_state, apply_instance_metadata   # ONTOTWIN_STORE=pg 时自动是 PG 版
@@ -157,6 +158,7 @@ def _build_migration_result(
     delete_actor_guids,
     legacy_actor_mapping=None,
     blocked_actors=None,
+    replacement=None,
 ):
     """Build the canonical result while retaining legacy top-level GUID lookups."""
     instance_mapping = dict(instances)
@@ -166,11 +168,87 @@ def _build_migration_result(
         "delete_actor_guids": list(delete_actor_guids),
         "blocked_actors": list(blocked_actors or []),
     }
+    if replacement:
+        document["replacement"] = dict(replacement)
     # Legacy UE code enumerates root GUID keys to delete migrated actors. UUID keys
     # cannot collide with the reserved schema keys, so aliases for mother and child
     # actors are safe and let old projects consume the upgraded result during rollout.
     document.update(dict(legacy_actor_mapping or instance_mapping))
     return document
+
+
+def _instance_ids_hash(instance_ids):
+    payload = "\n".join(sorted(instance_ids)).encode("utf-8")
+    return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+
+def _apply_declared_replacement(payload, insts, instance_mapping, stats, delete_actor_guids):
+    """Validate and stage an exact old-assembly/new-singleton atomic swap."""
+    declaration = payload.get("replacement")
+    if not isinstance(declaration, dict):
+        raise SystemExit("--replace-declared-in-input requires a replacement object")
+    old_ids = list(declaration.get("old_instance_ids") or [])
+    container_guids = [
+        str(value or "").strip()
+        for value in declaration.get("source_container_guids") or []
+    ]
+    expected_old = int(declaration.get("expected_old_instance_count") or 0)
+    expected_new = int(declaration.get("expected_new_instance_count") or 0)
+    expected_delete = int(declaration.get("expected_delete_actor_guid_count") or 0)
+    if len(old_ids) != expected_old or len(set(old_ids)) != expected_old:
+        raise SystemExit("replacement old_instance_ids count/uniqueness check failed")
+    if len(container_guids) != expected_old or len(set(container_guids)) != expected_old:
+        raise SystemExit("replacement source_container_guids count/uniqueness check failed")
+    if len(instance_mapping) != expected_new:
+        raise SystemExit(
+            f"replacement expected {expected_new} migrated instances, got {len(instance_mapping)}"
+        )
+    new_ids = list(instance_mapping.values())
+    if len(set(new_ids)) != expected_new:
+        raise SystemExit("replacement generated duplicate instance IDs")
+    expected_hash = declaration.get("new_instance_ids_hash") or ""
+    actual_hash = _instance_ids_hash(new_ids)
+    if not expected_hash or expected_hash != actual_hash:
+        raise SystemExit(
+            f"replacement instance-ID hash mismatch: expected {expected_hash}, got {actual_hash}"
+        )
+    if any(stats.get(key, 0) for key in ("blocked", "skipped", "legacy")):
+        raise SystemExit("replacement refused because migration has blocked/skipped/legacy actors")
+    missing_old = [instance_id for instance_id in old_ids if instance_id not in insts]
+    if missing_old:
+        raise SystemExit(f"replacement old instances are missing: {missing_old}")
+    if set(old_ids) & set(new_ids):
+        raise SystemExit("replacement old and new instance IDs overlap")
+    actual_container_guids = {
+        str((insts[instance_id] or {}).get("ext_guid") or "").strip()
+        for instance_id in old_ids
+    }
+    if actual_container_guids != set(container_guids):
+        raise SystemExit(
+            "replacement source container GUIDs do not match existing old instances"
+        )
+
+    cleanup = list(delete_actor_guids)
+    cleanup_seen = set(cleanup)
+    for guid in container_guids:
+        if guid and guid not in cleanup_seen:
+            cleanup_seen.add(guid)
+            cleanup.append(guid)
+    if len(cleanup) != expected_delete:
+        raise SystemExit(
+            f"replacement expected {expected_delete} cleanup GUIDs, got {len(cleanup)}"
+        )
+    for instance_id in old_ids:
+        insts.pop(instance_id)
+    stats["replaced"] = len(old_ids)
+    return cleanup, {
+        "applied": True,
+        "old_instance_ids": old_ids,
+        "old_instance_count": len(old_ids),
+        "new_instance_count": len(new_ids),
+        "new_instance_ids_hash": actual_hash,
+        "delete_actor_guid_count": len(cleanup),
+    }
 
 
 def _unsupported_components(actor):
@@ -279,6 +357,7 @@ def migrate(
     classification_csv=None,
     dry_run=False,
     allow_unsupported=False,
+    replace_declared=False,
 ):
     # 仅当运行时后端是 PG 时才要求 PG 可达（跟随 ONTOTWIN_STORE，与运行中后端一致，
     # 避免"迁移写 PG、运行时读 JSON"的双真源劈叉）
@@ -347,6 +426,7 @@ def migrate(
         "legacy": 0,
         "skipped": 0,
         "blocked": 0,
+        "replaced": 0,
     }
     need_legacy = False
 
@@ -472,6 +552,16 @@ def migrate(
             ]
             active_proj["dataset"]["node_count"] = len(graph_data.get("nodes") or [])
 
+    replacement_result = None
+    if replace_declared:
+        delete_actor_guids, replacement_result = _apply_declared_replacement(
+            payload,
+            insts,
+            instance_mapping,
+            stats,
+            delete_actor_guids,
+        )
+
     print("拟迁移统计:", stats, "| Legacy 桶:", "新建" if (need_legacy and LEGACY_RID not in store.get_object_types()) else "复用/无")
 
     result = _build_migration_result(
@@ -479,6 +569,7 @@ def migrate(
         delete_actor_guids,
         legacy_actor_mapping,
         blocked_actors,
+        replacement_result,
     )
 
     if dry_run:
@@ -510,6 +601,11 @@ if __name__ == "__main__":
         action="store_true",
         help="显式允许迁移含不支持组件/负缩放的组合；默认阻止并排除出清理名单",
     )
+    ap.add_argument(
+        "--replace-declared-in-input",
+        action="store_true",
+        help="原子替换经过拆分清单声明并通过校验的旧实例",
+    )
     args = ap.parse_args()
     migrate(
         args.input,
@@ -517,4 +613,5 @@ if __name__ == "__main__":
         args.classification_csv,
         args.dry_run,
         args.allow_unsupported,
+        args.replace_declared_in_input,
     )

@@ -14,10 +14,18 @@ GROUND_MESH_PATH = f"{GROUND_ROOT}/SkeletonIK/SK_Charactor"
 GROUND_ANIM_BP_PATH = f"{GROUND_ROOT}/SkeletonIK/myAnimBlueprint"
 GROUND_GRAY_PATH = f"{GROUND_ROOT}/CharacterMaterial/gray"
 GROUND_GREEN_PATH = f"{GROUND_ROOT}/CharacterMaterial/green"
+QUINN_MESH_PATH = f"{GROUND_ROOT}/Meshes/SKM_Quinn_Simple"
+QUINN_ANIM_BP_PATH = (
+    f"{GROUND_ROOT}/Mannequin/Mannequins/Animations/ABP_Quinn"
+)
+QUINN_WALK_PATH = (
+    f"{GROUND_ROOT}/Mannequin/Mannequins/Animations/Quinn/MF_Walk_Fwd"
+)
 
 MANNY_ROOT = "/Game/Characters/Mannequins"
 MANNY_MESH_PATH = f"{MANNY_ROOT}/Meshes/SKM_Manny_Simple"
 MANNY_ANIM_BP_PATH = f"{MANNY_ROOT}/Anims/Unarmed/ABP_Unarmed"
+MANNY_WALK_PATH = f"{MANNY_ROOT}/Anims/Unarmed/Walk/MF_Unarmed_Walk_Fwd"
 
 
 def fail(message):
@@ -65,6 +73,7 @@ def configure_character(
     anim_class,
     animation_source_mesh=None,
     animation_source_anim_class=None,
+    auto_route_animation=None,
 ):
     asset.set_editor_property("base_mesh", mesh)
     asset.set_editor_property("anim_instance_class", anim_class)
@@ -72,7 +81,8 @@ def configure_character(
     asset.set_editor_property(
         "animation_source_anim_instance_class", animation_source_anim_class
     )
-    asset.set_editor_property("auto_route_animation", None)
+    asset.set_editor_property("auto_route_animation", auto_route_animation)
+    asset.set_editor_property("auto_route_animation_reference_speed_cm_s", 180.0)
     asset.set_editor_property("capsule_radius_cm", 34.0)
     asset.set_editor_property("capsule_half_height_cm", 88.0)
     asset.set_editor_property("mesh_offset_cm", unreal.Vector(0.0, 0.0, -88.0))
@@ -85,6 +95,20 @@ ground_gray = load_required_asset(GROUND_GRAY_PATH, "Ground Staff gray material"
 ground_green = load_required_asset(GROUND_GREEN_PATH, "Ground Staff green material")
 manny_mesh = load_required_asset(MANNY_MESH_PATH, "Manny mesh")
 manny_anim_class = load_required_anim_class(MANNY_ANIM_BP_PATH, "Manny animation")
+quinn_mesh = load_required_asset(QUINN_MESH_PATH, "project Quinn source mesh")
+quinn_anim_class = load_required_anim_class(
+    QUINN_ANIM_BP_PATH, "project Quinn animation"
+)
+quinn_walk = load_required_asset(QUINN_WALK_PATH, "project Quinn walk animation")
+manny_walk = load_required_asset(MANNY_WALK_PATH, "Manny walk animation")
+if quinn_mesh.get_editor_property("skeleton") != quinn_walk.get_editor_property(
+    "skeleton"
+):
+    fail("Project Quinn source mesh and route animation use different Skeleton assets")
+if manny_mesh.get_editor_property("skeleton") != manny_walk.get_editor_property(
+    "skeleton"
+):
+    fail("Manny mesh and route animation use different Skeleton assets")
 
 ground_slots = ground_mesh.get_editor_property("materials")
 uniform_indices = []
@@ -105,15 +129,29 @@ if not character_class or not skin_class:
     fail("OntoTwinSync data asset classes could not be loaded")
 
 characters = []
-for asset_name, mesh, anim_class, source_mesh, source_anim_class in (
-    # myAnimBlueprint is a Retarget Pose From Mesh graph. It needs a hidden
-    # animated Manny parent; without this source the Ground Staff mesh stays in
-    # its reference pose while the character capsule moves (visible "sliding").
-    ("ObserverBase", ground_mesh, ground_anim_class, manny_mesh, manny_anim_class),
-    ("MannyRobot", manny_mesh, manny_anim_class, None, None),
+for asset_name, mesh, anim_class, source_mesh, source_anim_class, route_animation in (
+    # myAnimBlueprint is a Retarget Pose From Mesh graph. It needs the matching
+    # project Quinn source. MF_Walk_Fwd is played on that hidden source while an
+    # automatic route owns movement.
+    (
+        "ObserverBase",
+        ground_mesh,
+        ground_anim_class,
+        quinn_mesh,
+        quinn_anim_class,
+        quinn_walk,
+    ),
+    ("MannyRobot", manny_mesh, manny_anim_class, None, None, manny_walk),
 ):
     asset, created = create_or_load_data_asset(asset_name, CHARACTER_DIR, character_class)
-    configure_character(asset, mesh, anim_class, source_mesh, source_anim_class)
+    configure_character(
+        asset,
+        mesh,
+        anim_class,
+        source_mesh,
+        source_anim_class,
+        route_animation,
+    )
     if not unreal.EditorAssetLibrary.save_loaded_asset(asset, only_if_is_dirty=False):
         fail(f"Could not save {asset_name}")
     characters.append(
@@ -128,6 +166,7 @@ for asset_name, mesh, anim_class, source_mesh, source_anim_class in (
             "animation_source_anim_class": (
                 source_anim_class.get_path_name() if source_anim_class else ""
             ),
+            "auto_route_animation": route_animation.get_path_name(),
         }
     )
 

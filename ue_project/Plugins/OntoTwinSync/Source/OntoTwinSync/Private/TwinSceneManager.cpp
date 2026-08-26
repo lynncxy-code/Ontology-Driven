@@ -11,6 +11,7 @@
 // ============================================================================
 
 #include "TwinSceneManager.h"
+#include "Realtime/OntoTwinRealtimeStreamProvider.h"
 #include "UEAssetCatalogSyncComponent.h"
 #include "OntoTwinModelLoadingWidget.h"
 #include "OntoTwinRuntimeEditorPanel.h"
@@ -288,6 +289,19 @@ void ATwinSceneManager::BeginPlay()
 
     if (bEnableRuntimeEditor)
     {
+        bRuntimeEditSelfTestRequested = FParse::Param(
+            FCommandLine::Get(), TEXT("OntoTwinRuntimeEditSelfTest"));
+        bRuntimeEditSelfTestQuit = FParse::Param(
+            FCommandLine::Get(), TEXT("OntoTwinRuntimeEditSelfTestQuit"));
+        FParse::Value(
+            FCommandLine::Get(),
+            TEXT("OntoTwinRuntimeEditSelfTestExpectedInstances="),
+            RuntimeEditSelfTestExpectedInstances);
+        FParse::Value(
+            FCommandLine::Get(),
+            TEXT("OntoTwinRuntimeEditSelfTestExpectedTypes="),
+            RuntimeEditSelfTestExpectedTypes);
+        RuntimeEditSelfTestStartSeconds = FPlatformTime::Seconds();
         APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
         if (PC)
         {
@@ -371,6 +385,10 @@ void ATwinSceneManager::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
     TickRuntimeEditor(DeltaTime);
+    if (bRuntimeEditSelfTestRequested && !bRuntimeEditSelfTestComplete)
+    {
+        RunRuntimeEditSelfTest();
+    }
     TickOverlays();
 }
 
@@ -1651,7 +1669,7 @@ void ATwinSceneManager::CompleteInitialModelBaseline(const int32 Total)
         ModelLoadingDismissTimer,
         this,
         &ATwinSceneManager::DismissModelLoadingWidget,
-        0.45f,
+        1.65f,
         false);
 }
 
@@ -2048,6 +2066,60 @@ void ATwinSceneManager::OnIncrementalPollResponse(
     }
 }
 
+void ATwinSceneManager::ApplyRealtimeWebSocketEnabled(bool bEnabled)
+{
+    bool bHandledByExternalProvider = false;
+    const TArray<IOntoTwinRealtimeStreamProvider*> Providers =
+        IModularFeatures::Get().GetModularFeatureImplementations<IOntoTwinRealtimeStreamProvider>(
+            IOntoTwinRealtimeStreamProvider::GetModularFeatureName());
+    for (IOntoTwinRealtimeStreamProvider* Provider : Providers)
+    {
+        if (Provider && Provider->GetRealtimeStreamWorld() == GetWorld())
+        {
+            Provider->ApplyRealtimeStreamEnabled(bEnabled);
+            bHandledByExternalProvider = true;
+        }
+    }
+    if (bHandledByExternalProvider)
+    {
+        return;
+    }
+
+    if (bRealtimeClosing || bEnableRealtimeWebSocket == bEnabled)
+    {
+        return;
+    }
+
+    bEnableRealtimeWebSocket = bEnabled;
+    GetWorldTimerManager().ClearTimer(RealtimeReconnectTimerHandle);
+    bRealtimeReconnectScheduled = false;
+    ++RealtimeConnectionGeneration;
+
+    if (!bEnabled)
+    {
+        if (RealtimeSocket.IsValid())
+        {
+            if (RealtimeSocket->IsConnected())
+            {
+                RealtimeSocket->Close();
+            }
+            RealtimeSocket.Reset();
+        }
+        RealtimeConnectionState = TEXT("disabled");
+        RealtimeLastError.Empty();
+        UE_LOG(LogTemp, Log,
+            TEXT("[OntoTwinWS] 外部数据监控台已关闭实时流；HTTP 快照继续运行"));
+        return;
+    }
+
+    if (!FModuleManager::Get().IsModuleLoaded(TEXT("WebSockets")))
+    {
+        FModuleManager::Get().LoadModule(TEXT("WebSockets"));
+    }
+    UE_LOG(LogTemp, Log, TEXT("[OntoTwinWS] 外部数据监控台已开启实时流"));
+    ConnectRealtimeWebSocket();
+}
+
 void ATwinSceneManager::ConnectRealtimeWebSocket()
 {
     if (bRealtimeClosing)
@@ -2238,8 +2310,22 @@ void ATwinSceneManager::HandleRealtimeMessage(const FString& Message)
 
 TSharedRef<FJsonObject> ATwinSceneManager::BuildRealtimeChannelHealth() const
 {
+    const TArray<IOntoTwinRealtimeStreamProvider*> Providers =
+        IModularFeatures::Get().GetModularFeatureImplementations<IOntoTwinRealtimeStreamProvider>(
+            IOntoTwinRealtimeStreamProvider::GetModularFeatureName());
+    for (IOntoTwinRealtimeStreamProvider* Provider : Providers)
+    {
+        if (Provider && Provider->GetRealtimeStreamWorld() == GetWorld())
+        {
+            return Provider->BuildRealtimeStreamHealth();
+        }
+    }
+
     const TSharedRef<FJsonObject> Health = MakeShared<FJsonObject>();
     Health->SetBoolField(TEXT("enabled"), bEnableRealtimeWebSocket);
+    Health->SetStringField(TEXT("stream_id"), TEXT("ontotwin.instances.primary"));
+    Health->SetStringField(TEXT("owner"), TEXT("OntoTwinSync"));
+    Health->SetStringField(TEXT("url"), RealtimeWebSocketUrl);
     Health->SetStringField(TEXT("connection_state"),
         bEnableRealtimeWebSocket ? RealtimeConnectionState : TEXT("disabled"));
 
@@ -2329,6 +2415,8 @@ ATwinInstance* ATwinSceneManager::SpawnTwinInstance(
 
     // ── 解析 asset_id（UE 内容路径） ─────────────────────────────────────
     FString AssetPathStr;
+    FString ContainerBlueprintPath;
+    FString ContainerSlot = TEXT("primary");
     const TSharedPtr<FJsonObject>* InterfacesObj;
     if (Snapshot->TryGetObjectField(TEXT("interfaces"), InterfacesObj))
     {
@@ -2336,6 +2424,14 @@ ATwinInstance* ATwinSceneManager::SpawnTwinInstance(
         if ((*InterfacesObj)->TryGetObjectField(TEXT("I3D_Representable"), RepObj))
         {
             (*RepObj)->TryGetStringField(TEXT("asset_id"), AssetPathStr);
+            (*RepObj)->TryGetStringField(
+                TEXT("container_blueprint_id"),
+                ContainerBlueprintPath);
+            (*RepObj)->TryGetStringField(TEXT("container_slot"), ContainerSlot);
+            if (ContainerSlot.IsEmpty())
+            {
+                ContainerSlot = TEXT("primary");
+            }
         }
     }
 
@@ -2383,6 +2479,7 @@ ATwinInstance* ATwinSceneManager::SpawnTwinInstance(
     Inst->SetActorLabel(DisplayName);
 #endif
     Inst->Tags.Add(FName(*InstanceId));
+    Inst->TwinDisplayName = DisplayName;
 
     // ── 放入世界大纲特定文件夹下 ─────────────────────────────────────────
 #if WITH_EDITOR
@@ -2390,7 +2487,12 @@ ATwinInstance* ATwinSceneManager::SpawnTwinInstance(
 #endif
 
     // ── 初始化孪生实例 ───────────────────────────────────────────────────
-    Inst->InitializeTwin(InstanceId, AssetPathStr, BackendBaseUrl);
+    Inst->InitializeTwin(
+        InstanceId,
+        AssetPathStr,
+        BackendBaseUrl,
+        ContainerBlueprintPath,
+        ContainerSlot);
 
     // ── 首次应用快照 ─────────────────────────────────────────────────────
     Inst->ApplySnapshot(Snapshot);
@@ -3584,7 +3686,8 @@ bool ATwinSceneManager::TraceRuntimeCursor(FHitResult& OutHit) const
 
     FVector RayOrigin = FVector::ZeroVector;
     FVector RayDirection = FVector::ForwardVector;
-    if (PC->DeprojectMousePositionToWorld(RayOrigin, RayDirection) &&
+    const bool bHasCursorRay = PC->DeprojectMousePositionToWorld(RayOrigin, RayDirection);
+    if (bHasCursorRay &&
         RuntimeSelectedInstance && IsValid(RuntimeSelectedInstance) &&
         RuntimeGizmo && IsValid(RuntimeGizmo))
     {
@@ -3610,7 +3713,215 @@ bool ATwinSceneManager::TraceRuntimeCursor(FHitResult& OutHit) const
         }
     }
 
-    return PC->GetHitResultUnderCursor(ECC_Visibility, false, OutHit);
+    if (!PC->GetHitResultUnderCursor(ECC_Visibility, false, OutHit))
+    {
+        return false;
+    }
+
+    // A migration preview can temporarily contain a legacy source actor at
+    // exactly the same transform as its database-driven TwinInstance. The
+    // legacy component may win the single Visibility trace, which used to
+    // clear the F8 selection even though the Twin was directly underneath it.
+    // Look through only a very shallow stack of identical meshes. The strict
+    // distance and mesh checks prevent selecting an unrelated Twin behind a
+    // normal scene occluder.
+    if (!bHasCursorRay
+        || ResolveTwinInstanceActor(OutHit.GetActor())
+        || (RuntimeGizmo && OutHit.GetActor() == RuntimeGizmo))
+    {
+        return true;
+    }
+
+    const UStaticMeshComponent* PrimaryMeshComponent =
+        Cast<UStaticMeshComponent>(OutHit.GetComponent());
+    UStaticMesh* PrimaryMesh = PrimaryMeshComponent
+        ? PrimaryMeshComponent->GetStaticMesh()
+        : nullptr;
+    AActor* PrimaryActor = OutHit.GetActor();
+    if (!PrimaryActor || !PrimaryMesh)
+    {
+        return true;
+    }
+
+    constexpr float CoincidentTwinToleranceCm = 5.0f;
+    FCollisionQueryParams FallbackParams(
+        SCENE_QUERY_STAT(OntoTwinRuntimeCoincidentSourceFallback), true);
+    FallbackParams.AddIgnoredActor(this);
+    FallbackParams.AddIgnoredActor(PrimaryActor);
+    if (RuntimeGizmo && IsValid(RuntimeGizmo))
+    {
+        FallbackParams.AddIgnoredActor(RuntimeGizmo);
+    }
+
+    const float PrimaryDistance = OutHit.Distance;
+    for (int32 Depth = 0; Depth < 8; ++Depth)
+    {
+        FHitResult FallbackHit;
+        if (!World->LineTraceSingleByChannel(
+            FallbackHit,
+            RayOrigin,
+            RayOrigin + RayDirection * 1000000.0f,
+            ECC_Visibility,
+            FallbackParams))
+        {
+            break;
+        }
+
+        if (FallbackHit.Distance - PrimaryDistance > CoincidentTwinToleranceCm)
+        {
+            break;
+        }
+
+        if (ATwinInstance* FallbackInstance =
+            ResolveTwinInstanceActor(FallbackHit.GetActor()))
+        {
+            const UStaticMeshComponent* FallbackMeshComponent =
+                Cast<UStaticMeshComponent>(FallbackHit.GetComponent());
+            if (FallbackMeshComponent
+                && FallbackMeshComponent->GetStaticMesh() == PrimaryMesh)
+            {
+                OutHit = FallbackHit;
+                return true;
+            }
+        }
+
+        AActor* FallbackActor = FallbackHit.GetActor();
+        if (!FallbackActor)
+        {
+            break;
+        }
+        FallbackParams.AddIgnoredActor(FallbackActor);
+    }
+    return true;
+}
+
+void ATwinSceneManager::RunRuntimeEditSelfTest()
+{
+    if (!bInitialModelBaselineReady)
+    {
+        return;
+    }
+
+    const double ElapsedSeconds = FPlatformTime::Seconds() - RuntimeEditSelfTestStartSeconds;
+    const int32 RegistryCount = InstanceRegistry.Num();
+    if (RuntimeEditSelfTestExpectedInstances >= 0
+        && RegistryCount != RuntimeEditSelfTestExpectedInstances)
+    {
+        if (ElapsedSeconds < 12.0)
+        {
+            return;
+        }
+        bRuntimeEditSelfTestComplete = true;
+        UE_LOG(LogTemp, Error,
+            TEXT("ONTOTWIN_RUNTIME_EDIT_SELFTEST success=false reason=instance_count expected=%d actual=%d"),
+            RuntimeEditSelfTestExpectedInstances,
+            RegistryCount);
+        if (bRuntimeEditSelfTestQuit) FGenericPlatformMisc::RequestExit(false);
+        return;
+    }
+
+    TMap<FString, ATwinInstance*> SampleByType;
+    int32 InvalidInstanceCount = 0;
+    for (const TPair<FString, ATwinInstance*>& Pair : InstanceRegistry)
+    {
+        ATwinInstance* Instance = Pair.Value;
+        if (!Instance || !IsValid(Instance) || !Instance->IsRuntimeLoaded()
+            || Instance->GetRenderPartComponentCount() != 1
+            || !Instance->IsAssemblyRenderActive())
+        {
+            ++InvalidInstanceCount;
+            continue;
+        }
+        const FString TypeName = Instance->GetTwinObjectTypeName();
+        if (!TypeName.IsEmpty() && !SampleByType.Contains(TypeName))
+        {
+            SampleByType.Add(TypeName, Instance);
+        }
+    }
+
+    bool bSuccess = InvalidInstanceCount == 0;
+    if (RuntimeEditSelfTestExpectedTypes >= 0)
+    {
+        bSuccess = bSuccess && SampleByType.Num() == RuntimeEditSelfTestExpectedTypes;
+    }
+    if (SampleByType.Num() == 0)
+    {
+        bSuccess = false;
+    }
+
+    EnterRuntimeEditMode();
+    bSuccess = bSuccess && bRuntimeEditMode;
+    int32 TestedTypes = 0;
+    float MaxPivotErrorCm = 0.0f;
+    for (const TPair<FString, ATwinInstance*>& Sample : SampleByType)
+    {
+        ATwinInstance* Instance = Sample.Value;
+        if (!Instance || !IsValid(Instance))
+        {
+            bSuccess = false;
+            continue;
+        }
+
+        ATwinInstance* Neighbor = nullptr;
+        for (const TPair<FString, ATwinInstance*>& Candidate : InstanceRegistry)
+        {
+            if (Candidate.Value && Candidate.Value != Instance && IsValid(Candidate.Value))
+            {
+                Neighbor = Candidate.Value;
+                break;
+            }
+        }
+        if (!Neighbor)
+        {
+            bSuccess = false;
+            continue;
+        }
+
+        const FTransform Baseline = Instance->GetActorTransform();
+        const FTransform NeighborBaseline = Neighbor->GetActorTransform();
+        const FBox RepresentationBounds = Instance->GetRepresentationWorldBounds(true);
+        SelectRuntimeInstance(Instance, false);
+        const bool bSelected = RuntimeSelectedInstances.Num() == 1
+            && RuntimeSelectedInstance == Instance;
+        const bool bGizmoReady = RuntimeGizmo && IsValid(RuntimeGizmo)
+            && RuntimeGizmo->IsGizmoEnabled();
+        const float PivotErrorCm = RepresentationBounds.IsValid && bGizmoReady
+            ? FVector::Distance(RuntimeGizmo->GetActorLocation(), RepresentationBounds.GetCenter())
+            : TNumericLimits<float>::Max();
+        MaxPivotErrorCm = FMath::Max(MaxPivotErrorCm, PivotErrorCm);
+
+        const FVector TestDelta(10.0f, 0.0f, 0.0f);
+        Instance->SetActorLocation(Baseline.GetLocation() + TestDelta);
+        UpdateRuntimeSelectionGeometry();
+        const bool bSelectedMoved = Instance->GetActorLocation().Equals(
+            Baseline.GetLocation() + TestDelta, 0.01f);
+        const bool bNeighborStayed = Neighbor->GetActorTransform().Equals(
+            NeighborBaseline, 0.01f);
+        ClearRuntimeSelection(true);
+        const bool bRestored = Instance->GetActorTransform().Equals(Baseline, 0.01f);
+
+        bSuccess = bSuccess && bSelected && bGizmoReady
+            && PivotErrorCm <= 1.0f && bSelectedMoved && bNeighborStayed && bRestored;
+        ++TestedTypes;
+    }
+
+    if (bRuntimeEditMode)
+    {
+        FinishExitRuntimeEditMode();
+    }
+    bRuntimeEditSelfTestComplete = true;
+    UE_LOG(LogTemp, Display,
+        TEXT("ONTOTWIN_RUNTIME_EDIT_SELFTEST success=%s instances=%d types=%d tested_types=%d invalid_instances=%d max_pivot_error_cm=%.3f"),
+        bSuccess ? TEXT("true") : TEXT("false"),
+        RegistryCount,
+        SampleByType.Num(),
+        TestedTypes,
+        InvalidInstanceCount,
+        MaxPivotErrorCm);
+    if (bRuntimeEditSelfTestQuit)
+    {
+        FGenericPlatformMisc::RequestExit(false);
+    }
 }
 
 bool ATwinSceneManager::GetRuntimeCursorPointOnPlane(const FPlane& Plane, FVector& OutPoint) const
@@ -4924,6 +5235,54 @@ FString ATwinSceneManager::GetRuntimeEditorDisplayName() const
 
     const FString DisplayName = RuntimeSelectedInstance->GetTwinDisplayName();
     return TruncateRuntimeLabel(DisplayName.IsEmpty() ? TEXT("孪生实例") : DisplayName, 34);
+}
+
+FString ATwinSceneManager::GetRuntimeEditorDisplayNameRaw() const
+{
+    return GetRuntimeEditSelectionCount() == 1 && RuntimeSelectedInstance
+        ? RuntimeSelectedInstance->GetTwinDisplayName()
+        : FString();
+}
+
+FString ATwinSceneManager::GetRuntimeEditorTypeName() const
+{
+    const int32 SelectionCount = GetRuntimeEditSelectionCount();
+    if (SelectionCount == 0)
+    {
+        return TEXT("-");
+    }
+    if (SelectionCount > 1)
+    {
+        FString CommonTypeName;
+        bool bHasCommonTypeName = false;
+        for (const ATwinInstance* Instance : RuntimeSelectedInstances)
+        {
+            if (!Instance || !IsValid(Instance)) continue;
+            const FString& TypeName = Instance->GetTwinObjectTypeName();
+            if (!bHasCommonTypeName)
+            {
+                CommonTypeName = TypeName;
+                bHasCommonTypeName = true;
+            }
+            else if (!CommonTypeName.Equals(TypeName, ESearchCase::CaseSensitive))
+            {
+                return TEXT("多个类型");
+            }
+        }
+        return CommonTypeName.IsEmpty()
+            ? TEXT("类型未知")
+            : TruncateRuntimeLabel(CommonTypeName, 34);
+    }
+
+    const FString& TypeName = RuntimeSelectedInstance->GetTwinObjectTypeName();
+    return TruncateRuntimeLabel(TypeName.IsEmpty() ? TEXT("类型未知") : TypeName, 34);
+}
+
+FString ATwinSceneManager::GetRuntimeEditorTypeNameRaw() const
+{
+    return GetRuntimeEditSelectionCount() == 1 && RuntimeSelectedInstance
+        ? RuntimeSelectedInstance->GetTwinObjectTypeName()
+        : FString();
 }
 
 FString ATwinSceneManager::GetRuntimeEditorInstanceIdText() const
@@ -6318,6 +6677,8 @@ int32 ATwinSceneManager::SpawnPreviewActorsFromJson(
         }
 
         FString AssetPathStr;
+        FString ContainerBlueprintPath;
+        FString ContainerSlot = TEXT("primary");
         FString ExpectedAssemblySignature;
         int32 ExpectedPartCount = 0;
         bool bExpectedOverallVisible = true;
@@ -6329,6 +6690,14 @@ int32 ATwinSceneManager::SpawnPreviewActorsFromJson(
             if ((*InterfacesObj)->TryGetObjectField(TEXT("I3D_Representable"), RepObj))
             {
                 (*RepObj)->TryGetStringField(TEXT("asset_id"), AssetPathStr);
+                (*RepObj)->TryGetStringField(
+                    TEXT("container_blueprint_id"),
+                    ContainerBlueprintPath);
+                (*RepObj)->TryGetStringField(TEXT("container_slot"), ContainerSlot);
+                if (ContainerSlot.IsEmpty())
+                {
+                    ContainerSlot = TEXT("primary");
+                }
                 (*RepObj)->TryGetStringField(
                     TEXT("assembly_signature"), ExpectedAssemblySignature);
                 (*RepObj)->TryGetBoolField(
@@ -6363,8 +6732,14 @@ int32 ATwinSceneManager::SpawnPreviewActorsFromJson(
             DisplayName = InstId;
         }
         Inst->SetActorLabel(FString::Printf(TEXT("[预览] %s"), *DisplayName));
+        Inst->TwinDisplayName = DisplayName;
         Inst->SetFolderPath(BuildTwinFolderPath(*SnapObj, TEXT("TwinPreview")));
-        Inst->InitializeTwin(InstId, AssetPathStr, BackendBaseUrl);
+        Inst->InitializeTwin(
+            InstId,
+            AssetPathStr,
+            BackendBaseUrl,
+            ContainerBlueprintPath,
+            ContainerSlot);
         Inst->ApplySnapshot(*SnapObj);   // 应用位置/材质等，摆到正确位置
 
         const int32 ActualPartCount = Inst->GetRenderPartComponentCount();

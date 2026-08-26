@@ -16,6 +16,7 @@ services:
       - ARTSTUDIO_BASE_URL=${ARTSTUDIO_BASE_URL:-https://artstudio.digioasis.tech/api}
       - ARTSTUDIO_TIMEOUT=${ARTSTUDIO_TIMEOUT:-5}
       - ARTSTUDIO_TOKEN=${ARTSTUDIO_TOKEN:-}
+      - ARTSTUDIO_UPLOAD_MAX_MB=${ARTSTUDIO_UPLOAD_MAX_MB:-500}
       # 4.0.3 路线解说：只在编辑人员显式生成语音时调用阿里云；密钥仅放本机 .env。
       - ONTOTWIN_TTS_PROVIDER=${ONTOTWIN_TTS_PROVIDER:-alibaba}
       - ONTOTWIN_TTS_ALIBABA_APPKEY=${ONTOTWIN_TTS_ALIBABA_APPKEY:-}

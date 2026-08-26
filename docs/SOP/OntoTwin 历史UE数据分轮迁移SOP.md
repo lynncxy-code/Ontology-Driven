@@ -1,20 +1,21 @@
 # OntoTwin 历史 UE 数据分轮迁移 SOP
 
-> 版本：1.0  
-> 更新日期：2026-07-24  
-> 适用范围：将既有 Unreal Engine 场景中的历史 Actor，按业务目录、模型类型和装配实例迁入 OntoTwin 已有项目数据库，并安全删除已迁移的 UE 源 Actor。  
-> 基准案例：ZHHZ 项目三轮迁移。本文以其路径和数量作为示例，但每一轮必须重新计算门禁值，不得照抄历史数字。
+> 版本：1.2
+> 更新日期：2026-08-21
+> 适用范围：将既有 Unreal Engine 场景中的历史 Actor，按业务目录、模型类型和装配实例迁入 OntoTwin 已有项目数据库；也适用于新 UE 工程首次接入插件、人物包、运行锚点和 PIE 验收。
+> 基准案例：ZHHZ 项目三轮迁移与 SF_HN 首次接入/纠偏。本文以其路径和数量作为示例，但每一轮必须重新计算门禁值，不得照抄历史数字。
 
 ## 1. 目的
 
 本 SOP 用于让 UE 操作员、开发人员或其他 AI 按同一套可审计流程执行大规模迁移，确保：
 
-1. 一个“母 Actor”对应一个业务实例，而不是把其下每个 `StaticMeshActor` 都拆成实例。
+1. 先判断物理对象边界：业务装配母 Actor 对应一个实例；仅用于整理大纲、内部包含多件重复街具的组织 Group 必须拆成多实例。
 2. 模型不同则定义为不同 ObjectType；同一模型的多个母 Actor 共享一个 ObjectType。
 3. 业务目录 `hierarchy_path` 与模型类型 ObjectType 分开管理。
 4. 迁移先预览、后写库，再由人工在 UE 中验收，最后才清理源 Actor。
 5. 数据库、迁移结果文件、UE 关卡保存状态能够相互核对并可以回滚。
 6. 每一轮都产出独立审计文件，避免通用文件被下一轮覆盖后失去证据。
+7. UE 工程身份、OntoTwin 绑定和目标数据集必须显式且唯一，不能由同名 `.uproject` 或当前“激活”状态猜测。
 
 ## 2. 核心概念与不可违反的规则
 
@@ -22,8 +23,11 @@
 
 - 默认实例边界是场景大纲中的母 Actor，例如 `Group2136...`、具名航模 Actor 或业务装置 Actor。
 - 母 Actor 下的静态网格组件、子 Actor、材质槽等是该实例的 `render_parts`，不是独立实例。
-- 独立 `StaticMeshActor` 默认不作为实例。只有用户明确点名、且确认其在业务上是完整独立对象时，才允许作为单体实例迁移。
+- “母 Actor”规则只适用于一件物理装配。若 Group 只是大纲组织容器，子项是分散摆放、可单独移动/删除/维护的重复路灯、长椅、垃圾桶等，则 Group 不能成为实例；正确结构是“一个模型类型 + N 个空间实例”，通常每个实例只有一个 `render_part`。
+- 组织 Group 与物理装配的判定证据：子项世界位置是否分散、是否重复使用同一网格、是否各自有独立 ActorGuid、用户是否会单独移动该件、Group 本身是否没有几何/业务状态。五项中多数成立时按独立实例处理。
+- 独立 `StaticMeshActor` 默认不作为实例。只有用户明确点名，或通过上述物理边界审计确认其本身就是完整独立对象时，才允许作为单体实例迁移。
 - 清理名单是母 Actor `ext_guid` 与所有 `source_actor_guids` 的唯一并集，不等于实例数，也不等于渲染部件数。
+- 类型数量与实例数量必须分别预测。例如 66 个同模型路灯应是 `Types=1, Instances=66, Parts=66`，不能写成 `Types=1, Instances=1, Parts=66`。后一结构会把 F8 Gizmo 放到整组包围盒中心，并使拖动影响整组。
 
 ### 2.2 ObjectType 分组
 
@@ -54,6 +58,33 @@
 - 每轮正式写库前必须创建新的数据库备份。
 - 每轮 UE 源清理前必须创建新的目标子关卡备份。
 - 不能混用不同轮次或不同门禁时刻的数据库备份与关卡备份。
+
+### 2.6 四层身份与显式目标
+
+迁移前必须把以下四层身份分别记录，严禁混为一谈：
+
+| 身份 | 示例 | 用途 |
+|---|---|---|
+| UE 工程路径 | `D:\factory\digitalfactorybase\DigitalFactoryBase.uproject` | 确定实际宿主工程；路径本身不作为后端绑定键 |
+| Unreal `ProjectID` | `DefaultGame.ini` 中的 GUID | Unreal 工程身份；复制工程后应重新生成，但它不是 OntoTwin 数据集 ID |
+| OntoTwin `ue_project_id/name` | `ueproj_sf_hn / SF_HN` | UE 插件请求和后端数据集之间的唯一绑定 |
+| OntoTwin `project_id` | `ds_1787280794618` | 本轮数据库写入的唯一目标 |
+
+强制规则：
+
+- 不得仅用 `FApp::GetProjectName()` 或 `.uproject` 文件名生成最终 `ue_project_id`。两个路径不同但都名为 `DigitalFactoryBase.uproject` 的工程会发生碰撞。
+- 新工程必须在 `TwinSceneManager`、导出 JSON 头部、目标数据集绑定和后端快照请求中使用同一个显式 `ue_project_id`。
+- 导出 JSON 必须包含显式 `project_id`；迁移脚本必须先切到并回读该 ID，不能把当前全局 `active` 当作写入授权。
+- “当前激活数据集”和“UE ID 路由绑定”是两套状态；两者都必须核对，且一个 `ue_project_id` 只能绑定一个有效数据集。
+- 历史备份和旧轮次审计文件保留原身份，不为迎合当前状态而篡改；只更新仍会被用于重跑的活动输入文件。
+
+### 2.7 进程、冷启动与测试隔离
+
+- 外部覆盖插件 DLL、`.uasset`、`.umap` 或配置前，必须确认目标工程的 `UnrealEditor.exe` 与 `UnrealEditor-Cmd.exe` 进程均为 0。关闭 PIE 或窗口不代表主进程已经退出。
+- 不强杀来源不明的 UE 进程。记录 PID、启动时间和命令行；若仍存活则继续做离线分析，停在二进制/资产替换门禁。
+- 资产安装、清旧引用、只读验收和磁盘清理至少分成独立冷启动阶段。UE 5.6 中，同一 Python 生命周期里对已加载 Data Asset 写 `None` 可能不落盘。
+- 回归测试必须显式使用临时 JSON 存储、隔离数据库或专用事务。若测试继承 `ONTOTWIN_STORE=pg` 并连接业务库，立即停止；不得让 `P1/P2` 等测试对象进入生产数据。
+- 非零命令退出码必须按本轮目标日志和产物分类，不能直接宣称成功，也不能被原工程已有的第三方 DLL 告警一票否决。所有无关告警都要在验收报告中单列。
 
 ## 3. 角色和权限边界
 
@@ -153,13 +184,17 @@ migration_runs/
 #### 自动化步骤
 
 1. 创建轮次目录和 `round_context` 文件。
-2. 记录 UE 项目路径、主场景、源子关卡、OntoTwin 仓库、数据集 ID、UE 项目标识、当前时间和操作者。
+2. 记录 UE 项目路径、主场景、源子关卡、OntoTwin 仓库、数据集 ID、显式 UE 项目标识、Unreal `ProjectID`、当前时间和操作者。
 3. 读取当前数据库并记录：ObjectType 总数、实例总数、渲染部件总数、现有实例的源 GUID 集合。
 4. 记录以下关键文件的大小、修改时间和 SHA-256：
    - `L_AVIC_SHOW_Main_onto.umap`
    - `L_AS_Arch.umap`
    - 当前活动的 `ue_migration_result.json`
    - 当前活动的 `ue_snapshots.json`
+5. 同时读取“当前激活数据集”和“按 `ue_project_id` 路由的数据集”，证明两者都等于目标 `project_id`；检测重复绑定并在发现时停止。
+6. 扫描主关卡的 Level Instance/流式子关卡、灯光 Actor、World Settings、GameMode、相机/出生锚点和源 Actor 实际归属关卡。
+7. 盘点目标工程已有插件、旧同名 C++ 类/模块、插件依赖和插件默认内容资产。编辑器工具资产必须按 `/PluginName/...` 路径验收，不能只看 `/Game/...` 兼容副本。
+8. 记录所有 UE 相关进程的 PID、启动时间和命令行，区分用户编辑器、命令行审计和自动验收进程。
 
 #### 手动步骤
 
@@ -167,6 +202,8 @@ migration_runs/
 2. 确认 `/Game/AVIC_Show/Art/Maps/L_AS_Arch` 已作为流式子关卡加载、可见且可编辑。
 3. 确认没有未理解的关卡脏标记；如果已有用户改动，先由用户保存或另存，不能让迁移流程覆盖其工作。
 4. 若本轮修改过 `OntoTwinSync` C++ 插件，先关闭编辑器执行完整 Editor Build，再重启。Live Coding 成功不等于插件模块和面板状态已完全刷新。
+5. 若工程由其他项目复制而来，确认 `DefaultGame.ini` 的 Unreal `ProjectID` 与源工程不同，并为 OntoTwin 设置独立、稳定、可读的显式 `ue_project_id`。
+6. 在改任何地图前确认主关卡是否依赖灯光子关卡；主关卡无灯光且引用空 `*_Light` 时，PIE 全黑不是数据绑定问题，必须先修正或明确保留正确灯光资产。
 
 完整编译示例：
 
@@ -179,17 +216,20 @@ migration_runs/
 
 #### 通过条件
 
-- 主场景、源子关卡、活动数据集和 UE 绑定全部唯一且明确。
+- 主场景、源子关卡、显式目标数据集和 UE 绑定全部唯一且明确。
 - 后端数据库和 API 可用。
 - 已生成迁移前基线，且没有未处理的用户修改。
+- 目标工程身份四元组已归档，插件默认资产和灯光链路均可解释。
 
 #### 停止条件
 
 - 打开的不是指定主场景。
 - 源 Actor 实际所在关卡不明。
 - 数据集或 UE 项目绑定不匹配。
+- 同一个 `ue_project_id` 指向多个数据集，或活动数据集与显式路由不一致。
 - 后端不可用或基线总量无法读取。
 - UE 中存在来源不明的未保存修改。
+- 目标 UE 进程仍占用待覆盖 DLL/资产，或灯光、插件依赖、源关卡归属仍不明确。
 
 ### 阶段 1：候选发现与目标清单
 
@@ -201,20 +241,23 @@ migration_runs/
 2. 在联合场景中按 Actor Label、Actor Name 和 ActorGuid 精确解析。
 3. 输出每个请求项的：匹配数量、类、所属关卡、父子关系、原文件夹、组件数、网格资产、材质、位置、包围盒和可见性。
 4. 报告缺失项、重名歧义项、落在错误关卡的项，以及与数据库已有 `ext_guid/source_actor_guids` 重叠的项。
-5. 对母 Actor 展开装配结构，但不自动把每个子静态网格提升成实例。
+5. 对母 Actor 展开装配结构，并执行“物理装配 / 组织容器”二分类；只有组织容器中的独立物体才提升为实例，禁止无审计机械拆分。
+6. 输出预测矩阵：每个候选的 `ObjectType 数 / 物理实例数 / render_part 数 / 清理 GUID 数`。重复街具应额外输出网格资产与空间位置去重统计。
 
 #### 手动步骤
 
 1. 在 UE 大纲和视口中确认每个母 Actor 的业务边界。
 2. 对 AI 标记为歧义的名称，用 ActorGuid 或完整大纲路径消歧。
 3. 明确指出需要作为独立实例的单体 `StaticMeshActor`。
-4. 删除不属于本轮类别的候选。
+4. 对分散重复街具明确确认“每件可单独 F8 移动”还是“整组作为一件装配移动”。
+5. 删除不属于本轮类别的候选。
 
 #### 通过条件
 
 - `requested_unique == resolved_unique`。
 - 每个输入唯一对应一个明确目标；没有未解释的重复名称。
 - 与既有数据库实例没有非预期 GUID 重叠。
+- 每个组织 Group 的实例数等于经审计的物理对象数，类型数按模型复用，不等于 Group 数。
 - 最终 allowlist 经人工确认。
 
 #### 停止条件
@@ -261,6 +304,7 @@ migration_runs/
 1. 在运行脚本前保存或关闭正在编辑的同一项目，避免命令行实例与编辑器争用或读取脏内存状态。
 2. 检查导出日志中是否加载了正确的主场景和子关卡。
 3. 随机抽查若干导出装配的部件数和 UE 视口中的实际模型是否相符。
+4. 导出结束后确认审计进程及其子进程均已退出；未退出时不得进入插件覆盖、资产重写或关卡清理。
 
 #### 通过条件
 
@@ -369,11 +413,16 @@ docker compose run --rm backend python -m tools.migrate_ue_actors `
 - `new`
 - `updated`
 - `matched`
+- `replaced`
 - `legacy`
 - `skipped`
 - `blocked`
 - 新增类型数、实例数和渲染部件数
 - `delete_actor_guids` 唯一数量
+- 目标 `project_id`、`ue_project_id` 与目标数据集当前绑定
+- 新实例 ID 唯一数及稳定排序后的 SHA-256
+- 组织 Group 拆分前旧实例数、拆分后新实例数、源容器 GUID 数
+- 世界变换守恒误差；单体拆分时每个新实例的局部部件变换应归零，世界坐标误差应为 0 或明确阈值内
 
 计算预期总量：
 
@@ -390,7 +439,9 @@ docker compose run --rm backend python -m tools.migrate_ue_actors `
 1. 审核 dry-run 统计与清单预期是否一致。
 2. 特别核对 `delete_actor_guids`，它应是根 Actor 和所有来源 Actor GUID 的唯一并集。
 3. 确认没有 `legacy`、`skipped`、`blocked`。
-4. 明确回复“dry-run 正确，可以正式写库”。
+4. 核对显式目标 `project_id` 与 `ue_project_id`，不得仅看到“当前 active”就放行。
+5. 对“旧分组实例 → 新单体实例”的纠偏，核对旧实例 ID、源 Group GUID、新实例 ID 哈希和预期清理 GUID 数；任一项不符即拒绝替换。
+6. 明确回复“dry-run 正确，可以正式写库”。
 
 #### 停止条件
 
@@ -398,6 +449,7 @@ docker compose run --rm backend python -m tools.migrate_ue_actors `
 - 任何对象进入 Legacy 未分类。
 - 出现跳过、阻断、不支持组件或数量不一致。
 - 清理 GUID 数量明显小于或大于导出来源 GUID 的唯一并集。
+- 目标数据集、UE 绑定、新实例 ID 哈希或世界变换守恒不一致。
 
 不要为了通过门禁直接使用 `--allow-unsupported`。该参数只能在明确理解组件缺失或负缩放后，经人工批准使用。
 
@@ -405,7 +457,7 @@ docker compose run --rm backend python -m tools.migrate_ue_actors `
 
 #### 自动化步骤
 
-1. 使用与 dry-run 完全相同的输入执行正式迁移，仅移除 `--dry-run`：
+1. 再次确认输入 JSON 中的显式 `project_id/ue_project_id`、分类 CSV 和所有哈希与已批准 dry-run 完全一致，然后仅移除 `--dry-run` 执行正式迁移：
 
 ```powershell
 Set-Location 'D:\tmp\digital_twin_aircraft'
@@ -414,22 +466,23 @@ docker compose run --rm backend python -m tools.migrate_ue_actors `
   --classification-csv tools/ue_migration_classification.csv
 ```
 
-2. 立即将 `backend/tools/ue_migration_result.json` 复制为 `ue_migration_result_round4.json`。下一轮会覆盖通用文件。
-3. 重启后端以刷新激活项目缓存：
+2. 如执行声明式替换，使用单事务完成“验证旧实例 → 写入全部新实例 → 删除声明的旧实例”；任一步失败都不得留下半替换状态。
+3. 立即将 `backend/tools/ue_migration_result.json` 复制为 `ue_migration_result_round4.json`。下一轮会覆盖通用文件。
+4. 重启后端以刷新激活项目缓存：
 
 ```powershell
 docker compose restart backend
 ```
 
-4. 通过 API 和数据库读取校验：
-   - 活动数据集仍是预期数据集。
-   - UE 绑定仍是 `ueproj_ZHHZ/ZHHZ`。
+5. 通过 API 和数据库读取校验：
+   - 显式目标数据集、活动数据集和按 UE ID 路由的数据集均为预期数据集。
+   - UE 绑定仍是 `ueproj_ZHHZ/ZHHZ`，且不存在重复绑定。
    - 总类型数、总实例数、总部件数等于本轮公式结果。
    - 每个实例的 `display_name`、`object_type_rid/name`、`hierarchy_path`、变换和 `render_parts` 正确。
    - 类型清单、实例清单、项目快照和图节点名称一致。
    - `blocked_actors=[]`。
    - `delete_actor_guids` 数量与 dry-run 一致。
-5. 生成迁移后全量快照 `ue_snapshots_all_after_round4.json`，供 UE 预览。
+6. 生成迁移后全量快照 `ue_snapshots_all_after_round4.json`，供 UE 预览。
 
 #### 可选：正式本体图同步
 
@@ -498,7 +551,13 @@ python -m tools.sync_types_from_graph --apply --add-missing
    - 与原场景没有明显双影或错误重复。
    - Outliner 位于 `TwinPreview/<hierarchy_path>`。
    - OntoTwin 中显示名和类型名可理解。
+   - 对独立街具按 `F8/F10` 进入运行时编辑，单击一件后 Gizmo 位于该件附近，拖动只影响该件；不能出现在整组中心，也不能拖动整组。
 6. 预览 Actor 不需要保存。正常情况下保存关卡不应持久化 transient 预览对象。
+7. 新工程首次接入还必须验收：
+   - Lit 与 PIE 不是全黑；主关卡引用的灯光子关卡实际包含 `DirectionalLight/SkyLight` 等所需 Actor。
+   - `TwinSceneManager`、启动镜头、上帝视角、小地图和人物出生锚点存在于正确持久关卡。
+   - 插件菜单与 `/OntoTwinSync/EUW_MouseWorldCoord` 可用；不要用仍依赖旧宿主模块的 `/Game/EUW_MouseWorldCoord` 冒充插件默认资产。
+   - 人物 Primary Asset 数量、网格/骨架/动画兼容性正确；错误共享的 AnimBP、隐藏源角色和旧路线动画软引用均为空。
 
 #### 自动化辅助
 
@@ -506,6 +565,7 @@ python -m tools.sync_types_from_graph --apply --add-missing
 - 自动比对期望和实际实例/部件数量。
 - 自动检查 transient 标记、文件夹路径、部件状态和空间快照。
 - 对每类生成视口截图清单，供人工快速抽样。
+- 对独立单体执行无写回运行态自测：按类型抽样，验证 Gizmo 枢轴位于包围盒中心，试移固定距离时相邻实例不动，随后恢复原位。
 
 #### 人工门禁 C
 
@@ -542,6 +602,13 @@ OBJ SAVEPACKAGE PACKAGE="/Game/AVIC_Show/Art/Maps/L_AS_Arch"
 ```
 
 6. 保存完成前不要关闭 UE。
+
+经人工门禁 C 明确批准后，也可用冷启动脚本执行同一清理，但必须同时满足：
+
+- 只读取已归档正式结果中的精确 GUID，不接受名称、前缀、文件夹或模糊规则。
+- 保存前要求 `expected == matched == delete_count`；任一缺失或额外命中都中止。
+- 保存后在同一命令或新的冷进程中重新加载磁盘关卡，要求 `residual_count=0`。
+- 归档清理前、清理后 `.umap`、哈希、日志和结果 JSON。
 
 #### 为什么不能只按 Ctrl+S
 
@@ -593,6 +660,9 @@ OBJ SAVEPACKAGE PACKAGE="/Game/AVIC_Show/Art/Maps/L_AS_Arch"
 - 数据库 dump、关卡备份和关键产物哈希。
 - 人工门禁 A/B/C/D 的批准人和时间。
 - 已知问题和推迟项。
+- 四层身份、显式绑定和重复绑定检查结果。
+- UE 进程/冷启动记录、完整 Editor Build 结果和产物时间戳。
+- 新工程的灯光、插件默认资产、人物包、运行锚点和 PIE/F8 自测结果。
 
 ## 8. 名称与类型治理细则
 
@@ -706,6 +776,14 @@ ObjectType 名称应表达模型类型，例如：
 | 预览数量少于数据库 | 本地快照不是全量或后端缓存未刷新 | 重启后端，重新生成全量快照并清理旧预览 |
 | 预览双影 | 源 Actor 尚未清理，或旧预览未先清除 | 在验收时区分“预期源+预览双影”；正式复核前清理源和旧预览 |
 | 第二轮误清第一轮对象 | 通用迁移结果文件被后续覆盖或混合 | 每轮归档结果；活动结果只能放当前轮次 |
+| 激活 W18 却返回 HN | 两个同名 `.uproject` 都生成 `ueproj_DigitalFactoryBase`，活动状态与 UE 路由分离 | 为每个工程设置显式唯一 `ue_project_id`；同时核对活动数据集与按 UE ID 路由结果，拒绝重复绑定 |
+| 测试后业务库出现 `P1/P2` | 单元测试继承 `ONTOTWIN_STORE=pg` 并连到真实 PostgreSQL | 测试强制使用临时 JSON/隔离库；按本轮精确 ID 软删除误生成记录并归档审计 |
+| 关卡 Lit/PIE 全黑 | 主关卡依赖的 `*_Light` 子关卡为空，真实灯光在 `*_Light_Temp` 或其他关卡 | 只读盘点 Level Instance 和灯光 Actor；确认正式灯光资产后修正引用并冷启动复验 |
+| 插件“装了但工具没迁” | 只检查了 `/Game` 兼容副本，或旧副本依赖宿主 Editor 模块 | 以 `/OntoTwinSync/EUW_MouseWorldCoord` 和插件菜单为准；插件默认内容纳入安装清单，不盲目复制旧兼容副本 |
+| 角色资产仍串用工人动画 | 同一 UE Python 生命周期内清空已加载 Data Asset 软引用未落盘 | 拆成独立冷启动“清旧引用 → 保存退出 → 冷启动只读验收”，逐字段要求为 `null` |
+| 编译到 DLL 链接失败 | 后台 `UnrealEditor.exe` 或自动验收进程仍占用旧 DLL | 不强杀未知进程；记录 PID 并等待自然退出，确认旧 DLL 未被半成品覆盖后重新完整链接 |
+| 命令退出码非零但目标资产已生成 | 原工程无关第三方 DLL 缺失污染全局退出码 | 解析本轮专属日志、资产可加载性和产物时间戳；无关告警单列，仍需独立冷启动验收 |
+| F8 无 Gizmo或 Gizmo 离点击物很远 | 多件街具被错误合成一个大实例，且源 Actor 与孪生实例重叠 | 修成“模型 Type 复用 + 每件独立实例”，清理精确源 Actor，并做单件移动/相邻不动自测 |
 
 ## 12. 交给其他 AI 的标准任务包
 
@@ -716,17 +794,19 @@ ObjectType 名称应表达模型类型，例如：
 
 固定环境：
 - UE 项目：{uproject}
+- Unreal ProjectID：{unreal_project_guid}
 - 操作主场景：{main_map}
 - 源 Actor 子关卡：{source_sublevel}
 - OntoTwin 仓库：{repo}
-- 活动数据集：{dataset_id}
-- UE 绑定：{ue_project_id}/{ue_project_name}
+- 显式目标数据集：{dataset_id}
+- UE 显式绑定：{ue_project_id}/{ue_project_name}
+- 活动数据集与 UE 路由复核：{active_and_route_check}
 - 迁移前总量：Types={types_before}, Instances={instances_before}, Parts={parts_before}
 
 本轮输入：
 - 目标 Actor 名称/GUID：{allowlist}
 - 业务类别：{categories}
-- 实例边界：母 Actor 为实例；子静态网格是 render parts；仅显式点名的单体 StaticMeshActor 可成为实例。
+- 实例边界：物理装配母 Actor 为实例；纯组织 Group 下分散、重复、可单独维护的街具按每件一个实例；子组件只有在同一物理装配内才是 render parts。
 - 类型规则：不同模型不同 Type；相同模型多实例共享 Type。
 - 命名规则：不得保留纯 Group 名；证据不足时使用保守类别名和稳定编号。
 
@@ -742,15 +822,19 @@ ObjectType 名称应表达模型类型，例如：
 9. 为人工清理准备本轮结果文件；不得自动点击清理。
 10. Save All 后执行日志、文件哈希和磁盘重载残留校验。
 11. 最终验收报告。
+12. 新工程接入时附完整编译、插件默认资产、人物包、锚点、灯光与 PIE/F8 自测结果。
 
 禁止：
 - 不经批准写库或删除源 Actor。
-- 把每个 StaticMeshActor 拆成实例。
+- 不做物理边界审计就把所有 StaticMeshActor 机械拆分，或反过来把组织 Group 误当成单一装配。
 - 只按 assembly_signature 合并模型类型。
 - 使用上一轮 ue_migration_result.json 清理。
 - 用 Ctrl+S 代替 Save All。
 - 保存 TwinPreview 临时 Actor。
 - 修改与本轮无关的关卡、Actor 或数据库对象。
+- 依赖同名 `.uproject` 自动生成 UE ID，或依赖全局 active 选择写库。
+- 在目标 UE 进程仍存活时覆盖 DLL、资产或关卡文件。
+- 让回归测试连接业务 PostgreSQL。
 
 每遇到以下情况立即停止：名称歧义、绑定不符、已有 GUID 重叠、unsupported、dry-run 数量异常、预览审计失败、删除数不符、正式关卡未写盘、磁盘重载仍有残留。
 ```
@@ -760,15 +844,18 @@ ObjectType 名称应表达模型类型，例如：
 ### 准备
 
 - [ ] 已确定轮次编号、业务类别和目标 allowlist。
+- [ ] UE 路径、Unreal ProjectID、显式 UE ID、显式数据集 ID 四层身份已归档。
 - [ ] 已打开正确主场景，确认源 Actor 位于正确流式子关卡。
-- [ ] 已确认活动数据集和 UE 项目绑定。
+- [ ] 已确认活动数据集、显式目标数据集和 UE 项目路由三者一致，且无重复绑定。
 - [ ] 已记录迁移前 Types/Instances/Parts 总量。
 - [ ] 已确认没有来源不明的未保存 UE 修改。
+- [ ] 测试使用隔离存储；目标 UE 进程占用情况、灯光子关卡和插件默认资产已审计。
 
 ### 导出与分类
 
 - [ ] 所有输入名称已去重、解析、消歧。
 - [ ] 母 Actor 实例边界已人工确认。
+- [ ] 所有 Group 已标记为物理装配或组织容器；组织容器的独立实例数已计算并审核。
 - [ ] 只读导出未保存关卡，导出后文件夹已恢复。
 - [ ] 无 unsupported/负缩放阻断项，或有单独批准。
 - [ ] 不同模型不同 Type，相同模型共享 Type。
@@ -781,6 +868,7 @@ ObjectType 名称应表达模型类型，例如：
 - [ ] 本轮数据库 dump 已创建并校验。
 - [ ] 本轮 `L_AS_Arch` 备份已创建并校验。
 - [ ] dry-run 无 Legacy/Skipped/Blocked，数量正确。
+- [ ] 旧/新实例数、实例 ID 哈希、清理 GUID 数和世界变换守恒均正确。
 - [ ] 门禁 B 已批准。
 - [ ] 正式迁移结果与 dry-run 一致。
 - [ ] 通用结果已立即归档为本轮结果。
@@ -792,6 +880,7 @@ ObjectType 名称应表达模型类型，例如：
 - [ ] UE 使用当前数据库全量快照。
 - [ ] 已清除旧预览并完成全量预览。
 - [ ] 实例、部件、装配、空间和 transient 审计全部通过。
+- [ ] 独立实例的 F8 Gizmo 位于单件附近，试移动只影响该件且可恢复。
 - [ ] 已完成每类视觉抽查。
 - [ ] 门禁 C 已明确批准清理。
 - [ ] 已有本轮清理前关卡备份。
@@ -806,6 +895,8 @@ ObjectType 名称应表达模型类型，例如：
 - [ ] 磁盘重载后本轮目标残留为 0。
 - [ ] 重启 UE 后全量预览仍通过。
 - [ ] 无双影、缺件、白盒、错误目录或不可读名称。
+- [ ] 运行态实例数量、唯一 ID、每实例部件数与物理边界预测完全一致。
+- [ ] 新工程的灯光、插件菜单/EUW、人物资产、相机与出生锚点均通过冷启动验收。
 - [ ] 最终审计文件和所有哈希已归档。
 - [ ] 门禁 D 已记录，本轮结项。
 
@@ -819,7 +910,26 @@ ObjectType 名称应表达模型类型，例如：
 
 第三轮输入原有 22 行，其中 `LE360` 重复，最终是 21 个唯一 Actor。`Group2136670272` 与 `Group2136670331` 被确认为同一模型的两个实例；`Rectangle2133395720` 是用户明确指定的单体 `StaticMeshActor` 例外。这三个案例应作为后续去重、模型分组和实例边界判断的回归样例。
 
-## 15. 参考实现
+## 15. SF_HN 首次接入与纠偏基线
+
+SF_HN 这一轮暴露了“数据迁移正确”之外的新工程接入风险，后续必须把它们作为回归样例：
+
+| 项目 | 错误结构/现象 | 修正后的门禁 |
+|---|---|---|
+| 实例边界 | 5 个 `*_Group` 被当成 5 个物理装配，169 件街具塞入 `render_parts` | 保留 5 个类型，生成 169 个唯一实例；每个单体 1 个部件，世界坐标误差 0 cm |
+| 源场景重叠 | 169 个物体和 5 个组织 Group 仍留在关卡，射线优先命中源 Actor | 正式替换后按 174 个精确 GUID 清理，冷重载残留 0 |
+| F8 编辑 | Gizmo 位于整组包围盒中心或不显示 | 5 类各抽 1 件；枢轴误差 0 cm，试移 10 cm 时相邻实例不动，随后恢复 |
+| 项目身份 | W18 与 HN 同名 `DigitalFactoryBase.uproject`，都绑定 `ueproj_DigitalFactoryBase` | W18=`ueproj_scc_w18`，HN=`ueproj_sf_hn`；绑定唯一，数据路由分别返回 321/169 实例 |
+| 数据集状态 | UI 激活 W18，但按 UE ID 的快照仍路由 HN | 活动数据集与 UE 路由分别回读；写库始终使用显式 `project_id` |
+| 测试隔离 | 回归测试误连真实 PG，生成 `P1/P2` 测试记录 | 测试强制临时 JSON/隔离库；误写只按精确 ID 软删除 |
+| 灯光 | 主关卡引用空 `L_SF_HN_Light`，实际灯光在 `L_SF_HN_Light_Temp` | PIE 前盘点灯光子关卡，至少证明方向光/天空光链路存在 |
+| 插件内容 | 用户看不到 `/Game` 旧副本，误以为 MouseWorldCoord 未迁 | 验收 `/OntoTwinSync/EUW_MouseWorldCoord` 与 Tools 菜单，区分插件默认资产和旧兼容副本 |
+| 人物动画 | 6 个 RenderPeople 仍保存旧 AnimBP/Quinn 路线软引用 | 独立冷进程清空并保存；再冷启动要求旧引用全部 `null`，网格/动画骨架一致 |
+| 二进制占用 | 无窗口 UE 进程占用 DLL，最终链接失败 | UE 进程为 0 才链接；失败后确认旧 DLL 未被覆盖，再重跑完整 Build |
+
+纠偏替换必须满足：`old=5`、`new=169`、`types=5`、`cleanup_guids=174`、`legacy/skipped/blocked=0`，且新实例 ID 哈希与批准清单一致。这些数字只属于 SF_HN 回归样例，其他工程必须重新计算。
+
+## 16. 参考实现
 
 通用后端工具：
 
@@ -827,6 +937,8 @@ ObjectType 名称应表达模型类型，例如：
 - `backend/tools/build_migration_ontology_patch.py`
 - `backend/tools/sync_types_from_graph.py`
 - `backend/tools/migrate_ue_actors.py`
+- `backend/tools/split_ue_grouped_singletons.py`（把已确认的组织 Group 拆成同 Type、多空间实例）
+- `scripts/ue_cleanup_declared_migration_actors.py`（按正式迁移结果中的精确 GUID 冷重载清理）
 
 ZHHZ 第三轮的轮次化参考脚本：
 

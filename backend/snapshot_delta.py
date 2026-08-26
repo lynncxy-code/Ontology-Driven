@@ -323,6 +323,8 @@ def _tokens_from_instances(instances, zone, object_types, project_id):
             id(render_config),
             render_config.get("asset_id"),
             render_config.get("ue_asset_path"),
+            render_config.get("container_blueprint_id"),
+            render_config.get("container_slot"),
             render_config.get("assembly_signature"),
             id(render_parts),
             len(render_parts),
@@ -333,6 +335,8 @@ def _tokens_from_instances(instances, zone, object_types, project_id):
             id(object_type),
             object_type.get("asset_id"),
             object_type.get("ue_asset_path"),
+            object_type.get("container_blueprint_id"),
+            object_type.get("container_slot"),
             tuple(object_type.get("injected_interfaces") or []),
             type_overlay.get("revision"),
         )

@@ -6,8 +6,10 @@
 #include "SceneInteraction/TwinSkinComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Animation/AnimationAsset.h"
+#include "Animation/Skeleton.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -102,13 +104,21 @@ bool ATwinRoamingCharacter::ApplyCharacterAsset(UTwinCharacterAsset* Asset, FStr
         Asset->MeshOffsetCm,
         FRotator(0.0f, Asset->MeshYawOffsetDeg, 0.0f));
     GetMesh()->SetSkeletalMesh(BaseMesh);
-    if (UClass* AnimClass = Asset->AnimInstanceClass.LoadSynchronous())
+    GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+    VisibleAnimClass = Asset->AnimInstanceClass.LoadSynchronous();
+    bVisibleAutoRouteAnimationActive = false;
+    if (VisibleAnimClass)
     {
-        GetMesh()->SetAnimInstanceClass(AnimClass);
+        GetMesh()->SetAnimInstanceClass(VisibleAnimClass);
     }
 
     USkeletalMesh* SourceMesh = Asset->AnimationSourceMesh.LoadSynchronous();
     UClass* SourceAnimClass = Asset->AnimationSourceAnimInstanceClass.LoadSynchronous();
+    AnimationSourceMesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+    AnimationSourceMesh->SetSkeletalMesh(nullptr);
+    AnimationSourceMesh->SetAnimInstanceClass(nullptr);
+    AnimationSourceAnimClass = nullptr;
+    bAutoRouteAnimationActive = false;
     if (SourceMesh || SourceAnimClass)
     {
         if (!SourceMesh || !SourceAnimClass)
@@ -125,6 +135,27 @@ bool ATwinRoamingCharacter::ApplyCharacterAsset(UTwinCharacterAsset* Asset, FStr
     AutoRouteAnimation = Asset->AutoRouteAnimation.LoadSynchronous();
     AutoRouteAnimationReferenceSpeedCmS = FMath::Max(
         1.0f, Asset->AutoRouteAnimationReferenceSpeedCmS);
+    if (AutoRouteAnimation)
+    {
+        USkeleton* ExpectedSkeleton = SourceMesh
+            ? SourceMesh->GetSkeleton()
+            : BaseMesh->GetSkeleton();
+        if (AutoRouteAnimation->GetSkeleton() != ExpectedSkeleton)
+        {
+            OutError = FString::Printf(
+                TEXT("Automatic route animation Skeleton mismatch: animation=%s expected=%s"),
+                AutoRouteAnimation->GetSkeleton()
+                    ? *AutoRouteAnimation->GetSkeleton()->GetPathName()
+                    : TEXT("none"),
+                ExpectedSkeleton ? *ExpectedSkeleton->GetPathName() : TEXT("none"));
+            return false;
+        }
+        if (!SourceMesh && !VisibleAnimClass)
+        {
+            OutError = TEXT("Automatic route animation requires a visible Anim Blueprint for restoration");
+            return false;
+        }
+    }
     return true;
 }
 
@@ -254,27 +285,69 @@ void ATwinRoamingCharacter::SetAutoRouteCameraSmoothing(bool bEnabled)
 
 bool ATwinRoamingCharacter::SetAutoRouteAnimation(bool bActive, float SpeedCmS)
 {
-    if (!AnimationSourceMesh || !AutoRouteAnimation || !AnimationSourceAnimClass)
+    if (!AutoRouteAnimation)
+    {
+        return false;
+    }
+
+    if (AnimationSourceMesh
+        && AnimationSourceMesh->GetSkeletalMeshAsset()
+        && AnimationSourceAnimClass)
+    {
+        if (bActive)
+        {
+            if (!bAutoRouteAnimationActive)
+            {
+                AnimationSourceMesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+                AnimationSourceMesh->SetAnimation(AutoRouteAnimation);
+                AnimationSourceMesh->Play(true);
+                bAutoRouteAnimationActive = true;
+                UE_LOG(LogTemp, Log,
+                    TEXT("OntoTwin auto-route animation started on hidden retarget source: %s"),
+                    *AutoRouteAnimation->GetPathName());
+            }
+            AnimationSourceMesh->SetPlayRate(FMath::Clamp(
+                SpeedCmS / AutoRouteAnimationReferenceSpeedCmS, 0.25f, 3.0f));
+        }
+        else if (bAutoRouteAnimationActive)
+        {
+            AnimationSourceMesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+            AnimationSourceMesh->SetAnimInstanceClass(AnimationSourceAnimClass);
+            bAutoRouteAnimationActive = false;
+            UE_LOG(LogTemp, Log,
+                TEXT("OntoTwin auto-route animation restored hidden source AnimBP: %s"),
+                *AnimationSourceAnimClass->GetPathName());
+        }
+        return true;
+    }
+
+    if (!GetMesh() || !VisibleAnimClass)
     {
         return false;
     }
     if (bActive)
     {
-        if (!bAutoRouteAnimationActive)
+        if (!bVisibleAutoRouteAnimationActive)
         {
-            AnimationSourceMesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-            AnimationSourceMesh->SetAnimation(AutoRouteAnimation);
-            AnimationSourceMesh->Play(true);
-            bAutoRouteAnimationActive = true;
+            GetMesh()->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+            GetMesh()->SetAnimation(AutoRouteAnimation);
+            GetMesh()->Play(true);
+            bVisibleAutoRouteAnimationActive = true;
+            UE_LOG(LogTemp, Log,
+                TEXT("OntoTwin auto-route animation started on visible mesh: %s"),
+                *AutoRouteAnimation->GetPathName());
         }
-        AnimationSourceMesh->SetPlayRate(FMath::Clamp(
+        GetMesh()->SetPlayRate(FMath::Clamp(
             SpeedCmS / AutoRouteAnimationReferenceSpeedCmS, 0.25f, 3.0f));
     }
-    else if (bAutoRouteAnimationActive)
+    else if (bVisibleAutoRouteAnimationActive)
     {
-        AnimationSourceMesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
-        AnimationSourceMesh->SetAnimInstanceClass(AnimationSourceAnimClass);
-        bAutoRouteAnimationActive = false;
+        GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+        GetMesh()->SetAnimInstanceClass(VisibleAnimClass);
+        bVisibleAutoRouteAnimationActive = false;
+        UE_LOG(LogTemp, Log,
+            TEXT("OntoTwin auto-route animation restored visible AnimBP: %s"),
+            *VisibleAnimClass->GetPathName());
     }
     return true;
 }

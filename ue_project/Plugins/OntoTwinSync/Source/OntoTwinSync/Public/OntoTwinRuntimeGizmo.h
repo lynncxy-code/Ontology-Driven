@@ -50,6 +50,7 @@ public:
         const FBox& GroupWorldBounds,
         const FVector& GroupPivotWorld);
     void SetGizmoEnabled(bool bEnabled);
+    bool IsGizmoEnabled() const { return bGizmoEnabled; }
     void SetInteractionState(EOntoTwinRuntimeGizmoPart HoverPart, EOntoTwinRuntimeGizmoPart ActivePart);
     void SetSnapFeedback(EOntoTwinRuntimeSnapState SnapState, const FVector& WorldPoint);
     EOntoTwinRuntimeGizmoPart GetPartForComponent(const UPrimitiveComponent* Component) const;

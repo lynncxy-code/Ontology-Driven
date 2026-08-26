@@ -181,15 +181,15 @@ def register_scene_interaction_routes(app, project_store, catalog_path=None):
     def get_runtime():
         def action():
             binding, _ = runtime_binding(require_ue_identity=False)
-            return service.runtime_projection(binding)
+            return service.runtime_projection(binding, binding.get("project_id"))
         return execute(action)
 
     @blueprint.post("/api/v2/scene-interactions/runtime")
     def report_runtime():
         data = request.get_json(silent=True) or {}
         def action():
-            _, ue = runtime_binding(require_ue_identity=True)
-            return service.report_runtime(data, ue)
+            binding, ue = runtime_binding(require_ue_identity=True)
+            return service.report_runtime(data, ue, binding.get("project_id"))
         return execute(action)
 
     app.register_blueprint(blueprint)

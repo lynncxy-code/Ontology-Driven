@@ -10,7 +10,9 @@
 #include "TwinInstance.h"
 #include "DigitalTwinSyncComponent.h"
 #include "OntoTwinOverlayWidget.h"
+#include "Representation/TwinRepresentationHostComponent.h"
 #include "Components/MeshComponent.h"
+#include "Components/WidgetComponent.h"
 #include "Engine/LevelScriptActor.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
@@ -178,13 +180,22 @@ void AppendVisibleMeshBounds(const AActor* Actor, FBox& OutBounds)
     TInlineComponentArray<UMeshComponent*> MeshComponents(Actor);
     for (const UMeshComponent* Component : MeshComponents)
     {
-        if (Component && Component->IsRegistered() && Component->IsVisible())
+        // World-space UI is presentation, not part of the represented model.
+        // Including TwinOverlay here creates a feedback loop: the overlay moves
+        // to BoundsTop, then its own bounds raise BoundsTop again on the next
+        // frame until the panel is projected off-screen and culled.
+        if (Component
+            && !Component->IsA<UWidgetComponent>()
+            && Component->IsRegistered()
+            && Component->IsVisible())
         {
             OutBounds += Component->Bounds.GetBox();
         }
     }
 }
 }
+
+FOnTwinRepresentationVisualReady ATwinInstance::OnRepresentationVisualReady;
 
 // ── 构造函数 ─────────────────────────────────────────────────────────────────
 
@@ -437,14 +448,26 @@ void ATwinInstance::PlayAnimationState(const FString& StateName)
 void ATwinInstance::InitializeTwin(
     const FString& InInstanceId,
     const FString& InAssetPath,
-    const FString& InBackendBaseUrl)
+    const FString& InBackendBaseUrl,
+    const FString& InContainerBlueprintPath,
+    const FString& InContainerSlot)
 {
     InstanceId     = InInstanceId;
-    TwinDisplayName = InInstanceId;
+    if (TwinDisplayName.IsEmpty())
+    {
+        TwinDisplayName = InInstanceId;
+    }
     AssetPath      = InAssetPath;
     BackendBaseUrl = InBackendBaseUrl;
+    ContainerBlueprintPath = InContainerBlueprintPath;
+    ContainerSlot = InContainerSlot.IsEmpty() ? TEXT("primary") : InContainerSlot;
 
-    UE_LOG(LogTemp, Log, TEXT("[孪生体] ████ 初始化开始 | ID=%s | 资产路径=%s"), *InstanceId, *AssetPath);
+    UE_LOG(LogTemp, Log,
+        TEXT("[孪生体] ████ 初始化开始 | ID=%s | 资产路径=%s | 容器=%s | 槽位=%s"),
+        *InstanceId,
+        *AssetPath,
+        *ContainerBlueprintPath,
+        *ContainerSlot);
 
     // ── 1. 加载主表现 ────────────────────────────────────────────────────
     if (AssetPath.IsEmpty())
@@ -452,6 +475,13 @@ void ATwinInstance::InitializeTwin(
         UE_LOG(LogTemp, Warning,
                TEXT("[孪生体] ⚠️  资产路径为空 (ID=%s)，使用默认立方体"), *InstanceId);
         SetPlaceholderCube();
+    }
+    else if (!ContainerBlueprintPath.IsEmpty())
+    {
+        LoadContainerBlueprintRepresentation(
+            ContainerBlueprintPath,
+            ContainerSlot,
+            AssetPath);
     }
     else
     {
@@ -483,6 +513,22 @@ void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool 
         TwinDisplayName = SnapshotDisplayName;
     }
 
+    FString SnapshotObjectTypeName;
+    if (Snapshot->TryGetStringField(TEXT("objectTypeName"), SnapshotObjectTypeName)
+        && !SnapshotObjectTypeName.IsEmpty())
+    {
+        TwinObjectTypeName = SnapshotObjectTypeName;
+    }
+    else
+    {
+        FString SnapshotObjectTypeRid;
+        if (Snapshot->TryGetStringField(TEXT("objectTypeRid"), SnapshotObjectTypeRid)
+            && !SnapshotObjectTypeRid.IsEmpty())
+        {
+            TwinObjectTypeName = SnapshotObjectTypeRid;
+        }
+    }
+
     const TSharedPtr<FJsonObject>* RuntimeEditorObj = nullptr;
     if (Snapshot->TryGetObjectField(TEXT("runtimeEditor"), RuntimeEditorObj) && RuntimeEditorObj)
     {
@@ -507,7 +553,7 @@ void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool 
     const TSharedPtr<FJsonObject>* RepObj;
     if ((*InterfacesObj)->TryGetObjectField(TEXT("I3D_Representable"), RepObj))
     {
-        ApplyRepresentableFromSnapshot(*RepObj);
+        ApplyRepresentableFromSnapshot(*RepObj, bIsDelta);
     }
 
     // ── I3D_Spatial ──────────────────────────────────────────────────────
@@ -615,6 +661,11 @@ bool ATwinInstance::LoadMeshFromPath(const FString& MeshPath)
 
 void ATwinInstance::ClearSingleAssetRepresentation()
 {
+    if (ActiveContainerHost.IsValid())
+    {
+        ActiveContainerHost->ClearRepresentation(InstanceId);
+    }
+    ActiveContainerHost.Reset();
     if (BlueprintActorComponent)
     {
         BlueprintActorComponent->SetChildActorClass(nullptr);
@@ -752,6 +803,186 @@ bool ATwinInstance::LoadBlueprintActorAsset(const FString& ObjectPath)
         TEXT("[孪生体] ✅ Actor Blueprint 加载成功: %s child=%s"),
         *GeneratedClassPath, *ChildActor->GetName());
     return true;
+}
+
+UTwinRepresentationHostComponent* ATwinInstance::FindContainerHost(
+    AActor* ChildActor,
+    const FString& SlotName) const
+{
+    if (!ChildActor)
+    {
+        return nullptr;
+    }
+
+    const FName RequestedSlot = FName(
+        SlotName.IsEmpty() ? TEXT("primary") : *SlotName);
+    TInlineComponentArray<UTwinRepresentationHostComponent*> Hosts(ChildActor);
+    for (UTwinRepresentationHostComponent* Host : Hosts)
+    {
+        if (Host && Host->SlotName == RequestedSlot)
+        {
+            return Host;
+        }
+    }
+    return nullptr;
+}
+
+bool ATwinInstance::LoadContainerBlueprintRepresentation(
+    const FString& BlueprintPath,
+    const FString& SlotName,
+    const FString& StaticMeshPath)
+{
+    ClearSingleAssetRepresentation();
+
+    if (!BlueprintActorComponent
+        || BlueprintPath.IsEmpty()
+        || StaticMeshPath.IsEmpty())
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("[孪生体] BP 容器参数不完整: id=%s container=%s asset=%s"),
+            *InstanceId,
+            *BlueprintPath,
+            *StaticMeshPath);
+        SetPlaceholderCube();
+        return false;
+    }
+
+    if (!StaticMeshPath.StartsWith(TEXT("/Game/"))
+        && !StaticMeshPath.StartsWith(TEXT("/Engine/")))
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("[孪生体] BP 容器首版只支持 Cooked StaticMesh: %s"),
+            *StaticMeshPath);
+        SetPlaceholderCube();
+        return false;
+    }
+
+    FString FullStaticMeshPath = StaticMeshPath;
+    if (!FullStaticMeshPath.Contains(TEXT(".")))
+    {
+        FString AssetName;
+        StaticMeshPath.Split(
+            TEXT("/"),
+            nullptr,
+            &AssetName,
+            ESearchCase::IgnoreCase,
+            ESearchDir::FromEnd);
+        FullStaticMeshPath = FString::Printf(
+            TEXT("%s.%s"),
+            *StaticMeshPath,
+            *AssetName);
+    }
+    UStaticMesh* StaticMesh = LoadObject<UStaticMesh>(
+        nullptr,
+        *FullStaticMeshPath);
+    if (!StaticMesh && FullStaticMeshPath != StaticMeshPath)
+    {
+        StaticMesh = LoadObject<UStaticMesh>(nullptr, *StaticMeshPath);
+    }
+    if (!StaticMesh)
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("[孪生体] BP 容器模型不是可用 StaticMesh: %s"),
+            *StaticMeshPath);
+        SetPlaceholderCube();
+        return false;
+    }
+
+    const FString GeneratedClassPath = MakeBlueprintGeneratedClassPath(BlueprintPath);
+    UClass* ActorClass = LoadObject<UClass>(nullptr, *GeneratedClassPath);
+    FString ValidationReason;
+    if (!IsSupportedBlueprintActorClass(ActorClass, ValidationReason))
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("[孪生体] BP 容器不可运行: input=%s class=%s reason=%s"),
+            *BlueprintPath,
+            *GeneratedClassPath,
+            *ValidationReason);
+        SetPlaceholderCube();
+        return false;
+    }
+
+    BlueprintActorComponent->SetRelativeTransform(FTransform::Identity);
+    BlueprintActorComponent->SetChildActorClass(ActorClass);
+    AActor* ChildActor = BlueprintActorComponent->GetChildActor();
+    if (!ChildActor)
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("[孪生体] BP 容器子 Actor 创建失败: %s"),
+            *GeneratedClassPath);
+        BlueprintActorComponent->SetChildActorClass(nullptr);
+        SetPlaceholderCube();
+        return false;
+    }
+
+    UTwinRepresentationHostComponent* Host = FindContainerHost(
+        ChildActor,
+        SlotName);
+    if (!Host)
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("[孪生体] BP 容器缺少匹配 HostComponent: container=%s slot=%s"),
+            *BlueprintPath,
+            *SlotName);
+        BlueprintActorComponent->SetChildActorClass(nullptr);
+        SetPlaceholderCube();
+        return false;
+    }
+
+    FString ConfigureError;
+    if (!Host->ConfigureStaticMesh(
+        StaticMesh,
+        InstanceId,
+        GetTwinDisplayName(),
+        StaticMeshPath,
+        ConfigureError))
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("[孪生体] BP 容器注入失败: container=%s slot=%s error=%s"),
+            *BlueprintPath,
+            *SlotName,
+            *ConfigureError);
+        BlueprintActorComponent->SetChildActorClass(nullptr);
+        SetPlaceholderCube();
+        return false;
+    }
+
+    ActiveContainerHost = Host;
+    ActiveRepresentationKind = ERepresentationKind::ContainerBlueprint;
+    BlueprintActorComponent->SetVisibility(true, false);
+    Host->ForwardVisualState(CurrentMaterialVariant, bVisualVisible);
+    Host->ForwardBehaviorState(CurrentAnimState, CurrentFxTrigger);
+    ApplyVisualVisibility(bVisualVisible);
+    UE_LOG(LogTemp, Log,
+        TEXT("[孪生体] ✅ BP 容器注入成功: container=%s slot=%s asset=%s child=%s"),
+        *GeneratedClassPath,
+        *SlotName,
+        *FullStaticMeshPath,
+        *ChildActor->GetName());
+    return true;
+}
+
+bool ATwinInstance::ReloadCurrentSingleRepresentation()
+{
+    if (AssetPath.IsEmpty())
+    {
+        SetPlaceholderCube();
+        return false;
+    }
+    if (!ContainerBlueprintPath.IsEmpty())
+    {
+        return LoadContainerBlueprintRepresentation(
+            ContainerBlueprintPath,
+            ContainerSlot,
+            AssetPath);
+    }
+    return LoadMeshFromPath(AssetPath);
+}
+
+bool ATwinInstance::IsContainerRepresentationActive() const
+{
+    return ActiveRepresentationKind == ERepresentationKind::ContainerBlueprint
+        && ActiveContainerHost.IsValid();
 }
 
 UMeshComponent* ATwinInstance::GetActiveMeshComponent() const
@@ -1543,6 +1774,7 @@ bool ATwinInstance::LoadGltfFromFile(const FString& FilePath)
     }
 
     UE_LOG(LogTemp, Log, TEXT("[孪生体] ✅ glb 加载成功: %s"), *FilePath);
+    OnRepresentationVisualReady.Broadcast(this);
     return true;
 }
 
@@ -1835,51 +2067,118 @@ void ATwinInstance::ScheduleRemoteGltfRetry(const FString& StableId)
 // I3D_Representable — 存在性与可见性
 // ═══════════════════════════════════════════════════════════════════════════
 
-void ATwinInstance::ApplyRepresentableFromSnapshot(const TSharedPtr<FJsonObject>& RepObj)
+void ATwinInstance::ApplyRepresentableFromSnapshot(
+    const TSharedPtr<FJsonObject>& RepObj,
+    bool bIsDelta)
 {
     FString NewAssetId;
-    const bool bHasNewAssetId = RepObj->TryGetStringField(TEXT("asset_id"), NewAssetId);
-    const bool bAssetChanged = bHasNewAssetId && !NewAssetId.IsEmpty() && NewAssetId != AssetPath;
+    const bool bHasNewAssetId = RepObj->TryGetStringField(
+        TEXT("asset_id"),
+        NewAssetId);
+    const bool bAssetChanged = bHasNewAssetId
+        && !NewAssetId.IsEmpty()
+        && NewAssetId != AssetPath;
     if (bAssetChanged)
     {
         UE_LOG(LogTemp, Log,
-               TEXT("[孪生体] 资产热更换: %s → %s"), *AssetPath, *NewAssetId);
+            TEXT("[孪生体] 资产热更换: %s → %s"),
+            *AssetPath,
+            *NewAssetId);
         AssetPath = NewAssetId;
     }
 
+    FString IncomingContainerPath;
+    const bool bHasContainerPath = RepObj->TryGetStringField(
+        TEXT("container_blueprint_id"),
+        IncomingContainerPath);
+    FString EffectiveContainerPath = ContainerBlueprintPath;
+    if (bHasContainerPath)
+    {
+        EffectiveContainerPath = IncomingContainerPath;
+    }
+    else if (!bIsDelta)
+    {
+        EffectiveContainerPath.Empty();
+    }
+
+    FString IncomingContainerSlot;
+    const bool bHasContainerSlot = RepObj->TryGetStringField(
+        TEXT("container_slot"),
+        IncomingContainerSlot);
+    FString EffectiveContainerSlot = ContainerSlot.IsEmpty()
+        ? TEXT("primary")
+        : ContainerSlot;
+    if (bHasContainerSlot)
+    {
+        EffectiveContainerSlot = IncomingContainerSlot.IsEmpty()
+            ? TEXT("primary")
+            : IncomingContainerSlot;
+    }
+    else if (!bIsDelta && !EffectiveContainerPath.IsEmpty())
+    {
+        EffectiveContainerSlot = TEXT("primary");
+    }
+
+    const bool bContainerChanged =
+        EffectiveContainerPath != ContainerBlueprintPath;
+    const bool bContainerSlotChanged =
+        EffectiveContainerSlot != ContainerSlot;
+    if (bContainerChanged || bContainerSlotChanged)
+    {
+        UE_LOG(LogTemp, Log,
+            TEXT("[孪生体] BP 容器热更换: container=%s → %s slot=%s → %s"),
+            *ContainerBlueprintPath,
+            *EffectiveContainerPath,
+            *ContainerSlot,
+            *EffectiveContainerSlot);
+        ContainerBlueprintPath = EffectiveContainerPath;
+        ContainerSlot = EffectiveContainerSlot;
+    }
+
     const TArray<TSharedPtr<FJsonValue>>* RenderParts = nullptr;
-    const bool bHasRenderParts = RepObj->TryGetArrayField(TEXT("render_parts"), RenderParts)
-        && RenderParts && RenderParts->Num() > 0;
+    const bool bHasRenderParts = RepObj->TryGetArrayField(
+        TEXT("render_parts"),
+        RenderParts)
+        && RenderParts
+        && RenderParts->Num() > 0;
     if (bHasRenderParts)
     {
+        if (!ContainerBlueprintPath.IsEmpty())
+        {
+            UE_LOG(LogTemp, Error,
+                TEXT("[孪生体] 快照同时包含 render_parts 与 BP 容器；按组合模型处理并忽略容器: %s"),
+                *InstanceId);
+        }
         FString AssemblySignature;
         RepObj->TryGetStringField(TEXT("assembly_signature"), AssemblySignature);
         ApplyRenderPartsFromSnapshot(*RenderParts, AssemblySignature);
     }
     else if (bAssemblyRenderActive)
     {
-        // 后端撤掉 render_parts 时显式退回旧版单资产模式。
+        // 后端撤掉 render_parts 时显式退回单资产或 BP 容器模式。
         ClearRenderParts();
         if (bInitialized && !AssetPath.IsEmpty())
         {
-            LoadMeshFromPath(AssetPath);
+            ReloadCurrentSingleRepresentation();
         }
     }
 
-    // ── 依 PRD 规范：控制场景存在性（加载/卸载资源） ────────────
+    // I3D_Representable 控制场景存在性（加载/卸载资源）。
     bool bVisible = true;
     RepObj->TryGetBoolField(TEXT("is_visible"), bVisible);
-
     if (!bRuntimeEditorLoadedOverride)
     {
         bRuntimeLoaded = bVisible;
     }
-    ApplyRuntimeLoadedVisibility(bRuntimeEditorLoadedOverride ? bRuntimeLoaded : bVisible);
+    ApplyRuntimeLoadedVisibility(
+        bRuntimeEditorLoadedOverride ? bRuntimeLoaded : bVisible);
 
-    // ── 旧版单 Mesh 资产热更换 ───────────────────────────────────────────
-    if (!bHasRenderParts && bAssetChanged && bInitialized && bRuntimeLoaded)
+    if (!bHasRenderParts
+        && (bAssetChanged || bContainerChanged || bContainerSlotChanged)
+        && bInitialized
+        && bRuntimeLoaded)
     {
-        LoadMeshFromPath(AssetPath);
+        ReloadCurrentSingleRepresentation();
     }
 }
 
@@ -1913,8 +2212,7 @@ void ATwinInstance::ApplyRuntimeLoadedVisibility(bool bVisible)
     else if (bVisible && ActiveRepresentationKind == ERepresentationKind::None && bInitialized)
     {
         // 重新加载并进入场景
-        if (AssetPath.IsEmpty()) SetPlaceholderCube();
-        else LoadMeshFromPath(AssetPath);
+        ReloadCurrentSingleRepresentation();
         UE_LOG(LogTemp, Log, TEXT("[孪生体] 重新加载进入场景: %s"), *InstanceId);
     }
     // 强制把原先在这的 SetActorHiddenInGame 移除，交由 I3D_Visual 去处理纯粹的显隐
@@ -2057,6 +2355,10 @@ void ATwinInstance::ApplyVisualVisibility(bool bVisible)
             ChildActor->SetActorHiddenInGame(!bVisible);
         }
     }
+    if (ActiveContainerHost.IsValid())
+    {
+        ActiveContainerHost->ForwardVisualState(CurrentMaterialVariant, bVisible);
+    }
 }
 
 void ATwinInstance::ApplyVisualFromSnapshot(const TSharedPtr<FJsonObject>& VisualObj)
@@ -2085,6 +2387,12 @@ void ATwinInstance::ApplyVisualFromSnapshot(const TSharedPtr<FJsonObject>& Visua
     if (VisualObj->TryGetBoolField(TEXT("is_visible"), bNewVisualVisible))
     {
         ApplyVisualVisibility(bNewVisualVisible);
+    }
+    else if (ActiveContainerHost.IsValid())
+    {
+        ActiveContainerHost->ForwardVisualState(
+            CurrentMaterialVariant,
+            bVisualVisible);
     }
 }
 
@@ -2146,6 +2454,13 @@ void ATwinInstance::ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& B
         }
 
         UE_LOG(LogTemp, Log, TEXT("[孪生体] UI标签更新: %s → \"%s\""), *InstanceId, *LabelContent);
+    }
+
+    if (ActiveContainerHost.IsValid())
+    {
+        ActiveContainerHost->ForwardBehaviorState(
+            CurrentAnimState,
+            CurrentFxTrigger);
     }
 }
 

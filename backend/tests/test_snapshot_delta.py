@@ -196,6 +196,35 @@ class SnapshotDeltaServiceTestCase(unittest.TestCase):
         _, after = _collect_instance_tokens(Store(), None, object_types)
         self.assertNotEqual(before["one"], after["one"])
 
+    def test_type_container_path_is_part_of_instance_change_token(self):
+        class Store:
+            _lock = None
+            _active_id = "project"
+            _current = {
+                "instances": {
+                    "one": {
+                        "object_type_rid": "type-a",
+                        "last_seen": 0,
+                        "raw_state": {},
+                        "render_config": {},
+                    }
+                }
+            }
+
+        object_types = {
+            "type-a": {
+                "asset_id": "/Game/SM_A.SM_A",
+                "ue_asset_path": "/Game/SM_A.SM_A",
+                "container_blueprint_id": "/Game/BP_A.BP_A",
+                "container_slot": "primary",
+                "injected_interfaces": ["I3D_Representable"],
+            }
+        }
+        _, before = _collect_instance_tokens(Store(), None, object_types)
+        object_types["type-a"]["container_blueprint_id"] = "/Game/BP_B.BP_B"
+        _, after = _collect_instance_tokens(Store(), None, object_types)
+        self.assertNotEqual(before["one"], after["one"])
+
 
 if __name__ == "__main__":
     unittest.main()

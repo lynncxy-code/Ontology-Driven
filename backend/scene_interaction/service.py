@@ -3,6 +3,8 @@ import datetime
 import threading
 import time
 
+from external_data_control import realtime_control_for_heartbeat
+
 from .catalog import ResourceCatalog
 from .narration import (
     DEFAULT_NARRATION_SETTINGS,
@@ -92,9 +94,15 @@ class SceneInteractionService:
             asset_root=narration_asset_root,
         )
 
-    def _project(self):
-        project = self.store.get_active_copy()
+    def _project(self, project_id=None):
+        project = (
+            self.store.read_project(project_id)
+            if project_id
+            else self.store.get_active_copy()
+        )
         if not project:
+            if project_id:
+                raise SceneInteractionNotFoundError(f"项目不存在: {project_id}")
             raise SceneInteractionNotFoundError("当前没有激活项目")
         return project
 
@@ -488,8 +496,8 @@ class SceneInteractionService:
         self.store.transact_expected_active(expected_project_id, update)
         return {"status": "ok", "project_id": project_id, "revision": result["revision"], "route_id": route_id}
 
-    def runtime_projection(self, binding):
-        project = self._project()
+    def runtime_projection(self, binding, project_id=None):
+        project = self._project(project_id)
         scene = self._scene(project)
         revision = int(scene.get("revision") or 0)
         config = roaming_config_with_defaults(
@@ -505,9 +513,13 @@ class SceneInteractionService:
             "last_client_status": self.runtime_status.get(project.get("id")),
         }
 
-    def report_runtime(self, payload, ue_project):
-        project = self._project()
-        return {
+    def report_runtime(self, payload, ue_project, project_id=None):
+        project = self._project(project_id)
+        result = {
             "status": "ok",
             "runtime_status": self.runtime_status.report(project.get("id"), payload, ue_project),
         }
+        command = realtime_control_for_heartbeat(project.get("id"))
+        if command:
+            result["realtime_control"] = command
+        return result

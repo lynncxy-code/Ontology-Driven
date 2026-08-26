@@ -418,6 +418,41 @@ class ProjectStore:
     def _save_active(self):
         self._write_json(self._active_file, {"active_project_id": self._active_id})
 
+    def _runtime_settings_path(self):
+        return os.path.join(
+            os.path.dirname(os.path.abspath(self._active_file)),
+            "runtime_settings.json",
+        )
+
+    def get_runtime_setting(self, key):
+        """Read one low-frequency service setting without changing project data."""
+        with self._lock:
+            path = self._runtime_settings_path()
+            if not os.path.exists(path):
+                return None
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    values = json.load(handle)
+            except (OSError, ValueError):
+                return None
+            return copy.deepcopy(values.get(str(key))) if isinstance(values, dict) else None
+
+    def set_runtime_setting(self, key, value):
+        """Persist one low-frequency service setting in the JSON deployment."""
+        with self._lock:
+            path = self._runtime_settings_path()
+            values = {}
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as handle:
+                        loaded = json.load(handle)
+                    if isinstance(loaded, dict):
+                        values = loaded
+                except (OSError, ValueError):
+                    values = {}
+            values[str(key)] = copy.deepcopy(value)
+            self._write_json(path, values)
+
     # ── 项目级 ───────────────────────────────────────────────
     def list_projects(self):
         out = []

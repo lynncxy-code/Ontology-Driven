@@ -207,6 +207,13 @@ def bind_active_dataset(store, ue_project_id, ue_project_name, force=False):
     if not ue_project_id:
         return False, {"error": "ue_project_id is required"}
 
+    # Standalone maintenance/migration processes import this module without
+    # running app.py's startup hook, so their process-local index starts empty.
+    # Rebuild from the persistent project store before deciding exclusivity;
+    # otherwise an offline migration can bind the same UE ID to two projects.
+    if index_lookup(ue_project_id) is None:
+        rebuild_index(store)
+
     store_lock = getattr(store, "_lock", None) or nullcontext()
     with _index_lock:
         with store_lock:

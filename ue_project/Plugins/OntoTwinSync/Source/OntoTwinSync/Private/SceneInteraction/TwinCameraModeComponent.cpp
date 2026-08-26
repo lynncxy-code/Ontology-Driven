@@ -56,8 +56,9 @@ void UTwinCameraModeComponent::ApplyGodViewVisibility(
     OntoTwinCameraVisibility::ApplyToPlayer(
         PlayerController, HiddenActors, GodViewVisibilityState);
     UE_LOG(LogTemp, Log,
-        TEXT("OntoTwin god-view visibility applied: hidden_actors=%d suppressed_lights=%d"),
+        TEXT("OntoTwin god-view visibility applied: hidden_actors=%d hidden_primitives=%d suppressed_lights=%d"),
         GodViewVisibilityState.AddedPlayerHiddenActors.Num(),
+        GodViewVisibilityState.AddedPlayerHiddenPrimitiveComponents.Num(),
         GodViewVisibilityState.SuppressedLights.Num());
 }
 

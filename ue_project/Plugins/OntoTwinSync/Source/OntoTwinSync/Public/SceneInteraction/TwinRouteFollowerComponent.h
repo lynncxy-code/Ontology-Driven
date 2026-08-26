@@ -38,10 +38,14 @@ public:
     void StopRoute();
     void CompleteNarration();
     void InterruptNarrationByUser();
+    /** 切换“本段解说结束后保持用户暂停”；不停止当前语音。 */
+    bool TogglePauseAfterNarration();
 
     ETwinRoamingRouteState GetRouteState() const { return RouteState; }
     FString GetRouteStateText() const;
+    const FString& GetBlockedDiagnosticText() const { return BlockedDiagnosticText; }
     bool IsFollowing() const { return RouteState == ETwinRoamingRouteState::AutoRoute; }
+    bool WillPauseAfterNarration() const { return bPauseAfterNarration; }
 
     FOnTwinNarrationRequested OnNarrationRequested;
 
@@ -57,10 +61,12 @@ private:
     TArray<FTwinRoamingRuntimeWaypoint> RuntimeWaypoints;
     int32 NextWaypointIndex = 0;
     float PreviousSplineDistance = 0.0f;
+    bool bPauseAfterNarration = false;
 
     FVector StallReferenceLocation = FVector::ZeroVector;
     float NoProgressSeconds = 0.0f;
     bool bHasStallReference = false;
+    FString BlockedDiagnosticText;
 
     bool IsSafeJoin(const FVector& Target, FString& OutError) const;
     bool RequestCharacterMovement(
@@ -70,7 +76,7 @@ private:
     void UpdateFacing(const FVector& FacingDirection, float DeltaTime);
     void ResetStallDetection();
     bool HasTimedOutWithoutProgress(float DeltaTime);
-    void MarkBlocked();
+    void MarkBlocked(const FVector& Target, const TCHAR* Phase);
     bool TryTriggerNarration(float SplineLength);
     void AdvancePassedWaypoints(float SplineLength);
     void ResetNarrationSession();

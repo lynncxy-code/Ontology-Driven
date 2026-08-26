@@ -1,6 +1,7 @@
 #include "SceneInteraction/TwinCameraVisibility.h"
 
 #include "Components/LightComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -139,9 +140,28 @@ void OntoTwinCameraVisibility::ApplyToPlayer(
 
     for (AActor* Actor : Actors)
     {
-        if (!IsValid(Actor) || PlayerController->HiddenActors.Contains(Actor)) continue;
-        PlayerController->HiddenActors.Add(Actor);
-        State.AddedPlayerHiddenActors.Add(Actor);
+        if (!IsValid(Actor)) continue;
+        if (!PlayerController->HiddenActors.Contains(Actor))
+        {
+            PlayerController->HiddenActors.Add(Actor);
+            State.AddedPlayerHiddenActors.Add(Actor);
+        }
+
+        // UE 5.6 ultimately renders a primitive-id exclusion set. Populate the
+        // explicit component path as well as HiddenActors so attached/Nanite
+        // meshes cannot escape through an actor container with no primitives.
+        TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents;
+        Actor->GetComponents(PrimitiveComponents);
+        for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
+        {
+            if (!IsValid(PrimitiveComponent)
+                || PlayerController->HiddenPrimitiveComponents.Contains(PrimitiveComponent))
+            {
+                continue;
+            }
+            PlayerController->HiddenPrimitiveComponents.Add(PrimitiveComponent);
+            State.AddedPlayerHiddenPrimitiveComponents.Add(PrimitiveComponent);
+        }
     }
     SuppressLights(Actors, State.SuppressedLights);
 }
@@ -158,5 +178,17 @@ void OntoTwinCameraVisibility::ClearFromPlayer(
         }
     }
     State.AddedPlayerHiddenActors.Reset();
+    if (PlayerController)
+    {
+        for (const TWeakObjectPtr<UPrimitiveComponent>& PrimitiveComponent
+            : State.AddedPlayerHiddenPrimitiveComponents)
+        {
+            if (PrimitiveComponent.IsValid())
+            {
+                PlayerController->HiddenPrimitiveComponents.Remove(PrimitiveComponent.Get());
+            }
+        }
+    }
+    State.AddedPlayerHiddenPrimitiveComponents.Reset();
     RestoreLights(State.SuppressedLights);
 }

@@ -21,6 +21,7 @@ from dataset_activation import (
     project_dataset_to_object_types,
 )
 from instance_model_binding.service import resolve_effective_model
+from representation_container.service import resolve_effective_container
 from scc_w18_semantic_mapping import decorate_graph as decorate_scc_w18_graph
 
 # ── App Setup ───────────────────────────────────────────────────
@@ -35,6 +36,7 @@ ARTSTUDIO_BASE_URL = os.environ.get(
 ).rstrip("/")
 ARTSTUDIO_TIMEOUT = float(os.environ.get("ARTSTUDIO_TIMEOUT", "5"))
 ARTSTUDIO_TOKEN = os.environ.get("ARTSTUDIO_TOKEN") or None
+ARTSTUDIO_UPLOAD_MAX_MB = max(1, int(os.environ.get("ARTSTUDIO_UPLOAD_MAX_MB", "500")))
 
 # 3.3：ArtStudio 运行时同步客户端（详情/版本缓存/下载代理）
 import artstudio_client
@@ -1744,6 +1746,10 @@ def _object_type_response(rid, ot, instances_by_type=None):
         "rid": ot.get("rid", rid),
         "name": ot.get("name", rid),
         "category": ot.get("category", ""),
+        # Keep the origin available to the catalog UI.  CAD-generated types
+        # use this to distinguish their layer-based category from ordinary
+        # business categories without changing the stored ObjectType shape.
+        "source": ot.get("source", ""),
         "description": ot.get("description", ""),
         "color": ot.get("color", "#888888"),
         "properties": ot.get("properties", []),
@@ -1751,6 +1757,8 @@ def _object_type_response(rid, ot, instances_by_type=None):
         "interface_configs": ot.get("interface_configs", {}),
         "asset_id": ot.get("asset_id"),
         "ue_asset_path": ot.get("ue_asset_path", ""),
+        "container_blueprint_id": ot.get("container_blueprint_id", ""),
+        "container_slot": ot.get("container_slot") or "primary",
         "mock_instances": ot.get("mock_instances", []),
         "has_representable": "I3D_Representable" in injected,
         "model_binding": _model_binding_summary(rid, ot, instances_by_type),
@@ -1929,6 +1937,15 @@ def get_artstudio_identity():
 
 
 artstudio_auth.register_routes(app)
+
+from artstudio_upload import register_artstudio_upload_routes
+artstudio_upload_service = register_artstudio_upload_routes(
+    app,
+    artstudio_client,
+    ARTSTUDIO_BASE_URL,
+    timeout=ARTSTUDIO_TIMEOUT,
+    max_size_bytes=ARTSTUDIO_UPLOAD_MAX_MB * 1024 * 1024,
+)
 
 
 @app.route('/api/v2/assets', methods=['GET'])
@@ -2360,6 +2377,8 @@ def _build_render_config(object_type_rid):
         "interface_configs": dict(ot.get("interface_configs") or {}),
         "asset_id": asset_id,
         "ue_asset_path": ot.get("ue_asset_path") or asset_meta.get("ue_path") or asset_id,
+        "container_blueprint_id": ot.get("container_blueprint_id") or "",
+        "container_slot": ot.get("container_slot") or "primary",
         "object_type_name": ot.get("name", object_type_rid),
     }
 
@@ -2397,7 +2416,13 @@ def _resolve_instance_render_assets(raw, config, object_type, asset_catalog):
     return asset_id, config.get("ue_asset_path") or asset_id
 
 
-def _build_representable_interface(ue_asset_path, asset_id, is_visible, config=None):
+def _build_representable_interface(
+    ue_asset_path,
+    asset_id,
+    is_visible,
+    config=None,
+    container_config=None,
+):
     """Build I3D_Representable while preserving assembly data byte-for-byte logically."""
     payload = {
         "asset_id": ue_asset_path,
@@ -2411,6 +2436,11 @@ def _build_representable_interface(ue_asset_path, asset_id, is_visible, config=N
             payload["render_parts"] = config["render_parts"]
         if "assembly_signature" in config:
             payload["assembly_signature"] = config["assembly_signature"]
+    if not _is_assembly_render_config(config) and isinstance(container_config, dict):
+        container_path = container_config.get("container_blueprint_id") or ""
+        if container_config.get("enabled") and container_path:
+            payload["container_blueprint_id"] = container_path
+            payload["container_slot"] = container_config.get("container_slot") or "primary"
     return payload
 
 
@@ -2505,6 +2535,7 @@ def _build_snapshot(instance_id, ctx=None):
         asset_id = effective_model["asset_id"]
         ue_asset_path = effective_model["ue_asset_path"]
         assembly_config = cfg if effective_model["mode"] == "original_assembly" else None
+        container_config = resolve_effective_container(cfg, ot, effective_model)
         ot_name = ot.get("name", ot_rid)
     elif cfg:
         # 类型已不在当前数据集（场景被切走/移植到别的后端）→ 回退实例冻结的配置
@@ -2513,6 +2544,7 @@ def _build_snapshot(instance_id, ctx=None):
         asset_id = effective_model["asset_id"]
         ue_asset_path = effective_model["ue_asset_path"]
         assembly_config = cfg if effective_model["mode"] == "original_assembly" else None
+        container_config = resolve_effective_container(cfg, {}, effective_model)
         ot_name = cfg.get("object_type_name", ot_rid)
     else:
         # 无配置可用 → 隐藏，避免给 UE 推空接口
@@ -2534,6 +2566,7 @@ def _build_snapshot(instance_id, ctx=None):
             asset_id,
             raw.get("is_loaded", True),
             assembly_config,
+            container_config,
         )
 
     if "I3D_Spatial" in injected:
@@ -2622,10 +2655,17 @@ def get_state_snapshot():
         return jsonify(info), 403
     ctx = None
     if pid is not None:
-        project = project_store.read_project(pid)
-        if project is None:
-            return jsonify({"error": "project_gone", "project_id": pid}), 410
-        ctx = _project_snapshot_context(project)
+        # The active PG project is already fully materialized in memory.  Reading it
+        # again reconstructs every instance and render part from PostgreSQL, which can
+        # stall the single-process development server for large UE scenes.
+        active_id = project_store.get_active_id()
+        if pid == active_id:
+            ctx = _active_snapshot_context()
+        else:
+            project = project_store.read_project(pid)
+            if project is None:
+                return jsonify({"error": "project_gone", "project_id": pid}), 410
+            ctx = _project_snapshot_context(project)
     snap = _build_snapshot(instance_id, ctx=ctx)
     if snap is None:
         return jsonify({"error": "Instance not found"}), 404
@@ -2653,14 +2693,22 @@ def get_all_snapshots():
                 result.append(snap)
     else:
         # UE 请求 → 按其绑的项目读，切激活不影响
-        project = project_store.read_project(pid)
-        if project is None:
-            return jsonify({"error": "project_gone", "project_id": pid}), 410
-        ctx = _project_snapshot_context(project)
-        for iid in _iter_instance_ids(project, zone):
-            snap = _build_snapshot(iid, ctx=ctx)
-            if snap:
-                result.append(snap)
+        if pid == project_store.get_active_id():
+            # Fast path for the common PIE case: reuse the active in-memory stores.
+            # Non-active UE bindings still use the project-specific context below.
+            for iid in instance_store.get_all_ids(zone):
+                snap = _build_snapshot(iid)
+                if snap:
+                    result.append(snap)
+        else:
+            project = project_store.read_project(pid)
+            if project is None:
+                return jsonify({"error": "project_gone", "project_id": pid}), 410
+            ctx = _project_snapshot_context(project)
+            for iid in _iter_instance_ids(project, zone):
+                snap = _build_snapshot(iid, ctx=ctx)
+                if snap:
+                    result.append(snap)
     return jsonify(result)
 
 @app.route('/api/v2/state/override', methods=['POST'])
@@ -4932,6 +4980,9 @@ overlay_service = register_overlay_routes(app, project_store, _refresh_object_ty
 from scene_interaction import register_scene_interaction_routes
 register_scene_interaction_routes(app, project_store)
 
+from external_data_control import register_external_data_control_routes
+register_external_data_control_routes(app, project_store, get_runtime_status)
+
 from web_interaction import register_web_interaction_routes
 register_web_interaction_routes(app, project_store)
 
@@ -4944,6 +4995,13 @@ instance_model_binding_service = register_instance_model_binding_routes(
     project_store,
     MOCK_ASSETS,
     artstudio_client,
+    _refresh_object_types_after_overlay_save,
+)
+
+from representation_container import register_representation_container_routes
+representation_container_service = register_representation_container_routes(
+    app,
+    project_store,
     _refresh_object_types_after_overlay_save,
 )
 

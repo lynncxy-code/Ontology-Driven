@@ -14,6 +14,7 @@ public class OntoTwinSync : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
+			"ApplicationCore",
 			"AudioMixer",
 			"Core",
 			"CoreUObject",
@@ -59,7 +60,7 @@ public class OntoTwinSync : ModuleRules
 
 		if (Target.bBuildEditor)
 		{
-			PrivateDependencyModuleNames.AddRange(new string[]
+			PublicDependencyModuleNames.AddRange(new string[]
 			{
 				"DeveloperToolSettings",
 				"UnrealEd"

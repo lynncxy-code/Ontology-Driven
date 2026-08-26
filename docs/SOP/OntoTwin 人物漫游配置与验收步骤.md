@@ -57,6 +57,41 @@ Core 包提供：
 
 ### 2.3 准备扩展人物 Primary Data Asset
 
+只要 Nexus 资源目录仍展示六个 RenderPeople 人物，新项目接入流程就必须把它们视为标准迁移项，不能只安装 Core 包。关闭源工程和目标工程的 Unreal Editor 后，使用已验收且具有合法授权的母本工程执行：
+
+```powershell
+$env:ONTOTWIN_MIGRATION_DESTINATION = "D:\path\to\TargetProject\Content"
+& "D:\UE_5.6\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
+  "D:\path\to\LicensedSourceProject.uproject" `
+  -run=pythonscript `
+  -script="D:\tmp\digital_twin_aircraft\scripts\ue_migrate_renderpeople_to_project.py" `
+  -unattended -nop4 -nosplash -nullrhi
+```
+
+该步骤会连同网格、骨架、材质和动画依赖迁移 Carla、Claudia、Eric、Manuel、Nathan、Sophia 六套人物与默认皮肤。随后必须合并第 2.5 节的 Asset Manager 扫描目录，并在目标工程冷启动执行：
+
+```powershell
+& "D:\UE_5.6\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
+  "D:\path\to\TargetProject.uproject" `
+  -run=pythonscript `
+  -script="D:\tmp\digital_twin_aircraft\scripts\ue_install_renderpeople_characters.py" `
+  -unattended -nop4 -nosplash
+```
+
+安装器把六个人物配置为 RenderPeople Skeleton 原生的 idle/walk 单节点动画。以下旧配置必须为空：人物和皮肤的 `AnimInstanceClass`、隐藏 `AnimationSourceMesh`、`AnimationSourceAnimInstanceClass`、`AutoRouteAnimation`。不能把工人的 `myAnimBlueprint` 或 Manny/Quinn 动画蓝图复制给 RenderPeople；它们属于不同 Skeleton，混用会造成“六人正常时工人漂移，工人正常时六人加载失败”的互斥故障。运行时由 `CharacterMovement` 独占胶囊位移，原生动画忽略 Root Motion，避免模型漂移。
+
+然后执行冷启动验证：
+
+```powershell
+& "D:\UE_5.6\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
+  "D:\path\to\TargetProject.uproject" `
+  -run=pythonscript `
+  -script="D:\tmp\digital_twin_aircraft\scripts\ue_verify_renderpeople_characters.py" `
+  -unattended -nop4 -nosplash -nullrhi
+```
+
+验收必须同时满足 `TwinCharacter=8`、`TwinSkin=9`，且六个人物均返回 `success=true`。如果没有合法人物资产源，则应在 Nexus 目录中停用相应人物，不能继续显示一个目标 UE 工程无法解析的选项。
+
 以 Nexus 中的“黑西装女士”为例：
 
 - 目录人物 ID：`character.renderpeople.carla`
@@ -68,7 +103,7 @@ Core 包提供：
 1. 把有合法授权的 Skeletal Mesh、Skeleton 和行走动画导入宿主工程。
 2. 在 `/Game/OntoTwin/SceneInteraction/Characters` 中创建 `TwinCharacterAsset` 类型的 Primary Data Asset。
 3. 将文件命名为 `RenderPeopleCarla`，大小写必须与 Primary Asset ID 名称部分一致。
-4. 至少设置 `BaseMesh`；为正常运动表现还应设置 `AnimInstanceClass`。
+4. 至少设置 `BaseMesh`、与该 Mesh 共用 Skeleton 的 `DirectIdleAnimation` 和 `DirectWalkAnimation`；RenderPeople 的 `AnimInstanceClass` 必须为空。
 5. `CharacterClass` 可以留空，运行时会使用插件的 `ATwinRoamingCharacter`；如果自定义，必须继承该类。
 6. 检查胶囊半高、半径、Mesh 偏移和朝向，避免人物悬空或陷入地面。
 
@@ -86,7 +121,7 @@ Core 包提供：
 
 - `SkeletonId = skeleton.renderpeople.ue4.v1`
 - `Mesh` 为与人物共用 Skeleton 的 Skeletal Mesh
-- `AnimInstanceClass` 与该人物兼容
+- `AnimInstanceClass` 留空；动画由人物 Data Asset 的 Skeleton 原生 direct clips 驱动
 - 如需换装，再设置材质覆盖
 
 人物和皮肤必须属于同一 Skeleton 体系。皮肤缺失时运行时可能降级，但不能作为正式验收状态。
@@ -96,8 +131,8 @@ Core 包提供：
 Core 安装器会自动写入以下规则，不需要手工重复添加：
 
 ```ini
-+PrimaryAssetTypesToScan=(PrimaryAssetType="TwinCharacter",AssetBaseClass=/Script/OntoTwinSync.TwinCharacterAsset,bHasBlueprintClasses=False,bIsEditorOnly=False,Directories=((Path="/OntoTwinCharacterPack_Core/Characters")),Rules=(Priority=0,ChunkId=-1,bApplyRecursively=True,CookRule=AlwaysCook))
-+PrimaryAssetTypesToScan=(PrimaryAssetType="TwinSkin",AssetBaseClass=/Script/OntoTwinSync.TwinSkinAsset,bHasBlueprintClasses=False,bIsEditorOnly=False,Directories=((Path="/OntoTwinCharacterPack_Core/Skins")),Rules=(Priority=0,ChunkId=-1,bApplyRecursively=True,CookRule=AlwaysCook))
++PrimaryAssetTypesToScan=(PrimaryAssetType="TwinCharacter",AssetBaseClass=/Script/OntoTwinSync.TwinCharacterAsset,bHasBlueprintClasses=False,bIsEditorOnly=False,Directories=((Path="/OntoTwinCharacterPack_Core/Characters"),(Path="/Game/OntoTwin/SceneInteraction/Characters/RenderPeople")),Rules=(Priority=0,ChunkId=-1,bApplyRecursively=True,CookRule=AlwaysCook))
++PrimaryAssetTypesToScan=(PrimaryAssetType="TwinSkin",AssetBaseClass=/Script/OntoTwinSync.TwinSkinAsset,bHasBlueprintClasses=False,bIsEditorOnly=False,Directories=((Path="/OntoTwinCharacterPack_Core/Skins"),(Path="/Game/OntoTwin/SceneInteraction/Skins/RenderPeople")),Rules=(Priority=0,ChunkId=-1,bApplyRecursively=True,CookRule=AlwaysCook))
 ```
 
 增加 Renderpeople 等扩展人物时，每一种 `PrimaryAssetType` 仍应只有一条扫描规则；把扩展目录合并进现有 `Directories`，不要再添加第二条同类型规则。修改后完全重启 UE，否则 Asset Manager 可能仍无法解析新资产，打包时也可能漏 Cook。
@@ -176,11 +211,14 @@ Core 安装器会自动写入以下规则，不需要手工重复添加：
    - `V`：切换第一人称、过肩、上帝视角；关卡没有 `camera.god.default` 时只在前两种视角间循环
    - `Tab`：打开/关闭漫游操作面板
    - `E`：近景交互
+   - `Space`：近身与第一人称模式下跳跃；不暂停或恢复路线
+   - `P`：暂停/继续自动路线；解说播放期间只切换“解说后暂停/继续”，当前语音和字幕不停
    - `R`：恢复路线
    - `F7`：进入/退出漫游
 5. 如果启用了小地图，检查右上角地图可见、人物标记随移动和转向更新、收起/展开有效，地图装饰区域不抢占 WASD 与鼠标观察输入。
 6. 退出网页、HUD 交互或漫游后，再次确认 WASD 和相机输入已经恢复。
 7. PIE 通过后，继续在 Standalone、Development 和 Shipping 中验证人物资产与皮肤均已 Cook。
+8. 八个角色逐一验收：工人和 Manny 使用各自 AnimBP；六个 RenderPeople 使用各自 Skeleton 的 direct idle/walk。所有角色都必须能进入 `F7`、原地站立不漂移、行走时胶囊与模型不分离，并且切换任一角色不影响其他角色下次加载。
 
 ## 5. 故障定位顺序
 
@@ -198,6 +236,7 @@ Core 安装器会自动写入以下规则，不需要手工重复添加：
 8. 上帝视角不可用：检查 `camera.god.default` 相机锚点；这通常会降级，不应与人物资源缺失混为一谈。
 9. `V` 无响应：检查日志是否出现 `OntoTwin V camera toggle applied` 或 `OntoTwin V camera toggle ignored`；前者表示按键已处理，后者会直接说明是 HUD 打开、切换动画未结束还是人物未就绪。
 10. 页面已勾选小地图但 UE 不显示：依次检查 `config.minimap.enabled=true`、`last_client_status.minimap_state`，再按第 2.8 节检查 `minimap.default` 锚点；不要把页面开关当作自动生成相机。
+11. 工人/Manny 与 RenderPeople 表现互斥或漂移：读取人物 Data Asset；RenderPeople 的 `AnimInstanceClass`、隐藏动画源和 `AutoRouteAnimation` 必须为空，direct idle/walk 的 Skeleton 必须与人物 Mesh 完全相同。不要用重定向器或“骨骼名称看起来相似”代替精确 Skeleton 校验。
 
 ## 6. SCC2 当前安装结果（2026-08-13）
 

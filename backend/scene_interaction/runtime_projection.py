@@ -114,6 +114,61 @@ def _floor_for_frame(frame):
         return 1
 
 
+def _available_character_resources(config, catalog):
+    """Project the catalog into a compact UE runtime character selector."""
+    snapshot = catalog.snapshot()
+    selected_character_id = str(config.get("character_id") or "")
+    selected_skin_ids = set(config.get("allowed_skin_ids") or [])
+    configured_default_skin_id = str(config.get("default_skin_id") or "")
+    catalog_skins = snapshot.get("skins") or []
+    result = []
+
+    for character in snapshot.get("characters") or []:
+        character_id = str(character.get("id") or "")
+        primary_asset_id = str(character.get("ue_primary_asset_id") or "")
+        if not character_id or not primary_asset_id:
+            continue
+
+        compatible_skins = [
+            skin for skin in catalog_skins
+            if skin.get("character_id") == character_id
+            and skin.get("ue_primary_asset_id")
+        ]
+        # Keep the configured character's Web allow-list meaningful. Other
+        # catalog characters expose their compatible defaults for this UE-only
+        # session selector and do not mutate the saved project configuration.
+        if character_id == selected_character_id and selected_skin_ids:
+            compatible_skins = [
+                skin for skin in compatible_skins
+                if skin.get("id") in selected_skin_ids
+            ]
+
+        default_skin_id = configured_default_skin_id \
+            if character_id == selected_character_id else ""
+        compatible_skin_ids = {str(skin.get("id") or "") for skin in compatible_skins}
+        if default_skin_id not in compatible_skin_ids:
+            default_skin_id = str(compatible_skins[0].get("id") or "") \
+                if compatible_skins else ""
+
+        result.append({
+            "id": character_id,
+            "display_name": str(character.get("display_name") or character_id),
+            "ue_primary_asset_id": primary_asset_id,
+            "skeleton_id": str(character.get("skeleton_id") or ""),
+            "default_skin_id": default_skin_id,
+            "skins": [
+                {
+                    "id": str(skin.get("id") or ""),
+                    "display_name": str(skin.get("display_name") or skin.get("id") or ""),
+                    "ue_primary_asset_id": str(skin.get("ue_primary_asset_id") or ""),
+                    "skeleton_id": str(skin.get("skeleton_id") or ""),
+                }
+                for skin in compatible_skins
+            ],
+        })
+    return result
+
+
 def _selected_resources(project, config, catalog, projected_route=None):
     resources = {
         "character": catalog.get("characters", config.get("character_id")),
@@ -125,6 +180,7 @@ def _selected_resources(project, config, catalog, projected_route=None):
         "spawn_anchor": None,
         "route": None,
         "god_camera": None,
+        "available_characters": _available_character_resources(config, catalog),
     }
     spawn = config.get("spawn") or {}
     if spawn.get("mode") == "ue_anchor" and spawn.get("anchor_id"):
@@ -265,7 +321,11 @@ def build_runtime_projection(project, config, catalog, revision):
                         "source": "manual_image",
                         "x_cm": ue[0],
                         "y_cm": ue[1],
-                        "trace_origin_z_cm": round(ue[2] + 1000.0, 2),
+                        # Keep manual-image spawn traces close to the calibrated
+                        # floor. A 10 m trace origin can begin above several
+                        # storeys and make UE select an upper floor or roof
+                        # before it ever reaches the requested floor.
+                        "trace_origin_z_cm": round(ue[2] + 150.0, 2),
                         "yaw_deg": _yaw_to_ue(matrix, spawn.get("yaw_deg", 0.0)),
                         "z_hint_cm": round(float(z_hint) * scale, 2) if z_hint is not None else None,
                         "floor": floor,

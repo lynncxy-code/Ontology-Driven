@@ -70,6 +70,15 @@ private:
     UTextBlock* DisplayNameText = nullptr;
 
     UPROPERTY()
+    UButton* DisplayNameCopyButton = nullptr;
+
+    UPROPERTY()
+    UTextBlock* TypeNameText = nullptr;
+
+    UPROPERTY()
+    UButton* TypeNameCopyButton = nullptr;
+
+    UPROPERTY()
     UTextBlock* InstanceIdText = nullptr;
 
     UPROPERTY()
@@ -140,6 +149,11 @@ private:
 
     UPROPERTY()
     UComboBoxString* BusinessSelector = nullptr;
+
+    // The combo menu owns only Slate rows; retain each generated UTextBlock
+    // so its font/brush data remains valid across GC and window focus changes.
+    UPROPERTY(Transient)
+    TArray<TObjectPtr<UTextBlock>> RetainedComboTextWidgets;
 
     UPROPERTY()
     UEditableTextBox* BusinessNameInput = nullptr;
@@ -223,6 +237,12 @@ private:
 
     UFUNCTION()
     void HandleAccessActionClicked();
+
+    UFUNCTION()
+    void HandleDisplayNameCopyClicked();
+
+    UFUNCTION()
+    void HandleTypeNameCopyClicked();
 
     UFUNCTION()
     void HandleCloseClicked();

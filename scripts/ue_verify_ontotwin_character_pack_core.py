@@ -19,6 +19,16 @@ GROUND_GRAY_PATH = f"{GROUND_ROOT}/CharacterMaterial/gray.gray"
 GROUND_GREEN_PATH = f"{GROUND_ROOT}/CharacterMaterial/green.green"
 MANNY_MESH_PATH = "/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple"
 MANNY_ANIM_PATH = "/Game/Characters/Mannequins/Anims/Unarmed/ABP_Unarmed"
+QUINN_MESH_PATH = f"{GROUND_ROOT}/Meshes/SKM_Quinn_Simple"
+QUINN_ANIM_PATH = (
+    f"{GROUND_ROOT}/Mannequin/Mannequins/Animations/ABP_Quinn"
+)
+QUINN_WALK_PATH = (
+    f"{GROUND_ROOT}/Mannequin/Mannequins/Animations/Quinn/MF_Walk_Fwd"
+)
+MANNY_WALK_PATH = (
+    "/Game/Characters/Mannequins/Anims/Unarmed/Walk/MF_Unarmed_Walk_Fwd"
+)
 
 
 def path_name(value):
@@ -39,6 +49,26 @@ def verify_skeleton_pair(mesh_path, anim_path):
     result["success"] = (
         bool(result["mesh_skeleton"])
         and result["mesh_skeleton"] == result["anim_skeleton"]
+    )
+    return result
+
+
+def verify_route_skeleton(mesh_path, animation_path):
+    mesh = unreal.EditorAssetLibrary.load_asset(mesh_path)
+    animation = unreal.EditorAssetLibrary.load_asset(animation_path)
+    mesh_skeleton = mesh.get_editor_property("skeleton") if mesh else None
+    animation_skeleton = (
+        animation.get_editor_property("skeleton") if animation else None
+    )
+    result = {
+        "mesh": mesh_path,
+        "animation": animation_path,
+        "mesh_skeleton": path_name(mesh_skeleton),
+        "animation_skeleton": path_name(animation_skeleton),
+    }
+    result["success"] = (
+        bool(result["mesh_skeleton"])
+        and result["mesh_skeleton"] == result["animation_skeleton"]
     )
     return result
 
@@ -74,6 +104,9 @@ for type_name, expected_class, asset_name, expected_path in EXPECTED:
             item["animation_source_anim_class"] = path_name(
                 asset.get_editor_property("animation_source_anim_instance_class")
             )
+            item["route_animation"] = path_name(
+                asset.get_editor_property("auto_route_animation")
+            )
     item["success"] = (
         item["asset_loaded"]
         and item["asset_class"] == expected_class
@@ -84,15 +117,17 @@ for type_name, expected_class, asset_name, expected_path in EXPECTED:
         if asset_name == "ObserverBase":
             item["success"] = (
                 item["success"]
-                and item["animation_source_mesh"].split(".", 1)[0] == MANNY_MESH_PATH
+                and item["animation_source_mesh"].split(".", 1)[0] == QUINN_MESH_PATH
                 and item["animation_source_anim_class"].split(".", 1)[0]
-                == MANNY_ANIM_PATH
+                == QUINN_ANIM_PATH
+                and item["route_animation"].split(".", 1)[0] == QUINN_WALK_PATH
             )
         else:
             item["success"] = (
                 item["success"]
                 and not item["animation_source_mesh"]
                 and not item["animation_source_anim_class"]
+                and item["route_animation"].split(".", 1)[0] == MANNY_WALK_PATH
             )
     if type_name == "TwinSkin" and asset:
         overrides = asset.get_editor_property("material_overrides")
@@ -113,6 +148,9 @@ for type_name, expected_class, asset_name, expected_path in EXPECTED:
 skeleton_checks = (
     verify_skeleton_pair(GROUND_MESH_PATH, GROUND_ANIM_PATH),
     verify_skeleton_pair(MANNY_MESH_PATH, MANNY_ANIM_PATH),
+    verify_skeleton_pair(QUINN_MESH_PATH, QUINN_ANIM_PATH),
+    verify_route_skeleton(QUINN_MESH_PATH, QUINN_WALK_PATH),
+    verify_route_skeleton(MANNY_MESH_PATH, MANNY_WALK_PATH),
 )
 world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
 unreal.SystemLibrary.execute_console_command(world, "AssetManager.DumpTypeSummary")

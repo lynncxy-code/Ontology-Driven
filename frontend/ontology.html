@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/vendor/vue-3.3.4.global.prod.js" integrity="sha384-QLgwzsuau/sa8LhRgjRzkvQS0LyUzCM2B8FPwVoSu1KDel940/orifPaumNXp9hK" crossorigin="anonymous"></script>
     <script src="/vendor/axios-1.7.9.min.js" integrity="sha384-jLwhcmGu/RL8PSTUEl/559f8QVLL4QqM+HBvoZlt4F7XCdsdoDGAwW4nPFfoM7lU" crossorigin="anonymous"></script>
+    <script src="/artstudio_upload.js"></script>
     <script src="/hierarchy_menu.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.3.2/bin/jsencrypt.min.js" integrity="sha384-FwzUI3CDdHbj2MEKbnjj0eCvB+gYurE3x3pW/udNFOVUbrCrl3REWMQ1FBTolvoj" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="/nexus_titlebar.css" />
@@ -75,7 +76,7 @@
                                         <span v-else class="text-[10px] bg-gray-100 text-gray-400 border border-gray-200 px-1.5 rounded-md whitespace-nowrap">未配置</span>
                                     </div>
                                     <div class="text-[10px] text-gray-400 font-mono mt-0.5 truncate">{{ ot.rid }}</div>
-                                    <div class="text-[11px] text-gray-500 mt-1">种类: <span class="text-gray-700">{{ ot.category }}</span></div>
+                                    <div class="text-[11px] text-gray-500 mt-1">{{ typeCategoryCaption(ot) }}: <span class="text-gray-700">{{ ot.category || '未分类' }}</span></div>
 
                                     <div class="flex flex-wrap gap-1.5 mt-2" v-if="ot.injected_interfaces.length > 0">
                                         <span v-for="iface in ot.injected_interfaces" :key="iface"
@@ -347,8 +348,10 @@
                                         <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='mine' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('mine')">我的资产</button>
                                         <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='manual' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('manual')">路径直连</button>
                                     </div>
+                                    <button ref="assetUploadTrigger" type="button" @click="openAssetUpload"
+                                            class="ml-auto text-xs font-medium px-3 py-2 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black whitespace-nowrap">上传模型</button>
                                     <!-- 数据源指示 -->
-                                    <span v-if="bindMode==='library'" class="text-[10px] font-mono ml-auto text-gray-600 bg-gray-50 border border-gray-200" style="padding:2px 8px; border-radius:4px;">
+                                    <span v-if="bindMode==='library'" class="text-[10px] font-mono text-gray-600 bg-gray-50 border border-gray-200" style="padding:2px 8px; border-radius:4px;">
                                         ArtStudio 资产库
                                     </span>
                                     <span v-if="bindMode==='mine'" class="text-[10px] font-mono ml-auto text-gray-600 bg-gray-50 border border-gray-200" style="padding:2px 8px; border-radius:4px;">
@@ -533,6 +536,44 @@
                         </div>
                     </transition>
 
+                    <div v-if="hasRepresentable" class="mt-6 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <div class="px-5 py-4 border-b border-gray-200 bg-gray-50/50 flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-900">Blueprint 表现容器</h3>
+                                <p class="mt-1 text-[11px] leading-relaxed text-gray-500">可选。填写后，UE 先创建容器 BP，再把上方模型注入指定逻辑槽位；留空则继续直接加载模型。</p>
+                            </div>
+                            <span class="inline-flex items-center gap-1.5 text-[10px] text-gray-600">
+                                <span :class="['w-1.5 h-1.5 rounded-full', selected.container_blueprint_id ? 'bg-gray-900' : 'bg-gray-300']"></span>
+                                {{ selected.container_blueprint_id ? '已配置' : '直接表现' }}
+                            </span>
+                        </div>
+                        <div class="p-5 space-y-4">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-800 mb-1.5">容器 Blueprint 路径</label>
+                                <input type="text" v-model="containerBlueprintPath"
+                                       placeholder="/Game/SCC/Program/Function/Machine/BP_Item_base_SCC_Machine.BP_Item_base_SCC_Machine"
+                                       class="w-full text-xs font-mono border border-gray-300 rounded-md px-3 py-2 outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900" />
+                                <p class="mt-1.5 text-[11px] leading-relaxed text-gray-500">仅接受已 Cook 的 <code class="font-mono text-gray-700">/Game</code> 或 <code class="font-mono text-gray-700">/Engine</code> 普通 Actor Blueprint。</p>
+                            </div>
+                            <div class="max-w-xs">
+                                <label class="block text-xs font-medium text-gray-800 mb-1.5">容器槽位</label>
+                                <input type="text" v-model="containerSlot" placeholder="primary"
+                                       class="w-full text-xs font-mono border border-gray-300 rounded-md px-3 py-2 outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900" />
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button type="button" @click="saveRepresentationContainer" :disabled="containerSaving"
+                                        class="text-xs font-medium px-4 py-2 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black disabled:opacity-40">
+                                    {{ containerSaving ? '正在保存…' : (containerBlueprintPath.trim() ? '保存容器配置' : '恢复直接表现') }}
+                                </button>
+                                <button type="button" @click="openContainerBatch" :disabled="containerSaving || !containerBlueprintPath.trim()"
+                                        class="text-xs font-medium px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                                    批量应用到已绑定资产类型
+                                </button>
+                                <span class="text-[11px] text-gray-500">批量操作会跳过未启用三维表现、未绑定类型模型或仍使用组合模型的类型。</span>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </template>
         </div>
@@ -554,6 +595,95 @@
                             class="rounded-md border border-gray-900 bg-gray-900 px-4 py-2 text-xs font-medium text-white hover:bg-black disabled:opacity-40">{{ clearTypeModelSaving ? '正在清除…' : '清除默认模型' }}</button>
                 </div>
             </div>
+        </div>
+    </transition>
+
+    <!-- 批量应用 BP 容器确认 -->
+    <transition name="fade">
+        <div v-if="containerBatchOpen"
+             class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 px-4"
+             @click.self="closeContainerBatch" @keydown.esc.stop="closeContainerBatch">
+            <div ref="containerBatchDialog" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="container-batch-title"
+                 class="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-6 shadow-2xl outline-none">
+                <h3 id="container-batch-title" class="text-base font-semibold text-gray-900">批量应用 Blueprint 容器？</h3>
+                <p class="mt-2 text-xs leading-relaxed text-gray-500">将为当前项目所有符合条件、且已经绑定类型模型的 ObjectType 设置同一个容器。实例独立模型覆盖不会变化。</p>
+                <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-[11px] text-gray-600">
+                    <div class="font-mono break-all text-gray-800">{{ containerBlueprintPath }}</div>
+                    <div class="mt-1">槽位：<span class="font-mono text-gray-800">{{ containerSlot || 'primary' }}</span></div>
+                </div>
+                <div class="mt-5 flex justify-end gap-2">
+                    <button type="button" @click="closeContainerBatch" :disabled="containerBatchSaving"
+                            class="rounded-md border border-gray-300 bg-white px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-40">取消</button>
+                    <button type="button" @click="applyContainerBatch" :disabled="containerBatchSaving"
+                            class="rounded-md border border-gray-900 bg-gray-900 px-4 py-2 text-xs font-medium text-white hover:bg-black disabled:opacity-40">{{ containerBatchSaving ? '正在应用…' : '确认批量应用' }}</button>
+                </div>
+            </div>
+        </div>
+    </transition>
+
+    <!-- ArtStudio 模型上传 -->
+    <transition name="fade">
+        <div v-if="assetUploadOpen" class="fixed inset-0 z-[1050] flex items-center justify-center bg-black/40 px-4"
+             @click.self="closeAssetUpload" @keydown.esc.stop="closeAssetUpload">
+            <form ref="assetUploadDialog" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="asset-upload-title"
+                  @submit.prevent="submitAssetUpload"
+                  class="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-6 shadow-2xl outline-none">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h3 id="asset-upload-title" class="text-base font-semibold text-gray-900">上传 GLB 模型</h3>
+                        <p class="mt-1 text-xs leading-relaxed text-gray-500">模型保存在 ArtStudio。上传后会自动选中，但不会自动修改类型默认模型。</p>
+                    </div>
+                    <button type="button" @click="closeAssetUpload" :disabled="assetUploadLoading"
+                            class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-40" aria-label="关闭上传窗口">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+                    </button>
+                </div>
+                <div class="mt-5 space-y-4">
+                    <label class="block">
+                        <span class="mb-1.5 block text-xs font-medium text-gray-700">GLB 模型文件</span>
+                        <input ref="assetUploadFileInput" type="file" accept=".glb,model/gltf-binary" :disabled="assetUploadLoading"
+                               @change="onAssetUploadFileChange"
+                               class="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-xs text-gray-600 file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-gray-800 hover:file:bg-gray-200 disabled:bg-gray-50" />
+                        <span class="mt-1.5 block text-[11px] text-gray-500">仅支持单个、自包含的 GLB 2.0 文件，最大 500 MB。</span>
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-xs font-medium text-gray-700">资产名称</span>
+                        <input v-model.trim="assetUploadForm.name" type="text" maxlength="64" :disabled="assetUploadLoading" placeholder="请输入模型名称"
+                               class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100 disabled:bg-gray-50" />
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-xs font-medium text-gray-700">描述（选填）</span>
+                        <textarea v-model.trim="assetUploadForm.description" maxlength="1000" rows="2" :disabled="assetUploadLoading" placeholder="简要说明模型用途"
+                                  class="w-full resize-none rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100 disabled:bg-gray-50"></textarea>
+                    </label>
+                    <fieldset>
+                        <legend class="mb-2 text-xs font-medium text-gray-700">可见性</legend>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label :class="['cursor-pointer rounded-lg border p-3', assetUploadForm.visibility === 'public' ? 'border-gray-900 bg-gray-50' : 'border-gray-200 bg-white']">
+                                <span class="flex items-center gap-2 text-xs font-semibold text-gray-900"><input v-model="assetUploadForm.visibility" type="radio" value="public" :disabled="assetUploadLoading" class="accent-gray-900" />公共资产</span>
+                                <span class="mt-1 block pl-5 text-[11px] leading-relaxed text-gray-500">上传后立即上架，其他用户可以搜索和使用。</span>
+                            </label>
+                            <label :class="['cursor-pointer rounded-lg border p-3', assetUploadForm.visibility === 'private' ? 'border-gray-900 bg-gray-50' : 'border-gray-200 bg-white']">
+                                <span class="flex items-center gap-2 text-xs font-semibold text-gray-900"><input v-model="assetUploadForm.visibility" type="radio" value="private" :disabled="assetUploadLoading" class="accent-gray-900" />私人资产</span>
+                                <span class="mt-1 block pl-5 text-[11px] leading-relaxed text-gray-500">仅当前 ArtStudio 账号可以查看和使用。</span>
+                            </label>
+                        </div>
+                    </fieldset>
+                    <div v-if="assetUploadLoading" class="rounded-lg border border-gray-200 bg-gray-50 p-3" aria-live="polite">
+                        <div class="flex items-center justify-between text-[11px] text-gray-600"><span>{{ assetUploadStageLabel }}</span><span>{{ assetUploadProgress }}%</span></div>
+                        <div class="mt-2 h-1.5 overflow-hidden rounded bg-gray-200"><div class="h-full bg-gray-900 transition-all" :style="{ width: assetUploadProgress + '%' }"></div></div>
+                    </div>
+                    <div v-if="assetUploadError" class="border-l-2 border-red-300 pl-3 text-xs leading-relaxed text-red-700" role="alert">{{ assetUploadError }}</div>
+                </div>
+                <div class="mt-5 flex justify-end gap-2">
+                    <button type="button" @click="closeAssetUpload" :disabled="assetUploadLoading"
+                            class="rounded-md border border-gray-300 bg-white px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-40">取消</button>
+                    <button type="submit" :disabled="assetUploadLoading || !assetUploadFile || !assetUploadForm.name.trim()"
+                            class="rounded-md border border-gray-900 bg-gray-900 px-4 py-2 text-xs font-medium text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-40">
+                        {{ assetUploadLoading ? '正在上传…' : (assetUploadForm.visibility === 'public' ? '上传公共模型' : '上传私人模型') }}
+                    </button>
+                </div>
+            </form>
         </div>
     </transition>
 
@@ -657,6 +787,7 @@ createApp({
         const assetTotal    = ref(0);         // 总资产数（服务端返回）
         const assetSource   = ref("studio");  // "studio" | "mine" | "mock"
         const selected      = ref(null);
+        const activeDataset = ref(null);
         const pendingInterfaces = ref(new Set());
         const pendingRemove = ref(new Set());   // 编辑模式下，待卸载的接口
         const editMode      = ref(false);        // 是否处于修改模式
@@ -686,11 +817,30 @@ createApp({
         const clearTypeModelSaving = ref(false);
         const clearTypeModelDialog = ref(null);
         let clearTypeModelReturnFocus = null;
+        const containerBlueprintPath = ref('');
+        const containerSlot = ref('primary');
+        const containerSaving = ref(false);
+        const containerBatchOpen = ref(false);
+        const containerBatchSaving = ref(false);
+        const containerBatchDialog = ref(null);
+        let containerBatchReturnFocus = null;
         const toasts        = ref([]);
         const assetPage     = ref(1);
         const assetCategory = ref("");          // 分类筛选，""=全部
         const assetOwnerType = ref("");          // 所有者筛选（ArtStudio），""=全部 / 1=组织 / 2=个人
         const assetQuery    = ref("");          // 搜索关键词
+        const assetUploadOpen = ref(false);
+        const assetUploadLoading = ref(false);
+        const assetUploadError = ref('');
+        const assetUploadStage = ref('idle');
+        const assetUploadProgress = ref(0);
+        const assetUploadFile = ref(null);
+        const assetUploadForm = ref({ name: '', description: '', visibility: 'public' });
+        const assetUploadDialog = ref(null);
+        const assetUploadFileInput = ref(null);
+        const assetUploadTrigger = ref(null);
+        let assetUploadReturnFocus = null;
+        let assetUploadAfterLogin = false;
         const ASSET_PAGE_SIZE = 10;
         let assetLoadSeq = 0;
 
@@ -707,6 +857,12 @@ createApp({
         const assetTotalPages = computed(() => Math.max(1, Math.ceil(assetTotal.value / ASSET_PAGE_SIZE)));
         // 服务端已分页，allAssets 就是当前页数据
         const pagedAssets = computed(() => allAssets.value);
+        const assetUploadStageLabel = computed(() => ({
+            checking: '正在检查模型文件',
+            uploading: '正在上传到 OntoTwin',
+            publishing: '正在发布到 ArtStudio',
+            done: '上传完成',
+        }[assetUploadStage.value] || '准备上传'));
         const selectedAsset = computed(() => (
             allAssets.value.find(asset => asset.file_number === selectedAssetFn.value && asset.bindable !== false) || null
         ));
@@ -727,31 +883,33 @@ createApp({
             });
         });
 
-        const dominantTypePaths = computed(() => (
-            OntoTwinHierarchyMenu.dominantPathsByType(typeInstances.value)
-        ));
+        function typeCategoryPath(ot) {
+            return OntoTwinHierarchyMenu.objectTypeCategoryPath(ot);
+        }
 
-        function typeHierarchyPath(rid) {
-            return dominantTypePaths.value.get(rid) || [OntoTwinHierarchyMenu.DEFAULT_UNASSIGNED_LABEL];
+        function typeCategoryCaption(ot) {
+            return OntoTwinHierarchyMenu.isCadGenerated(ot) ? '原 CAD 图层' : '业务分类';
         }
 
         const filteredObjectTypes = computed(() => {
             const query = typeSearch.value.toLowerCase();
             return sortedObjectTypes.value.filter(ot => {
-                const hierarchyLabel = OntoTwinHierarchyMenu.pathLabel(typeHierarchyPath(ot.rid));
-                return !query || `${ot.name || ''} ${ot.rid || ''} ${hierarchyLabel}`.toLowerCase().includes(query);
+                const categoryLabel = OntoTwinHierarchyMenu.pathLabel(typeCategoryPath(ot));
+                return !query || `${ot.name || ''} ${ot.rid || ''} ${categoryLabel}`.toLowerCase().includes(query);
             });
         });
 
         const objectTypeMenuGroups = computed(() => (
-            OntoTwinHierarchyMenu.groupObjectTypes(filteredObjectTypes.value, typeInstances.value)
+            OntoTwinHierarchyMenu.groupObjectTypes(filteredObjectTypes.value)
         ));
 
-        function isTypeMenuOpen(key) {
+        function isTypeMenuOpen(key, itemCount = 2) {
+            if (itemCount < 2) return true;
             return Boolean(typeSearch.value) || expandedTypeMenus.value.has(key);
         }
 
-        function toggleTypeMenu(key) {
+        function toggleTypeMenu(key, itemCount = 2) {
+            if (itemCount < 2) return;
             const next = new Set(expandedTypeMenus.value);
             if (next.has(key)) next.delete(key);
             else next.add(key);
@@ -759,8 +917,10 @@ createApp({
         }
 
         function openTypeMenuForRid(rid) {
+            const target = objectTypes.value.find(item => item.rid === rid);
+            if (!target) return;
             const next = new Set(expandedTypeMenus.value);
-            next.add(OntoTwinHierarchyMenu.pathKey(typeHierarchyPath(rid)));
+            next.add(OntoTwinHierarchyMenu.pathKey(OntoTwinHierarchyMenu.objectTypeGroupPath(target)));
             expandedTypeMenus.value = next;
         }
 
@@ -1004,21 +1164,88 @@ createApp({
             selectedAssetFn.value = ot.asset_id || '';
             selectedAssetUePath.value = ot.ue_asset_path || '';
             manualPath.value = ot.asset_id || '';
+            containerBlueprintPath.value = ot.container_blueprint_id || '';
+            containerSlot.value = ot.container_slot || 'primary';
             assetPage.value = 1; // reset pagination
         }
 
         async function loadTypes() {
-            const [typesRes, ifaceRes, instancesRes] = await Promise.all([
+            const [typesRes, ifaceRes, instancesRes, datasetsRes] = await Promise.all([
                 axios.get('/api/v2/ontology/types'),
                 axios.get('/api/v2/ontology/interfaces'),
                 axios.get('/api/v2/instances').catch(() => ({ data: [] })),
+                axios.get('/api/v2/ontology/datasets').catch(() => ({ data: [] })),
             ]);
             objectTypes.value   = typesRes.data;
             allInterfaces.value = ifaceRes.data;
             typeInstances.value = Array.isArray(instancesRes.data) ? instancesRes.data : [];
+            activeDataset.value = (Array.isArray(datasetsRes.data) ? datasetsRes.data : []).find(ds => ds.is_active) || null;
             if (selected.value) {
                 const fresh = typesRes.data.find(t => t.rid === selected.value.rid);
-                if (fresh) selected.value = { ...fresh };
+                if (fresh) {
+                    selected.value = { ...fresh };
+                    containerBlueprintPath.value = fresh.container_blueprint_id || '';
+                    containerSlot.value = fresh.container_slot || 'primary';
+                }
+            }
+        }
+
+        async function saveRepresentationContainer() {
+            if (!selected.value || containerSaving.value) return;
+            const expectedProjectId = activeDataset.value?.project_id || activeDataset.value?.id || '';
+            containerSaving.value = true;
+            try {
+                const { data } = await axios.put(
+                    `/api/v2/object-types/${encodeURIComponent(selected.value.rid)}/representation-container`,
+                    {
+                        expected_project_id: expectedProjectId,
+                        container_blueprint_id: containerBlueprintPath.value.trim(),
+                        container_slot: containerSlot.value.trim() || 'primary',
+                    }
+                );
+                toast('ok', data.message || 'BP 容器配置已保存');
+                await loadTypes();
+            } catch (e) {
+                toast('err', e.response?.data?.message || 'BP 容器配置保存失败。');
+                if (e.response?.status === 409) await loadTypes();
+            } finally {
+                containerSaving.value = false;
+            }
+        }
+
+        async function openContainerBatch() {
+            if (!containerBlueprintPath.value.trim() || containerBatchSaving.value) return;
+            containerBatchReturnFocus = document.activeElement;
+            containerBatchOpen.value = true;
+            await nextTick();
+            containerBatchDialog.value?.focus();
+        }
+
+        function closeContainerBatch() {
+            if (containerBatchSaving.value) return;
+            containerBatchOpen.value = false;
+            nextTick(() => containerBatchReturnFocus?.focus?.());
+        }
+
+        async function applyContainerBatch() {
+            if (!containerBlueprintPath.value.trim() || containerBatchSaving.value) return;
+            const expectedProjectId = activeDataset.value?.project_id || activeDataset.value?.id || '';
+            containerBatchSaving.value = true;
+            try {
+                const { data } = await axios.post('/api/v2/object-types/representation-container/batch', {
+                    expected_project_id: expectedProjectId,
+                    container_blueprint_id: containerBlueprintPath.value.trim(),
+                    container_slot: containerSlot.value.trim() || 'primary',
+                });
+                containerBatchOpen.value = false;
+                toast('ok', data.message || 'BP 容器已批量应用');
+                await loadTypes();
+                nextTick(() => containerBatchReturnFocus?.focus?.());
+            } catch (e) {
+                toast('err', e.response?.data?.message || '批量应用失败。');
+                if (e.response?.status === 409) await loadTypes();
+            } finally {
+                containerBatchSaving.value = false;
             }
         }
 
@@ -1128,6 +1355,7 @@ createApp({
 
         function closeArtstudioLogin(force = false) {
             if (loginLoading.value && !force) return;
+            if (!force) assetUploadAfterLogin = false;
             loginModalOpen.value = false;
             loginForm.value.password = '';
             loginForm.value.captcha = '';
@@ -1176,12 +1404,15 @@ createApp({
                     user: data.user || {},
                 };
                 identityError.value = '';
+                const shouldOpenUpload = assetUploadAfterLogin;
+                assetUploadAfterLogin = false;
                 closeArtstudioLogin(true);
                 toast('ok', 'ArtStudio 账号已连接');
                 if (bindMode.value === 'mine') {
                     assetPage.value = 1;
                     await loadAssets();
                 }
+                if (shouldOpenUpload) await openAssetUpload();
             } catch (e) {
                 loginForm.value.password = '';
                 const message = e.response?.data?.message || e.message || '登录失败，请检查账号信息后重试。';
@@ -1240,6 +1471,86 @@ createApp({
             if (authenticated) {
                 assetPage.value = 1;
                 await loadAssets();
+            }
+        }
+
+        async function openAssetUpload() {
+            if (!artstudioIdentity.value?.authenticated) {
+                assetUploadAfterLogin = true;
+                await openArtstudioLogin();
+                return;
+            }
+            assetUploadAfterLogin = false;
+            assetUploadReturnFocus = document.activeElement;
+            assetUploadFile.value = null;
+            assetUploadForm.value = { name: '', description: '', visibility: 'public' };
+            assetUploadError.value = '';
+            assetUploadStage.value = 'idle';
+            assetUploadProgress.value = 0;
+            assetUploadOpen.value = true;
+            await nextTick();
+            assetUploadDialog.value?.focus();
+        }
+
+        function closeAssetUpload(force = false) {
+            if (assetUploadLoading.value && !force) return;
+            assetUploadOpen.value = false;
+            assetUploadError.value = '';
+            nextTick(() => assetUploadReturnFocus?.focus?.());
+        }
+
+        function onAssetUploadFileChange(event) {
+            const file = event.target.files?.[0] || null;
+            assetUploadFile.value = file;
+            assetUploadError.value = '';
+            if (file && !assetUploadForm.value.name.trim()) {
+                assetUploadForm.value.name = OntoTwinAssetUpload.defaultName(file.name);
+            }
+        }
+
+        function selectUploadedAsset(asset) {
+            if (!asset) return;
+            ++assetLoadSeq;
+            bindMode.value = 'mine';
+            assetSource.value = 'mine';
+            assetPage.value = 1;
+            allAssets.value = [asset, ...allAssets.value.filter(item => item.file_number !== asset.file_number)];
+            assetTotal.value = Math.max(assetTotal.value + 1, allAssets.value.length);
+            selectedAssetFn.value = asset.file_number;
+            selectedAssetUePath.value = asset.ue_path || '';
+            assetResult.value = null;
+        }
+
+        async function submitAssetUpload() {
+            if (assetUploadLoading.value) return;
+            assetUploadError.value = '';
+            assetUploadLoading.value = true;
+            try {
+                const result = await OntoTwinAssetUpload.upload({
+                    file: assetUploadFile.value,
+                    name: assetUploadForm.value.name,
+                    description: assetUploadForm.value.description,
+                    visibility: assetUploadForm.value.visibility,
+                    onState(stage, progress) {
+                        assetUploadStage.value = stage;
+                        assetUploadProgress.value = progress;
+                    },
+                });
+                selectUploadedAsset(result.asset);
+                closeAssetUpload(true);
+                toast('ok', result.message || '模型已上传并选中');
+            } catch (e) {
+                const data = e.response?.data || {};
+                const createdAsset = data.fields?.asset_created ? data.fields.asset : null;
+                if (createdAsset) {
+                    selectUploadedAsset(createdAsset);
+                    closeAssetUpload(true);
+                    toast('err', data.message || '资产已创建，但公共发布失败。');
+                } else {
+                    assetUploadError.value = data.message || e.message || '模型上传失败，请重试。';
+                }
+            } finally {
+                assetUploadLoading.value = false;
             }
         }
 
@@ -1310,18 +1621,24 @@ createApp({
             }
         });
         return {
-            objectTypes, typeSearch, sortedObjectTypes, filteredObjectTypes, objectTypeMenuGroups, expandedTypeMenus, isTypeMenuOpen, toggleTypeMenu, allInterfaces, allAssets, assetTotal, assetSource, selected,
+            objectTypes, typeSearch, sortedObjectTypes, filteredObjectTypes, objectTypeMenuGroups, expandedTypeMenus, isTypeMenuOpen, toggleTypeMenu, typeCategoryCaption, allInterfaces, allAssets, assetTotal, assetSource, selected, activeDataset,
             parentInterfaces, childInterfaces, pendingInterfaces, pendingRemove, hasRepresentable,
             defaultModel, originalModels,
             editMode, saving, bindMode, selectedAssetFn, selectedAssetUePath, selectedAsset, manualPath, assetResult, assetLoadWarning, artstudioIdentity, identityLoading, identityError, bindingAsset, promotingModelPath, toasts,
             clearTypeModelOpen, clearTypeModelSaving, clearTypeModelDialog,
+            containerBlueprintPath, containerSlot, containerSaving,
+            containerBatchOpen, containerBatchSaving, containerBatchDialog,
             loginModalOpen, loginLoading, challengeLoading, captchaLoading, disconnecting, loginError, loginChallenge, loginUsernameInput, loginTrigger, loginForm,
             assetPage, assetTotalPages, pagedAssets, assetCategory, assetOwnerType, assetQuery, ASSET_CATEGORIES,
+            assetUploadOpen, assetUploadLoading, assetUploadError, assetUploadProgress, assetUploadFile, assetUploadForm,
+            assetUploadDialog, assetUploadFileInput, assetUploadTrigger, assetUploadStageLabel,
             isInjected, isChecked, toggleInterface, saveInterfaces, removeInterface, bindAsset, selectLibraryAsset, selectType,
             modelSourceLabel, assetSourceLabel, promoteModel,
             openClearTypeModel, closeClearTypeModel, clearTypeDefaultModel,
+            saveRepresentationContainer, openContainerBatch, closeContainerBatch, applyContainerBatch,
             enterEditMode, cancelEditMode, saveEdit, loadAssets, loadArtstudioIdentity, refreshMyAssets, switchBindMode, onFilterChange,
             openArtstudioLogin, closeArtstudioLogin, submitArtstudioLogin, refreshLoginCaptcha, disconnectArtstudio,
+            openAssetUpload, closeAssetUpload, onAssetUploadFileChange, submitAssetUpload,
             onCategoryChange, onSearch, onPageChange,
         };
     }

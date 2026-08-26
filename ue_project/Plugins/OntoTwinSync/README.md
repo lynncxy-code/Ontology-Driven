@@ -4,6 +4,32 @@ OntoTwin Nexus 的 UE5 数字孪生同步插件。把整个 `OntoTwinSync/` 文�
 
 源码迁移自仓库根目录 `ue5/`（原文件保留作参考，不再维护）。
 
+## 4.4 Blueprint 容器化表现
+
+`I3D_Representable` 可同时下发具体 Static Mesh 与项目 Blueprint 容器：
+
+```json
+{
+  "asset_id": "/Game/SCC/Art/SM_Machine.SM_Machine",
+  "container_blueprint_id": "/Game/SCC/Program/Function/Machine/BP_Item_base_SCC_Machine.BP_Item_base_SCC_Machine",
+  "container_slot": "primary",
+  "is_visible": true
+}
+```
+
+容器 BP 必须添加 `OntoTwin 表现宿主`（`UTwinRepresentationHostComponent`），并把
+`primary` 槽位的目标组件指向需要接收模型的 `StaticMeshComponent`。运行时结构为：
+
+```text
+ATwinInstance
+└── 项目容器 BP 子 Actor
+    └── HostComponent(primary) → 具体 Static Mesh
+```
+
+没有 `container_blueprint_id` 的旧快照继续走 4.3 的直接资产加载路径。4.4 首版容器模式
+只接受已 Cook 的 Static Mesh，且不与 `render_parts` 组合模型同时使用。父 `ATwinInstance`
+仍是唯一空间变换源；容器 BP 保留自身 Tick、碰撞和项目交互逻辑。
+
 ## 安装
 
 1. 把本文件夹整体复制到目标工程：`<你的工程>/Plugins/OntoTwinSync/`

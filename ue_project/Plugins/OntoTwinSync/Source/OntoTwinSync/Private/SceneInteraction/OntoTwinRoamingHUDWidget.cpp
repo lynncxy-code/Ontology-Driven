@@ -162,6 +162,7 @@ void UOntoTwinRoamingHUDWidget::BuildDefaultLayout()
 
     MinimapWidget = WidgetTree->ConstructWidget<UOntoTwinMinimapWidget>(
         UOntoTwinMinimapWidget::StaticClass(), TEXT("MinimapWidget"));
+    MinimapWidget->SetInteractionManager(Manager);
     MinimapWidget->SetVisibility(ESlateVisibility::Collapsed);
     UCanvasPanelSlot* MinimapSlot = Root->AddChildToCanvas(MinimapWidget);
     MinimapSlot->SetAnchors(FAnchors(1.0f, 0.0f));
@@ -222,7 +223,8 @@ void UOntoTwinRoamingHUDWidget::BuildDefaultLayout()
     UCanvasPanelSlot* StatusSlot = Root->AddChildToCanvas(StatusRow);
     StatusSlot->SetAnchors(FAnchors(0.5f, 1.0f));
     StatusSlot->SetAlignment(FVector2D(0.5f, 1.0f));
-    StatusSlot->SetPosition(FVector2D(0.0f, -24.0f));
+    // Leave a clear visual lane for the RuntimeDock's compact bottom handle.
+    StatusSlot->SetPosition(FVector2D(0.0f, -40.0f));
     StatusSlot->SetAutoSize(true);
 
     // Contextual shortcuts have no shared plate. Only each key gets a small chip.
@@ -377,6 +379,40 @@ void UOntoTwinRoamingHUDWidget::BuildDefaultLayout()
     RoamingPanel = RoamingStack;
     DrawerStack->AddChildToVerticalBox(RoamingStack);
 
+    UHorizontalBox* CharacterRow = WidgetTree->ConstructWidget<UHorizontalBox>(
+        UHorizontalBox::StaticClass(), TEXT("CharacterSelectorRow"));
+    RoamingCharacterRow = CharacterRow;
+    CharacterRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    UVerticalBoxSlot* CharacterRowSlot = RoamingStack->AddChildToVerticalBox(CharacterRow);
+    CharacterRowSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+
+    UTextBlock* CharacterLabel = WidgetTree->ConstructWidget<UTextBlock>(
+        UTextBlock::StaticClass(), TEXT("CharacterSelectorLabel"));
+    CharacterLabel->SetText(FText::FromString(TEXT("当前人物")));
+    CharacterLabel->SetColorAndOpacity(SecondaryText);
+    CharacterLabel->SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9));
+    CharacterLabel->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    UHorizontalBoxSlot* CharacterLabelSlot =
+        CharacterRow->AddChildToHorizontalBox(CharacterLabel);
+    CharacterLabelSlot->SetVerticalAlignment(VAlign_Center);
+    CharacterLabelSlot->SetPadding(FMargin(0.0f, 0.0f, 10.0f, 0.0f));
+
+    USizeBox* CharacterSelectorBounds = WidgetTree->ConstructWidget<USizeBox>(
+        USizeBox::StaticClass(), TEXT("CharacterSelectorBounds"));
+    CharacterSelectorBounds->SetWidthOverride(360.0f);
+    CharacterSelector = WidgetTree->ConstructWidget<UComboBoxString>(
+        UComboBoxString::StaticClass(), TEXT("CharacterSelector"));
+    CharacterSelector->SetWidgetStyle(BuildRouteSelectorStyle());
+    CharacterSelector->SetItemStyle(BuildRouteSelectorRowStyle());
+    CharacterSelector->SetContentPadding(FMargin(10.0f, 6.0f));
+    CharacterSelector->SetMaxListHeight(260.0f);
+    CharacterSelector->OnGenerateWidgetEvent.BindDynamic(
+        this, &UOntoTwinRoamingHUDWidget::GenerateRouteOptionWidget);
+    CharacterSelector->OnSelectionChanged.AddDynamic(
+        this, &UOntoTwinRoamingHUDWidget::OnCharacterSelected);
+    CharacterSelectorBounds->AddChild(CharacterSelector);
+    CharacterRow->AddChildToHorizontalBox(CharacterSelectorBounds);
+
     UHorizontalBox* RouteRow = WidgetTree->ConstructWidget<UHorizontalBox>(
         UHorizontalBox::StaticClass(), TEXT("RouteSelectorRow"));
     RoamingRouteRow = RouteRow;
@@ -459,6 +495,7 @@ UWidget* UOntoTwinRoamingHUDWidget::GenerateRouteOptionWidget(FString Item)
     Text->SetShadowOffset(FVector2D(1.0f, 1.0f));
     Text->SetShadowColorAndOpacity(TextShadow);
     Text->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    RetainedComboTextWidgets.Add(Text);
     return Text;
 }
 
@@ -542,6 +579,64 @@ void UOntoTwinRoamingHUDWidget::RefreshRouteSelector()
             RouteOptionIds.Num() > 1 && !Manager->IsRouteSwitching());
     }
     bRefreshingRouteSelector = false;
+}
+
+void UOntoTwinRoamingHUDWidget::RefreshCharacterSelector()
+{
+    if (!Manager || !CharacterSelector) return;
+    TArray<FString> CharacterIds;
+    TArray<FString> DisplayNames;
+    Manager->GetAvailableRuntimeCharacters(CharacterIds, DisplayNames);
+
+    FString NextSignature = Manager->GetActiveRuntimeCharacterId();
+    NextSignature += Manager->IsCharacterSwitching()
+        ? TEXT("|switching") : TEXT("|ready");
+    for (int32 Index = 0; Index < CharacterIds.Num(); ++Index)
+    {
+        NextSignature += TEXT("|") + CharacterIds[Index];
+        if (DisplayNames.IsValidIndex(Index))
+        {
+            NextSignature += TEXT(":") + DisplayNames[Index];
+        }
+    }
+    if (NextSignature == CharacterSignature) return;
+
+    CharacterSignature = NextSignature;
+    CharacterOptionIds.Reset();
+    CharacterOptionLabels.Reset();
+    bRefreshingCharacterSelector = true;
+    CharacterSelector->ClearOptions();
+    for (int32 Index = 0; Index < CharacterIds.Num(); ++Index)
+    {
+        const FString CharacterId = CharacterIds[Index];
+        FString Label = DisplayNames.IsValidIndex(Index) && !DisplayNames[Index].IsEmpty()
+            ? DisplayNames[Index] : CharacterId;
+        if (CharacterOptionLabels.Contains(Label))
+        {
+            Label += FString::Printf(TEXT("（%s）"), *CharacterId);
+        }
+        CharacterOptionIds.Add(CharacterId);
+        CharacterOptionLabels.Add(Label);
+        CharacterSelector->AddOption(Label);
+    }
+
+    if (CharacterOptionIds.IsEmpty())
+    {
+        CharacterOptionIds.Add(FString());
+        CharacterOptionLabels.Add(TEXT("当前没有可用人物"));
+        CharacterSelector->AddOption(CharacterOptionLabels[0]);
+        CharacterSelector->SetSelectedIndex(0);
+        CharacterSelector->SetIsEnabled(false);
+    }
+    else
+    {
+        const int32 ActiveIndex = CharacterOptionIds.IndexOfByKey(
+            Manager->GetActiveRuntimeCharacterId());
+        CharacterSelector->SetSelectedIndex(ActiveIndex == INDEX_NONE ? 0 : ActiveIndex);
+        CharacterSelector->SetIsEnabled(
+            CharacterOptionIds.Num() > 1 && !Manager->IsCharacterSwitching());
+    }
+    bRefreshingCharacterSelector = false;
 }
 
 void UOntoTwinRoamingHUDWidget::RefreshWebSelectors()
@@ -700,6 +795,7 @@ void UOntoTwinRoamingHUDWidget::SetInteractionManager(
     UTwinInteractionManagerComponent* InManager)
 {
     Manager = InManager;
+    if (MinimapWidget) MinimapWidget->SetInteractionManager(Manager);
     RefreshFromManager();
 }
 
@@ -714,7 +810,8 @@ void UOntoTwinRoamingHUDWidget::RefreshFromManager()
     }
     if (RoamingTabButton) RoamingTabButton->SetIsEnabled(bRoaming);
     if (!bRoaming && ActiveDockTab == 3) SetDockTab(1);
-    for (UWidget* RoamingOnly : {RoamingRouteRow, RoamingViewModes, RoamingActions})
+    for (UWidget* RoamingOnly : {
+        RoamingCharacterRow, RoamingRouteRow, RoamingViewModes, RoamingActions})
     {
         if (RoamingOnly)
         {
@@ -724,6 +821,7 @@ void UOntoTwinRoamingHUDWidget::RefreshFromManager()
         }
     }
     RefreshShortcutList();
+    RefreshCharacterSelector();
     RefreshRouteSelector();
     RefreshWebSelectors();
     DetailText->SetText(FText::FromString(Manager->GetHudDetailText()));
@@ -754,6 +852,7 @@ void UOntoTwinRoamingHUDWidget::SetInteractionOpen(bool bOpen)
 {
     if (bOpen)
     {
+        RefreshCharacterSelector();
         RefreshRouteSelector();
         RefreshWebSelectors();
     }
@@ -778,6 +877,27 @@ void UOntoTwinRoamingHUDWidget::SetMinimapMarker(
     bool bOffMap)
 {
     if (MinimapWidget) MinimapWidget->SetMarker(UV, AngleDegrees, bOffMap);
+}
+
+void UOntoTwinRoamingHUDWidget::SetMinimapTeleportFeedback(
+    const FVector2D& UV,
+    ETwinMinimapTeleportFeedback Feedback,
+    const FString& Message)
+{
+    if (MinimapWidget)
+    {
+        MinimapWidget->SetTeleportFeedback(UV, Feedback, Message);
+    }
+}
+
+void UOntoTwinRoamingHUDWidget::SetMinimapUndoAvailable(bool bAvailable)
+{
+    if (MinimapWidget) MinimapWidget->SetUndoAvailable(bAvailable);
+}
+
+void UOntoTwinRoamingHUDWidget::ClearMinimapTeleportFeedback()
+{
+    if (MinimapWidget) MinimapWidget->ClearTeleportFeedback();
 }
 
 void UOntoTwinRoamingHUDWidget::HideMinimapMarker()
@@ -893,5 +1013,21 @@ void UOntoTwinRoamingHUDWidget::OnRouteSelected(
     {
         RouteSignature.Reset();
         RefreshRouteSelector();
+    }
+}
+
+void UOntoTwinRoamingHUDWidget::OnCharacterSelected(
+    FString SelectedItem,
+    ESelectInfo::Type SelectionType)
+{
+    (void)SelectionType;
+    if (bRefreshingCharacterSelector || !Manager) return;
+    const int32 Index = CharacterOptionLabels.IndexOfByKey(SelectedItem);
+    if (!CharacterOptionIds.IsValidIndex(Index)
+        || CharacterOptionIds[Index].IsEmpty()) return;
+    if (!Manager->SelectRuntimeCharacter(CharacterOptionIds[Index]))
+    {
+        CharacterSignature.Reset();
+        RefreshCharacterSelector();
     }
 }

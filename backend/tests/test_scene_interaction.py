@@ -338,6 +338,7 @@ class SceneInteractionTestCase(unittest.TestCase):
         self.assertEqual("coordinates", runtime["config"]["spawn_ue"]["mode"])
         self.assertEqual(20.0, runtime["config"]["spawn_ue"]["x_cm"])
         self.assertEqual(40.0, runtime["config"]["spawn_ue"]["y_cm"])
+        self.assertEqual(150.0, runtime["config"]["spawn_ue"]["trace_origin_z_cm"])
 
     def test_runtime_token_is_scoped_to_project(self):
         first = self.service.runtime_projection({"mode": "test"})["runtime_token"]
@@ -403,6 +404,25 @@ class SceneInteractionTestCase(unittest.TestCase):
                  if item["route_id"] == second["route"]["id"]),
         )
         self.assertTrue(all(len(item["waypoints_ue_cm"]) >= 2 for item in routes))
+
+    def test_runtime_projection_lists_session_switchable_characters(self):
+        self.service.save_roaming(image_roaming_config(), 0)
+        runtime = self.service.runtime_projection({"mode": "matched"})
+        characters = runtime["resources"]["available_characters"]
+
+        self.assertGreaterEqual(len(characters), 2)
+        observer = next(
+            item for item in characters
+            if item["id"] == "character.observer.base"
+        )
+        self.assertEqual("工人", observer["display_name"])
+        self.assertEqual("TwinCharacter:ObserverBase", observer["ue_primary_asset_id"])
+        self.assertEqual("skin.observer.gray", observer["default_skin_id"])
+        self.assertEqual(
+            {"skin.observer.gray", "skin.observer.green"},
+            {skin["id"] for skin in observer["skins"]},
+        )
+        self.assertTrue(all(item["ue_primary_asset_id"] for item in characters))
 
     def test_ready_project_route_supplies_spawn_without_manual_point(self):
         created = self.service.create_route(project_route_payload(), 0)
@@ -756,6 +776,65 @@ class SceneInteractionTestCase(unittest.TestCase):
         self.assertEqual(200, heartbeat.status_code)
         self.assertTrue(heartbeat.get_json()["runtime_status"]["online"])
         self.assertEqual("ready", heartbeat.get_json()["runtime_status"]["minimap_state"])
+
+    def test_http_runtime_reads_ue_bound_project_instead_of_web_active_project(self):
+        project_a_id = self.store.get_active()["id"]
+        self.service.save_roaming(roaming_config(), 0)
+        project_b_id = f"scene_other_{id(self)}"
+        self.store.create_project(
+            "Other Active Project",
+            project_id=project_b_id,
+            dataset={
+                "id": project_b_id,
+                "name": "Other Active Project",
+                "bound_ue_project_id": "ue-project-b",
+                "bound_ue_project_name": "UE Project B",
+            },
+        )
+
+        import ue_project_binding as _ub
+        _ub._ue_index.clear()
+        _ub.rebuild_index(self.store)
+
+        app = Flask(__name__)
+        register_scene_interaction_routes(app, self.store)
+        client = app.test_client()
+        headers_a = {
+            "X-OntoTwin-UE-Project-Id": "ue-project-a",
+            "X-OntoTwin-UE-Project-Name": "UE Project A",
+            "X-OntoTwin-UE-Context": "editor",
+        }
+        runtime_a = client.get(
+            "/api/v2/scene-interactions/runtime", headers=headers_a
+        )
+        self.assertEqual(200, runtime_a.status_code)
+        self.assertEqual(project_a_id, runtime_a.get_json()["project_id"])
+        self.assertEqual(
+            project_a_id, runtime_a.get_json()["binding"]["project_id"]
+        )
+        self.assertTrue(runtime_a.get_json()["config"]["enabled"])
+
+        heartbeat_a = client.post(
+            "/api/v2/scene-interactions/runtime",
+            headers=headers_a,
+            json={
+                "applied_revision": 1,
+                "pending_revision": None,
+                "catalog_version": "2026.08.1",
+                "runtime_state": "manual",
+                "camera_mode": "near_follow",
+                "route_state": "idle",
+                "active_skin_id": "skin.observer.gray",
+                "minimap_state": "ready",
+                "degraded_features": [],
+                "error": None,
+            },
+        )
+        self.assertEqual(200, heartbeat_a.status_code)
+        self.assertEqual(
+            project_a_id, heartbeat_a.get_json()["runtime_status"]["project_id"]
+        )
+        self.assertEqual(project_b_id, self.store.get_active()["id"])
 
     def test_packaged_runtime_rejects_unbound_project(self):
         dataset = self.store.get_active_dataset().copy()

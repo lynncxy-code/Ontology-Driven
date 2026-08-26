@@ -19,4 +19,4 @@ RUN rm -rf /app/data/backups /app/data/projects /app/data/project_assets \
 
 EXPOSE 5000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "8", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "8", "--timeout", "900", "--access-logfile", "-", "--error-logfile", "-", "app:app"]

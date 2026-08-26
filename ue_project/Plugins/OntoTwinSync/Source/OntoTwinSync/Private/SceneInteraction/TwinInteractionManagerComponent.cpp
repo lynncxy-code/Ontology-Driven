@@ -4,6 +4,7 @@
 #include "SceneInteraction/OntoTwinNarrationHUDWidget.h"
 #include "SceneInteraction/Minimap/TwinMinimapAnchor.h"
 #include "SceneInteraction/OntoTwinRoamingHUDWidget.h"
+#include "SceneInteraction/OntoTwinRuntimeDockWidget.h"
 #include "SceneInteraction/TwinCameraModeComponent.h"
 #include "SceneInteraction/TwinCameraVisibility.h"
 #include "SceneInteraction/TwinGodViewPawn.h"
@@ -12,6 +13,7 @@
 #include "SceneInteraction/TwinRoamingSpawnAnchor.h"
 #include "SceneInteraction/TwinRouteFollowerComponent.h"
 #include "SceneInteraction/TwinSkinComponent.h"
+#include "UI/OntoTwinGlassRenderer.h"
 #include "TwinInstance.h"
 #include "TwinSceneManager.h"
 #include "WebInteraction/OntoTwinWebInteractionComponent.h"
@@ -19,6 +21,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Camera/CameraComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Audio.h"
 #include "Components/AudioComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -38,7 +41,9 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Camera/PlayerCameraManager.h"
+#include "HAL/PlatformTime.h"
 #include "HttpModule.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
@@ -375,6 +380,9 @@ void UTwinInteractionManagerComponent::BeginPlay()
         SetComponentTickEnabled(false);
         return;
     }
+    RepresentationVisualReadyHandle = ATwinInstance::OnRepresentationVisualReady.AddUObject(
+        this,
+        &UTwinInteractionManagerComponent::HandleRepresentationVisualReady);
     SetupInput();
     CreateHud();
     ApplyStartupView();
@@ -384,6 +392,8 @@ void UTwinInteractionManagerComponent::BeginPlay()
 void UTwinInteractionManagerComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     bShuttingDown = true;
+    ATwinInstance::OnRepresentationVisualReady.Remove(RepresentationVisualReadyHandle);
+    RepresentationVisualReadyHandle.Reset();
     ExitRoaming();
     OntoTwinCameraVisibility::ClearFromPlayer(
         PlayerController, StartupViewVisibilityState);
@@ -571,7 +581,17 @@ bool UTwinInteractionManagerComponent::ParseRuntimeConfig(
     OutConfig.SpawnTraceOriginZCm = NumberOr(Spawn, TEXT("trace_origin_z_cm"), 1000.0);
     OutConfig.SpawnYawDeg = NumberOr(Spawn, TEXT("yaw_deg"), 0.0);
     double ZHint = 0.0;
-    OutConfig.bHasZHint = Spawn.IsValid() && Spawn->TryGetNumberField(TEXT("z_hint_cm"), ZHint);
+    OutConfig.bHasZHint = Spawn.IsValid()
+        && Spawn->TryGetNumberField(TEXT("z_hint_cm"), ZHint);
+    if (!OutConfig.bHasZHint && Spawn.IsValid())
+    {
+        double ZHintMm = 0.0;
+        if (Spawn->TryGetNumberField(TEXT("z_hint_mm"), ZHintMm))
+        {
+            ZHint = ZHintMm / 10.0;
+            OutConfig.bHasZHint = true;
+        }
+    }
     OutConfig.ZHintCm = ZHint;
 
     const TSharedPtr<FJsonObject> Movement = GetObject(Config, TEXT("movement"));
@@ -632,6 +652,73 @@ bool UTwinInteractionManagerComponent::ParseRuntimeConfig(
             const FString PrimaryId = StringOr(Skin, TEXT("ue_primary_asset_id"));
             if (!Id.IsEmpty() && !PrimaryId.IsEmpty()) OutConfig.SkinPrimaryAssetIds.Add(Id, PrimaryId);
         }
+    }
+    const TArray<TSharedPtr<FJsonValue>>* AvailableCharacters = nullptr;
+    if (Resources.IsValid()
+        && Resources->TryGetArrayField(TEXT("available_characters"), AvailableCharacters)
+        && AvailableCharacters)
+    {
+        for (const TSharedPtr<FJsonValue>& Value : *AvailableCharacters)
+        {
+            const TSharedPtr<FJsonObject> CharacterObject =
+                Value.IsValid() ? Value->AsObject() : nullptr;
+            FTwinRoamingRuntimeCharacter RuntimeCharacter;
+            RuntimeCharacter.CharacterId = StringOr(CharacterObject, TEXT("id"));
+            RuntimeCharacter.DisplayName = StringOr(
+                CharacterObject, TEXT("display_name"), RuntimeCharacter.CharacterId);
+            RuntimeCharacter.PrimaryAssetId = StringOr(
+                CharacterObject, TEXT("ue_primary_asset_id"));
+            RuntimeCharacter.SkeletonId = StringOr(CharacterObject, TEXT("skeleton_id"));
+            RuntimeCharacter.DefaultSkinId = StringOr(
+                CharacterObject, TEXT("default_skin_id"));
+
+            const TArray<TSharedPtr<FJsonValue>>* CharacterSkins = nullptr;
+            if (CharacterObject.IsValid()
+                && CharacterObject->TryGetArrayField(TEXT("skins"), CharacterSkins)
+                && CharacterSkins)
+            {
+                for (const TSharedPtr<FJsonValue>& SkinValue : *CharacterSkins)
+                {
+                    const TSharedPtr<FJsonObject> SkinObject =
+                        SkinValue.IsValid() ? SkinValue->AsObject() : nullptr;
+                    const FString SkinId = StringOr(SkinObject, TEXT("id"));
+                    const FString SkinPrimaryAssetId = StringOr(
+                        SkinObject, TEXT("ue_primary_asset_id"));
+                    if (!SkinId.IsEmpty() && !SkinPrimaryAssetId.IsEmpty())
+                    {
+                        RuntimeCharacter.SkinPrimaryAssetIds.Add(
+                            SkinId, SkinPrimaryAssetId);
+                    }
+                }
+            }
+
+            if (!RuntimeCharacter.CharacterId.IsEmpty()
+                && !RuntimeCharacter.PrimaryAssetId.IsEmpty())
+            {
+                OutConfig.AvailableCharacters.Add(MoveTemp(RuntimeCharacter));
+            }
+        }
+    }
+    bool bCurrentCharacterListed = false;
+    for (const FTwinRoamingRuntimeCharacter& RuntimeCharacter : OutConfig.AvailableCharacters)
+    {
+        if (RuntimeCharacter.CharacterId == OutConfig.CharacterId)
+        {
+            bCurrentCharacterListed = true;
+            break;
+        }
+    }
+    if (!bCurrentCharacterListed
+        && !OutConfig.CharacterId.IsEmpty()
+        && !OutConfig.CharacterPrimaryAssetId.IsEmpty())
+    {
+        FTwinRoamingRuntimeCharacter CurrentCharacter;
+        CurrentCharacter.CharacterId = OutConfig.CharacterId;
+        CurrentCharacter.DisplayName = OutConfig.CharacterDisplayName;
+        CurrentCharacter.PrimaryAssetId = OutConfig.CharacterPrimaryAssetId;
+        CurrentCharacter.DefaultSkinId = OutConfig.DefaultSkinId;
+        CurrentCharacter.SkinPrimaryAssetIds = OutConfig.SkinPrimaryAssetIds;
+        OutConfig.AvailableCharacters.Insert(MoveTemp(CurrentCharacter), 0);
     }
     const TSharedPtr<FJsonObject> RouteResource = GetObject(Resources, TEXT("route"));
     OutConfig.RouteDisplayName = StringOr(RouteResource, TEXT("display_name"));
@@ -803,7 +890,11 @@ void UTwinInteractionManagerComponent::ApplyHotConfig(const FTwinRoamingRuntimeC
         Config.FirstPersonCamera, Config.NearCamera, Config.GodCamera);
     RoamingCharacter->RouteFollower->SetSpeed(Config.Movement.AutoRouteSpeedCmS);
     RoamingCharacter->RouteFollower->SetLoop(Config.bRouteLoop);
-    RoamingCharacter->SkinComponent->Configure(Config.SkinPrimaryAssetIds, Config.DefaultSkinId);
+    const bool bUsingSessionCharacter = !ActiveSessionCharacterId.IsEmpty()
+        && ActiveSessionCharacterId != Config.CharacterId;
+    RoamingCharacter->SkinComponent->Configure(
+        bUsingSessionCharacter ? ActiveSessionSkinPrimaryAssetIds : Config.SkinPrimaryAssetIds,
+        bUsingSessionCharacter ? ActiveSessionDefaultSkinId : Config.DefaultSkinId);
     if (RoamingCharacter->SkinComponent->GetActiveSkinId().IsEmpty())
     {
         FString SkinError;
@@ -822,6 +913,16 @@ UObject* UTwinInteractionManagerComponent::ResolvePrimaryAsset(const FString& Pr
     if (UObject* Existing = AssetManager.GetPrimaryAssetObject(AssetId)) return Existing;
     const FSoftObjectPath AssetPath = AssetManager.GetPrimaryAssetPath(AssetId);
     return AssetPath.IsValid() ? AssetPath.TryLoad() : nullptr;
+}
+
+const FTwinRoamingRuntimeCharacter* UTwinInteractionManagerComponent::FindRuntimeCharacter(
+    const FString& CharacterId) const
+{
+    return CurrentConfig.AvailableCharacters.FindByPredicate(
+        [&CharacterId](const FTwinRoamingRuntimeCharacter& Character)
+        {
+            return Character.CharacterId == CharacterId;
+        });
 }
 
 UTwinCharacterAsset* UTwinInteractionManagerComponent::ResolveCharacterAsset(FString& OutError) const
@@ -898,8 +999,37 @@ bool UTwinInteractionManagerComponent::ResolveSpawnTransform(
     if (SpawnAnchor) QueryParams.AddIgnoredActor(SpawnAnchor);
     FHitResult GroundHit;
     FVector CapsuleCenter;
-    if (bProjectToGround && GetWorld()->LineTraceSingleByChannel(
-        GroundHit, TraceStart, TraceEnd, ECC_Visibility, QueryParams))
+    bool bFoundWalkableGround = false;
+    if (bProjectToGround)
+    {
+        // Visibility is a presentation/selection channel. A database proxy may
+        // block it while deliberately ignoring Pawn, which would place the
+        // character on a non-walkable proxy and make it fall forever. Only use
+        // world geometry that explicitly blocks the character capsule and has
+        // a walkable surface normal.
+        FCollisionObjectQueryParams ObjectTypes;
+        ObjectTypes.AddObjectTypesToQuery(ECC_WorldStatic);
+        ObjectTypes.AddObjectTypesToQuery(ECC_WorldDynamic);
+        TArray<FHitResult> GroundHits;
+        if (GetWorld()->LineTraceMultiByObjectType(
+            GroundHits, TraceStart, TraceEnd, ObjectTypes, QueryParams))
+        {
+            for (const FHitResult& Hit : GroundHits)
+            {
+                const UPrimitiveComponent* Component = Hit.GetComponent();
+                if (!Hit.bBlockingHit || !Component
+                    || Hit.ImpactNormal.Z < 0.55f
+                    || Component->GetCollisionResponseToChannel(ECC_Pawn) != ECR_Block)
+                {
+                    continue;
+                }
+                GroundHit = Hit;
+                bFoundWalkableGround = true;
+                break;
+            }
+        }
+    }
+    if (bFoundWalkableGround)
     {
         CapsuleCenter = GroundHit.ImpactPoint + FVector(
             0.0f, 0.0f, CharacterAsset->CapsuleHalfHeightCm + 2.0f);
@@ -1020,7 +1150,13 @@ bool UTwinInteractionManagerComponent::ProjectRuntimeRoutePointToGround(
     float BestDistanceToHint = TNumericLimits<float>::Max();
     for (const FHitResult& Hit : Hits)
     {
-        if (!Hit.bBlockingHit || Hit.ImpactNormal.Z < RuntimeRouteMinGroundNormalZ) continue;
+        const UPrimitiveComponent* Component = Hit.GetComponent();
+        if (!Hit.bBlockingHit || !Component
+            || Hit.ImpactNormal.Z < RuntimeRouteMinGroundNormalZ
+            || Component->GetCollisionResponseToChannel(ECC_Pawn) != ECR_Block)
+        {
+            continue;
+        }
         const float DistanceToHint = FMath::Abs(
             Hit.ImpactPoint.Z - CurrentConfig.RuntimeRouteGroundZHintCm);
         if (DistanceToHint < BestDistanceToHint)
@@ -1098,7 +1234,7 @@ ATwinRoamingRoute* UTwinInteractionManagerComponent::BuildRuntimeRoute(FString& 
         RuntimeRouteActor->Spline->AddSplinePoint(
             GroundPoint, ESplineCoordinateSpace::World, false);
         RuntimeRouteActor->Spline->SetSplinePointType(
-            Index, ESplinePointType::CurveClamped, false);
+            Index, ESplinePointType::Linear, false);
     }
     RuntimeRouteActor->Spline->SetClosedLoop(CurrentConfig.bRouteLoop, false);
     RuntimeRouteActor->Spline->UpdateSpline();
@@ -1258,6 +1394,13 @@ void UTwinInteractionManagerComponent::SetMinimapState(const FString& State)
 
 void UTwinInteractionManagerComponent::ShutdownMinimap(bool bResetState)
 {
+    CancelMinimapTeleport(true);
+    if (GetWorld())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(MinimapRefreshTimer);
+    }
+    PendingMinimapRefreshReason.Reset();
+    PendingMinimapRefreshCaptures = 0;
     if (RoamingHUD) RoamingHUD->ClearMinimap();
     if (MinimapCapture)
     {
@@ -1378,25 +1521,15 @@ bool UTwinInteractionManagerComponent::InitializeMinimap(FString& OutError)
     MinimapCapture->PostProcessSettings = AnchorCamera->PostProcessSettings;
     MinimapCapture->PostProcessBlendWeight = AnchorCamera->PostProcessBlendWeight;
     MinimapCapture->HiddenActors.Add(RoamingCharacter);
+    MinimapCapture->HideActorComponents(RoamingCharacter, true);
     if (RoamingCharacter->CameraMode)
     {
         if (ATwinGodViewPawn* GodPawn = RoamingCharacter->CameraMode->GetGodPawn())
         {
             MinimapCapture->HiddenActors.Add(GodPawn);
+            MinimapCapture->HideActorComponents(GodPawn, true);
         }
     }
-    TArray<AActor*> VisibilityHiddenActors;
-    OntoTwinCameraVisibility::ResolveHiddenActors(
-        GetWorld(),
-        ETwinCameraVisibilityProfile::Minimap,
-        MinimapAnchor->HiddenActorNames,
-        MinimapAnchor->HiddenLevelNames,
-        VisibilityHiddenActors);
-    for (AActor* HiddenActor : VisibilityHiddenActors)
-    {
-        if (IsValid(HiddenActor)) MinimapCapture->HiddenActors.AddUnique(HiddenActor);
-    }
-
     FMinimalViewInfo ViewInfo;
     AnchorCamera->GetCameraView(0.0f, ViewInfo);
     const float VisibleFraction = 1.0f - 2.0f * FMath::Clamp(
@@ -1430,6 +1563,47 @@ bool UTwinInteractionManagerComponent::InitializeMinimap(FString& OutError)
     MinimapViewProjection = ViewMatrix * ProjectionMatrix;
 
     MinimapCapture->RegisterComponent();
+    if (!CaptureMinimapScene(TEXT("initial")))
+    {
+        ShutdownMinimap(false);
+        SetMinimapState(TEXT("capture_failed"));
+        OutError = TEXT("Minimap scene capture could not be submitted");
+        return false;
+    }
+
+    RoamingHUD->SetMinimapTexture(MinimapRenderTarget, MinimapCaptureSize);
+    SetMinimapState(TEXT("ready"));
+    MinimapMarkerAccumulator = 1000.0f;
+    // The scene baseline can create hundreds of primitive proxies in the same
+    // game-thread frame as this capture component. Re-capture a few times while
+    // the render thread settles instead of requiring an F7 exit/re-entry.
+    ScheduleMinimapRefreshSeries(TEXT("scene_settled"), 3, 0.25f);
+    return true;
+}
+
+bool UTwinInteractionManagerComponent::CaptureMinimapScene(const TCHAR* Reason)
+{
+    if (!GetWorld() || !MinimapAnchor || !MinimapCapture
+        || !MinimapCapture->IsRegistered() || !MinimapRenderTarget)
+    {
+        return false;
+    }
+
+    // Re-resolve the profile for every one-shot capture so actors streamed in
+    // after the initial setup receive the same minimap-only filtering.
+    TArray<AActor*> VisibilityHiddenActors;
+    OntoTwinCameraVisibility::ResolveHiddenActors(
+        GetWorld(),
+        ETwinCameraVisibilityProfile::Minimap,
+        MinimapAnchor->HiddenActorNames,
+        MinimapAnchor->HiddenLevelNames,
+        VisibilityHiddenActors);
+    for (AActor* HiddenActor : VisibilityHiddenActors)
+    {
+        if (!IsValid(HiddenActor)) continue;
+        MinimapCapture->HiddenActors.AddUnique(HiddenActor);
+        MinimapCapture->HideActorComponents(HiddenActor, true);
+    }
 
     TArray<TWeakObjectPtr<ULightComponent>> SuppressedLights;
     OntoTwinCameraVisibility::SuppressLights(
@@ -1458,11 +1632,89 @@ bool UTwinInteractionManagerComponent::InitializeMinimap(FString& OutError)
     // CaptureScene pushes the hidden-light state before submitting this one-shot capture.
     // Restore immediately so the main viewport never inherits the minimap-only lighting.
     OntoTwinCameraVisibility::RestoreLights(SuppressedLights);
-
-    RoamingHUD->SetMinimapTexture(MinimapRenderTarget, MinimapCaptureSize);
-    SetMinimapState(TEXT("ready"));
-    MinimapMarkerAccumulator = 1000.0f;
+    UE_LOG(LogTemp, Log,
+        TEXT("OntoTwin minimap captured: reason=%s hidden_actors=%d hidden_primitives=%d"),
+        Reason ? Reason : TEXT("unknown"),
+        MinimapCapture->HiddenActors.Num(),
+        MinimapCapture->HiddenComponents.Num());
     return true;
+}
+
+void UTwinInteractionManagerComponent::ScheduleMinimapRefreshSeries(
+    const TCHAR* Reason,
+    int32 CaptureCount,
+    float InitialDelaySeconds)
+{
+    if (!GetWorld() || !bRoamingActive || MinimapState != TEXT("ready")
+        || !MinimapCapture || !MinimapRenderTarget)
+    {
+        return;
+    }
+
+    PendingMinimapRefreshReason = Reason ? Reason : TEXT("scene_settled");
+    PendingMinimapRefreshCaptures = FMath::Max(1, CaptureCount);
+    GetWorld()->GetTimerManager().ClearTimer(MinimapRefreshTimer);
+    GetWorld()->GetTimerManager().SetTimer(
+        MinimapRefreshTimer,
+        this,
+        &UTwinInteractionManagerComponent::RefreshMinimapAfterSceneSettled,
+        FMath::Max(0.01f, InitialDelaySeconds),
+        false);
+    UE_LOG(LogTemp, Log,
+        TEXT("OntoTwin minimap refresh scheduled: reason=%s captures=%d delay=%.2fs"),
+        *PendingMinimapRefreshReason,
+        PendingMinimapRefreshCaptures,
+        InitialDelaySeconds);
+}
+
+void UTwinInteractionManagerComponent::HandleRepresentationVisualReady(
+    ATwinInstance* Instance)
+{
+    if (bShuttingDown || !IsValid(Instance) || Instance->GetWorld() != GetWorld()
+        || !bRoamingActive || MinimapState != TEXT("ready")
+        || !MinimapCapture || !MinimapRenderTarget || !GetWorld())
+    {
+        return;
+    }
+
+    // A shared ArtStudio download can wake many instances in one callback.
+    // Restart a short finite series so both the asset and its render proxy settle.
+    ScheduleMinimapRefreshSeries(TEXT("representation_ready"), 2, 0.25f);
+}
+
+void UTwinInteractionManagerComponent::RefreshMinimapAfterSceneSettled()
+{
+    if (!bRoamingActive || MinimapState != TEXT("ready")
+        || !MinimapCapture || !MinimapRenderTarget || !GetWorld())
+    {
+        PendingMinimapRefreshReason.Reset();
+        PendingMinimapRefreshCaptures = 0;
+        return;
+    }
+
+    const FString CaptureReason = PendingMinimapRefreshReason.IsEmpty()
+        ? TEXT("scene_settled")
+        : PendingMinimapRefreshReason;
+    if (!CaptureMinimapScene(*CaptureReason))
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("OntoTwin minimap refresh skipped while waiting for scene render state"));
+    }
+
+    PendingMinimapRefreshCaptures = FMath::Max(0, PendingMinimapRefreshCaptures - 1);
+    if (PendingMinimapRefreshCaptures > 0)
+    {
+        GetWorld()->GetTimerManager().SetTimer(
+            MinimapRefreshTimer,
+            this,
+            &UTwinInteractionManagerComponent::RefreshMinimapAfterSceneSettled,
+            0.75f,
+            false);
+    }
+    else
+    {
+        PendingMinimapRefreshReason.Reset();
+    }
 }
 
 bool UTwinInteractionManagerComponent::ProjectMinimapPoint(
@@ -1524,6 +1776,483 @@ void UTwinInteractionManagerComponent::UpdateMinimapMarker(float DeltaTime)
     const float AngleDegrees = FMath::RadiansToDegrees(
         FMath::Atan2(Direction.Y, Direction.X));
     RoamingHUD->SetMinimapMarker(MarkerUV, AngleDegrees, bOffMap);
+}
+
+bool UTwinInteractionManagerComponent::CanUseMinimapTeleport() const
+{
+    if (!bRoamingActive || MinimapState != TEXT("ready")
+        || !RoamingCharacter || !IsValid(RoamingCharacter)
+        || !RoamingCharacter->CameraMode
+        || RoamingCharacter->CameraMode->IsTransitioning()
+        || bRouteSwitchInProgress || bMinimapTeleportInProgress)
+    {
+        return false;
+    }
+    return RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God
+        || bHudInteraction;
+}
+
+bool UTwinInteractionManagerComponent::DeprojectMinimapUV(
+    const FVector2D& UV,
+    float ReferenceFootZ,
+    FVector& OutDesiredFoot,
+    FString& OutError) const
+{
+    if (MinimapState != TEXT("ready")
+        || MinimapCaptureSize.X <= 0 || MinimapCaptureSize.Y <= 0)
+    {
+        OutError = TEXT("小地图投影当前不可用");
+        return false;
+    }
+
+    const FVector2D Pixel(
+        FMath::Clamp(UV.X, 0.0f, 1.0f) * MinimapCaptureSize.X,
+        FMath::Clamp(UV.Y, 0.0f, 1.0f) * MinimapCaptureSize.Y);
+    const FIntRect ViewRect(0, 0, MinimapCaptureSize.X, MinimapCaptureSize.Y);
+    FVector RayOrigin;
+    FVector RayDirection;
+    FSceneView::DeprojectScreenToWorld(
+        Pixel,
+        ViewRect,
+        MinimapViewProjection.InverseFast(),
+        RayOrigin,
+        RayDirection);
+    if (!FMath::IsFinite(RayOrigin.X) || !FMath::IsFinite(RayDirection.Z)
+        || FMath::Abs(RayDirection.Z) < KINDA_SMALL_NUMBER)
+    {
+        OutError = TEXT("无法把小地图位置换算到当前楼层");
+        return false;
+    }
+    const float Distance = (ReferenceFootZ - RayOrigin.Z) / RayDirection.Z;
+    if (!FMath::IsFinite(Distance) || Distance <= 0.0f)
+    {
+        OutError = TEXT("小地图位置不在当前视锥内");
+        return false;
+    }
+    OutDesiredFoot = RayOrigin + RayDirection * Distance;
+    OutDesiredFoot.Z = ReferenceFootZ;
+    return true;
+}
+
+bool UTwinInteractionManagerComponent::ResolveSafeMinimapLocation(
+    const FVector& DesiredFoot,
+    float ReferenceFootZ,
+    FVector& OutCapsuleCenter,
+    bool& bOutAdjusted,
+    FString& OutError) const
+{
+    if (!GetWorld() || !RoamingCharacter || !IsValid(RoamingCharacter))
+    {
+        OutError = TEXT("人物或当前关卡不可用");
+        return false;
+    }
+    const UCapsuleComponent* Capsule = RoamingCharacter->GetCapsuleComponent();
+    if (!Capsule)
+    {
+        OutError = TEXT("人物碰撞体不可用");
+        return false;
+    }
+
+    const float CapsuleRadius = Capsule->GetScaledCapsuleRadius();
+    const float CapsuleHalfHeight = Capsule->GetScaledCapsuleHalfHeight();
+    const UCharacterMovementComponent* CharacterMovement =
+        RoamingCharacter->GetCharacterMovement();
+    const float TraceUpCm = FMath::Max(RuntimeRouteTraceUpCm, 150.0f);
+    const float TraceDownCm = FMath::Max(RuntimeRouteTraceDownCm, 300.0f);
+    const float FloorToleranceCm = CharacterMovement
+        ? FMath::Max(50.0f, CharacterMovement->MaxStepHeight + 5.0f)
+        : 50.0f;
+
+    FCollisionQueryParams QueryParams(
+        SCENE_QUERY_STAT(TwinMinimapTeleport), true, RoamingCharacter);
+    if (SceneManager) QueryParams.AddIgnoredActor(SceneManager);
+    if (ActiveRoute) QueryParams.AddIgnoredActor(ActiveRoute);
+    if (RuntimeRouteActor) QueryParams.AddIgnoredActor(RuntimeRouteActor);
+    if (MinimapAnchor) QueryParams.AddIgnoredActor(MinimapAnchor);
+    FCollisionObjectQueryParams ObjectTypes;
+    ObjectTypes.AddObjectTypesToQuery(ECC_WorldStatic);
+    ObjectTypes.AddObjectTypesToQuery(ECC_WorldDynamic);
+
+    const auto TryCandidate = [this, &QueryParams, &ObjectTypes,
+        CapsuleRadius, CapsuleHalfHeight, TraceUpCm, TraceDownCm,
+        ReferenceFootZ, FloorToleranceCm, CharacterMovement](
+            const FVector2D& XY, FVector& OutCenter)
+    {
+        const FVector TraceStart(XY.X, XY.Y, ReferenceFootZ + TraceUpCm);
+        const FVector TraceEnd(XY.X, XY.Y, ReferenceFootZ - TraceDownCm);
+        TArray<FHitResult> Hits;
+        if (!GetWorld()->LineTraceMultiByObjectType(
+            Hits, TraceStart, TraceEnd, ObjectTypes, QueryParams))
+        {
+            return false;
+        }
+
+        const FHitResult* BestHit = nullptr;
+        float BestHeightDelta = TNumericLimits<float>::Max();
+        for (const FHitResult& Hit : Hits)
+        {
+            const UPrimitiveComponent* Component = Hit.GetComponent();
+            const AActor* HitActor = Hit.GetActor();
+            const float HeightDelta = FMath::Abs(Hit.ImpactPoint.Z - ReferenceFootZ);
+            if (!Hit.bBlockingHit || !Component
+                || HeightDelta > FloorToleranceCm
+                || Hit.ImpactNormal.Z < RuntimeRouteMinGroundNormalZ
+                || (CharacterMovement && !CharacterMovement->IsWalkable(Hit))
+                || Component->ComponentHasTag(TEXT("OntoTwinNoTeleport"))
+                || (HitActor && HitActor->ActorHasTag(TEXT("OntoTwinNoTeleport")))
+                || Component->GetCollisionResponseToChannel(ECC_Pawn) != ECR_Block)
+            {
+                continue;
+            }
+            if (HeightDelta < BestHeightDelta)
+            {
+                BestHeightDelta = HeightDelta;
+                BestHit = &Hit;
+            }
+        }
+        if (!BestHit) return false;
+
+        const FVector CandidateCenter = BestHit->ImpactPoint
+            + FVector(0.0f, 0.0f, CapsuleHalfHeight + 2.0f);
+        if (GetWorld()->OverlapBlockingTestByChannel(
+            CandidateCenter,
+            RoamingCharacter->GetActorQuat(),
+            ECC_Pawn,
+            FCollisionShape::MakeCapsule(CapsuleRadius, CapsuleHalfHeight),
+            QueryParams))
+        {
+            return false;
+        }
+        OutCenter = CandidateCenter;
+        return true;
+    };
+
+    if (TryCandidate(FVector2D(DesiredFoot.X, DesiredFoot.Y), OutCapsuleCenter))
+    {
+        bOutAdjusted = false;
+        return true;
+    }
+
+    constexpr int32 DirectionCount = 12;
+    const float SearchRadii[] = {50.0f, 100.0f, 150.0f};
+    for (const float Radius : SearchRadii)
+    {
+        for (int32 DirectionIndex = 0;
+            DirectionIndex < DirectionCount;
+            ++DirectionIndex)
+        {
+            const float Angle = 2.0f * PI * static_cast<float>(DirectionIndex)
+                / static_cast<float>(DirectionCount);
+            const FVector2D CandidateXY(
+                DesiredFoot.X + FMath::Cos(Angle) * Radius,
+                DesiredFoot.Y + FMath::Sin(Angle) * Radius);
+            if (TryCandidate(CandidateXY, OutCapsuleCenter))
+            {
+                bOutAdjusted = true;
+                return true;
+            }
+        }
+    }
+
+    OutError = TEXT("目标附近 150 厘米内没有安全落点");
+    return false;
+}
+
+bool UTwinInteractionManagerComponent::ResolveMinimapTeleportTarget(
+    const FVector2D& UV,
+    FVector& OutCapsuleCenter,
+    FVector2D& OutResolvedUV,
+    bool& bOutAdjusted,
+    FString& OutError) const
+{
+    if (!RoamingCharacter || !RoamingCharacter->GetCapsuleComponent())
+    {
+        OutError = TEXT("人物当前不可用");
+        return false;
+    }
+    const float HalfHeight =
+        RoamingCharacter->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+    const float FootZ = RoamingCharacter->GetActorLocation().Z - HalfHeight;
+    FVector DesiredFoot;
+    if (!DeprojectMinimapUV(UV, FootZ, DesiredFoot, OutError)
+        || !ResolveSafeMinimapLocation(
+            DesiredFoot, FootZ, OutCapsuleCenter, bOutAdjusted, OutError))
+    {
+        return false;
+    }
+
+    const FVector ResolvedFoot = OutCapsuleCenter
+        - FVector(0.0f, 0.0f, HalfHeight);
+    if (!ProjectMinimapPoint(ResolvedFoot, OutResolvedUV))
+    {
+        OutResolvedUV = UV;
+    }
+    OutResolvedUV.X = FMath::Clamp(OutResolvedUV.X, 0.0f, 1.0f);
+    OutResolvedUV.Y = FMath::Clamp(OutResolvedUV.Y, 0.0f, 1.0f);
+    return true;
+}
+
+void UTwinInteractionManagerComponent::PreviewMinimapTeleport(const FVector2D& UV)
+{
+    LastMinimapPointerEventSeconds = FPlatformTime::Seconds();
+    if (!CanUseMinimapTeleport() || !RoamingHUD) return;
+
+    FVector TargetLocation;
+    FVector2D ResolvedUV = UV;
+    bool bAdjusted = false;
+    FString Error;
+    if (!ResolveMinimapTeleportTarget(
+        UV, TargetLocation, ResolvedUV, bAdjusted, Error))
+    {
+        RoamingHUD->SetMinimapTeleportFeedback(
+            UV,
+            ETwinMinimapTeleportFeedback::Invalid,
+            TEXT("该位置不可到达"));
+        UE_LOG(LogTemp, Verbose,
+            TEXT("OntoTwin minimap teleport preview rejected: %s"), *Error);
+        return;
+    }
+
+    RoamingHUD->SetMinimapTeleportFeedback(
+        ResolvedUV,
+        bAdjusted
+            ? ETwinMinimapTeleportFeedback::Adjusted
+            : ETwinMinimapTeleportFeedback::Valid,
+        bAdjusted ? TEXT("已调整至附近安全位置") : TEXT("双击传送到这里"));
+}
+
+void UTwinInteractionManagerComponent::RequestMinimapTeleport(const FVector2D& UV)
+{
+    LastMinimapPointerEventSeconds = FPlatformTime::Seconds();
+    if (!CanUseMinimapTeleport() || !RoamingHUD) return;
+
+    FVector TargetLocation;
+    FVector2D ResolvedUV = UV;
+    bool bAdjusted = false;
+    FString Error;
+    if (!ResolveMinimapTeleportTarget(
+        UV, TargetLocation, ResolvedUV, bAdjusted, Error))
+    {
+        RoamingHUD->SetMinimapTeleportFeedback(
+            UV,
+            ETwinMinimapTeleportFeedback::Invalid,
+            TEXT("该位置不可到达"));
+        UE_LOG(LogTemp, Verbose,
+            TEXT("OntoTwin minimap teleport request rejected: %s"), *Error);
+        return;
+    }
+    RoamingHUD->SetMinimapTeleportFeedback(
+        ResolvedUV,
+        bAdjusted
+            ? ETwinMinimapTeleportFeedback::Adjusted
+            : ETwinMinimapTeleportFeedback::Valid,
+        bAdjusted ? TEXT("已调整至附近安全位置") : TEXT("正在传送"));
+    BeginMinimapTeleport(TargetLocation, ResolvedUV, false);
+}
+
+void UTwinInteractionManagerComponent::BeginMinimapTeleport(
+    const FVector& TargetLocation,
+    const FVector2D& TargetUV,
+    bool bIsUndo)
+{
+    if (!GetWorld() || !RoamingCharacter || bMinimapTeleportInProgress) return;
+
+    GetWorld()->GetTimerManager().ClearTimer(MinimapTeleportTimer);
+    GetWorld()->GetTimerManager().ClearTimer(MinimapUndoTimer);
+    if (!bIsUndo)
+    {
+        MinimapUndoLocation = RoamingCharacter->GetActorLocation();
+    }
+    bMinimapUndoAvailable = false;
+    if (RoamingHUD) RoamingHUD->SetMinimapUndoAvailable(false);
+
+    PendingMinimapTeleportLocation = TargetLocation;
+    PendingMinimapTeleportUV = TargetUV;
+    bPendingMinimapTeleportIsUndo = bIsUndo;
+    bPendingMinimapTeleportSucceeded = false;
+    bMinimapTeleportInProgress = true;
+
+    StopNarration(true);
+    if (RoamingCharacter->RouteFollower)
+    {
+        RoamingCharacter->RouteFollower->PauseByUser();
+    }
+    RuntimeState = TEXT("manual");
+    RefreshHud();
+
+    if (FOntoTwinGlassRenderer::ShouldReduceMotion()
+        || !PlayerController || !PlayerController->PlayerCameraManager)
+    {
+        CompleteMinimapTeleportMove();
+        return;
+    }
+    PlayerController->PlayerCameraManager->StartCameraFade(
+        0.0f, 1.0f, 0.15f, FLinearColor::Black, false, true);
+    GetWorld()->GetTimerManager().SetTimer(
+        MinimapTeleportTimer,
+        this,
+        &UTwinInteractionManagerComponent::CompleteMinimapTeleportMove,
+        0.15f,
+        false);
+}
+
+void UTwinInteractionManagerComponent::CompleteMinimapTeleportMove()
+{
+    if (!bMinimapTeleportInProgress || !RoamingCharacter
+        || !IsValid(RoamingCharacter))
+    {
+        CancelMinimapTeleport(true);
+        return;
+    }
+
+    if (UCharacterMovementComponent* Movement =
+        RoamingCharacter->GetCharacterMovement())
+    {
+        Movement->StopMovementImmediately();
+    }
+    FHitResult MoveHit;
+    bPendingMinimapTeleportSucceeded = RoamingCharacter->SetActorLocation(
+        PendingMinimapTeleportLocation,
+        false,
+        &MoveHit,
+        ETeleportType::TeleportPhysics);
+    UpdateMinimapMarker(1000.0f);
+
+    if (FOntoTwinGlassRenderer::ShouldReduceMotion()
+        || !PlayerController || !PlayerController->PlayerCameraManager
+        || !GetWorld())
+    {
+        FinishMinimapTeleport();
+        return;
+    }
+    PlayerController->PlayerCameraManager->StartCameraFade(
+        1.0f, 0.0f, 0.18f, FLinearColor::Black, false, false);
+    GetWorld()->GetTimerManager().SetTimer(
+        MinimapTeleportTimer,
+        this,
+        &UTwinInteractionManagerComponent::FinishMinimapTeleport,
+        0.18f,
+        false);
+}
+
+void UTwinInteractionManagerComponent::FinishMinimapTeleport()
+{
+    if (!bMinimapTeleportInProgress) return;
+    const bool bWasUndo = bPendingMinimapTeleportIsUndo;
+    const bool bSucceeded = bPendingMinimapTeleportSucceeded;
+    bMinimapTeleportInProgress = false;
+    bPendingMinimapTeleportIsUndo = false;
+    bPendingMinimapTeleportSucceeded = false;
+
+    if (!RoamingHUD) return;
+    if (!bSucceeded)
+    {
+        bMinimapUndoAvailable = false;
+        RoamingHUD->SetMinimapUndoAvailable(false);
+        RoamingHUD->SetMinimapTeleportFeedback(
+            PendingMinimapTeleportUV,
+            ETwinMinimapTeleportFeedback::Invalid,
+            TEXT("传送失败，请重试"));
+        return;
+    }
+
+    RoamingHUD->SetMinimapTeleportFeedback(
+        PendingMinimapTeleportUV,
+        ETwinMinimapTeleportFeedback::Success,
+        bWasUndo ? TEXT("已返回原位置") : TEXT("已传送"));
+    if (bWasUndo)
+    {
+        bMinimapUndoAvailable = false;
+        RoamingHUD->SetMinimapUndoAvailable(false);
+    }
+    else if (UWorld* World = GetWorld())
+    {
+        bMinimapUndoAvailable = true;
+        RoamingHUD->SetMinimapUndoAvailable(true);
+        World->GetTimerManager().SetTimer(
+            MinimapUndoTimer,
+            this,
+            &UTwinInteractionManagerComponent::ExpireMinimapUndo,
+            5.0f,
+            false);
+    }
+}
+
+void UTwinInteractionManagerComponent::ExpireMinimapUndo()
+{
+    bMinimapUndoAvailable = false;
+    if (RoamingHUD) RoamingHUD->SetMinimapUndoAvailable(false);
+}
+
+void UTwinInteractionManagerComponent::UndoLastMinimapTeleport()
+{
+    LastMinimapPointerEventSeconds = FPlatformTime::Seconds();
+    if (!CanUseMinimapTeleport() || !bMinimapUndoAvailable
+        || !RoamingCharacter || !RoamingCharacter->GetCapsuleComponent())
+    {
+        return;
+    }
+
+    ExpireMinimapUndo();
+    const float HalfHeight =
+        RoamingCharacter->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+    const FVector DesiredFoot = MinimapUndoLocation
+        - FVector(0.0f, 0.0f, HalfHeight);
+    FVector TargetLocation;
+    bool bAdjusted = false;
+    FString Error;
+    if (!ResolveSafeMinimapLocation(
+        DesiredFoot, DesiredFoot.Z, TargetLocation, bAdjusted, Error))
+    {
+        if (RoamingHUD)
+        {
+            FVector2D CurrentUV(0.5f, 0.5f);
+            ProjectMinimapPoint(DesiredFoot, CurrentUV);
+            RoamingHUD->SetMinimapTeleportFeedback(
+                CurrentUV,
+                ETwinMinimapTeleportFeedback::Invalid,
+                TEXT("原位置当前不可返回"));
+        }
+        UE_LOG(LogTemp, Verbose,
+            TEXT("OntoTwin minimap undo rejected: %s"), *Error);
+        return;
+    }
+
+    const FVector TargetFoot = TargetLocation
+        - FVector(0.0f, 0.0f, HalfHeight);
+    FVector2D TargetUV(0.5f, 0.5f);
+    ProjectMinimapPoint(TargetFoot, TargetUV);
+    if (RoamingHUD && bAdjusted)
+    {
+        RoamingHUD->SetMinimapTeleportFeedback(
+            TargetUV,
+            ETwinMinimapTeleportFeedback::Adjusted,
+            TEXT("原位置受阻，返回附近安全位置"));
+    }
+    BeginMinimapTeleport(TargetLocation, TargetUV, true);
+}
+
+void UTwinInteractionManagerComponent::CancelMinimapTeleport(bool bRestoreView)
+{
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(MinimapTeleportTimer);
+        World->GetTimerManager().ClearTimer(MinimapUndoTimer);
+    }
+    if (bRestoreView && bMinimapTeleportInProgress
+        && PlayerController && PlayerController->PlayerCameraManager)
+    {
+        PlayerController->PlayerCameraManager->StopCameraFade();
+    }
+    bMinimapTeleportInProgress = false;
+    bPendingMinimapTeleportIsUndo = false;
+    bPendingMinimapTeleportSucceeded = false;
+    bMinimapUndoAvailable = false;
+    if (RoamingHUD)
+    {
+        RoamingHUD->SetMinimapUndoAvailable(false);
+        RoamingHUD->ClearMinimapTeleportFeedback();
+    }
 }
 
 bool UTwinInteractionManagerComponent::GetGodViewTransform(FTransform& OutTransform) const
@@ -1635,6 +2364,12 @@ bool UTwinInteractionManagerComponent::EnterRoaming(FString& OutError)
         DestroyRuntimeRoute();
         return false;
     }
+
+    ActiveSessionCharacterId = CurrentConfig.CharacterId;
+    ActiveSessionCharacterDisplayName = CurrentConfig.CharacterDisplayName;
+    ActiveSessionCharacterPrimaryAssetId = CurrentConfig.CharacterPrimaryAssetId;
+    ActiveSessionDefaultSkinId = CurrentConfig.DefaultSkinId;
+    ActiveSessionSkinPrimaryAssetIds = CurrentConfig.SkinPrimaryAssetIds;
 
     DegradedFeatures.Reset();
     bTakeoverEnabled = CurrentConfig.bTakeoverEnabled;
@@ -1769,6 +2504,12 @@ void UTwinInteractionManagerComponent::ExitRoaming()
     ActiveRoute = nullptr;
     DestroyRuntimeRoute();
     GodViewAnchor = nullptr;
+    ActiveSessionCharacterId.Reset();
+    ActiveSessionCharacterDisplayName.Reset();
+    ActiveSessionCharacterPrimaryAssetId.Reset();
+    ActiveSessionDefaultSkinId.Reset();
+    ActiveSessionSkinPrimaryAssetIds.Reset();
+    bCharacterSwitchInProgress = false;
     bRoamingActive = false;
     bHudInteraction = false;
     if (PlayerController)
@@ -1916,7 +2657,10 @@ void UTwinInteractionManagerComponent::SetHudInteraction(bool bOpen)
         bGlobalHudInputCaptured = true;
     }
     bHudInteraction = bNextOpen;
-    if (RoamingHUD) RoamingHUD->SetInteractionOpen(bHudInteraction);
+    // RoamingHUD keeps status, hints and minimap. The independent RuntimeDock
+    // owns the fixed-height action drawer.
+    if (RoamingHUD) RoamingHUD->SetInteractionOpen(false);
+    if (RuntimeDock) RuntimeDock->SetDockOpen(bHudInteraction);
     if (!PlayerController) return;
 
     const bool bGodMode = RoamingCharacter
@@ -2046,6 +2790,132 @@ bool UTwinInteractionManagerComponent::SelectRuntimeRoute(const FString& RouteId
     return true;
 }
 
+bool UTwinInteractionManagerComponent::SelectRuntimeCharacter(const FString& CharacterId)
+{
+    if (!bRoamingActive || !RoamingCharacter || bCharacterSwitchInProgress
+        || bRouteSwitchInProgress)
+    {
+        return false;
+    }
+    const FTwinRoamingRuntimeCharacter* Target = FindRuntimeCharacter(CharacterId);
+    if (!Target)
+    {
+        LastError = TEXT("所选人物当前不可用");
+        RefreshHud();
+        return false;
+    }
+    if (CharacterId == GetActiveRuntimeCharacterId())
+    {
+        return true;
+    }
+
+    bCharacterSwitchInProgress = true;
+    FTwinRoamingRuntimeCharacter Previous;
+    Previous.CharacterId = ActiveSessionCharacterId;
+    Previous.DisplayName = ActiveSessionCharacterDisplayName;
+    Previous.PrimaryAssetId = ActiveSessionCharacterPrimaryAssetId;
+    Previous.DefaultSkinId = ActiveSessionDefaultSkinId;
+    Previous.SkinPrimaryAssetIds = ActiveSessionSkinPrimaryAssetIds;
+    const FString PreviousSkinId = RoamingCharacter->SkinComponent
+        ? RoamingCharacter->SkinComponent->GetActiveSkinId() : FString();
+    const FVector PreviousLocation = RoamingCharacter->GetActorLocation();
+    const FRotator PreviousRotation = RoamingCharacter->GetActorRotation();
+    const FVector PreviousVelocity = RoamingCharacter->GetVelocity();
+    const float PreviousHalfHeight = RoamingCharacter->GetCapsuleComponent()
+        ? RoamingCharacter->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : 0.0f;
+
+    FString Error;
+    UTwinCharacterAsset* TargetAsset = Cast<UTwinCharacterAsset>(
+        ResolvePrimaryAsset(Target->PrimaryAssetId));
+    bool bSucceeded = TargetAsset
+        && RoamingCharacter->ApplyCharacterAsset(TargetAsset, Error);
+    if (!TargetAsset && Error.IsEmpty())
+    {
+        Error = FString::Printf(
+            TEXT("人物资源缺失：%s"), *Target->PrimaryAssetId);
+    }
+
+    if (bSucceeded && RoamingCharacter->SkinComponent)
+    {
+        RoamingCharacter->SkinComponent->Configure(
+            Target->SkinPrimaryAssetIds, Target->DefaultSkinId);
+        if (!Target->SkinPrimaryAssetIds.IsEmpty())
+        {
+            bSucceeded = RoamingCharacter->SkinComponent->ApplyDefaultSkin(Error);
+        }
+    }
+
+    if (bSucceeded)
+    {
+        const float NewHalfHeight = RoamingCharacter->GetCapsuleComponent()
+            ? RoamingCharacter->GetCapsuleComponent()->GetScaledCapsuleHalfHeight()
+            : PreviousHalfHeight;
+        const FVector PreservedFootLocation = PreviousLocation
+            + FVector(0.0f, 0.0f, NewHalfHeight - PreviousHalfHeight);
+        RoamingCharacter->SetActorLocationAndRotation(
+            PreservedFootLocation,
+            PreviousRotation,
+            false,
+            nullptr,
+            ETeleportType::TeleportPhysics);
+        if (UCharacterMovementComponent* Movement = RoamingCharacter->GetCharacterMovement())
+        {
+            Movement->Velocity = PreviousVelocity;
+        }
+        ActiveSessionCharacterId = Target->CharacterId;
+        ActiveSessionCharacterDisplayName = Target->DisplayName;
+        ActiveSessionCharacterPrimaryAssetId = Target->PrimaryAssetId;
+        ActiveSessionDefaultSkinId = Target->DefaultSkinId;
+        ActiveSessionSkinPrimaryAssetIds = Target->SkinPrimaryAssetIds;
+        DegradedFeatures.Remove(TEXT("default_skin_missing"));
+        LastError.Reset();
+        UE_LOG(LogTemp, Log,
+            TEXT("OntoTwin session character switched in place: %s -> %s"),
+            *Previous.CharacterId, *Target->CharacterId);
+    }
+    else
+    {
+        FString RestoreError;
+        UTwinCharacterAsset* PreviousAsset = Cast<UTwinCharacterAsset>(
+            ResolvePrimaryAsset(Previous.PrimaryAssetId));
+        if (PreviousAsset)
+        {
+            RoamingCharacter->ApplyCharacterAsset(PreviousAsset, RestoreError);
+            if (RoamingCharacter->SkinComponent)
+            {
+                RoamingCharacter->SkinComponent->Configure(
+                    Previous.SkinPrimaryAssetIds, Previous.DefaultSkinId);
+                if (!PreviousSkinId.IsEmpty())
+                {
+                    RoamingCharacter->SkinComponent->ApplySkin(
+                        PreviousSkinId, RestoreError);
+                }
+                else if (!Previous.DefaultSkinId.IsEmpty())
+                {
+                    RoamingCharacter->SkinComponent->ApplyDefaultSkin(RestoreError);
+                }
+            }
+        }
+        RoamingCharacter->SetActorLocationAndRotation(
+            PreviousLocation,
+            PreviousRotation,
+            false,
+            nullptr,
+            ETeleportType::TeleportPhysics);
+        if (UCharacterMovementComponent* Movement = RoamingCharacter->GetCharacterMovement())
+        {
+            Movement->Velocity = PreviousVelocity;
+        }
+        LastError = Error.IsEmpty() ? TEXT("人物切换失败，已恢复原人物")
+            : FString::Printf(TEXT("人物切换失败，已恢复原人物：%s"), *Error);
+        UE_LOG(LogTemp, Warning, TEXT("OntoTwin session character switch failed: %s"), *LastError);
+    }
+
+    bCharacterSwitchInProgress = false;
+    RefreshHud();
+    return bSucceeded;
+}
+
 void UTwinInteractionManagerComponent::CompleteRuntimeRouteSwitch()
 {
     const FTwinRoamingRuntimeConfig PreviousConfig = CurrentConfig;
@@ -2172,6 +3042,22 @@ void UTwinInteractionManagerComponent::CreateHud()
             RoamingHUD->SetAlignmentInViewport(FVector2D::ZeroVector);
         }
     }
+    if (!RuntimeDock)
+    {
+        UClass* WidgetClass = RuntimeDockClass
+            ? RuntimeDockClass.Get() : UOntoTwinRuntimeDockWidget::StaticClass();
+        RuntimeDock = CreateWidget<UOntoTwinRuntimeDockWidget>(
+            PlayerController, WidgetClass);
+        if (RuntimeDock)
+        {
+            RuntimeDock->SetInteractionManager(this);
+            RuntimeDock->AddToViewport(860);
+            RuntimeDock->SetPositionInViewport(FVector2D::ZeroVector, true);
+            RuntimeDock->SetAnchorsInViewport(FAnchors(0.0f, 0.0f));
+            RuntimeDock->SetAlignmentInViewport(FVector2D::ZeroVector);
+            RuntimeDock->SetDockOpen(bHudInteraction);
+        }
+    }
     if (bRoamingActive && !CrosshairHUD)
     {
         CrosshairHUD = CreateWidget<UOntoTwinCrosshairWidget>(
@@ -2208,6 +3094,8 @@ void UTwinInteractionManagerComponent::DestroyHud()
 {
     if (RoamingHUD && IsValid(RoamingHUD)) RoamingHUD->RemoveFromParent();
     RoamingHUD = nullptr;
+    if (RuntimeDock && IsValid(RuntimeDock)) RuntimeDock->RemoveFromParent();
+    RuntimeDock = nullptr;
     if (CrosshairHUD && IsValid(CrosshairHUD)) CrosshairHUD->RemoveFromParent();
     CrosshairHUD = nullptr;
     if (NarrationHUD && IsValid(NarrationHUD)) NarrationHUD->RemoveFromParent();
@@ -2237,6 +3125,20 @@ void UTwinInteractionManagerComponent::RefreshHud()
                 FVector2D(ViewportX / ViewportScale, ViewportY / ViewportScale));
         }
         RoamingHUD->RefreshFromManager();
+    }
+    if (RuntimeDock)
+    {
+        if (PlayerController)
+        {
+            int32 ViewportX = 0;
+            int32 ViewportY = 0;
+            PlayerController->GetViewportSize(ViewportX, ViewportY);
+            const float ViewportScale = FMath::Max(
+                0.01f, UWidgetLayoutLibrary::GetViewportScale(this));
+            RuntimeDock->SetDesiredSizeInViewport(
+                FVector2D(ViewportX / ViewportScale, ViewportY / ViewportScale));
+        }
+        RuntimeDock->RefreshFromManager();
     }
     if (NarrationHUD && PlayerController)
     {
@@ -2325,6 +3227,7 @@ void UTwinInteractionManagerComponent::BuildDefaultInputContext()
     HudAction = MakeAction(TEXT("IA_TwinRoamingHUD"), EInputActionValueType::Boolean);
     InteractAction = MakeAction(TEXT("IA_TwinRoamingInteract"), EInputActionValueType::Boolean);
     RouteAction = MakeAction(TEXT("IA_TwinRoamingRoute"), EInputActionValueType::Boolean);
+    PauseAction = MakeAction(TEXT("IA_TwinRoamingPauseRoute"), EInputActionValueType::Boolean);
     JumpAction = MakeAction(TEXT("IA_TwinRoamingJump"), EInputActionValueType::Boolean);
     CrouchAction = MakeAction(TEXT("IA_TwinRoamingCrouch"), EInputActionValueType::Boolean);
     SprintAction = MakeAction(TEXT("IA_TwinRoamingSprint"), EInputActionValueType::Boolean);
@@ -2334,6 +3237,7 @@ void UTwinInteractionManagerComponent::BuildDefaultInputContext()
     DefaultMappingContext->MapKey(HudAction, ToggleHudKey);
     DefaultMappingContext->MapKey(InteractAction, InteractKey);
     DefaultMappingContext->MapKey(RouteAction, ResumeRouteKey);
+    DefaultMappingContext->MapKey(PauseAction, PauseRouteKey);
     DefaultMappingContext->MapKey(JumpAction, EKeys::SpaceBar);
     DefaultMappingContext->MapKey(CrouchAction, EKeys::C);
     DefaultMappingContext->MapKey(SprintAction, EKeys::LeftShift);
@@ -2419,6 +3323,7 @@ void UTwinInteractionManagerComponent::BindEnhancedInput()
     Input->BindAction(HudAction, ETriggerEvent::Started, this, &UTwinInteractionManagerComponent::OnToggleHud);
     Input->BindAction(InteractAction, ETriggerEvent::Started, this, &UTwinInteractionManagerComponent::OnInteract);
     Input->BindAction(RouteAction, ETriggerEvent::Started, this, &UTwinInteractionManagerComponent::OnRoute);
+    Input->BindAction(PauseAction, ETriggerEvent::Started, this, &UTwinInteractionManagerComponent::OnPauseRoute);
     Input->BindAction(JumpAction, ETriggerEvent::Started, this, &UTwinInteractionManagerComponent::OnJump);
     Input->BindAction(CrouchAction, ETriggerEvent::Started, this, &UTwinInteractionManagerComponent::OnCrouchStarted);
     Input->BindAction(CrouchAction, ETriggerEvent::Completed, this, &UTwinInteractionManagerComponent::OnCrouchEnded);
@@ -2443,12 +3348,18 @@ void UTwinInteractionManagerComponent::TickFallbackInput(float DeltaTime)
     if (PlayerController->WasInputKeyJustPressed(ToggleHudKey)) ToggleHudInteraction();
     if (bHudInteraction) return;
     if (PlayerController->WasInputKeyJustPressed(ResumeRouteKey)) ResumeRoute();
+    if (PlayerController->WasInputKeyJustPressed(PauseRouteKey)) HandleRoutePauseAction();
 
     const bool bGod = RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God;
     if (PlayerController->WasInputKeyJustPressed(EKeys::LeftMouseButton)
         || (!bGod && PlayerController->WasInputKeyJustPressed(InteractKey)))
     {
         SelectFromView(bGod);
+    }
+    if (PlayerController->WasInputKeyJustPressed(EKeys::SpaceBar)
+        && RoamingCharacter->CameraMode->GetMode() != ETwinRoamingCameraMode::God)
+    {
+        RoamingCharacter->Jump();
     }
 
     FVector2D Move(
@@ -2497,7 +3408,6 @@ void UTwinInteractionManagerComponent::TickFallbackInput(float DeltaTime)
             ? CurrentConfig.FirstPersonCamera.LookSensitivity
             : CurrentConfig.NearCamera.LookSensitivity;
         RoamingCharacter->Look(FVector2D(MouseX, MouseY), Sensitivity);
-        if (PlayerController->WasInputKeyJustPressed(EKeys::SpaceBar)) RoamingCharacter->Jump();
         if (PlayerController->WasInputKeyJustPressed(EKeys::C)) RoamingCharacter->Crouch();
         if (PlayerController->WasInputKeyJustReleased(EKeys::C)) RoamingCharacter->UnCrouch();
     }
@@ -2562,6 +3472,10 @@ void UTwinInteractionManagerComponent::OnVertical(const FInputActionValue& Value
 void UTwinInteractionManagerComponent::OnToggle(const FInputActionValue&) { ToggleRoaming(); }
 void UTwinInteractionManagerComponent::OnToggleHud(const FInputActionValue&) { ToggleHudInteraction(); }
 void UTwinInteractionManagerComponent::OnRoute(const FInputActionValue&) { ResumeRoute(); }
+void UTwinInteractionManagerComponent::OnPauseRoute(const FInputActionValue&)
+{
+    HandleRoutePauseAction();
+}
 
 void UTwinInteractionManagerComponent::OnInteract(const FInputActionValue&)
 {
@@ -2575,6 +3489,14 @@ void UTwinInteractionManagerComponent::OnInteract(const FInputActionValue&)
 
 void UTwinInteractionManagerComponent::OnSelect(const FInputActionValue&)
 {
+    // Slate consumes the minimap event, but Enhanced Input can still observe
+    // the same physical pointer on some Pixel Streaming paths. Keep the guard
+    // short so it cannot swallow a later, unrelated scene selection.
+    if (LastMinimapPointerEventSeconds >= 0.0
+        && FPlatformTime::Seconds() - LastMinimapPointerEventSeconds <= 0.20)
+    {
+        return;
+    }
     if (RoamingCharacter && !RoamingCharacter->CameraMode->IsTransitioning())
     {
         const bool bGodMode =
@@ -2591,6 +3513,42 @@ void UTwinInteractionManagerComponent::OnJump(const FInputActionValue&)
     {
         RoamingCharacter->Jump();
     }
+}
+
+void UTwinInteractionManagerComponent::HandleRoutePauseAction()
+{
+    if (!RoamingCharacter || bHudInteraction
+        || RoamingCharacter->CameraMode->IsTransitioning())
+    {
+        return;
+    }
+
+    UTwinRouteFollowerComponent* RouteFollower = RoamingCharacter->RouteFollower;
+    if (RouteFollower)
+    {
+        const ETwinRoamingRouteState RouteState = RouteFollower->GetRouteState();
+        if (RouteState == ETwinRoamingRouteState::AutoRoute
+            || RouteState == ETwinRoamingRouteState::Joining)
+        {
+            RouteFollower->PauseByUser();
+            LastError.Reset();
+            RefreshHud();
+            return;
+        }
+        if (RouteState == ETwinRoamingRouteState::PausedByUser)
+        {
+            ResumeRoute();
+            return;
+        }
+        if (RouteState == ETwinRoamingRouteState::PausedForNarration)
+        {
+            // 只切换解说完成后的路线行为；当前字幕和语音保持播放。
+            RouteFollower->TogglePauseAfterNarration();
+            RefreshHud();
+            return;
+        }
+    }
+
 }
 
 void UTwinInteractionManagerComponent::OnCrouchStarted(const FInputActionValue&)
@@ -2710,7 +3668,8 @@ void UTwinInteractionManagerComponent::HandleWebInstanceSelection(
                 Instance->GetInstanceId());
         CompleteWebOpen(
             bOpened,
-            TEXT("已选择对象；当前对象没有可用的网页详情绑定。"));
+            TEXT("已选择对象；当前对象没有可用的网页详情绑定。"),
+            false);
         return;
     }
     else
@@ -2755,19 +3714,27 @@ void UTwinInteractionManagerComponent::ShowNarrationSegment()
     const bool bVoiceRequested = ActiveNarrationWaypoint.NarrationMode != TEXT("subtitle");
     if (NarrationHUD)
     {
-        NarrationHUD->ShowSegment(
-            Segment.Text,
-            ActiveNarrationSegmentIndex,
-            ActiveNarrationWaypoint.NarrationSegments.Num(),
-            ActiveNarrationWaypoint.NarrationMode,
-            false,
-            ActiveNarrationWaypoint.NarrationMode != TEXT("voice"));
+        if (ActiveNarrationWaypoint.NarrationMode == TEXT("voice"))
+        {
+            NarrationHUD->HideNarration();
+        }
+        else
+        {
+            NarrationHUD->ShowSegment(
+                Segment.Text,
+                ActiveNarrationSegmentIndex,
+                ActiveNarrationWaypoint.NarrationSegments.Num(),
+                ActiveNarrationWaypoint.NarrationMode,
+                false,
+                true);
+        }
     }
     if (bVoiceRequested && TryStartNarrationAudio(Segment)) return;
     if (bVoiceRequested)
     {
         DegradedFeatures.AddUnique(TEXT("audio_fallback_to_subtitle"));
-        if (NarrationHUD)
+        if (NarrationHUD
+            && ActiveNarrationWaypoint.NarrationMode != TEXT("voice"))
         {
             NarrationHUD->ShowSegment(
                 Segment.Text,
@@ -2879,7 +3846,8 @@ bool UTwinInteractionManagerComponent::TryStartNarrationAudio(
                 return;
             }
             Self->DegradedFeatures.AddUnique(TEXT("audio_fallback_to_subtitle"));
-            if (Self->NarrationHUD)
+            if (Self->NarrationHUD
+                && Self->ActiveNarrationWaypoint.NarrationMode != TEXT("voice"))
             {
                 Self->NarrationHUD->ShowSegment(
                     ExpectedSegment.Text,
@@ -3134,6 +4102,7 @@ void UTwinInteractionManagerComponent::SendHeartbeat()
     Payload->SetStringField(TEXT("runtime_state"), State);
     Payload->SetStringField(TEXT("camera_mode"), CameraMode);
     Payload->SetStringField(TEXT("route_state"), RouteState);
+    Payload->SetStringField(TEXT("active_character_id"), GetActiveRuntimeCharacterId());
     Payload->SetStringField(TEXT("active_skin_id"), ActiveSkin);
     Payload->SetStringField(TEXT("minimap_state"), MinimapState);
     TArray<TSharedPtr<FJsonValue>> DegradedValues;
@@ -3177,6 +4146,27 @@ void UTwinInteractionManagerComponent::SendHeartbeat()
                 Self->LastError = TEXT("UE project binding was rejected while reporting roaming status");
                 Self->ExitRoaming();
                 Self->RuntimeState = TEXT("blocked");
+                return;
+            }
+
+            if (Response->GetResponseCode() >= 200 && Response->GetResponseCode() < 300)
+            {
+                TSharedPtr<FJsonObject> ResponsePayload;
+                const TSharedRef<TJsonReader<>> ResponseReader =
+                    TJsonReaderFactory<>::Create(Response->GetContentAsString());
+                if (FJsonSerializer::Deserialize(ResponseReader, ResponsePayload)
+                    && ResponsePayload.IsValid())
+                {
+                    const TSharedPtr<FJsonObject> Control =
+                        GetObject(ResponsePayload, TEXT("realtime_control"));
+                    bool bRealtimeEnabled = false;
+                    if (Control.IsValid()
+                        && Control->TryGetBoolField(TEXT("enabled"), bRealtimeEnabled)
+                        && Self->SceneManager)
+                    {
+                        Self->SceneManager->ApplyRealtimeWebSocketEnabled(bRealtimeEnabled);
+                    }
+                }
             }
         });
     Request->ProcessRequest();
@@ -3186,7 +4176,10 @@ FString UTwinInteractionManagerComponent::GetHudStatusText() const
 {
     if (!bRoamingActive) return TEXT("场景交互");
     const FString Character = CompactHudLabel(
-        CurrentConfig.CharacterDisplayName, TEXT("漫游人物"), 16);
+        ActiveSessionCharacterDisplayName.IsEmpty()
+            ? CurrentConfig.CharacterDisplayName
+            : ActiveSessionCharacterDisplayName,
+        TEXT("漫游人物"), 16);
     const FString View = RoamingCharacter
         ? CameraModeLabel(RoamingCharacter->CameraMode->GetMode())
         : TEXT("视角不可用");
@@ -3208,7 +4201,10 @@ FString UTwinInteractionManagerComponent::GetHudStatusText() const
             RouteStatus = FString::Printf(TEXT("正在返回线路 - %s"), *RouteName);
             break;
         case ETwinRoamingRouteState::Blocked:
-            RouteStatus = FString::Printf(TEXT("线路受阻 - %s"), *RouteName);
+            RouteStatus = FString::Printf(
+                TEXT("线路受阻 - %s · %s"),
+                *RouteName,
+                *RoamingCharacter->RouteFollower->GetBlockedDiagnosticText());
             break;
         case ETwinRoamingRouteState::Completed:
             RouteStatus = FString::Printf(TEXT("线路已完成 - %s"), *RouteName);
@@ -3272,12 +4268,36 @@ void UTwinInteractionManagerComponent::GetHudShortcutItems(
     }
 
     const ETwinRoamingCameraMode Mode = GetCameraMode();
+    const ETwinRoamingRouteState RouteState = RoamingCharacter
+        && RoamingCharacter->RouteFollower
+        ? RoamingCharacter->RouteFollower->GetRouteState()
+        : ETwinRoamingRouteState::Unavailable;
+    const bool bRouteCanPause = RouteState == ETwinRoamingRouteState::AutoRoute
+        || RouteState == ETwinRoamingRouteState::Joining;
+    const bool bRoutePausedByUser = RouteState == ETwinRoamingRouteState::PausedByUser;
+    const bool bNarrationPlaying = RouteState == ETwinRoamingRouteState::PausedForNarration;
+    const bool bPauseAfterNarration = bNarrationPlaying
+        && RoamingCharacter->RouteFollower->WillPauseAfterNarration();
     if (Mode == ETwinRoamingCameraMode::God)
     {
         AddShortcut(TEXT("WASD"), TEXT("平移"));
         AddShortcut(TEXT("右键"), TEXT("观察"));
         AddShortcut(TEXT("Q / E"), TEXT("升降"));
         AddShortcut(TEXT("滚轮"), TEXT("调整速度"));
+        if (bRouteCanPause)
+        {
+            AddShortcut(PauseRouteKey.ToString(), TEXT("暂停路线"));
+        }
+        else if (bRoutePausedByUser)
+        {
+            AddShortcut(PauseRouteKey.ToString(), TEXT("继续路线"));
+        }
+        else if (bNarrationPlaying)
+        {
+            AddShortcut(
+                PauseRouteKey.ToString(),
+                bPauseAfterNarration ? TEXT("解说后继续") : TEXT("解说后暂停"));
+        }
         AddShortcut(
             TEXT("左键"),
             TEXT("选择并打开网页详情"));
@@ -3291,13 +4311,21 @@ void UTwinInteractionManagerComponent::GetHudShortcutItems(
     AddShortcut(
         TEXT("E / 左键"),
         TEXT("选择并打开网页详情"));
-    const bool bPausedByUser = RoamingCharacter
-        && RoamingCharacter->RouteFollower
-        && RoamingCharacter->RouteFollower->GetRouteState()
-            == ETwinRoamingRouteState::PausedByUser;
-    if (bPausedByUser)
+    AddShortcut(TEXT("Space"), TEXT("跳跃"));
+    if (bRouteCanPause)
     {
+        AddShortcut(PauseRouteKey.ToString(), TEXT("暂停路线"));
+    }
+    else if (bRoutePausedByUser)
+    {
+        AddShortcut(PauseRouteKey.ToString(), TEXT("继续路线"));
         AddShortcut(ResumeRouteKey.ToString(), TEXT("返回线路"));
+    }
+    else if (bNarrationPlaying)
+    {
+        AddShortcut(
+            PauseRouteKey.ToString(),
+            bPauseAfterNarration ? TEXT("解说后继续") : TEXT("解说后暂停"));
     }
     AddShortcut(ToggleViewKey.ToString(), TEXT("切换视角"));
     AddShortcut(ToggleHudKey.ToString(), TEXT("更多操作"));
@@ -3321,6 +4349,24 @@ void UTwinInteractionManagerComponent::GetAvailableRuntimeRoutes(
     }
 }
 
+void UTwinInteractionManagerComponent::GetAvailableRuntimeCharacters(
+    TArray<FString>& OutCharacterIds,
+    TArray<FString>& OutDisplayNames) const
+{
+    OutCharacterIds.Reset();
+    OutDisplayNames.Reset();
+    for (const FTwinRoamingRuntimeCharacter& Character : CurrentConfig.AvailableCharacters)
+    {
+        if (Character.CharacterId.IsEmpty() || Character.PrimaryAssetId.IsEmpty()) continue;
+        // Catalog entries are cross-project. The Dock only offers assets that
+        // are actually installed in this packaged host project.
+        if (!ResolvePrimaryAsset(Character.PrimaryAssetId)) continue;
+        OutCharacterIds.Add(Character.CharacterId);
+        OutDisplayNames.Add(Character.DisplayName.IsEmpty()
+            ? Character.CharacterId : Character.DisplayName);
+    }
+}
+
 void UTwinInteractionManagerComponent::GetAvailableWebZones(
     TArray<FString>& OutZoneIds,
     TArray<FString>& OutDisplayNames) const
@@ -3335,6 +4381,23 @@ void UTwinInteractionManagerComponent::GetAvailableWebZones(
     }
 }
 
+void UTwinInteractionManagerComponent::GetAvailableWebZoneTree(
+    TArray<FString>& OutZoneIds,
+    TArray<FString>& OutDisplayNames,
+    TArray<FString>& OutParentZoneIds) const
+{
+    OutZoneIds.Reset();
+    OutDisplayNames.Reset();
+    OutParentZoneIds.Reset();
+    if (SceneManager && SceneManager->WebInteractionManager)
+    {
+        SceneManager->WebInteractionManager->GetAvailableZoneTree(
+            OutZoneIds,
+            OutDisplayNames,
+            OutParentZoneIds);
+    }
+}
+
 void UTwinInteractionManagerComponent::GetAvailableWebBusinessViews(
     TArray<FString>& OutBusinessViewIds,
     TArray<FString>& OutDisplayNames) const
@@ -3346,6 +4409,23 @@ void UTwinInteractionManagerComponent::GetAvailableWebBusinessViews(
         SceneManager->WebInteractionManager->GetAvailableBusinessViews(
             OutBusinessViewIds,
             OutDisplayNames);
+    }
+}
+
+void UTwinInteractionManagerComponent::GetAvailableWebBusinessViewSummaries(
+    TArray<FString>& OutBusinessViewIds,
+    TArray<FString>& OutDisplayNames,
+    TArray<int32>& OutMemberCounts) const
+{
+    OutBusinessViewIds.Reset();
+    OutDisplayNames.Reset();
+    OutMemberCounts.Reset();
+    if (SceneManager && SceneManager->WebInteractionManager)
+    {
+        SceneManager->WebInteractionManager->GetAvailableBusinessViewSummaries(
+            OutBusinessViewIds,
+            OutDisplayNames,
+            OutMemberCounts);
     }
 }
 
@@ -3379,7 +4459,8 @@ void UTwinInteractionManagerComponent::SetRuntimeEditorSuppressed(bool bSuppress
 
 bool UTwinInteractionManagerComponent::CompleteWebOpen(
     bool bOpened,
-    const FString& FailureMessage)
+    const FString& FailureMessage,
+    bool bRevealDockOnFailure)
 {
     if (bOpened)
     {
@@ -3394,7 +4475,14 @@ bool UTwinInteractionManagerComponent::CompleteWebOpen(
     LastWebInteractionMessage = bRuntimeReady
         ? FailureMessage
         : TEXT("Web 配置尚未就绪，请稍后重试。");
-    SetHudInteraction(true);
+    // Scene selection must stay lightweight. A failed instance-detail lookup
+    // records the message for the next explicit Tab-opened Dock, but must not
+    // make every click expand the runtime UI. Dock-originated actions still
+    // opt into reopening the Dock so their failure remains visible.
+    if (bRevealDockOnFailure)
+    {
+        SetHudInteraction(true);
+    }
     RefreshHud();
     return false;
 }
@@ -3447,7 +4535,7 @@ FString UTwinInteractionManagerComponent::GetHudDetailText() const
     {
         Text = bPendingReload
             ? TEXT("存在待重载配置，可点击“重载人物”应用。")
-            : TEXT("选择视角，或执行人物与线路操作。");
+            : TEXT("可在当前会话切换人物、视角或线路；人物选择不会改写网页默认配置。");
     }
     if (!bBackendOnline) Text += TEXT("  后端离线，当前使用最后一次有效配置。");
     if (!BindingWarning.IsEmpty()) Text += TEXT("\n") + BindingWarning;

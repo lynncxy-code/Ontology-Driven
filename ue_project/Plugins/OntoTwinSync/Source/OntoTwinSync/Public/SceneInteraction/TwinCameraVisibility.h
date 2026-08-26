@@ -7,6 +7,7 @@
 class AActor;
 class APlayerController;
 class ULightComponent;
+class UPrimitiveComponent;
 class UWorld;
 
 /** Project-wide exclusions shared by the minimap capture and roaming god view. */
@@ -47,6 +48,7 @@ enum class ETwinCameraVisibilityProfile : uint8
 struct ONTOTWINSYNC_API FTwinCameraVisibilityState
 {
     TArray<TWeakObjectPtr<AActor>> AddedPlayerHiddenActors;
+    TArray<TWeakObjectPtr<UPrimitiveComponent>> AddedPlayerHiddenPrimitiveComponents;
     TArray<TWeakObjectPtr<ULightComponent>> SuppressedLights;
 };
 

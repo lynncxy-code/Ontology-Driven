@@ -1,0 +1,962 @@
+{
+  "ri.obj.test0316_31e919e5a5901621008cd412": {
+    "rid": "ri.obj.test0316_31e919e5a5901621008cd412",
+    "name": "门禁卡",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/AccessCard.AccessCard",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/AccessCard.AccessCard",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_31e919e5a5901621008cd412",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/AccessCard.AccessCard",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/AccessCard.AccessCard"
+  },
+  "ri.obj.test0316_a274f274f30edf737bbd2946": {
+    "rid": "ri.obj.test0316_a274f274f30edf737bbd2946",
+    "name": "柜体B",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/Cabinet_B.Cabinet_B",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/Cabinet_B.Cabinet_B",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_a274f274f30edf737bbd2946",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/Cabinet_B.Cabinet_B",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/Cabinet_B.Cabinet_B"
+  },
+  "ri.obj.test0316_7a4ef88ebe1ede62b820de4a": {
+    "rid": "ri.obj.test0316_7a4ef88ebe1ede62b820de4a",
+    "name": "读卡器",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/CardReader.CardReader",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/CardReader.CardReader",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_7a4ef88ebe1ede62b820de4a",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/CardReader.CardReader",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/CardReader.CardReader"
+  },
+  "ri.obj.test0316_8003b490c91fa62ed28f4df0": {
+    "rid": "ri.obj.test0316_8003b490c91fa62ed28f4df0",
+    "name": "杯垫",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/Coaster.Coaster",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/Coaster.Coaster",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_8003b490c91fa62ed28f4df0",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/Coaster.Coaster",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/Coaster.Coaster"
+  },
+  "ri.obj.test0316_90cc43f5638593bd993bc1d0": {
+    "rid": "ri.obj.test0316_90cc43f5638593bd993bc1d0",
+    "name": "杯垫堆",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/CoasterStack.CoasterStack",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/CoasterStack.CoasterStack",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_90cc43f5638593bd993bc1d0",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/CoasterStack.CoasterStack",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/CoasterStack.CoasterStack"
+  },
+  "ri.obj.test0316_610abaf8df505722987acc14": {
+    "rid": "ri.obj.test0316_610abaf8df505722987acc14",
+    "name": "通讯设备",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/CommDevice.CommDevice",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/CommDevice.CommDevice",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_610abaf8df505722987acc14",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/CommDevice.CommDevice",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/CommDevice.CommDevice"
+  },
+  "ri.obj.test0316_66241e3be29c6568cf51a7bc": {
+    "rid": "ri.obj.test0316_66241e3be29c6568cf51a7bc",
+    "name": "办公桌A",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/Desk_A_v1.Desk_A_v1",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/Desk_A_v1.Desk_A_v1",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_66241e3be29c6568cf51a7bc",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/Desk_A_v1.Desk_A_v1",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/Desk_A_v1.Desk_A_v1"
+  },
+  "ri.obj.test0316_486c051bf2329150e6808f0b": {
+    "rid": "ri.obj.test0316_486c051bf2329150e6808f0b",
+    "name": "办公桌B",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/Desk_A_v2.Desk_A_v2",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/Desk_A_v2.Desk_A_v2",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_486c051bf2329150e6808f0b",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/Desk_A_v2.Desk_A_v2",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/Desk_A_v2.Desk_A_v2"
+  },
+  "ri.obj.test0316_d37928312514dc4891af4ce0": {
+    "rid": "ri.obj.test0316_d37928312514dc4891af4ce0",
+    "name": "玻璃杯",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/GlassCup.GlassCup",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/GlassCup.GlassCup",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_d37928312514dc4891af4ce0",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/GlassCup.GlassCup",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/GlassCup.GlassCup"
+  },
+  "ri.obj.test0316_fe084371a3f28a4a5f535811": {
+    "rid": "ri.obj.test0316_fe084371a3f28a4a5f535811",
+    "name": "笔记本电脑",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/Laptop.Laptop",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/Laptop.Laptop",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_fe084371a3f28a4a5f535811",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/Laptop.Laptop",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/Laptop.Laptop"
+  },
+  "ri.obj.test0316_c93c3f35a322e58053c1f329": {
+    "rid": "ri.obj.test0316_c93c3f35a322e58053c1f329",
+    "name": "笔记本电脑（关闭）",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/Laptop_Closed.Laptop_Closed",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/Laptop_Closed.Laptop_Closed",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_c93c3f35a322e58053c1f329",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/Laptop_Closed.Laptop_Closed",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/Laptop_Closed.Laptop_Closed"
+  },
+  "ri.obj.test0316_629d3dbeffc65b6a0043a066": {
+    "rid": "ri.obj.test0316_629d3dbeffc65b6a0043a066",
+    "name": "药瓶",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/MedBottle.MedBottle",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/MedBottle.MedBottle",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_629d3dbeffc65b6a0043a066",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/MedBottle.MedBottle",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/MedBottle.MedBottle"
+  },
+  "ri.obj.test0316_896328727cf694def39fdb11": {
+    "rid": "ri.obj.test0316_896328727cf694def39fdb11",
+    "name": "药瓶B",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/MedBottle_b.MedBottle_b",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/MedBottle_b.MedBottle_b",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_896328727cf694def39fdb11",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/MedBottle_b.MedBottle_b",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/MedBottle_b.MedBottle_b"
+  },
+  "ri.obj.test0316_9d7388a08e93c32063a20a59": {
+    "rid": "ri.obj.test0316_9d7388a08e93c32063a20a59",
+    "name": "移动储物柜",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/MobileStorage.MobileStorage",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/MobileStorage.MobileStorage",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_9d7388a08e93c32063a20a59",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/MobileStorage.MobileStorage",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/MobileStorage.MobileStorage"
+  },
+  "ri.obj.test0316_14b6bc2423d50dfc10ab3959": {
+    "rid": "ri.obj.test0316_14b6bc2423d50dfc10ab3959",
+    "name": "置物架A",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/Shelf_A_v1.Shelf_A_v1",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/Shelf_A_v1.Shelf_A_v1",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_14b6bc2423d50dfc10ab3959",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/Shelf_A_v1.Shelf_A_v1",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/Shelf_A_v1.Shelf_A_v1"
+  },
+  "ri.obj.test0316_614761b703125998443cdfbc": {
+    "rid": "ri.obj.test0316_614761b703125998443cdfbc",
+    "name": "置物架C",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/Shelf_A_v3.Shelf_A_v3",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/Shelf_A_v3.Shelf_A_v3",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_614761b703125998443cdfbc",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/Shelf_A_v3.Shelf_A_v3",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/Shelf_A_v3.Shelf_A_v3"
+  },
+  "ri.obj.test0316_75c2027800b21e86e2d91ada": {
+    "rid": "ri.obj.test0316_75c2027800b21e86e2d91ada",
+    "name": "单抽屉柜",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/SingleDrawer.SingleDrawer",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/SingleDrawer.SingleDrawer",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_75c2027800b21e86e2d91ada",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/SingleDrawer.SingleDrawer",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/SingleDrawer.SingleDrawer"
+  },
+  "ri.obj.test0316_c4c854fb401060a118ce550f": {
+    "rid": "ri.obj.test0316_c4c854fb401060a118ce550f",
+    "name": "凳子",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/Stool.Stool",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/Stool.Stool",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_c4c854fb401060a118ce550f",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/Stool.Stool",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/Stool.Stool"
+  },
+  "ri.obj.test0316_01dd35dd6cddc1cf3f9acb10": {
+    "rid": "ri.obj.test0316_01dd35dd6cddc1cf3f9acb10",
+    "name": "台灯",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/TableLamp.TableLamp",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/TableLamp.TableLamp",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_01dd35dd6cddc1cf3f9acb10",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/TableLamp.TableLamp",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/TableLamp.TableLamp"
+  },
+  "ri.obj.test0316_b30cd1d71d1675b5d228ff73": {
+    "rid": "ri.obj.test0316_b30cd1d71d1675b5d228ff73",
+    "name": "垃圾桶",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/WasteBin.WasteBin",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/WasteBin.WasteBin",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_b30cd1d71d1675b5d228ff73",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/WasteBin.WasteBin",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/WasteBin.WasteBin"
+  },
+  "ri.obj.test0316_1ea71eed938ce68c6df6a1f5": {
+    "rid": "ri.obj.test0316_1ea71eed938ce68c6df6a1f5",
+    "name": "无线设备（关闭）",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/WirelessB_Off.WirelessB_Off",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/WirelessB_Off.WirelessB_Off",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_1ea71eed938ce68c6df6a1f5",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/WirelessB_Off.WirelessB_Off",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/WirelessB_Off.WirelessB_Off"
+  },
+  "ri.obj.test0316_b5f52fc50b4bab61ced8e984": {
+    "rid": "ri.obj.test0316_b5f52fc50b4bab61ced8e984",
+    "name": "无线设备（开启）",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/ModularScifiProps/Meshes/WirelessB_On.WirelessB_On",
+    "ue_asset_path": "/Game/ModularScifiProps/Meshes/WirelessB_On.WirelessB_On",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_b5f52fc50b4bab61ced8e984",
+    "source_asset_path": "/Game/ModularScifiProps/Meshes/WirelessB_On.WirelessB_On",
+    "classification_key": "static_mesh_asset:/Game/ModularScifiProps/Meshes/WirelessB_On.WirelessB_On"
+  },
+  "ri.obj.test0316_8df63d022018534111f78a67": {
+    "rid": "ri.obj.test0316_8df63d022018534111f78a67",
+    "name": "IBC容器",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WH_Construction_Set/Meshes/SM_IBC_container.SM_IBC_container",
+    "ue_asset_path": "/Game/WH_Construction_Set/Meshes/SM_IBC_container.SM_IBC_container",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_8df63d022018534111f78a67",
+    "source_asset_path": "/Game/WH_Construction_Set/Meshes/SM_IBC_container.SM_IBC_container",
+    "classification_key": "static_mesh_asset:/Game/WH_Construction_Set/Meshes/SM_IBC_container.SM_IBC_container"
+  },
+  "ri.obj.test0316_b829494a3415a728fc8cb8b7": {
+    "rid": "ri.obj.test0316_b829494a3415a728fc8cb8b7",
+    "name": "覆盖箱体",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WH_Construction_Set/Meshes/SM_box_covered.SM_box_covered",
+    "ue_asset_path": "/Game/WH_Construction_Set/Meshes/SM_box_covered.SM_box_covered",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_b829494a3415a728fc8cb8b7",
+    "source_asset_path": "/Game/WH_Construction_Set/Meshes/SM_box_covered.SM_box_covered",
+    "classification_key": "static_mesh_asset:/Game/WH_Construction_Set/Meshes/SM_box_covered.SM_box_covered"
+  },
+  "ri.obj.test0316_a9ddfea1272e25ffbc45e2df": {
+    "rid": "ri.obj.test0316_a9ddfea1272e25ffbc45e2df",
+    "name": "小木箱",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WH_Construction_Set/Meshes/SM_box_wood_small.SM_box_wood_small",
+    "ue_asset_path": "/Game/WH_Construction_Set/Meshes/SM_box_wood_small.SM_box_wood_small",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_a9ddfea1272e25ffbc45e2df",
+    "source_asset_path": "/Game/WH_Construction_Set/Meshes/SM_box_wood_small.SM_box_wood_small",
+    "classification_key": "static_mesh_asset:/Game/WH_Construction_Set/Meshes/SM_box_wood_small.SM_box_wood_small"
+  },
+  "ri.obj.test0316_939a1dcbab6b42924fff1153": {
+    "rid": "ri.obj.test0316_939a1dcbab6b42924fff1153",
+    "name": "防撞块",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WH_Construction_Set/Meshes/SM_bumper_big.SM_bumper_big",
+    "ue_asset_path": "/Game/WH_Construction_Set/Meshes/SM_bumper_big.SM_bumper_big",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_939a1dcbab6b42924fff1153",
+    "source_asset_path": "/Game/WH_Construction_Set/Meshes/SM_bumper_big.SM_bumper_big",
+    "classification_key": "static_mesh_asset:/Game/WH_Construction_Set/Meshes/SM_bumper_big.SM_bumper_big"
+  },
+  "ri.obj.test0316_ad7301a1f8ab404656bc6b0c": {
+    "rid": "ri.obj.test0316_ad7301a1f8ab404656bc6b0c",
+    "name": "办公椅",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WH_Construction_Set/Meshes/SM_office_chair.SM_office_chair",
+    "ue_asset_path": "/Game/WH_Construction_Set/Meshes/SM_office_chair.SM_office_chair",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_ad7301a1f8ab404656bc6b0c",
+    "source_asset_path": "/Game/WH_Construction_Set/Meshes/SM_office_chair.SM_office_chair",
+    "classification_key": "static_mesh_asset:/Game/WH_Construction_Set/Meshes/SM_office_chair.SM_office_chair"
+  },
+  "ri.obj.test0316_bafed821e66d32341ee77b40": {
+    "rid": "ri.obj.test0316_bafed821e66d32341ee77b40",
+    "name": "办公桌",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WH_Construction_Set/Meshes/SM_office_desk.SM_office_desk",
+    "ue_asset_path": "/Game/WH_Construction_Set/Meshes/SM_office_desk.SM_office_desk",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_bafed821e66d32341ee77b40",
+    "source_asset_path": "/Game/WH_Construction_Set/Meshes/SM_office_desk.SM_office_desk",
+    "classification_key": "static_mesh_asset:/Game/WH_Construction_Set/Meshes/SM_office_desk.SM_office_desk"
+  },
+  "ri.obj.test0316_4d647b995df848ca9053faf4": {
+    "rid": "ri.obj.test0316_4d647b995df848ca9053faf4",
+    "name": "办公物料箱",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WH_Construction_Set/Meshes/SM_office_prop_box_4.SM_office_prop_box_4",
+    "ue_asset_path": "/Game/WH_Construction_Set/Meshes/SM_office_prop_box_4.SM_office_prop_box_4",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_4d647b995df848ca9053faf4",
+    "source_asset_path": "/Game/WH_Construction_Set/Meshes/SM_office_prop_box_4.SM_office_prop_box_4",
+    "classification_key": "static_mesh_asset:/Game/WH_Construction_Set/Meshes/SM_office_prop_box_4.SM_office_prop_box_4"
+  },
+  "ri.obj.test0316_21b6eea2195d1c36dbd93a90": {
+    "rid": "ri.obj.test0316_21b6eea2195d1c36dbd93a90",
+    "name": "纸箱04",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WH_Construction_Set/Meshes/SM_paper_box_04.SM_paper_box_04",
+    "ue_asset_path": "/Game/WH_Construction_Set/Meshes/SM_paper_box_04.SM_paper_box_04",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_21b6eea2195d1c36dbd93a90",
+    "source_asset_path": "/Game/WH_Construction_Set/Meshes/SM_paper_box_04.SM_paper_box_04",
+    "classification_key": "static_mesh_asset:/Game/WH_Construction_Set/Meshes/SM_paper_box_04.SM_paper_box_04"
+  },
+  "ri.obj.test0316_f71bc401e04930be46f6d78a": {
+    "rid": "ri.obj.test0316_f71bc401e04930be46f6d78a",
+    "name": "纸箱05",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WH_Construction_Set/Meshes/SM_paper_box_05.SM_paper_box_05",
+    "ue_asset_path": "/Game/WH_Construction_Set/Meshes/SM_paper_box_05.SM_paper_box_05",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_f71bc401e04930be46f6d78a",
+    "source_asset_path": "/Game/WH_Construction_Set/Meshes/SM_paper_box_05.SM_paper_box_05",
+    "classification_key": "static_mesh_asset:/Game/WH_Construction_Set/Meshes/SM_paper_box_05.SM_paper_box_05"
+  },
+  "ri.obj.test0316_6c2ed212e5dd4fe5a76305c9": {
+    "rid": "ri.obj.test0316_6c2ed212e5dd4fe5a76305c9",
+    "name": "纸箱09",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WH_Construction_Set/Meshes/SM_paper_box_09.SM_paper_box_09",
+    "ue_asset_path": "/Game/WH_Construction_Set/Meshes/SM_paper_box_09.SM_paper_box_09",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_6c2ed212e5dd4fe5a76305c9",
+    "source_asset_path": "/Game/WH_Construction_Set/Meshes/SM_paper_box_09.SM_paper_box_09",
+    "classification_key": "static_mesh_asset:/Game/WH_Construction_Set/Meshes/SM_paper_box_09.SM_paper_box_09"
+  },
+  "ri.obj.test0316_974631827171b2b6da9b4d4b": {
+    "rid": "ri.obj.test0316_974631827171b2b6da9b4d4b",
+    "name": "UE资产_SM_Bag_01a",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Bag_01a.SM_Bag_01a",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Bag_01a.SM_Bag_01a",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_974631827171b2b6da9b4d4b",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Bag_01a.SM_Bag_01a",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Bag_01a.SM_Bag_01a"
+  },
+  "ri.obj.test0316_dc84f1b0100b6953bce20fca": {
+    "rid": "ri.obj.test0316_dc84f1b0100b6953bce20fca",
+    "name": "UE资产_SM_Bag_01a_Stack",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Bag_01a_Stack.SM_Bag_01a_Stack",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Bag_01a_Stack.SM_Bag_01a_Stack",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_dc84f1b0100b6953bce20fca",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Bag_01a_Stack.SM_Bag_01a_Stack",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Bag_01a_Stack.SM_Bag_01a_Stack"
+  },
+  "ri.obj.test0316_c2308955164ec634c66e9fc4": {
+    "rid": "ri.obj.test0316_c2308955164ec634c66e9fc4",
+    "name": "UE资产_SM_Bag_02a",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Bag_02a.SM_Bag_02a",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Bag_02a.SM_Bag_02a",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_c2308955164ec634c66e9fc4",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Bag_02a.SM_Bag_02a",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Bag_02a.SM_Bag_02a"
+  },
+  "ri.obj.test0316_6111d5f5c0ec4e8b699ba59f": {
+    "rid": "ri.obj.test0316_6111d5f5c0ec4e8b699ba59f",
+    "name": "UE资产_SM_Bag_02a_Stack",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Bag_02a_Stack.SM_Bag_02a_Stack",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Bag_02a_Stack.SM_Bag_02a_Stack",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_6111d5f5c0ec4e8b699ba59f",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Bag_02a_Stack.SM_Bag_02a_Stack",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Bag_02a_Stack.SM_Bag_02a_Stack"
+  },
+  "ri.obj.test0316_3ca2709a3adbc2a2224926a0": {
+    "rid": "ri.obj.test0316_3ca2709a3adbc2a2224926a0",
+    "name": "桶体",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Barrel_01a.SM_Barrel_01a",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Barrel_01a.SM_Barrel_01a",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_3ca2709a3adbc2a2224926a0",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Barrel_01a.SM_Barrel_01a",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Barrel_01a.SM_Barrel_01a"
+  },
+  "ri.obj.test0316_9a5ee5417e1f2a6a7b7a5875": {
+    "rid": "ri.obj.test0316_9a5ee5417e1f2a6a7b7a5875",
+    "name": "啤酒桶",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Beer_Keg_01a.SM_Beer_Keg_01a",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Beer_Keg_01a.SM_Beer_Keg_01a",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_9a5ee5417e1f2a6a7b7a5875",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Beer_Keg_01a.SM_Beer_Keg_01a",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Beer_Keg_01a.SM_Beer_Keg_01a"
+  },
+  "ri.obj.test0316_f8edd1e4d194b4996a164d9c": {
+    "rid": "ri.obj.test0316_f8edd1e4d194b4996a164d9c",
+    "name": "箱体堆",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Box_01a_Stack.SM_Box_01a_Stack",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_01a_Stack.SM_Box_01a_Stack",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_f8edd1e4d194b4996a164d9c",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_01a_Stack.SM_Box_01a_Stack",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Box_01a_Stack.SM_Box_01a_Stack"
+  },
+  "ri.obj.test0316_85c966bd71743039d1e0db8e": {
+    "rid": "ri.obj.test0316_85c966bd71743039d1e0db8e",
+    "name": "大箱",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Box_Large_01a.SM_Box_Large_01a",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Large_01a.SM_Box_Large_01a",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_85c966bd71743039d1e0db8e",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Large_01a.SM_Box_Large_01a",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Box_Large_01a.SM_Box_Large_01a"
+  },
+  "ri.obj.test0316_0ba7c0e22058898837b43a4e": {
+    "rid": "ri.obj.test0316_0ba7c0e22058898837b43a4e",
+    "name": "长箱堆",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Box_Long_01a_Stack.SM_Box_Long_01a_Stack",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Long_01a_Stack.SM_Box_Long_01a_Stack",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_0ba7c0e22058898837b43a4e",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Long_01a_Stack.SM_Box_Long_01a_Stack",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Box_Long_01a_Stack.SM_Box_Long_01a_Stack"
+  },
+  "ri.obj.test0316_aa87552a9ce79c17ceb1a410": {
+    "rid": "ri.obj.test0316_aa87552a9ce79c17ceb1a410",
+    "name": "长箱堆B",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Box_Long_02a_Stack.SM_Box_Long_02a_Stack",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Long_02a_Stack.SM_Box_Long_02a_Stack",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_aa87552a9ce79c17ceb1a410",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Long_02a_Stack.SM_Box_Long_02a_Stack",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Box_Long_02a_Stack.SM_Box_Long_02a_Stack"
+  },
+  "ri.obj.test0316_ba2cbeb8a5853b11b378dbf8": {
+    "rid": "ri.obj.test0316_ba2cbeb8a5853b11b378dbf8",
+    "name": "UE资产_SM_Box_Small_01a",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Box_Small_01a.SM_Box_Small_01a",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Small_01a.SM_Box_Small_01a",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_ba2cbeb8a5853b11b378dbf8",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Small_01a.SM_Box_Small_01a",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Box_Small_01a.SM_Box_Small_01a"
+  },
+  "ri.obj.test0316_1131212cad078ec50113cb10": {
+    "rid": "ri.obj.test0316_1131212cad078ec50113cb10",
+    "name": "小箱堆",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Box_Small_01a_Stack.SM_Box_Small_01a_Stack",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Small_01a_Stack.SM_Box_Small_01a_Stack",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_1131212cad078ec50113cb10",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Box_Small_01a_Stack.SM_Box_Small_01a_Stack",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Box_Small_01a_Stack.SM_Box_Small_01a_Stack"
+  },
+  "ri.obj.test0316_b81651dd4d4f9d7916c4f3f9": {
+    "rid": "ri.obj.test0316_b81651dd4d4f9d7916c4f3f9",
+    "name": "电缆盘A",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Cable_Drum_01a.SM_Cable_Drum_01a",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Cable_Drum_01a.SM_Cable_Drum_01a",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_b81651dd4d4f9d7916c4f3f9",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Cable_Drum_01a.SM_Cable_Drum_01a",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Cable_Drum_01a.SM_Cable_Drum_01a"
+  },
+  "ri.obj.test0316_b05456835e718b6033bead39": {
+    "rid": "ri.obj.test0316_b05456835e718b6033bead39",
+    "name": "电缆盘B",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Cable_Drum_01b.SM_Cable_Drum_01b",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Cable_Drum_01b.SM_Cable_Drum_01b",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_b05456835e718b6033bead39",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Cable_Drum_01b.SM_Cable_Drum_01b",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Cable_Drum_01b.SM_Cable_Drum_01b"
+  },
+  "ri.obj.test0316_348019f5e4bddedb1db9f7d9": {
+    "rid": "ri.obj.test0316_348019f5e4bddedb1db9f7d9",
+    "name": "托盘",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Pallet_01a.SM_Pallet_01a",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Pallet_01a.SM_Pallet_01a",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_348019f5e4bddedb1db9f7d9",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Pallet_01a.SM_Pallet_01a",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Pallet_01a.SM_Pallet_01a"
+  },
+  "ri.obj.test0316_212918d43cbfda7271e4bd87": {
+    "rid": "ri.obj.test0316_212918d43cbfda7271e4bd87",
+    "name": "运输木箱",
+    "category": "UE Migration",
+    "description": "test0316 从 UE 实际单体资产生成；基础 OntoTwin 表现与空间接口，后续可补充业务属性。",
+    "color": "#8a8a8a",
+    "properties": [],
+    "injected_interfaces": [
+      "I3D_Representable",
+      "I3D_Spatial"
+    ],
+    "asset_id": "/Game/WarehouseProps_Bundle/Models/SM_Shipping_Crate_01a.SM_Shipping_Crate_01a",
+    "ue_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Shipping_Crate_01a.SM_Shipping_Crate_01a",
+    "mock_instances": [],
+    "source": "ue_migration",
+    "lifecycle_status": "EXPERIMENTAL",
+    "graph_rid": "ri.obj.test0316_212918d43cbfda7271e4bd87",
+    "source_asset_path": "/Game/WarehouseProps_Bundle/Models/SM_Shipping_Crate_01a.SM_Shipping_Crate_01a",
+    "classification_key": "static_mesh_asset:/Game/WarehouseProps_Bundle/Models/SM_Shipping_Crate_01a.SM_Shipping_Crate_01a"
+  }
+}

@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="PAE 结构化动画说明与模板工作台 Beta">
+  <title>PAE · 结构化动画说明工作台 Beta</title>
+  <link rel="stylesheet" href="pae.css?v=beta-s2-3d-r8">
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true">PAE</div>
+        <div>
+          <div class="brand-title">结构化动画说明工作台</div>
+          <div class="brand-subtitle">把说明变成可复用的动画行为包</div>
+        </div>
+      </div>
+      <div class="project-strip">
+        <span class="eyebrow">当前项目</span>
+        <span id="projectName" class="project-name">装配演示 · Beta 样例</span>
+        <span id="saveState" class="status-chip"><span class="status-dot status-dot-muted"></span>未保存</span>
+      </div>
+      <div class="top-actions">
+        <button class="btn btn-ghost btn-sm" data-action="open-help">使用说明</button>
+        <button class="btn btn-secondary btn-sm" data-action="save">保存草稿</button>
+        <button class="btn btn-primary btn-sm" data-action="export">导出行为包</button>
+      </div>
+    </header>
+
+    <nav class="tabbar" role="tablist" aria-label="工作台步骤">
+      <button class="tab active" role="tab" aria-selected="true" data-view="source">
+        <span class="tab-index">01</span><span>说明结构</span>
+      </button>
+      <button class="tab" role="tab" aria-selected="false" data-view="editor">
+        <span class="tab-index">02</span><span>动画编辑</span>
+      </button>
+      <button class="tab" role="tab" aria-selected="false" data-view="export">
+        <span class="tab-index">03</span><span>校验与导出</span>
+      </button>
+      <div class="tabbar-spacer"></div>
+      <div class="read-only-note"><span class="status-dot status-dot-info"></span>独立 Beta 样品 · 本地数据</div>
+    </nav>
+
+    <main class="views">
+      <section id="view-source" class="view active" role="tabpanel">
+        <div class="source-grid">
+          <aside class="panel source-sidebar">
+            <div class="panel-heading">
+              <div>
+                <div class="eyebrow">说明输入</div>
+                <h2>选择动画模板</h2>
+              </div>
+              <button class="icon-btn" data-action="new-spec" data-tip="新建说明" aria-label="新建说明">＋</button>
+            </div>
+            <p class="panel-hint">“工序”是模板之一，也可以从装配、巡检或状态说明开始。</p>
+            <div id="templateList" class="template-list"></div>
+            <div class="divider"></div>
+            <div class="panel-heading compact">
+              <div>
+                <div class="eyebrow">来源</div>
+                <h3>结构化说明</h3>
+              </div>
+              <button class="btn btn-ghost btn-sm" data-action="import">导入 JSON</button>
+            </div>
+            <div class="source-card">
+              <div class="source-card-icon">S</div>
+              <div class="source-card-body">
+                <strong id="sourceTitle">装配演示说明</strong>
+                <span id="sourceMeta">SPEC-ASM-001 · v1.0 · 3 个模块</span>
+              </div>
+              <span class="status-dot status-dot-ok" data-tip="来源信息完整"></span>
+            </div>
+            <div class="source-actions">
+              <button class="btn btn-secondary" data-action="generate">一键生成动画草稿</button>
+              <button class="btn btn-ghost" data-action="reset-demo">恢复样例</button>
+            </div>
+            <input id="fileInput" type="file" accept=".json,application/json" hidden>
+          </aside>
+
+          <section class="panel structure-panel">
+            <div class="panel-heading structure-heading">
+              <div>
+                <div class="eyebrow">结构视图</div>
+                <h2 id="structureTitle">装配步骤结构</h2>
+              </div>
+              <div class="inline-actions">
+                <button class="btn btn-ghost btn-sm" data-action="collapse-all">全部折叠</button>
+                <button class="btn btn-secondary btn-sm" data-action="add-step">添加说明块</button>
+              </div>
+            </div>
+            <div class="structure-meta-row">
+              <span id="structureType" class="tag">装配模板</span>
+              <span id="structureDescription" class="muted">按说明顺序组织对象与动作候选</span>
+              <span class="structure-meta-spacer"></span>
+              <span class="legend"><span class="legend-line legend-line-sequence"></span>顺序</span>
+              <span class="legend"><span class="legend-line legend-line-parallel"></span>可并行</span>
+            </div>
+            <div id="structureCanvas" class="structure-canvas" aria-label="说明结构图"></div>
+            <div class="structure-footnote">
+              <span class="status-dot status-dot-warn"></span>
+              自动生成只产生“候选草稿”。请在动画编辑页确认对象、轴向和时长后再导出。
+            </div>
+          </section>
+
+          <aside class="panel node-detail-panel">
+            <div class="panel-heading">
+              <div>
+                <div class="eyebrow">选中说明块</div>
+                <h2 id="nodeDetailTitle">A01 物料到位</h2>
+              </div>
+              <span id="nodeDetailStatus" class="small-status"><span class="status-dot status-dot-warn"></span>待确认</span>
+            </div>
+            <div id="nodeDetailBody" class="node-detail-body"></div>
+            <div class="divider"></div>
+            <div class="eyebrow">对象与槽位</div>
+            <div id="nodeBindings" class="binding-list"></div>
+            <button class="btn btn-secondary full-width" data-action="open-editor">进入动画编辑</button>
+          </aside>
+        </div>
+      </section>
+
+      <section id="view-editor" class="view" role="tabpanel" hidden>
+        <div class="editor-grid">
+          <aside class="panel flow-sidebar">
+            <div class="panel-heading">
+              <div>
+                <div class="eyebrow">说明结构</div>
+                <h2>动画来源</h2>
+              </div>
+              <button class="icon-btn" data-action="generate" data-tip="重新生成草稿" aria-label="重新生成草稿">↻</button>
+            </div>
+            <div id="editorSteps" class="editor-step-list"></div>
+            <div class="divider"></div>
+            <div class="panel-heading compact">
+              <div>
+                <div class="eyebrow">目标对象</div>
+                <h3>对象树</h3>
+              </div>
+              <button class="btn btn-ghost btn-sm" data-action="add-object">添加</button>
+            </div>
+            <div id="editorObjects" class="object-tree"></div>
+          </aside>
+
+          <section class="editor-center">
+            <div class="panel stage-panel">
+              <div class="stage-toolbar">
+                <div>
+                  <div class="eyebrow">3D 交互预览</div>
+                  <h2 id="stageTitle">装配演示 · 动画草稿</h2>
+                </div>
+                <div class="stage-tools">
+                  <button class="tool-btn active" data-tool="select" aria-label="选择 3D 对象">选择</button>
+                  <button class="tool-btn" data-tool="orbit" aria-label="旋转 3D 视角">旋转</button>
+                  <button class="tool-btn" data-tool="pan" aria-label="平移 3D 视角">平移</button>
+                  <button class="tool-btn" data-action="toggle-grid">网格</button>
+                  <button class="tool-btn" data-action="fit">适配</button>
+                </div>
+              </div>
+              <div id="stageViewport" class="stage-viewport">
+                <canvas id="preview3d" role="img" aria-label="可旋转、平移、缩放的三维动画对象预览" tabindex="0">当前浏览器不支持 Canvas 3D 预览。</canvas>
+                <div class="stage-gesture-hint" aria-hidden="true">拖拽旋转 · Shift+拖拽平移 · 滚轮缩放</div>
+                <svg id="previewSvg" viewBox="0 0 900 460" role="img" aria-label="二维降级预览" hidden>
+                  <defs>
+                    <pattern id="gridPattern" width="24" height="24" patternUnits="userSpaceOnUse">
+                      <path d="M 24 0 L 0 0 0 24" fill="none" stroke="#e8e8e8" stroke-width="1"></path>
+                    </pattern>
+                    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#1a1a1a" flood-opacity=".12"></feDropShadow>
+                    </filter>
+                  </defs>
+                  <rect id="gridRect" x="0" y="0" width="900" height="460" fill="url(#gridPattern)"></rect>
+                  <g id="sceneRoot" transform="translate(0 0)">
+                    <g id="svg-base" class="svg-object" data-target="assembly">
+                      <rect x="235" y="155" width="430" height="165" rx="18" fill="#d9d9d9" stroke="#1a1a1a" stroke-width="2" filter="url(#softShadow)"></rect>
+                      <rect x="260" y="180" width="380" height="115" rx="10" fill="#f7f7f7" stroke="#8a8a8a"></rect>
+                      <text x="450" y="245" text-anchor="middle" class="svg-label">装配基座</text>
+                    </g>
+                    <g id="svg-bearing-left" class="svg-object" data-target="bearing-left">
+                      <circle cx="310" cy="238" r="54" fill="#bfbfbf" stroke="#1a1a1a" stroke-width="2"></circle>
+                      <circle cx="310" cy="238" r="30" fill="#fff" stroke="#5c5c5c" stroke-width="2"></circle>
+                      <circle cx="310" cy="238" r="12" fill="#1a1a1a"></circle>
+                    </g>
+                    <g id="svg-bearing-right" class="svg-object" data-target="bearing-right">
+                      <circle cx="590" cy="238" r="54" fill="#bfbfbf" stroke="#1a1a1a" stroke-width="2"></circle>
+                      <circle cx="590" cy="238" r="30" fill="#fff" stroke="#5c5c5c" stroke-width="2"></circle>
+                      <circle cx="590" cy="238" r="12" fill="#1a1a1a"></circle>
+                    </g>
+                    <g id="svg-rod" class="svg-object" data-target="rod">
+                      <rect x="350" y="218" width="200" height="40" rx="20" fill="#8a8a8a" stroke="#1a1a1a" stroke-width="2"></rect>
+                      <circle cx="370" cy="238" r="11" fill="#f7f7f7" stroke="#1a1a1a" stroke-width="2"></circle>
+                      <circle cx="530" cy="238" r="11" fill="#f7f7f7" stroke="#1a1a1a" stroke-width="2"></circle>
+                    </g>
+                    <g id="svg-tool" class="svg-object" data-target="tool">
+                      <path d="M 430 90 L 470 90 L 470 145 L 492 167 L 408 167 L 430 145 Z" fill="#1a1a1a"></path>
+                      <rect x="402" y="72" width="96" height="22" rx="7" fill="#5c5c5c"></rect>
+                    </g>
+                    <g id="svg-label" class="svg-object" data-target="label">
+                      <rect x="362" y="350" width="176" height="34" rx="7" fill="#fff" stroke="#d4d4d4"></rect>
+                      <text id="svgLabelText" x="450" y="372" text-anchor="middle" class="svg-label">装配演示</text>
+                    </g>
+                    <g id="dynamicObjects" aria-label="导入对象占位"></g>
+                  </g>
+                  <g id="selectionOutline" class="selection-outline" visibility="hidden">
+                    <rect x="0" y="0" width="0" height="0" rx="8"></rect>
+                  </g>
+                </svg>
+                <div class="stage-axis" aria-hidden="true"><span>Y</span><i></i><b>X</b></div>
+                <div id="stageHint" class="stage-hint" aria-live="polite">选择左侧对象或时间轴片段查看动作</div>
+              </div>
+              <div class="stage-caption"><span id="previewStatus">预览就绪</span><span class="stage-caption-spacer"></span><span>程序化 mock 资产 · 几何不随包导出</span><span id="stageCameraReadout">视角 -41° · 缩放 100%</span><span>单位：cm · 坐标系：OT_CM</span></div>
+            </div>
+
+            <div class="panel timeline-panel">
+              <div class="timeline-toolbar">
+                <div class="playback-controls">
+                  <button class="icon-btn" data-action="step-back" aria-label="上一个时间点">|&lt;</button>
+                  <button id="playBtn" class="play-btn" data-action="toggle-play" aria-label="播放">播放</button>
+                  <button class="icon-btn" data-action="step-forward" aria-label="下一个时间点">&gt;|</button>
+                  <label class="speed-control">倍速
+                    <select id="speedSelect" class="select-field"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="1.5">1.5x</option><option value="2">2x</option></select>
+                  </label>
+                  <label class="check-control"><input id="loopToggle" type="checkbox" checked>循环</label>
+                </div>
+                <div class="timeline-readout"><span id="playheadReadout">00:00.0</span><span class="muted">/</span><span id="durationReadout">00:12.0</span></div>
+                <div class="inline-actions">
+                  <button class="btn btn-ghost btn-sm" data-action="undo">撤销</button>
+                  <button class="btn btn-ghost btn-sm" data-action="redo">重做</button>
+                  <button class="btn btn-secondary btn-sm" data-action="add-clip">添加动作</button>
+                </div>
+              </div>
+              <div class="timeline-body">
+                <div id="timelineLabels" class="timeline-labels"></div>
+                <div id="timelineViewport" class="timeline-viewport">
+                  <div id="timelineRuler" class="timeline-ruler"></div>
+                  <div id="timelineTracks" class="timeline-tracks"></div>
+                  <div id="playhead" class="playhead" style="left:0%"><span></span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <aside class="panel inspector-panel">
+            <div class="inspector-tabs" role="tablist">
+              <button class="inspector-tab active" data-inspector="object">对象</button>
+              <button class="inspector-tab" data-inspector="library">素材库</button>
+              <button class="inspector-tab" data-inspector="clip">动作</button>
+            </div>
+            <div id="inspector-object" class="inspector-section active"></div>
+            <div id="inspector-library" class="inspector-section" hidden></div>
+            <div id="inspector-clip" class="inspector-section" hidden></div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="view-export" class="view" role="tabpanel" hidden>
+        <div class="export-grid">
+          <section class="panel export-preview-panel">
+            <div class="panel-heading">
+              <div>
+                <div class="eyebrow">交付预览</div>
+                <h2>行为包检查</h2>
+              </div>
+              <span id="exportStatus" class="small-status"><span class="status-dot status-dot-warn"></span>尚未校验</span>
+            </div>
+            <div class="export-summary">
+              <div class="summary-card"><span class="eyebrow">模板</span><strong id="exportTemplateName">装配步骤</strong><span id="exportTemplateId" class="muted">template.assembly.v1</span></div>
+              <div class="summary-card"><span class="eyebrow">动作片段</span><strong id="exportClipCount">0</strong><span class="muted">含关键帧轨道</span></div>
+              <div class="summary-card"><span class="eyebrow">目标对象</span><strong id="exportObjectCount">0</strong><span class="muted">受控槽位</span></div>
+            </div>
+            <div class="storyboard-wrap">
+              <div class="eyebrow">可读 storyboard</div>
+              <div id="storyboard" class="storyboard"></div>
+            </div>
+            <div class="safety-note"><span class="status-dot status-dot-warn"></span><span>这是可视化辅助素材，不替代工艺审批或安全操作指导。</span></div>
+          </section>
+
+          <aside class="panel export-settings-panel">
+            <div class="panel-heading">
+              <div>
+                <div class="eyebrow">输出设置</div>
+                <h2>导出行为包</h2>
+              </div>
+            </div>
+            <div class="form-stack">
+              <label class="form-row"><span class="label">行为包名称</span><input id="packageName" class="field" value="assembly-demo-behavior"></label>
+              <label class="form-row"><span class="label">导出范围</span><select id="exportRange" class="field"><option value="all">全部时间轴</option><option value="selected">当前选择片段</option></select></label>
+              <label class="form-row"><span class="label">坐标与单位</span><input class="field" value="OT_CM · cm / deg" disabled></label>
+              <label class="form-row"><span class="label">行为包格式</span><select id="exportFormat" class="field"><option value="behavior-package-v1">behavior-package-v1（推荐）</option><option value="storyboard-json">storyboard-json</option></select></label>
+            </div>
+            <div class="divider"></div>
+            <div class="eyebrow">校验结果</div>
+            <div id="validationList" class="validation-list"></div>
+            <div class="export-actions">
+              <button class="btn btn-secondary full-width" data-action="validate">运行校验</button>
+              <button id="downloadBtn" class="btn btn-primary full-width" data-action="download" disabled>下载 JSON 行为包</button>
+            </div>
+            <p class="panel-hint">导出的文件只包含逻辑资产引用和结构化动作，不会写入 UE 工程。</p>
+            <div class="divider"></div>
+            <div class="panel-heading compact">
+              <div>
+                <div class="eyebrow">B → A 交接</div>
+                <h3>A 角调用样例</h3>
+              </div>
+              <button class="btn btn-ghost btn-sm" data-action="copy-a-route">复制</button>
+            </div>
+            <pre id="aRoutePreview" class="route-code">先运行校验并生成动作…</pre>
+            <p class="panel-hint">A 角只读取行为 ID 与参数；业务状态判断仍由 A 角负责。</p>
+          </aside>
+
+          <section class="panel manifest-panel">
+            <div class="panel-heading">
+              <div>
+                <div class="eyebrow">机器可读契约</div>
+                <h2>Manifest 预览</h2>
+              </div>
+              <button class="btn btn-ghost btn-sm" data-action="copy-manifest">复制 JSON</button>
+            </div>
+            <pre id="manifestPreview" class="manifest-code">等待生成行为包…</pre>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="statusbar">
+      <div><span class="status-dot status-dot-ok"></span><span id="footerMessage">本地样例已加载</span></div>
+      <div class="statusbar-spacer"></div>
+      <div>PAE Beta · schema <code>pae.behavior.v1</code></div>
+    </footer>
+  </div>
+
+  <div id="modalRoot" class="modal-root" hidden></div>
+  <div id="toastRoot" class="toast-stack" aria-live="polite"></div>
+  <script src="pae.js?v=beta-s2-3d-r8"></script>
+</body>
+</html>

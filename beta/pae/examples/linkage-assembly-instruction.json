@@ -1,0 +1,167 @@
+{
+  "title": "连杆组件装配说明",
+  "template_id": "template.assembly.v1",
+  "spec_id": "SPEC-ASM-DEMO-001",
+  "source": {
+    "version": "1.0",
+    "revision": "R1",
+    "origin": "Mock动画反推说明"
+  },
+  "meta": {
+    "station": "装配演示台",
+    "object_type": "linkage.assembly"
+  },
+  "objects": [
+    {
+      "id": "assembly",
+      "name": "装配基座",
+      "type": "父级模型",
+      "slot": "primary",
+      "asset_ref": "model.assembly.base",
+      "mock_asset": "assembly-base",
+      "capabilities": ["visibility", "transform", "material"]
+    },
+    {
+      "id": "rod",
+      "name": "连杆组件",
+      "type": "可动部件",
+      "slot": "named:rod",
+      "asset_ref": "model.rod.assembly",
+      "mock_asset": "rod-linkage",
+      "capabilities": ["visibility", "transform", "material"]
+    },
+    {
+      "id": "bearing-left",
+      "name": "左侧轴承",
+      "type": "可动部件",
+      "slot": "named:bearing_left",
+      "asset_ref": "model.bearing.standard",
+      "mock_asset": "bearing-ring",
+      "capabilities": ["visibility", "transform"]
+    },
+    {
+      "id": "bearing-right",
+      "name": "右侧轴承",
+      "type": "可动部件",
+      "slot": "named:bearing_right",
+      "asset_ref": "model.bearing.standard",
+      "mock_asset": "bearing-ring",
+      "capabilities": ["visibility", "transform"]
+    },
+    {
+      "id": "tool",
+      "name": "装配工具",
+      "type": "辅助对象",
+      "slot": "named:tool",
+      "asset_ref": "model.tool.fixture",
+      "mock_asset": "fixture-tool",
+      "capabilities": ["visibility", "transform"]
+    },
+    {
+      "id": "label",
+      "name": "步骤字幕",
+      "type": "说明对象",
+      "slot": "label",
+      "asset_ref": "primitive.label",
+      "mock_asset": "annotation-panel",
+      "capabilities": ["visibility", "label", "transform"]
+    }
+  ],
+  "steps": [
+    {
+      "id": "step.a01",
+      "code": "A01",
+      "name": "物料到位",
+      "category": "准备",
+      "kind": "sequence",
+      "description": "连杆进入装配基座的受控槽位，轴承保持在装配位置。",
+      "standard": "装配准备检查表",
+      "targets": ["rod", "bearing-left", "bearing-right"],
+      "actions": [
+        {
+          "event_id": "assembly.a01.rod.appear",
+          "kind": "appear",
+          "target": "rod",
+          "start_s": 0,
+          "duration_s": 1.1,
+          "asset_ref": "primitive.appear"
+        },
+        {
+          "event_id": "assembly.a01.rod.move",
+          "kind": "move",
+          "target": "rod",
+          "start_s": 1.1,
+          "duration_s": 2.1,
+          "asset_ref": "primitive.move",
+          "params": {
+            "from": {"x": -130, "y": 0, "z": 0},
+            "to": {"x": 0, "y": 0, "z": 0}
+          }
+        }
+      ]
+    },
+    {
+      "id": "step.a02",
+      "code": "A02",
+      "name": "定位轴承",
+      "category": "定位",
+      "kind": "sequence",
+      "description": "调整左右轴承方向，使其与连杆中心对齐。",
+      "standard": "定位基准：中心轴",
+      "targets": ["bearing-left", "bearing-right"],
+      "actions": [
+        {
+          "event_id": "assembly.a02.left.rotate",
+          "kind": "rotate",
+          "target": "bearing-left",
+          "start_s": 3.55,
+          "duration_s": 1.8,
+          "asset_ref": "primitive.rotate",
+          "params": {"angle": 90, "axis": "Z"}
+        },
+        {
+          "event_id": "assembly.a02.right.rotate",
+          "kind": "rotate",
+          "target": "bearing-right",
+          "start_s": 5.35,
+          "duration_s": 1.8,
+          "asset_ref": "primitive.rotate",
+          "params": {"angle": -90, "axis": "Z"}
+        }
+      ]
+    },
+    {
+      "id": "step.a03",
+      "code": "A03",
+      "name": "固定组件",
+      "category": "固定",
+      "kind": "sequence",
+      "description": "连杆下移至固定位置，并显示完成字幕。",
+      "standard": "紧固检查与标识",
+      "targets": ["rod", "label"],
+      "actions": [
+        {
+          "event_id": "assembly.a03.rod.fix",
+          "kind": "move",
+          "target": "rod",
+          "start_s": 7.5,
+          "duration_s": 1.5,
+          "asset_ref": "primitive.move",
+          "params": {
+            "from": {"x": 0, "y": 0, "z": 0},
+            "to": {"x": 0, "y": 0, "z": 6}
+          }
+        },
+        {
+          "event_id": "assembly.a03.label",
+          "kind": "label",
+          "target": "label",
+          "start_s": 9,
+          "duration_s": 1.5,
+          "asset_ref": "primitive.label",
+          "params": {"value": "已固定 · 可交付"}
+        }
+      ]
+    }
+  ]
+}

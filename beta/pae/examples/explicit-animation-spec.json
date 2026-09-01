@@ -1,0 +1,89 @@
+{
+  "title": "泵组启动与告警表现",
+  "template_id": "template.state.v1",
+  "spec_id": "SPEC-PUMP-001",
+  "source": {
+    "version": "0.3",
+    "revision": "B",
+    "origin": "结构化动画说明示例"
+  },
+  "meta": {
+    "station": "泵组演示台",
+    "object_type": "pump.unit"
+  },
+  "objects": [
+    {
+      "id": "pump_body",
+      "name": "泵体",
+      "type": "设备本体",
+      "slot": "named:pump_body",
+      "asset_ref": "model.pump.body",
+      "mock_asset": "pump-body",
+      "capabilities": ["visibility", "transform", "material"]
+    },
+    {
+      "id": "pump_indicator",
+      "name": "运行指示灯",
+      "type": "状态指示",
+      "slot": "named:pump_indicator",
+      "asset_ref": "model.pump.indicator",
+      "mock_asset": "pump-indicator",
+      "capabilities": ["visibility", "material", "fx"]
+    }
+  ],
+  "steps": [
+    {
+      "id": "block.start",
+      "code": "START",
+      "name": "启动",
+      "category": "状态",
+      "kind": "state",
+      "description": "泵体进入运行姿态，指示灯同步变为运行色。",
+      "targets": ["pump_body", "pump_indicator"],
+      "actions": [
+        {
+          "event_id": "pump.start.rotate",
+          "kind": "rotate",
+          "target": "pump_body",
+          "duration_s": 2.4,
+          "params": {"angle": 180, "axis": "Z"}
+        },
+        {
+          "event_id": "pump.start.material",
+          "kind": "material",
+          "target": "pump_indicator",
+          "duration_s": 2.4,
+          "parallel": true,
+          "asset_ref": "material.pump.running",
+          "params": {"value": "running"}
+        }
+      ]
+    },
+    {
+      "id": "block.alarm",
+      "code": "ALARM",
+      "name": "异常提示",
+      "category": "告警",
+      "kind": "state",
+      "description": "指示灯闪烁并显示告警字幕，等待人工确认。",
+      "targets": ["pump_indicator", "label"],
+      "actions": [
+        {
+          "event_id": "pump.alarm.flash",
+          "kind": "flash",
+          "target": "pump_indicator",
+          "duration_s": 3,
+          "params": {"frequency_hz": 2}
+        },
+        {
+          "event_id": "pump.alarm.label",
+          "kind": "label",
+          "target": "label",
+          "duration_s": 3,
+          "parallel": true,
+          "params": {"value": "异常 · 等待人工确认"}
+        }
+      ]
+    }
+  ]
+}

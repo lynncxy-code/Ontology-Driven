@@ -1,0 +1,18 @@
+{
+  "title": "阀门开启动画（待绑定）",
+  "template_id": "template.assembly.v1",
+  "spec_id": "SPEC-VALVE-001",
+  "source": {"version": "0.1", "revision": "draft", "origin": "结构化动画说明"},
+  "steps": [
+    {
+      "id": "block.valve",
+      "code": "V010",
+      "name": "打开阀门",
+      "category": "操作",
+      "kind": "sequence",
+      "description": "阀门旋转到打开位置。",
+      "targets": ["unknown_valve"],
+      "actions": [{"kind": "rotate", "target": "unknown_valve", "duration_s": 1.5, "params": {"angle": 90, "axis": "Z"}}]
+    }
+  ]
+}

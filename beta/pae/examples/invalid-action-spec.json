@@ -1,0 +1,14 @@
+{
+  "title": "非法动作输入示例",
+  "template_id": "template.state.v1",
+  "spec_id": "SPEC-INVALID-001",
+  "steps": [
+    {
+      "id": "block.invalid",
+      "code": "X001",
+      "name": "未知动作",
+      "targets": ["assembly"],
+      "actions": [{"kind": "teleport", "target": "assembly", "duration_s": 1}]
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "title": "设备巡检说明",
+  "template_id": "template.state.v1",
+  "spec_id": "SPEC-CHECK-001",
+  "source": {
+    "version": "1.0",
+    "revision": "R1",
+    "origin": "设备巡检表"
+  },
+  "meta": {
+    "station": "巡检工位 02",
+    "object_type": "工业设备"
+  },
+  "steps": [
+    {
+      "code": "C010",
+      "name": "确认待机",
+      "category": "检查",
+      "kind": "state",
+      "description": "确认设备处于安全静止状态。",
+      "standard": "巡检项 01",
+      "targets": ["assembly"]
+    },
+    {
+      "code": "C020",
+      "name": "观察运行",
+      "category": "检查",
+      "kind": "state",
+      "description": "观察中心部件运行是否平稳。",
+      "standard": "巡检项 02",
+      "targets": ["rod"]
+    },
+    {
+      "code": "C030",
+      "name": "记录异常",
+      "category": "记录",
+      "kind": "state",
+      "description": "若发现异常，显示提示并等待人工确认。",
+      "standard": "巡检项 03",
+      "targets": ["assembly", "label"]
+    }
+  ]
+}

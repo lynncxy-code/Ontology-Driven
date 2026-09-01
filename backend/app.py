@@ -1,6 +1,7 @@
 import os
 import time
 import math
+import copy
 import requests as http_requests
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
@@ -4985,6 +4986,34 @@ register_external_data_control_routes(app, project_store, get_runtime_status)
 
 from web_interaction import register_web_interaction_routes
 register_web_interaction_routes(app, project_store)
+
+
+def _dataset_package_lookup(dataset_id):
+    return next(
+        (copy.deepcopy(item) for item in _datasets if item.get("id") == dataset_id),
+        None,
+    )
+
+
+def _dataset_package_names():
+    return [item.get("name") for item in _datasets if item.get("name")]
+
+
+def _dataset_package_imported(dataset):
+    """Refresh the Web catalog only; ProjectStore already committed the inactive project."""
+    if any(item.get("id") == dataset.get("id") for item in _datasets):
+        raise ValueError(f"dataset already exists: {dataset.get('id')}")
+    _datasets.append(dataset)
+
+
+from dataset_package import register_dataset_package_routes
+dataset_package_service = register_dataset_package_routes(
+    app,
+    project_store,
+    dataset_lookup=_dataset_package_lookup,
+    dataset_names=_dataset_package_names,
+    on_import=_dataset_package_imported,
+)
 
 from zone_management import register_zone_management_routes
 register_zone_management_routes(app, project_store)

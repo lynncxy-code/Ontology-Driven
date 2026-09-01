@@ -176,6 +176,58 @@ class WebInteractionTestCase(unittest.TestCase):
         self.assertEqual("highlight", resolved["scene_behavior"])
         self.assertEqual(["smoke_01"], resolved["scene_scope"]["matched_instance_ids"])
 
+    def test_runtime_and_events_read_ue_bound_project_not_web_active_project(self):
+        project_a_id = self.store.get_active()["id"]
+        applied = self.service.apply({
+            "expected_revision": 0,
+            "config": sample_config(),
+            "confirm_warnings": True,
+        })
+        self.assertEqual(1, applied["revision"])
+        self.store.set_dataset({
+            "id": project_a_id,
+            "name": "Web 3.8",
+            "graph_data": {"nodes": [], "links": [], "categories": []},
+            "bound_ue_project_id": "ue-web-a",
+            "bound_ue_project_name": "UE Web A",
+        })
+
+        project_b_id = "web_other_active"
+        self.store.create_project(
+            "Other Active",
+            project_id=project_b_id,
+            dataset={
+                "id": project_b_id,
+                "name": "Other Active",
+                "graph_data": {"nodes": [], "links": [], "categories": []},
+                "bound_ue_project_id": "ue-web-b",
+                "bound_ue_project_name": "UE Web B",
+            },
+        )
+
+        import ue_project_binding as binding_index
+        binding_index._ue_index.clear()
+        binding_index.rebuild_index(self.store)
+        headers = {
+            "X-OntoTwin-UE-Project-Id": "ue-web-a",
+            "X-OntoTwin-UE-Project-Name": "UE Web A",
+            "X-OntoTwin-UE-Context": "editor",
+        }
+        runtime = self.client.get("/api/v2/web-interactions/runtime", headers=headers)
+        self.assertEqual(200, runtime.status_code)
+        self.assertEqual(project_a_id, runtime.get_json()["project_id"])
+        self.assertEqual("page.s3", runtime.get_json()["config"]["pages"][0]["page_id"])
+
+        event = self.client.post(
+            "/api/v2/web-interactions/runtime-events",
+            headers=headers,
+            json={"event_type": "page_opened", "result": "ok"},
+        )
+        self.assertEqual(200, event.status_code)
+        self.assertEqual(project_a_id, event.get_json()["event"]["project_id"])
+        self.assertEqual(project_b_id, self.store.get_active_id())
+        binding_index._ue_index.clear()
+
 
 if __name__ == "__main__":
     unittest.main()

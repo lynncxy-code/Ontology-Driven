@@ -350,8 +350,8 @@ class SceneInteractionService:
             expected_project_id=expected_project_id,
         )
 
-    def narration_asset_file(self, asset_id):
-        return self.narration.asset_file(asset_id)
+    def narration_asset_file(self, asset_id, project_id=None):
+        return self.narration.asset_file(asset_id, project_id)
 
     def create_route(self, payload, expected_revision, expected_project_id=None):
         project = self._project()

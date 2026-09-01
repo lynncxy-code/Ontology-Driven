@@ -262,9 +262,17 @@ class NarrationGenerationService:
             "segments": results,
         }
 
-    def asset_file(self, asset_id):
-        project = self.store.get_active_copy()
+    def asset_file(self, asset_id, project_id=None):
+        project = (
+            self.store.read_project(project_id)
+            if project_id
+            else self.store.get_active_copy()
+        )
         if not project:
+            if project_id:
+                raise NarrationGenerationError(
+                    "project_not_found", f"项目不存在: {project_id}", 404
+                )
             raise NarrationGenerationError("active_project_not_found", "当前没有激活项目", 404)
         metadata = ((project.get("scene_interactions") or {}).get("narration_assets") or {}).get(asset_id)
         if not isinstance(metadata, dict):

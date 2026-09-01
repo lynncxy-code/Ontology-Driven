@@ -219,10 +219,15 @@
             border: 1px solid var(--border-color);
             border-radius: 8px;
             width: min(900px, calc(100vw - 64px));
+            max-height: calc(100% - 32px);
+            min-height: 0;
             box-shadow: 0 4px 24px rgba(0,0,0,0.06);
             display: flex;
             flex-direction: column;
             overflow: hidden;
+        }
+        .workbench-card > :first-child {
+            flex: 0 0 auto;
         }
         .workbench-body {
             padding: 28px 40px 30px;
@@ -230,6 +235,9 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
         }
         .load-data-box {
             background: var(--panel-bg);
@@ -328,7 +336,7 @@
         .ui-modal {
             background: #ffffff; border-radius: 12px;
             box-shadow: 0 12px 36px rgba(0, 0, 0, 0.15);
-            width: min(440px, 90vw); padding: 24px;
+            width: min(440px, 90vw); max-height: 82vh; overflow: auto; padding: 24px;
         }
         .ui-modal h3 { font-size: 15px; font-weight: 700; margin: 0 0 10px; color: #111; }
         .ui-modal .ui-modal-body { font-size: 13px; color: #555; line-height: 1.6; }
@@ -350,6 +358,9 @@
             overflow: auto;
             max-height: 390px;
             padding-right: 2px;
+        }
+        #sub-panel-datasets.dataset-package-active #datasets-list {
+            max-height: min(220px, 24vh);
         }
         .dataset-row {
             display: grid;
@@ -502,6 +513,113 @@
             color: #b42318;
             border-color: #f97066;
             background: #fef3f2;
+        }
+        .dataset-package-entry {
+            margin-top: 10px;
+        }
+        .dataset-package-trigger {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #d4d4d4;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #1a1a1a;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .15s, border-color .15s;
+        }
+        .dataset-package-trigger:hover {
+            background: #f3f3f3;
+            border-color: #999999;
+        }
+        .dataset-package-panel {
+            margin-top: 10px;
+            padding: 16px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            background: #fafafa;
+            max-height: min(520px, calc(100vh - 260px));
+            min-height: 0;
+            overflow: hidden;
+            flex-direction: column;
+        }
+        .dataset-package-file {
+            font-size: 12px;
+            color: #5c5c5c;
+            overflow-wrap: anywhere;
+        }
+        .dataset-package-status {
+            margin-top: 10px;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #5c5c5c;
+        }
+        .dataset-package-report {
+            margin-top: 12px;
+            display: grid;
+            gap: 10px;
+            min-height: 0;
+            max-height: min(280px, 30vh);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+            padding-right: 4px;
+        }
+        .dataset-package-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .dataset-package-metric {
+            padding: 9px 10px;
+            border: 1px solid #e8e8e8;
+            border-radius: 6px;
+            background: #ffffff;
+        }
+        .dataset-package-metric strong {
+            display: block;
+            color: #1a1a1a;
+            font-size: 14px;
+        }
+        .dataset-package-metric span {
+            color: #8a8a8a;
+            font-size: 11px;
+        }
+        .dataset-package-notice {
+            padding: 9px 10px;
+            border-left: 2px solid #8a8a8a;
+            border-radius: 0 6px 6px 0;
+            background: #ffffff;
+            color: #5c5c5c;
+            font-size: 12px;
+            line-height: 1.55;
+        }
+        .dataset-package-notice.warn { border-left-color: #b54708; }
+        .dataset-package-notice.err { border-left-color: #b42318; color: #b42318; }
+        .dataset-package-name {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 8px 10px;
+            border: 1px solid #d4d4d4;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #1a1a1a;
+            font-size: 12px;
+        }
+        .dataset-package-name:focus {
+            outline: none;
+            border-color: #1a1a1a;
+            box-shadow: 0 0 0 3px rgba(26,26,26,.06);
+        }
+        .dataset-package-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #e8e8e8;
+            flex: 0 0 auto;
         }
         .spinner {
             width: 14px; height: 14px; border: 2px solid #ddd;
@@ -1019,7 +1137,26 @@
                                     <button id="btn-create-empty-ds" onclick="createEmptyDataset()"
                                             style="background:#111; border:none; color:#fff; border-radius:5px; padding:6px 16px; font-size:12px; cursor:pointer;">创建</button>
                                 </div>
-                                <div id="new-ds-error" style="display:none; margin-top:8px; font-size:11px; color:#dc2626;"></div>
+                             <div id="new-ds-error" style="display:none; margin-top:8px; font-size:11px; color:#dc2626;"></div>
+                            </div>
+                            <div class="dataset-package-entry">
+                                <input id="dataset-package-file" type="file" accept=".otdataset" hidden onchange="preflightDatasetPackage(this.files[0])" />
+                                <button id="btn-import-dataset-package" class="dataset-package-trigger" onclick="chooseDatasetPackage()">
+                                    导入数据集包
+                                </button>
+                                <div id="dataset-package-panel" class="dataset-package-panel" style="display:none;">
+                                    <div id="dataset-package-file-name" class="dataset-package-file"></div>
+                                    <div id="dataset-package-status" class="dataset-package-status"></div>
+                                    <div id="dataset-package-report" class="dataset-package-report"></div>
+                                    <div id="dataset-package-import-fields" style="display:none; margin-top:12px;">
+                                        <label for="dataset-package-target-name" style="display:block; margin-bottom:6px; font-size:11px; color:#5c5c5c;">导入后的数据集名称</label>
+                                        <input id="dataset-package-target-name" class="dataset-package-name" maxlength="128" />
+                                    </div>
+                                    <div class="dataset-package-actions">
+                                        <button class="dataset-btn" onclick="resetDatasetPackageImport()">取消</button>
+                                        <button id="btn-confirm-dataset-package" class="dataset-btn dataset-btn-primary" onclick="importDatasetPackage()" disabled>确认导入</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2296,6 +2433,7 @@
                         ${!isActive ? `<button onclick="activateDataset('${ds.id}', this.closest('.dataset-row'), this)" 
                             class="dataset-btn dataset-btn-primary">激活</button>` : ''}
                         <button onclick="previewDataset('${ds.id}')" class="dataset-btn">预览图谱</button>
+                        ${ds.id !== 'demo' ? `<button onclick="exportDatasetPackage('${escapeAttr(ds.id)}', this)" class="dataset-btn">导出数据集包</button>` : ''}
                         ${ds.id !== 'demo' ? `<button onclick="deleteDataset(this, '${ds.id}', '${escapeAttr(ds.name)}')" 
                             class="dataset-btn dataset-btn-danger">删除</button>` : ''}
                     </div>
@@ -2330,6 +2468,191 @@
                 UI.toast('网络连接失败', 'err');
                 btn.disabled = false;
                 btn.textContent = '删除';
+            }
+        }
+
+        // ── OntoTwin 2.3.2：数据集包导入 / 导出 ─────────────
+        let _selectedDatasetPackage = null;
+        let _datasetPackagePreflight = null;
+
+        function chooseDatasetPackage() {
+            const input = document.getElementById('dataset-package-file');
+            input.value = '';
+            input.click();
+        }
+
+        function resetDatasetPackageImport() {
+            _selectedDatasetPackage = null;
+            _datasetPackagePreflight = null;
+            document.getElementById('dataset-package-file').value = '';
+            document.getElementById('dataset-package-panel').style.display = 'none';
+            document.getElementById('sub-panel-datasets').classList.remove('dataset-package-active');
+            document.getElementById('dataset-package-file-name').textContent = '';
+            document.getElementById('dataset-package-status').textContent = '';
+            document.getElementById('dataset-package-report').innerHTML = '';
+            document.getElementById('dataset-package-import-fields').style.display = 'none';
+            document.getElementById('btn-confirm-dataset-package').disabled = true;
+        }
+
+        function datasetPackageMetric(value, label) {
+            return `<div class="dataset-package-metric"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`;
+        }
+
+        function renderDatasetPackagePreflight(report) {
+            const summary = report.summary || {};
+            const resources = report.resource_summary || {};
+            const source = report.source || {};
+            const compatibility = report.compatibility || {};
+            const notices = [];
+            for (const item of report.blockers || []) {
+                notices.push(`<div class="dataset-package-notice err">${escapeHtml(item.message || item.code)}</div>`);
+            }
+            for (const item of report.warnings || []) {
+                notices.push(`<div class="dataset-package-notice warn">${escapeHtml(item.message || item.code)}</div>`);
+            }
+            const ue = source.ue_project || {};
+            document.getElementById('dataset-package-report').innerHTML = `
+                <div class="dataset-package-notice">
+                    来源：<strong>${escapeHtml(source.dataset_name || '未命名数据集')}</strong>
+                    · 数据结构 v${escapeHtml(compatibility.source_schema_version)} → v${escapeHtml(compatibility.target_schema_version)}
+                    ${ue.project_name || ue.project_id ? `<br>来源 UE 工程：${escapeHtml(ue.project_name || ue.project_id)}；导入后不会自动绑定。` : ''}
+                </div>
+                <div class="dataset-package-summary-grid">
+                    ${datasetPackageMetric(summary.types || 0, '设备类型')}
+                    ${datasetPackageMetric(summary.instances || 0, '实例')}
+                    ${datasetPackageMetric(summary.frames || 0, '空间帧')}
+                    ${datasetPackageMetric(summary.zones || 0, '分区')}
+                    ${datasetPackageMetric(summary.routes || 0, '路线')}
+                    ${datasetPackageMetric(summary.overlays || 0, 'Overlay 配置')}
+                    ${datasetPackageMetric(summary.web_pages || 0, 'Web 页面')}
+                    ${datasetPackageMetric(resources.needs_verification || 0, '待核对资源')}
+                </div>
+                ${notices.join('')}
+                <div class="dataset-package-notice">
+                    导入会创建新的未激活、未绑定数据集，不覆盖本地数据。资源文件和平台级映射规则不包含在包内。
+                </div>
+            `;
+            const fields = document.getElementById('dataset-package-import-fields');
+            fields.style.display = report.can_import ? 'block' : 'none';
+            document.getElementById('dataset-package-target-name').value = report.suggested_name || source.dataset_name || '';
+            document.getElementById('btn-confirm-dataset-package').disabled = !report.can_import;
+            requestAnimationFrame(() => {
+                document.getElementById('dataset-package-panel').scrollIntoView({ block: 'nearest' });
+            });
+        }
+
+        async function preflightDatasetPackage(file) {
+            if (!file) return;
+            _selectedDatasetPackage = file;
+            _datasetPackagePreflight = null;
+            const panel = document.getElementById('dataset-package-panel');
+            const status = document.getElementById('dataset-package-status');
+            const reportEl = document.getElementById('dataset-package-report');
+            const importBtn = document.getElementById('btn-confirm-dataset-package');
+            panel.style.display = 'flex';
+            document.getElementById('sub-panel-datasets').classList.add('dataset-package-active');
+            document.getElementById('dataset-package-file-name').textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB`;
+            status.textContent = '正在预检；此时不会创建或修改数据集。';
+            reportEl.innerHTML = '';
+            importBtn.disabled = true;
+            document.getElementById('dataset-package-import-fields').style.display = 'none';
+            const form = new FormData();
+            form.append('file', file);
+            try {
+                const res = await fetch('/api/v2/ontology/dataset-packages/preflight', { method: 'POST', body: form });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error || '数据集包预检失败');
+                _datasetPackagePreflight = data;
+                status.textContent = data.can_import ? '预检完成。请核对内容与导入后的名称。' : '预检未通过；请处理阻断项后重新选择数据集包。';
+                renderDatasetPackagePreflight(data);
+            } catch (error) {
+                status.textContent = '预检失败：' + error.message;
+                reportEl.innerHTML = '<div class="dataset-package-notice err">未写入任何数据。请确认文件来自兼容版本的 OntoTwin。</div>';
+            }
+        }
+
+        async function importDatasetPackage() {
+            if (!_selectedDatasetPackage || !_datasetPackagePreflight?.can_import) return;
+            const name = document.getElementById('dataset-package-target-name').value.trim();
+            const button = document.getElementById('btn-confirm-dataset-package');
+            const status = document.getElementById('dataset-package-status');
+            if (!name) {
+                status.textContent = '请输入导入后的数据集名称。';
+                document.getElementById('dataset-package-target-name').focus();
+                return;
+            }
+            const form = new FormData();
+            form.append('file', _selectedDatasetPackage);
+            form.append('target_name', name);
+            button.disabled = true;
+            button.textContent = '正在导入...';
+            status.textContent = '正在创建新的未激活数据集。';
+            try {
+                const res = await fetch('/api/v2/ontology/dataset-packages/import', { method: 'POST', body: form });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error || '导入失败');
+                _selectedDatasetPackage = null;
+                _datasetPackagePreflight = null;
+                await loadDatasets();
+                document.getElementById('dataset-package-import-fields').style.display = 'none';
+                document.getElementById('dataset-package-report').innerHTML = `
+                    <div class="dataset-package-notice">
+                        已导入为 <strong>${escapeHtml(data.dataset_name)}</strong>。当前数据集未切换，导入结果未绑定 UE 工程。
+                        <br>下一步可先预览图谱；需要运行时，请手动激活后由目标 UE 工程发起绑定。
+                    </div>
+                    <div class="dataset-package-actions">
+                        <button class="dataset-btn" onclick="resetDatasetPackageImport()">关闭</button>
+                        <button class="dataset-btn dataset-btn-primary" onclick="previewDataset('${escapeAttr(data.dataset_id)}')">预览图谱</button>
+                    </div>`;
+                status.textContent = '导入成功；原激活数据集保持不变。';
+                UI.toast('数据集包已导入，尚未激活或绑定', 'ok');
+            } catch (error) {
+                status.textContent = '导入失败：' + error.message + '。未留下可见的半成品。';
+                UI.toast('数据集包导入失败', 'err');
+                button.disabled = false;
+            } finally {
+                button.textContent = '确认导入';
+            }
+        }
+
+        async function exportDatasetPackage(datasetId, button) {
+            const originalText = button?.textContent || '导出数据集包';
+            if (button) {
+                button.disabled = true;
+                button.textContent = '读取摘要...';
+            }
+            try {
+                const res = await fetch(`/api/v2/ontology/datasets/${encodeURIComponent(datasetId)}/package-summary`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error || '无法生成导出摘要');
+                const summary = data.summary || {};
+                const resources = data.resource_summary || {};
+                const ok = await UI.confirm({
+                    title: '导出数据集包',
+                    bodyHTML: `
+                        将导出 <strong>${escapeHtml(data.dataset_name)}</strong> 的完整项目级业务数据：
+                        ${escapeHtml(summary.types || 0)} 个类型、${escapeHtml(summary.instances || 0)} 个实例、
+                        ${escapeHtml(summary.frames || 0)} 个空间帧、${escapeHtml(summary.zones || 0)} 个分区、
+                        ${escapeHtml(summary.routes || 0)} 条路线和 ${escapeHtml(summary.web_pages || 0)} 个 Web 页面。<br><br>
+                        外部资源只保留引用，其中 ${escapeHtml(resources.needs_verification || 0)} 项需要在目标环境核对。
+                        当前激活状态、有效 UE 绑定、在线状态、凭证和平台级映射规则不会导出。`,
+                    confirmText: '下载数据集包'
+                });
+                if (!ok) return;
+                const link = document.createElement('a');
+                link.href = `/api/v2/ontology/datasets/${encodeURIComponent(datasetId)}/package`;
+                link.download = '';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                UI.toast('数据集包下载已开始', 'ok');
+            } catch (error) {
+                UI.toast('导出失败：' + error.message, 'err');
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = originalText;
+                }
             }
         }
 
@@ -2538,10 +2861,23 @@
                     
                     const cancelBtn = box.querySelector('#ui-modal-cancel');
                     const confirmBtn = box.querySelector('#ui-modal-confirm');
-                    
-                    cancelBtn.onclick = () => { mask.remove(); resolve(false); };
-                    confirmBtn.onclick = () => { mask.remove(); resolve(true); };
-                    mask.onclick = (e) => { if (e.target === mask) { mask.remove(); resolve(false); } };
+                    let settled = false;
+                    const close = (value) => {
+                        if (settled) return;
+                        settled = true;
+                        document.removeEventListener('keydown', onKeydown);
+                        mask.remove();
+                        resolve(value);
+                    };
+                    const onKeydown = (event) => {
+                        if (event.key === 'Escape') close(false);
+                        if (event.key === 'Enter') close(true);
+                    };
+                    cancelBtn.onclick = () => close(false);
+                    confirmBtn.onclick = () => close(true);
+                    mask.onclick = (event) => { if (event.target === mask) close(false); };
+                    document.addEventListener('keydown', onKeydown);
+                    setTimeout(() => confirmBtn.focus(), 0);
                 });
             }
         };

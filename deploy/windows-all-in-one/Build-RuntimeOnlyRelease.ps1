@@ -13,7 +13,15 @@ param(
     [string]$OutputDirectory,
 
     [Parameter(Mandatory = $true)]
-    [string]$ReleaseVersion
+    [string]$ReleaseVersion,
+
+    [string]$DataDirectory = "",
+    [string]$ProjectId = "",
+    [string]$ProjectName = "",
+    [string]$BackendImageArchive = "",
+    [string]$BackendImageTag = "",
+
+    [switch]$ResetBackendBaselineOnUpgrade
 )
 
 Set-StrictMode -Version Latest
@@ -68,7 +76,10 @@ function Write-ReleaseDocument {
 }
 
 function Assert-RuntimePackaging {
-    param([Parameter(Mandatory = $true)][string]$RuntimeRoot)
+    param(
+        [Parameter(Mandatory = $true)][string]$RuntimeRoot,
+        [Parameter(Mandatory = $true)][string]$ExpectedProjectName
+    )
 
     $ufsPath = Join-Path $RuntimeRoot "Manifest_UFSFiles_Win64.txt"
     $nonUfsPath = Join-Path $RuntimeRoot "Manifest_NonUFSFiles_Win64.txt"
@@ -87,13 +98,14 @@ function Assert-RuntimePackaging {
     if ($combinedText -match '(?i)PixelStreaming') {
         throw "Pixel Streaming files are present even though this release must not include Pixel Streaming."
     }
-    if ($ufsText -notmatch '(?im)^ZHHZ[/\\]ZHHZ\.uproject(?:\s|$)') {
-        throw "The UFS manifest does not contain the ZHHZ project descriptor."
+    $projectPattern = [regex]::Escape($ExpectedProjectName)
+    if ($ufsText -notmatch "(?im)^$projectPattern[/\\]$projectPattern\.uproject(?:\s|`$)") {
+        throw "The UFS manifest does not contain the $ExpectedProjectName project descriptor."
     }
-    if ($ufsText -notmatch '(?im)^ZHHZ[/\\]Plugins[/\\]glTFRuntime[/\\]glTFRuntime\.uplugin(?:\s|$)') {
+    if ($ufsText -notmatch "(?im)^$projectPattern[/\\]Plugins[/\\]glTFRuntime[/\\]glTFRuntime\.uplugin(?:\s|`$)") {
         throw "The UFS manifest does not contain the required glTFRuntime plugin."
     }
-    if ($ufsText -notmatch '(?im)^ZHHZ[/\\]Plugins[/\\]OntoTwinSync[/\\]OntoTwinSync\.uplugin(?:\s|$)') {
+    if ($ufsText -notmatch "(?im)^$projectPattern[/\\]Plugins[/\\]OntoTwinSync[/\\]OntoTwinSync\.uplugin(?:\s|`$)") {
         throw "The UFS manifest does not contain the required OntoTwinSync plugin."
     }
 
@@ -169,6 +181,24 @@ function Assert-DockerArchiveTag {
     if ($repoTags -notcontains $ExpectedTag) {
         throw "Docker archive '$Archive' does not contain the configured tag '$ExpectedTag'. Found: $($repoTags -join ', ')"
     }
+
+    # Docker Desktop may export OCI image archives.  In that format Docker
+    # uses index.json annotations for the imported name; checking only the
+    # legacy manifest.json RepoTags can let a stale tag through.
+    $indexText = (& tar.exe -xOf $Archive index.json 2>$null) -join "`n"
+    $indexExitCode = $LASTEXITCODE
+    if ($indexExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($indexText)) {
+        try { $ociIndex = $indexText | ConvertFrom-Json }
+        catch { throw "OCI index.json in '$Archive' is not valid JSON: $($_.Exception.Message)" }
+        $expectedNames = @($ExpectedTag, "docker.io/$ExpectedTag")
+        $ociNames = @($ociIndex.manifests | ForEach-Object {
+            @($_.annotations.'io.containerd.image.name', $_.annotations.'org.opencontainers.image.ref.name')
+        }) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+        $ociMatches = @($ociNames | Where-Object { $_ -in $expectedNames -or $_ -eq ($ExpectedTag -replace '^docker.io/', '') })
+        if ($ociMatches.Count -eq 0) {
+            throw "OCI archive '$Archive' does not expose the configured tag '$ExpectedTag' in index.json. Found: $($ociNames -join ', ')"
+        }
+    }
 }
 
 $baseRelease = [System.IO.Path]::GetFullPath($BaseReleaseDirectory)
@@ -180,30 +210,45 @@ $runtimeManifestPath = Join-Path $runtime "ontotwin-runtime-manifest.json"
 $baseManifestPath = Join-Path $baseRelease "release-manifest.json"
 $currentComposePath = Join-Path $PSScriptRoot "docker-compose.release.yml"
 $currentEnvironmentTemplatePath = Join-Path $PSScriptRoot "customer.env.example"
+$currentPostgresRestoreScriptPath = Join-Path $PSScriptRoot "database\postgres\01-restore.sh"
+
+if (-not (Test-Path -LiteralPath $runtimeManifestPath -PathType Leaf)) {
+    throw "Required release input is missing: $runtimeManifestPath"
+}
+$runtimeIdentity = Get-Content -Raw -LiteralPath $runtimeManifestPath | ConvertFrom-Json
+$runtimeProjectName = [string]$runtimeIdentity.project_name
+$runtimeTargetName = [string]$runtimeIdentity.target_name
+if ($runtimeProjectName -notmatch '^[A-Za-z0-9_]+$' -or $runtimeTargetName -notmatch '^[A-Za-z0-9_]+$') {
+    throw "Runtime identity contains an invalid project or target name."
+}
+if ($runtimeProjectName -ne $runtimeTargetName) {
+    throw "Runtime project and target must match: project='$runtimeProjectName', target='$runtimeTargetName'."
+}
+$resolvedDataDirectory = if ([string]::IsNullOrWhiteSpace($DataDirectory)) {
+    Join-Path $baseRelease "Database"
+} else {
+    [System.IO.Path]::GetFullPath($DataDirectory)
+}
 
 foreach ($required in @(
-    (Join-Path $runtime "ZHHZ.exe"),
-    $runtimeManifestPath,
-    (Join-Path $runtime "ZHHZ"),
+    (Join-Path $runtime "$runtimeTargetName.exe"),
+    (Join-Path $runtime $runtimeProjectName),
     (Join-Path $runtime "Manifest_UFSFiles_Win64.txt"),
     (Join-Path $runtime "Manifest_NonUFSFiles_Win64.txt"),
     $sourceProject,
     $baseManifestPath,
     (Join-Path $baseRelease "Models"),
-    (Join-Path $baseRelease "Database"),
+    $resolvedDataDirectory,
     (Join-Path $baseRelease "Images"),
     $currentComposePath,
-    $currentEnvironmentTemplatePath
+    $currentEnvironmentTemplatePath,
+    $currentPostgresRestoreScriptPath
 )) {
     if (-not (Test-Path -LiteralPath $required)) { throw "Required release input is missing: $required" }
 }
 
-$runtimeIdentity = Get-Content -Raw -LiteralPath $runtimeManifestPath | ConvertFrom-Json
-if ($runtimeIdentity.project_name -ne "ZHHZ" -or $runtimeIdentity.target_name -ne "ZHHZ") {
-    throw "Runtime identity mismatch: project='$($runtimeIdentity.project_name)', target='$($runtimeIdentity.target_name)'."
-}
-if ([System.IO.Path]::GetFileNameWithoutExtension($sourceProject) -ne "ZHHZ") {
-    throw "SourceProjectPath must point to ZHHZ.uproject: $sourceProject"
+if ([System.IO.Path]::GetFileNameWithoutExtension($sourceProject) -ne $runtimeProjectName) {
+    throw "SourceProjectPath must point to $runtimeProjectName.uproject: $sourceProject"
 }
 $sourceProjectHash = (Get-FileHash -LiteralPath $sourceProject -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($sourceProjectHash -ne [string]$runtimeIdentity.source_project_sha256) {
@@ -230,7 +275,7 @@ $sourceMapHashes = @($sourceMaps | ForEach-Object {
         sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
     }
 })
-Assert-RuntimePackaging -RuntimeRoot $runtime
+Assert-RuntimePackaging -RuntimeRoot $runtime -ExpectedProjectName $runtimeProjectName
 
 if (Test-Path -LiteralPath $output) {
     if (@(Get-ChildItem -LiteralPath $output -Force).Count -gt 0) {
@@ -240,19 +285,31 @@ if (Test-Path -LiteralPath $output) {
     New-Item -ItemType Directory -Path $output | Out-Null
 }
 
+$excludedBaseItems = @("ZHHZ", "release-manifest.json", "Deployment-Guide.md")
+if (-not [string]::IsNullOrWhiteSpace($DataDirectory)) { $excludedBaseItems += @("Database", "Data") }
 foreach ($item in Get-ChildItem -LiteralPath $baseRelease -Force | Where-Object {
-    $_.Name -notin @("ZHHZ", "release-manifest.json", "Deployment-Guide.md")
+    $_.Name -notin $excludedBaseItems
 }) {
     Copy-Item -LiteralPath $item.FullName -Destination $output -Recurse -Force
+}
+if (-not [string]::IsNullOrWhiteSpace($BackendImageArchive)) {
+    if ([string]::IsNullOrWhiteSpace($BackendImageTag)) {
+        throw "BackendImageTag is required when BackendImageArchive is provided."
+    }
+    $resolvedBackendImageArchive = [System.IO.Path]::GetFullPath($BackendImageArchive)
+    if (-not (Test-Path -LiteralPath $resolvedBackendImageArchive -PathType Leaf)) {
+        throw "Backend image archive was not found: $resolvedBackendImageArchive"
+    }
+    Copy-Item -LiteralPath $resolvedBackendImageArchive -Destination (Join-Path $output "Images\ontotwin-backend.tar") -Force
 }
 Copy-Item -LiteralPath $runtime -Destination (Join-Path $output "ZHHZ") -Recurse -Force
 $outputRuntime = Join-Path $output "ZHHZ"
 $runtimePackagePaths = @(
-    "ZHHZ.exe",
-    "ZHHZ\Binaries\Win64\ZHHZ-Win64-Shipping.exe",
-    "ZHHZ\Content\Paks\ZHHZ-Windows.pak",
-    "ZHHZ\Content\Paks\ZHHZ-Windows.ucas",
-    "ZHHZ\Content\Paks\ZHHZ-Windows.utoc"
+    "$runtimeTargetName.exe",
+    "$runtimeProjectName\Binaries\Win64\$runtimeTargetName-Win64-Shipping.exe",
+    "$runtimeProjectName\Content\Paks\$runtimeProjectName-Windows.pak",
+    "$runtimeProjectName\Content\Paks\$runtimeProjectName-Windows.ucas",
+    "$runtimeProjectName\Content\Paks\$runtimeProjectName-Windows.utoc"
 )
 $runtimePackageHashes = @($runtimePackagePaths | ForEach-Object {
     $packagePath = Join-Path $outputRuntime $_
@@ -277,6 +334,63 @@ Write-ReleaseDocument `
     -Descriptor $releaseDescriptor
 
 $baseManifest = Get-Content -Raw -LiteralPath $baseManifestPath | ConvertFrom-Json
+$dataManifest = $null
+if (-not [string]::IsNullOrWhiteSpace($DataDirectory)) {
+    $dataManifestPath = Join-Path $resolvedDataDirectory "data-manifest.json"
+    if (-not (Test-Path -LiteralPath $dataManifestPath -PathType Leaf)) {
+        throw "DataDirectory does not contain data-manifest.json: $resolvedDataDirectory"
+    }
+    $dataManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $dataManifestPath | ConvertFrom-Json
+    if ([string]::IsNullOrWhiteSpace($ProjectId)) { $ProjectId = [string]$dataManifest.project_id }
+    if ([string]::IsNullOrWhiteSpace($ProjectName)) { $ProjectName = [string]$dataManifest.project_name }
+    if ([string]$dataManifest.project_id -ne $ProjectId -or [string]$dataManifest.project_name -ne $ProjectName) {
+        throw "Data identity does not match ProjectId/ProjectName."
+    }
+    Copy-Item -LiteralPath $resolvedDataDirectory -Destination (Join-Path $output "Database") -Recurse -Force
+    $outputData = Join-Path $output "Data"
+    New-Item -ItemType Directory -Path (Join-Path $outputData "project_assets"),(Join-Path $outputData "exports") -Force | Out-Null
+    $exportedAssets = Join-Path $resolvedDataDirectory "project_assets\$ProjectId"
+    if (Test-Path -LiteralPath $exportedAssets -PathType Container) {
+        Copy-Item -LiteralPath $exportedAssets -Destination (Join-Path $outputData "project_assets") -Recurse -Force
+    }
+} else {
+    if ([string]::IsNullOrWhiteSpace($ProjectId)) { $ProjectId = [string]$baseManifest.project_id }
+    if ([string]::IsNullOrWhiteSpace($ProjectName)) { $ProjectName = $runtimeProjectName }
+}
+
+# DataDirectory is an exported data snapshot and intentionally contains only
+# data artifacts. The PostgreSQL restore hook is deployment policy, so always
+# inject the current checkout's script after copying either a fresh snapshot or
+# a base release. Writing normalized UTF-8/LF prevents a Windows checkout from
+# producing a script that PostgreSQL cannot execute in the Linux container.
+$outputPostgresDirectory = Join-Path $output "Database\postgres"
+$outputPostgresRestoreScriptPath = Join-Path $outputPostgresDirectory "01-restore.sh"
+New-Item -ItemType Directory -Path $outputPostgresDirectory -Force | Out-Null
+$currentPostgresRestoreScript = Get-Content -Raw -Encoding UTF8 -LiteralPath $currentPostgresRestoreScriptPath
+[System.IO.File]::WriteAllText(
+    $outputPostgresRestoreScriptPath,
+    (Get-NormalizedText -Content $currentPostgresRestoreScript),
+    [System.Text.UTF8Encoding]::new($false))
+Assert-NormalizedFileContent `
+    -Path $outputPostgresRestoreScriptPath `
+    -ExpectedContent $currentPostgresRestoreScript `
+    -Description "PostgreSQL release restore script"
+$restoreScriptBytes = [System.IO.File]::ReadAllBytes($outputPostgresRestoreScriptPath)
+if ($restoreScriptBytes.Length -eq 0 -or $restoreScriptBytes -contains [byte]0x0D -or
+    $restoreScriptBytes[$restoreScriptBytes.Length - 1] -ne 0x0A) {
+    throw "PostgreSQL release restore script must be non-empty LF-only text ending in LF: $outputPostgresRestoreScriptPath"
+}
+$restoreScriptPrefix = [System.Text.Encoding]::ASCII.GetBytes("#!/usr/bin/env bash`n")
+if ($restoreScriptBytes.Length -lt $restoreScriptPrefix.Length) {
+    throw "PostgreSQL release restore script is truncated: $outputPostgresRestoreScriptPath"
+}
+for ($index = 0; $index -lt $restoreScriptPrefix.Length; $index++) {
+    if ($restoreScriptBytes[$index] -ne $restoreScriptPrefix[$index]) {
+        throw "PostgreSQL release restore script has an invalid interpreter line: $outputPostgresRestoreScriptPath"
+    }
+}
+$dataVersion = if ($null -ne $dataManifest) { "zhhz-new-" + (Get-Date -Format "yyyyMMdd-HHmmss") } else { [string]$baseManifest.data_version }
+$postgresCounts = if ($null -ne $dataManifest) { $dataManifest.postgres } else { $baseManifest.postgres_counts }
 $outputDeploy = Join-Path $output "Deploy"
 New-Item -ItemType Directory -Path $outputDeploy -Force | Out-Null
 
@@ -301,11 +415,16 @@ if ($baseManifest.PSObject.Properties.Name -notcontains "component_versions" -or
     throw "Base release manifest does not contain reusable image component versions."
 }
 $customerEnvironment = Get-Content -Raw -Encoding UTF8 -LiteralPath $currentEnvironmentTemplatePath
-$customerEnvironment = Set-EnvironmentValue -Content $customerEnvironment -Key "BACKEND_IMAGE" -Value ([string]$baseManifest.component_versions.images.backend_image)
+$resolvedBackendImageTag = if ([string]::IsNullOrWhiteSpace($BackendImageTag)) {
+    [string]$baseManifest.component_versions.images.backend_image
+} else {
+    $BackendImageTag
+}
+$customerEnvironment = Set-EnvironmentValue -Content $customerEnvironment -Key "BACKEND_IMAGE" -Value $resolvedBackendImageTag
 $customerEnvironment = Set-EnvironmentValue -Content $customerEnvironment -Key "POSTGRES_IMAGE" -Value ([string]$baseManifest.component_versions.images.postgres_image)
 $customerEnvironment = Set-EnvironmentValue -Content $customerEnvironment -Key "NEO4J_IMAGE" -Value ([string]$baseManifest.component_versions.images.neo4j_image)
 $customerEnvironment = Set-EnvironmentValue -Content $customerEnvironment -Key "ONTOTWIN_RELEASE_VERSION" -Value $ReleaseVersion
-$customerEnvironment = Set-EnvironmentValue -Content $customerEnvironment -Key "ONTOTWIN_DATA_VERSION" -Value ([string]$baseManifest.data_version)
+$customerEnvironment = Set-EnvironmentValue -Content $customerEnvironment -Key "ONTOTWIN_DATA_VERSION" -Value $dataVersion
 if ($customerEnvironment.Contains("__RELEASE_VERSION__") -or $customerEnvironment.Contains("__DATA_VERSION__")) {
     throw "Rendered customer environment still contains a release/data version placeholder."
 }
@@ -341,11 +460,24 @@ foreach ($entry in $manifestFiles) { $manifestByPath[[string]$entry.path] = $ent
 foreach ($imagePath in @("Images/ontotwin-backend.tar", "Images/postgres.tar", "Images/neo4j.tar")) {
     if (-not $manifestByPath.ContainsKey($imagePath)) { throw "Required image is missing from the release manifest: $imagePath" }
 }
+if (-not $manifestByPath.ContainsKey("Database/postgres/01-restore.sh")) {
+    throw "PostgreSQL restore script is missing from the release manifest."
+}
+
+$baseReleaseVersion = [string]$baseManifest.release_version
+if ($baseReleaseVersion -eq $ReleaseVersion -and
+    $baseManifest.PSObject.Properties.Name -contains "component_versions" -and
+    $baseManifest.component_versions.PSObject.Properties.Name -contains "base_release_version") {
+    # A rejected draft of the same RC is a valid immutable-artifact source for
+    # a rebuild. Preserve the actual ancestry instead of reporting the RC as
+    # its own base release.
+    $baseReleaseVersion = [string]$baseManifest.component_versions.base_release_version
+}
 
 $componentVersions = [ordered]@{
     release_version = $ReleaseVersion
-    base_release_version = [string]$baseManifest.release_version
-    data_version = [string]$baseManifest.data_version
+    base_release_version = $baseReleaseVersion
+    data_version = $dataVersion
     runtime = [ordered]@{
         manifest_schema_version = [int]$runtimeIdentity.schema_version
         project_name = [string]$runtimeIdentity.project_name
@@ -374,8 +506,10 @@ $releaseManifest = [ordered]@{
     manifest_schema_version = 2
     product = "OntoTwin ZHHZ"
     release_version = $ReleaseVersion
-    data_version = $baseManifest.data_version
-    project_id = $baseManifest.project_id
+    data_version = $dataVersion
+    project_id = $ProjectId
+    project_name = $ProjectName
+    ue_project_id = "ueproj_$runtimeProjectName"
     generated_at = (Get-Date).ToString("o")
     runtime_project = $runtimeIdentity.project_name
     runtime_target = $runtimeIdentity.target_name
@@ -383,8 +517,9 @@ $releaseManifest = [ordered]@{
     realtime_websocket_enabled = $false
     pixel_streaming_included = $false
     artstudio_enabled_by_default = $true
+    reset_backend_baseline_on_upgrade = [bool]$ResetBackendBaselineOnUpgrade
     component_versions = $componentVersions
-    postgres_counts = $baseManifest.postgres_counts
+    postgres_counts = $postgresCounts
     files = $manifestFiles
 }
 [System.IO.File]::WriteAllText(

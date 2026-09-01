@@ -64,7 +64,8 @@ function Write-ReleaseDocument {
 function Assert-RuntimeManifestText {
     param(
         [Parameter(Mandatory = $true)][string]$UfsText,
-        [Parameter(Mandatory = $true)][string]$NonUfsText
+        [Parameter(Mandatory = $true)][string]$NonUfsText,
+        [Parameter(Mandatory = $true)][string]$ExpectedProjectName
     )
 
     $combinedText = $UfsText + [Environment]::NewLine + $NonUfsText
@@ -74,19 +75,23 @@ function Assert-RuntimeManifestText {
     if ($combinedText -match '(?i)PixelStreaming') {
         throw "Pixel Streaming files are present in the Shipping manifests."
     }
-    if ($UfsText -notmatch '(?im)^ZHHZ[/\\]ZHHZ\.uproject(?:\s|$)') {
-        throw "The UFS manifest does not contain the ZHHZ project descriptor."
+    $projectPattern = [regex]::Escape($ExpectedProjectName)
+    if ($UfsText -notmatch "(?im)^$projectPattern[/\\]$projectPattern\.uproject(?:\s|`$)") {
+        throw "The UFS manifest does not contain the $ExpectedProjectName project descriptor."
     }
-    if ($UfsText -notmatch '(?im)^ZHHZ[/\\]Plugins[/\\]glTFRuntime[/\\]glTFRuntime\.uplugin(?:\s|$)') {
+    if ($UfsText -notmatch "(?im)^$projectPattern[/\\]Plugins[/\\]glTFRuntime[/\\]glTFRuntime\.uplugin(?:\s|`$)") {
         throw "The UFS manifest does not contain the required glTFRuntime plugin."
     }
-    if ($UfsText -notmatch '(?im)^ZHHZ[/\\]Plugins[/\\]OntoTwinSync[/\\]OntoTwinSync\.uplugin(?:\s|$)') {
+    if ($UfsText -notmatch "(?im)^$projectPattern[/\\]Plugins[/\\]OntoTwinSync[/\\]OntoTwinSync\.uplugin(?:\s|`$)") {
         throw "The UFS manifest does not contain the required OntoTwinSync plugin."
     }
 }
 
 function Assert-RuntimePackaging {
-    param([Parameter(Mandatory = $true)][string]$RuntimeRoot)
+    param(
+        [Parameter(Mandatory = $true)][string]$RuntimeRoot,
+        [Parameter(Mandatory = $true)][string]$ExpectedProjectName
+    )
 
     $ufsPath = Join-Path $RuntimeRoot "Manifest_UFSFiles_Win64.txt"
     $nonUfsPath = Join-Path $RuntimeRoot "Manifest_NonUFSFiles_Win64.txt"
@@ -97,7 +102,8 @@ function Assert-RuntimePackaging {
     }
     Assert-RuntimeManifestText `
         -UfsText (Get-Content -Raw -Encoding UTF8 -LiteralPath $ufsPath) `
-        -NonUfsText (Get-Content -Raw -Encoding UTF8 -LiteralPath $nonUfsPath)
+        -NonUfsText (Get-Content -Raw -Encoding UTF8 -LiteralPath $nonUfsPath) `
+        -ExpectedProjectName $ExpectedProjectName
     $forbiddenPath = Get-ChildItem -LiteralPath $RuntimeRoot -Recurse -Force | Where-Object {
         $_.FullName.Substring($RuntimeRoot.Length).TrimStart([char[]]@('\', '/')) -match '(?i)(^|[/\\])(test0316|tmp_ue|PixelStreaming)([/\\]|$)'
     } | Select-Object -First 1
@@ -111,7 +117,10 @@ function Assert-RuntimeEvidence {
         [Parameter(Mandatory = $true)]$RuntimeComponent
     )
 
-    if ([string]$RuntimeIdentity.source_project_path -notmatch '(?i)(^|[/\\])ZHHZ\.uproject$' -or
+    $projectName = [string]$RuntimeIdentity.project_name
+    $targetName = [string]$RuntimeIdentity.target_name
+    $projectFilePattern = [regex]::Escape("$projectName.uproject")
+    if ([string]$RuntimeIdentity.source_project_path -notmatch "(?i)(^|[/\\])$projectFilePattern`$" -or
         [string]$RuntimeIdentity.source_project_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
         @($RuntimeIdentity.source_umap_files).Count -eq 0) {
         throw "Runtime manifest does not contain valid source project and .umap evidence."
@@ -125,11 +134,11 @@ function Assert-RuntimeEvidence {
 
     $runtimePrefix = [System.IO.Path]::GetFullPath($RuntimeRoot).TrimEnd('\') + '\'
     $requiredPackages = @(
-        "ZHHZ.exe",
-        "ZHHZ/Binaries/Win64/ZHHZ-Win64-Shipping.exe",
-        "ZHHZ/Content/Paks/ZHHZ-Windows.pak",
-        "ZHHZ/Content/Paks/ZHHZ-Windows.ucas",
-        "ZHHZ/Content/Paks/ZHHZ-Windows.utoc"
+        "$targetName.exe",
+        "$projectName/Binaries/Win64/$targetName-Win64-Shipping.exe",
+        "$projectName/Content/Paks/$projectName-Windows.pak",
+        "$projectName/Content/Paks/$projectName-Windows.ucas",
+        "$projectName/Content/Paks/$projectName-Windows.utoc"
     )
     $evidenceByPath = @{}
     foreach ($entry in @($RuntimeIdentity.package_files)) { $evidenceByPath[[string]$entry.path] = $entry }
@@ -496,6 +505,24 @@ function Assert-DockerArchiveTag {
     if ($repoTags -notcontains $ExpectedTag) {
         throw "Docker archive '$Archive' does not contain the configured tag '$ExpectedTag'."
     }
+
+    # OCI archives are imported using index.json annotations rather than
+    # only the legacy manifest.json RepoTags.  Validate both representations
+    # so a stale image tag cannot reach the installer media.
+    $indexText = (& tar.exe -xOf $Archive index.json 2>$null) -join "`n"
+    $indexExitCode = $LASTEXITCODE
+    if ($indexExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($indexText)) {
+        try { $ociIndex = $indexText | ConvertFrom-Json }
+        catch { throw "OCI index.json in '$Archive' is not valid JSON: $($_.Exception.Message)" }
+        $expectedNames = @($ExpectedTag, "docker.io/$ExpectedTag")
+        $ociNames = @($ociIndex.manifests | ForEach-Object {
+            @($_.annotations.'io.containerd.image.name', $_.annotations.'org.opencontainers.image.ref.name')
+        }) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+        $ociMatches = @($ociNames | Where-Object { $_ -in $expectedNames -or $_ -eq ($ExpectedTag -replace '^docker.io/', '') })
+        if ($ociMatches.Count -eq 0) {
+            throw "OCI archive '$Archive' does not expose the configured tag '$ExpectedTag' in index.json. Found: $($ociNames -join ', ')"
+        }
+    }
 }
 
 function Assert-BackendUpgradeSafety {
@@ -648,6 +675,9 @@ function Assert-PayloadArchiveMatches {
         [Parameter(Mandatory = $true)][string]$ExpectedVersion
     )
 
+    $payloadManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $PayloadRoot "release-manifest.json") | ConvertFrom-Json
+    $runtimeProjectName = [string]$payloadManifest.runtime_project
+    $runtimeTargetName = [string]$payloadManifest.runtime_target
     $zip = [System.IO.Compression.ZipFile]::OpenRead($Archive)
     try {
         $zipFiles = @($zip.Entries | Where-Object { -not [string]::IsNullOrEmpty($_.Name) })
@@ -678,11 +708,11 @@ function Assert-PayloadArchiveMatches {
             "ZHHZ/ontotwin-runtime-manifest.json",
             "ZHHZ/Manifest_UFSFiles_Win64.txt",
             "ZHHZ/Manifest_NonUFSFiles_Win64.txt",
-            "ZHHZ/ZHHZ.exe",
-            "ZHHZ/ZHHZ/Binaries/Win64/ZHHZ-Win64-Shipping.exe",
-            "ZHHZ/ZHHZ/Content/Paks/ZHHZ-Windows.pak",
-            "ZHHZ/ZHHZ/Content/Paks/ZHHZ-Windows.ucas",
-            "ZHHZ/ZHHZ/Content/Paks/ZHHZ-Windows.utoc",
+            "ZHHZ/$runtimeTargetName.exe",
+            "ZHHZ/$runtimeProjectName/Binaries/Win64/$runtimeTargetName-Win64-Shipping.exe",
+            "ZHHZ/$runtimeProjectName/Content/Paks/$runtimeProjectName-Windows.pak",
+            "ZHHZ/$runtimeProjectName/Content/Paks/$runtimeProjectName-Windows.ucas",
+            "ZHHZ/$runtimeProjectName/Content/Paks/$runtimeProjectName-Windows.utoc",
             "Appliance/appliance-manifest.json",
             "Appliance/ontotwin-ubuntu.vhdx",
             "Appliance/seed.iso",
@@ -703,15 +733,17 @@ function Assert-PayloadArchiveMatches {
             [string]$archiveRelease.component_versions.release_version -ne $ExpectedVersion) {
             throw "Payload archive release version does not match $ExpectedVersion."
         }
-        if ([string]$archiveRuntime.project_name -ne "ZHHZ" -or [string]$archiveRuntime.target_name -ne "ZHHZ") {
-            throw "Payload archive runtime identity is not ZHHZ/ZHHZ."
+        if ([string]$archiveRuntime.project_name -ne $runtimeProjectName -or
+            [string]$archiveRuntime.target_name -ne $runtimeTargetName) {
+            throw "Payload archive runtime identity does not match the AppPayload manifest."
         }
         if ([string]$archiveRelease.component_versions.appliance.version -ne [string]$archiveAppliance.version) {
             throw "Payload archive appliance version is inconsistent."
         }
         Assert-RuntimeManifestText `
             -UfsText (Get-ZipEntryText -Entry (Get-ZipEntryByPath -Zip $zip -RelativePath "ZHHZ/Manifest_UFSFiles_Win64.txt")) `
-            -NonUfsText (Get-ZipEntryText -Entry (Get-ZipEntryByPath -Zip $zip -RelativePath "ZHHZ/Manifest_NonUFSFiles_Win64.txt"))
+            -NonUfsText (Get-ZipEntryText -Entry (Get-ZipEntryByPath -Zip $zip -RelativePath "ZHHZ/Manifest_NonUFSFiles_Win64.txt")) `
+            -ExpectedProjectName $runtimeProjectName
     } finally {
         $zip.Dispose()
     }
@@ -749,7 +781,6 @@ if ($CodeSigningCertificateThumbprint) {
 }
 
 foreach ($required in @(
-    (Join-Path $appPayload "ZHHZ\ZHHZ.exe"),
     (Join-Path $appPayload "ZHHZ\ontotwin-runtime-manifest.json"),
     (Join-Path $appPayload "ZHHZ\Manifest_UFSFiles_Win64.txt"),
     (Join-Path $appPayload "ZHHZ\Manifest_NonUFSFiles_Win64.txt"),
@@ -779,8 +810,72 @@ if ([bool]$releaseManifest.pixel_streaming_included) {
     throw "Installer release manifest enables Pixel Streaming."
 }
 $runtimeIdentity = Get-Content -Raw -LiteralPath (Join-Path $appPayload "ZHHZ\ontotwin-runtime-manifest.json") | ConvertFrom-Json
-if ($runtimeIdentity.project_name -ne "ZHHZ" -or $runtimeIdentity.target_name -ne "ZHHZ") {
-    throw "Installer runtime identity mismatch: project='$($runtimeIdentity.project_name)', target='$($runtimeIdentity.target_name)'."
+$runtimeProjectName = [string]$runtimeIdentity.project_name
+$runtimeTargetName = [string]$runtimeIdentity.target_name
+if ($runtimeProjectName -notmatch '^[A-Za-z0-9_]+$' -or $runtimeTargetName -notmatch '^[A-Za-z0-9_]+$' -or
+    $runtimeProjectName -ne $runtimeTargetName) {
+    throw "Installer runtime identity mismatch: project='$runtimeProjectName', target='$runtimeTargetName'."
+}
+
+function Assert-MsiLauncherMatchesPublish {
+    param(
+        [Parameter(Mandatory = $true)][string]$Msi,
+        [Parameter(Mandatory = $true)][string]$LauncherPublishDirectory,
+        [Parameter(Mandatory = $true)][string]$WorkingDirectory
+    )
+
+    $extractRoot = Join-Path $WorkingDirectory "msi-launcher-validation"
+    $extractLog = Join-Path $WorkingDirectory "msi-launcher-validation.log"
+    $arguments = @(
+        "/a",
+        ('"' + $Msi + '"'),
+        "/qn",
+        ('TARGETDIR="' + $extractRoot + '"'),
+        "/l*v",
+        ('"' + $extractLog + '"')
+    )
+    $process = Start-Process -FilePath (Join-Path $env:SystemRoot "System32\msiexec.exe") -ArgumentList $arguments -Wait -PassThru
+    if ($process.ExitCode -ne 0) {
+        $tail = if (Test-Path -LiteralPath $extractLog) { (Get-Content -LiteralPath $extractLog -Tail 80) -join [Environment]::NewLine } else { "<no log>" }
+        throw "MSI administrative extraction failed with exit code $($process.ExitCode).`n$tail"
+    }
+
+    $launcherEntries = @(Get-ChildItem -LiteralPath $extractRoot -Filter "OntoTwin-ZHHZ-Launcher.exe" -File -Recurse)
+    if ($launcherEntries.Count -ne 1) {
+        throw "MSI validation expected exactly one launcher executable, found $($launcherEntries.Count)."
+    }
+    $msiLauncherDirectory = $launcherEntries[0].Directory.FullName
+
+    $sourceRoot = [System.IO.Path]::GetFullPath($LauncherPublishDirectory).TrimEnd('\')
+    $msiRoot = [System.IO.Path]::GetFullPath($msiLauncherDirectory).TrimEnd('\')
+    $sourceFiles = @{}
+    $msiFiles = @{}
+    foreach ($file in Get-ChildItem -LiteralPath $sourceRoot -File -Recurse) {
+        $relative = $file.FullName.Substring($sourceRoot.Length).TrimStart('\').Replace('\', '/')
+        $sourceFiles[$relative] = $file
+    }
+    foreach ($file in Get-ChildItem -LiteralPath $msiRoot -File -Recurse) {
+        $relative = $file.FullName.Substring($msiRoot.Length).TrimStart('\').Replace('\', '/')
+        $msiFiles[$relative] = $file
+    }
+    $pathDifference = @(Compare-Object @($sourceFiles.Keys | Sort-Object) @($msiFiles.Keys | Sort-Object))
+    if ($pathDifference.Count -ne 0) {
+        throw "MSI launcher file set differs from the publish directory: $($pathDifference | ConvertTo-Json -Compress)"
+    }
+    foreach ($relative in $sourceFiles.Keys) {
+        $sourceFile = $sourceFiles[$relative]
+        $msiFile = $msiFiles[$relative]
+        if ($sourceFile.Length -ne $msiFile.Length -or
+            (Get-FileHash -LiteralPath $sourceFile.FullName -Algorithm SHA256).Hash -ne
+            (Get-FileHash -LiteralPath $msiFile.FullName -Algorithm SHA256).Hash) {
+            throw "MSI launcher file content differs from publish output: $relative"
+        }
+    }
+    Write-Host "MSI launcher validation passed: $($sourceFiles.Count) files match by path, size, and SHA-256."
+}
+$runtimeExecutable = Join-Path $appPayload "ZHHZ\$runtimeTargetName.exe"
+if (-not (Test-Path -LiteralPath $runtimeExecutable -PathType Leaf)) {
+    throw "Installer runtime executable is missing: $runtimeExecutable"
 }
 if ([string]$releaseManifest.runtime_project -ne [string]$runtimeIdentity.project_name -or
     [string]$releaseManifest.runtime_target -ne [string]$runtimeIdentity.target_name -or
@@ -794,7 +889,7 @@ Assert-RuntimeEvidence `
     -RuntimeRoot (Join-Path $appPayload "ZHHZ") `
     -RuntimeIdentity $runtimeIdentity `
     -RuntimeComponent $releaseManifest.component_versions.runtime
-Assert-RuntimePackaging -RuntimeRoot (Join-Path $appPayload "ZHHZ")
+Assert-RuntimePackaging -RuntimeRoot (Join-Path $appPayload "ZHHZ") -ExpectedProjectName $runtimeProjectName
 $applianceManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $appPayload "Appliance\appliance-manifest.json") | ConvertFrom-Json
 if ([string]$releaseManifest.component_versions.appliance.version -ne [string]$applianceManifest.version) {
     throw "Installer release manifest and appliance manifest versions do not match."
@@ -834,6 +929,16 @@ $nestedEnvironment = Read-TarTextMember `
 $nestedCompose = Read-TarTextMember `
     -Archive (Join-Path $appPayload "BackendPayload\release.tar.gz") `
     -RelativePath "Deploy/docker-compose.release.yml"
+$nestedPostgresRestoreScript = Read-TarTextMember `
+    -Archive (Join-Path $appPayload "BackendPayload\release.tar.gz") `
+    -RelativePath "Database/postgres/01-restore.sh"
+$currentPostgresRestoreScript = Get-Content -Raw -Encoding UTF8 -LiteralPath `
+    (Join-Path $deployRoot "database\postgres\01-restore.sh")
+if ((Normalize-DeployText $nestedPostgresRestoreScript) -cne
+    (Normalize-DeployText $currentPostgresRestoreScript) -or
+    -not $nestedPostgresRestoreScript.StartsWith("#!/usr/bin/env bash")) {
+    throw "Nested PostgreSQL restore script does not match the current LF-safe deployment source."
+}
 $packagedBootstrap = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $appPayload "BackendPayload\bootstrap.sh")
 $packagedControl = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $appPayload "BackendPayload\control.py")
 Assert-BackendUpgradeSafety `
@@ -875,6 +980,9 @@ if (-not $bundleText.Contains('$(var.PayloadVersion)') -or -not $bundleText.Cont
 }
 if (-not $msiText.Contains('$(var.MsiVersion)')) {
     throw "Package.wxs must consume the MsiVersion build variable."
+}
+if ($msiText -notmatch '<Files\s+Include="\$\(var\.LauncherDirectory\)\\\*\*"\s+Directory="LauncherFolder"\s*/>') {
+    throw "Package.wxs must harvest the complete launcher publish directory."
 }
 foreach ($shortcutId in @('DesktopShortcut', 'StartMenuShortcut')) {
     if ($msiText -notmatch ('(?s)<Shortcut\s+Id="' + [regex]::Escape($shortcutId) + '"[^>]*Advertise="no"[^>]*/>')) {
@@ -961,26 +1069,40 @@ try {
     if ($payloadHash -cnotmatch '^[0-9a-f]{64}$') { throw "Payload SHA-256 is not canonical: $payloadHash" }
 
     $projects = @(
-        [pscustomobject]@{ Output = $launcherOutput; Project = Join-Path $deployRoot "launcher\OntoTwin.ZHHZ.Launcher\OntoTwin.ZHHZ.Launcher.csproj"; BindPayloadHash = $false },
-        [pscustomobject]@{ Output = $serviceOutput; Project = Join-Path $deployRoot "host-service\OntoTwin.ZHHZ.HostService\OntoTwin.ZHHZ.HostService.csproj"; BindPayloadHash = $false },
-        [pscustomobject]@{ Output = $environmentOutput; Project = Join-Path $installerRoot "EnvironmentBootstrapper\EnvironmentBootstrapper.csproj"; BindPayloadHash = $false },
-        [pscustomobject]@{ Output = $payloadInstallerOutput; Project = Join-Path $installerRoot "PayloadInstaller\PayloadInstaller.csproj"; BindPayloadHash = $true }
+        [pscustomobject]@{ Output = $launcherOutput; Project = Join-Path $deployRoot "launcher\OntoTwin.ZHHZ.Launcher\OntoTwin.ZHHZ.Launcher.csproj"; EntryExecutable = "OntoTwin-ZHHZ-Launcher.exe"; BindPayloadHash = $false; PublishSingleFile = $false },
+        [pscustomobject]@{ Output = $serviceOutput; Project = Join-Path $deployRoot "host-service\OntoTwin.ZHHZ.HostService\OntoTwin.ZHHZ.HostService.csproj"; EntryExecutable = "OntoTwin-ZHHZ-HostService.exe"; BindPayloadHash = $false; PublishSingleFile = $true },
+        [pscustomobject]@{ Output = $environmentOutput; Project = Join-Path $installerRoot "EnvironmentBootstrapper\EnvironmentBootstrapper.csproj"; EntryExecutable = "OntoTwin-ZHHZ-Environment.exe"; BindPayloadHash = $false; PublishSingleFile = $true },
+        [pscustomobject]@{ Output = $payloadInstallerOutput; Project = Join-Path $installerRoot "PayloadInstaller\PayloadInstaller.csproj"; EntryExecutable = "OntoTwin-ZHHZ-PayloadInstaller.exe"; BindPayloadHash = $true; PublishSingleFile = $true }
     )
     foreach ($item in $projects) {
         $publishProperties = @("-p:Version=$($releaseDescriptor.BinaryVersion)")
         if ($item.BindPayloadHash) { $publishProperties += "-p:PayloadExpectedSha256=$payloadHash" }
+        $singleFileValue = $item.PublishSingleFile.ToString().ToLowerInvariant()
         & dotnet publish $item.Project -c Release -r win-x64 --self-contained true `
-            -p:PublishSingleFile=true @publishProperties -o $item.Output --nologo
+            "-p:PublishSingleFile=$singleFileValue" @publishProperties -o $item.Output --nologo
         if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed: $($item.Project)" }
+    }
+    foreach ($requiredLauncherFile in @(
+        "OntoTwin-ZHHZ-Launcher.exe",
+        "OntoTwin-ZHHZ-Launcher.dll",
+        "OntoTwin-ZHHZ-Launcher.deps.json",
+        "OntoTwin-ZHHZ-Launcher.runtimeconfig.json",
+        "D3DCompiler_47_cor3.dll",
+        "PenImc_cor3.dll",
+        "PresentationNative_cor3.dll",
+        "vcruntime140_cor3.dll",
+        "wpfgfx_cor3.dll"
+    )) {
+        if (-not (Test-Path -LiteralPath (Join-Path $launcherOutput $requiredLauncherFile) -PathType Leaf)) {
+            throw "Launcher folder publish is missing required runtime file: $requiredLauncherFile"
+        }
     }
     if ($CodeSigningCertificateThumbprint) {
         foreach ($item in $projects) {
-            foreach ($publishedExecutable in Get-ChildItem -LiteralPath $item.Output -Filter "*.exe" -File) {
-                Invoke-CodeSigning `
-                    -File $publishedExecutable.FullName `
-                    -SignTool $signToolPath `
-                    -CertificateThumbprint $CodeSigningCertificateThumbprint
-            }
+            Invoke-CodeSigning `
+                -File (Join-Path $item.Output $item.EntryExecutable) `
+                -SignTool $signToolPath `
+                -CertificateThumbprint $CodeSigningCertificateThumbprint
         }
     }
 
@@ -989,7 +1111,7 @@ try {
     & dotnet build $msiProject -c Release -t:Rebuild --nologo `
         "-p:MsiVersion=$($releaseDescriptor.MsiVersion)" `
         "-p:PayloadVersion=$releaseVersion" `
-        "-p:LauncherPath=$(Join-Path $launcherOutput 'OntoTwin-ZHHZ-Launcher.exe')" `
+        "-p:LauncherDirectory=$launcherOutput" `
         "-p:LauncherIconPath=$(Join-Path $deployRoot 'launcher\OntoTwin.ZHHZ.Launcher\LingYunZhi.ico')" `
         "-p:ServicePath=$(Join-Path $serviceOutput 'OntoTwin-ZHHZ-HostService.exe')" `
         "-p:HostScriptPath=$(Join-Path $deployRoot 'hyperv\host\HostControl.ps1')" `
@@ -1000,12 +1122,14 @@ try {
     if ($CodeSigningCertificateThumbprint) {
         Invoke-CodeSigning -File $msi -SignTool $signToolPath -CertificateThumbprint $CodeSigningCertificateThumbprint
     }
+    Assert-MsiLauncherMatchesPublish -Msi $msi -LauncherPublishDirectory $launcherOutput -WorkingDirectory $work
 
     $bundleProject = Join-Path $installerRoot "Bundle\OntoTwin.ZHHZ.Bundle.wixproj"
     Clear-ProjectBuildArtifacts -ProjectDirectory (Split-Path -Parent $bundleProject)
     & dotnet build $bundleProject -c Release -t:Rebuild --nologo `
         "-p:BundleVersion=$($releaseDescriptor.BundleVersion)" `
         "-p:PayloadVersion=$releaseVersion" `
+        "-p:RuntimeExecutableName=$runtimeTargetName.exe" `
         "-p:LauncherIconPath=$(Join-Path $deployRoot 'launcher\OntoTwin.ZHHZ.Launcher\LingYunZhi.ico')" `
         "-p:EnvironmentBootstrapperPath=$(Join-Path $environmentOutput 'OntoTwin-ZHHZ-Environment.exe')" `
         "-p:EnableHyperVScriptPath=$(Join-Path $deployRoot 'hyperv\host\Enable-HyperV.ps1')" `

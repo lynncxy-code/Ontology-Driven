@@ -7,7 +7,9 @@ param(
     [string]$ApplianceDirectory,
 
     [Parameter(Mandatory = $true)]
-    [string]$OutputDirectory
+    [string]$OutputDirectory,
+
+    [string]$WslDistribution = "Ubuntu-22.04"
 )
 
 Set-StrictMode -Version Latest
@@ -21,8 +23,96 @@ function Assert-CanonicalReleaseVersion {
     }
 }
 
+function Convert-ToWslPath {
+    param([Parameter(Mandatory = $true)][string]$WindowsPath)
+
+    $fullPath = [System.IO.Path]::GetFullPath($WindowsPath)
+    if ($fullPath -notmatch '^([A-Za-z]):[\/\\](.*)$') {
+        throw "Only local drive paths can be inspected by the WSL appliance toolchain: $fullPath"
+    }
+    return "/mnt/$($Matches[1].ToLowerInvariant())/$($Matches[2].Replace('\', '/'))"
+}
+
+function Get-ApplianceInstanceId {
+    param([Parameter(Mandatory = $true)][string]$Version)
+
+    $suffix = ([regex]::Replace($Version.ToLowerInvariant(), '[^a-z0-9]+', '-')).Trim('-')
+    if ([string]::IsNullOrWhiteSpace($suffix)) {
+        throw "Cannot derive a cloud-init instance-id from appliance version: $Version"
+    }
+    return "ontotwin-zhhz-$suffix"
+}
+
+function Assert-UnixTextFormat {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$ExpectedPrefix
+    )
+
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $prefixBytes = [System.Text.Encoding]::ASCII.GetBytes($ExpectedPrefix)
+    if ($bytes.Length -lt $prefixBytes.Length) {
+        throw "Linux payload text is truncated: $Path"
+    }
+    if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+        throw "Linux payload text must not contain a UTF-8 BOM: $Path"
+    }
+    if ($bytes.Length -ge 2 -and
+        (($bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE) -or
+         ($bytes[0] -eq 0xFE -and $bytes[1] -eq 0xFF))) {
+        throw "Linux payload text must not contain a UTF-16 BOM: $Path"
+    }
+    if ($bytes -contains [byte]0x0D) {
+        throw "Linux payload text contains CR/CRLF bytes and is unsafe for the appliance: $Path"
+    }
+    for ($index = 0; $index -lt $prefixBytes.Length; $index++) {
+        if ($bytes[$index] -ne $prefixBytes[$index]) {
+            throw "Linux payload text does not begin with the required LF-only interpreter line: $Path"
+        }
+    }
+    if ($bytes[$bytes.Length - 1] -ne 0x0A) {
+        throw "Linux payload text must end with LF: $Path"
+    }
+}
+
+function Assert-RootCapacitySafety {
+    param([Parameter(Mandatory = $true)][string]$BootstrapText)
+
+    $rootCapacityFunction = [regex]::Match(
+        $BootstrapText,
+        '(?ms)^ensure_root_filesystem_capacity\(\) \{.*?^\}')
+    if (-not $rootCapacityFunction.Success) {
+        throw "Guest bootstrap is missing ensure_root_filesystem_capacity."
+    }
+    $rootCapacityText = $rootCapacityFunction.Value
+    foreach ($requirement in @(
+        'if [ "$root_size_bytes" -lt 17179869184 ]; then',
+        'partition_file="/sys/class/block/$root_device_name/partition"',
+        'part_number="$(awk ''NF {print $1; exit}'' "$partition_file")"',
+        '[[ "$part_number" =~ ^[0-9]+$ ]]',
+        '[ "$root_device_type" = "part" ]',
+        '[ "$parent_type" = "disk" ]',
+        'growpart "/dev/$parent_name" "$part_number"'
+    )) {
+        if (-not $rootCapacityText.Contains($requirement)) {
+            throw "Guest bootstrap root expansion safety requirement is missing: $requirement"
+        }
+    }
+    if ($rootCapacityText -match '(?m)lsblk\s+-no\s+PARTN' -or
+        $rootCapacityText -match "awk\s+'NF\s*\{print;\s*exit\}'") {
+        throw "Guest bootstrap must not pass padded lsblk PARTN output to growpart."
+    }
+    if ($rootCapacityText.IndexOf('if [ "$root_size_bytes" -lt 17179869184 ]; then', [System.StringComparison]::Ordinal) -ge
+        $rootCapacityText.IndexOf('growpart "/dev/$parent_name" "$part_number"', [System.StringComparison]::Ordinal)) {
+        throw "Guest bootstrap must check root capacity before attempting growpart."
+    }
+}
+
 function Assert-RuntimePackaging {
-    param([Parameter(Mandatory = $true)][string]$RuntimeRoot)
+    param(
+        [Parameter(Mandatory = $true)][string]$RuntimeRoot,
+        [Parameter(Mandatory = $true)][string]$ExpectedProjectName
+    )
 
     $ufsPath = Join-Path $RuntimeRoot "Manifest_UFSFiles_Win64.txt"
     $nonUfsPath = Join-Path $RuntimeRoot "Manifest_NonUFSFiles_Win64.txt"
@@ -40,13 +130,14 @@ function Assert-RuntimePackaging {
     if ($combinedText -match '(?i)PixelStreaming') {
         throw "Pixel Streaming files are present in the Shipping manifests."
     }
-    if ($ufsText -notmatch '(?im)^ZHHZ[/\\]ZHHZ\.uproject(?:\s|$)') {
-        throw "The UFS manifest does not contain the ZHHZ project descriptor."
+    $projectPattern = [regex]::Escape($ExpectedProjectName)
+    if ($ufsText -notmatch "(?im)^$projectPattern[/\\]$projectPattern\.uproject(?:\s|`$)") {
+        throw "The UFS manifest does not contain the $ExpectedProjectName project descriptor."
     }
-    if ($ufsText -notmatch '(?im)^ZHHZ[/\\]Plugins[/\\]glTFRuntime[/\\]glTFRuntime\.uplugin(?:\s|$)') {
+    if ($ufsText -notmatch "(?im)^$projectPattern[/\\]Plugins[/\\]glTFRuntime[/\\]glTFRuntime\.uplugin(?:\s|`$)") {
         throw "The UFS manifest does not contain the required glTFRuntime plugin."
     }
-    if ($ufsText -notmatch '(?im)^ZHHZ[/\\]Plugins[/\\]OntoTwinSync[/\\]OntoTwinSync\.uplugin(?:\s|$)') {
+    if ($ufsText -notmatch "(?im)^$projectPattern[/\\]Plugins[/\\]OntoTwinSync[/\\]OntoTwinSync\.uplugin(?:\s|`$)") {
         throw "The UFS manifest does not contain the required OntoTwinSync plugin."
     }
     $forbiddenPath = Get-ChildItem -LiteralPath $RuntimeRoot -Recurse -Force | Where-Object {
@@ -62,7 +153,10 @@ function Assert-RuntimeEvidence {
         [Parameter(Mandatory = $true)]$RuntimeComponent
     )
 
-    if ([string]$RuntimeIdentity.source_project_path -notmatch '(?i)(^|[/\\])ZHHZ\.uproject$' -or
+    $projectName = [string]$RuntimeIdentity.project_name
+    $targetName = [string]$RuntimeIdentity.target_name
+    $projectFilePattern = [regex]::Escape("$projectName.uproject")
+    if ([string]$RuntimeIdentity.source_project_path -notmatch "(?i)(^|[/\\])$projectFilePattern`$" -or
         [string]$RuntimeIdentity.source_project_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
         @($RuntimeIdentity.source_umap_files).Count -eq 0) {
         throw "Runtime manifest does not contain valid source project and .umap evidence."
@@ -76,11 +170,11 @@ function Assert-RuntimeEvidence {
 
     $runtimePrefix = [System.IO.Path]::GetFullPath($RuntimeRoot).TrimEnd('\') + '\'
     $requiredPackages = @(
-        "ZHHZ.exe",
-        "ZHHZ/Binaries/Win64/ZHHZ-Win64-Shipping.exe",
-        "ZHHZ/Content/Paks/ZHHZ-Windows.pak",
-        "ZHHZ/Content/Paks/ZHHZ-Windows.ucas",
-        "ZHHZ/Content/Paks/ZHHZ-Windows.utoc"
+        "$targetName.exe",
+        "$projectName/Binaries/Win64/$targetName-Win64-Shipping.exe",
+        "$projectName/Content/Paks/$projectName-Windows.pak",
+        "$projectName/Content/Paks/$projectName-Windows.ucas",
+        "$projectName/Content/Paks/$projectName-Windows.utoc"
     )
     $evidenceByPath = @{}
     foreach ($entry in @($RuntimeIdentity.package_files)) { $evidenceByPath[[string]$entry.path] = $entry }
@@ -204,6 +298,24 @@ function Assert-DockerArchiveTag {
     if ($repoTags -notcontains $ExpectedTag) {
         throw "Docker archive '$Archive' does not contain the configured tag '$ExpectedTag'."
     }
+
+    # OCI archives are imported using index.json annotations rather than
+    # only the legacy manifest.json RepoTags.  Validate both representations
+    # so an RC tag cannot silently regress during payload assembly.
+    $indexText = (& tar.exe -xOf $Archive index.json 2>$null) -join "`n"
+    $indexExitCode = $LASTEXITCODE
+    if ($indexExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($indexText)) {
+        try { $ociIndex = $indexText | ConvertFrom-Json }
+        catch { throw "OCI index.json in '$Archive' is not valid JSON: $($_.Exception.Message)" }
+        $expectedNames = @($ExpectedTag, "docker.io/$ExpectedTag")
+        $ociNames = @($ociIndex.manifests | ForEach-Object {
+            @($_.annotations.'io.containerd.image.name', $_.annotations.'org.opencontainers.image.ref.name')
+        }) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+        $ociMatches = @($ociNames | Where-Object { $_ -in $expectedNames -or $_ -eq ($ExpectedTag -replace '^docker.io/', '') })
+        if ($ociMatches.Count -eq 0) {
+            throw "OCI archive '$Archive' does not expose the configured tag '$ExpectedTag' in index.json. Found: $($ociNames -join ', ')"
+        }
+    }
 }
 
 function Assert-BackendUpgradeSafety {
@@ -276,7 +388,9 @@ function Assert-BackendUpgradeSafety {
         'def compose_status():',
         'Bootstrap is still preparing: missing',
         '"bootstrap_in_progress": bootstrap_active',
-        '"ready": not bootstrap_active and backend_ready()'
+        '"ready": not bootstrap_active and backend_ready()',
+        '"root_total_bytes": root_total',
+        '"root_free_bytes": root_free'
     )) {
         if (-not $ControlText.Contains($controlRequirement)) {
             throw "Guest control is not safe during early bootstrap: $controlRequirement"
@@ -306,16 +420,19 @@ $release = [System.IO.Path]::GetFullPath($ReleaseDirectory)
 $appliance = [System.IO.Path]::GetFullPath($ApplianceDirectory)
 $output = [System.IO.Path]::GetFullPath($OutputDirectory)
 $guestRoot = Join-Path $PSScriptRoot "guest"
+$currentPostgresRestoreScriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) "database\postgres\01-restore.sh"
+$releasePostgresRestoreScriptPath = Join-Path $release "Database\postgres\01-restore.sh"
 $expectedPayloadPort = 48075
 
 foreach ($required in @(
-    (Join-Path $release "ZHHZ\ZHHZ.exe"),
     (Join-Path $release "ZHHZ\ontotwin-runtime-manifest.json"),
     (Join-Path $release "ZHHZ\Manifest_UFSFiles_Win64.txt"),
     (Join-Path $release "ZHHZ\Manifest_NonUFSFiles_Win64.txt"),
     (Join-Path $release "release-manifest.json"),
     (Join-Path $release "Deploy\docker-compose.release.yml"),
     (Join-Path $release "Deploy\customer.env.example"),
+    $releasePostgresRestoreScriptPath,
+    $currentPostgresRestoreScriptPath,
     (Join-Path $appliance "appliance-manifest.json"),
     (Join-Path $appliance "ontotwin-ubuntu.vhdx"),
     (Join-Path $appliance "seed.iso"),
@@ -323,6 +440,11 @@ foreach ($required in @(
     (Join-Path $appliance "docker-compose")
 )) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required payload file is missing: $required" }
+}
+Assert-UnixTextFormat -Path $releasePostgresRestoreScriptPath -ExpectedPrefix "#!/usr/bin/env bash`n"
+if ((Normalize-SeedText (Get-Content -Raw -Encoding UTF8 -LiteralPath $releasePostgresRestoreScriptPath)) -cne
+    (Normalize-SeedText (Get-Content -Raw -Encoding UTF8 -LiteralPath $currentPostgresRestoreScriptPath))) {
+    throw "Release PostgreSQL restore script does not match the current deployment source."
 }
 $applianceManifestPath = Join-Path $appliance "appliance-manifest.json"
 $applianceManifest = Get-Content -Raw -LiteralPath $applianceManifestPath | ConvertFrom-Json
@@ -332,6 +454,23 @@ $actualSeedHash = (Get-FileHash -LiteralPath $seedIsoPath -Algorithm SHA256).Has
 $actualDiskHash = (Get-FileHash -LiteralPath $baseDiskPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $actualDockerHash = (Get-FileHash -LiteralPath (Join-Path $appliance "docker-static.tgz") -Algorithm SHA256).Hash.ToLowerInvariant()
 $actualComposeHash = (Get-FileHash -LiteralPath (Join-Path $appliance "docker-compose") -Algorithm SHA256).Hash.ToLowerInvariant()
+$systemDiskSizeGb = [int]$applianceManifest.system_disk_size_gb
+$minimumGuestRootSizeGb = [int]$applianceManifest.minimum_guest_root_size_gb
+$minimumGuestRootFreeGb = [int]$applianceManifest.minimum_guest_root_free_gb
+if ($systemDiskSizeGb -ne 20 -or $minimumGuestRootSizeGb -ne 16 -or $minimumGuestRootFreeGb -ne 8) {
+    throw "Appliance capacity contract must be system disk/root/root-free = 20/16/8 GiB."
+}
+$expectedCloudInitInstanceId = Get-ApplianceInstanceId -Version ([string]$applianceManifest.version)
+if ([string]$applianceManifest.cloud_init_instance_id -ne $expectedCloudInitInstanceId) {
+    throw "Appliance cloud-init instance-id does not match its version."
+}
+$baseDiskLinux = Convert-ToWslPath $baseDiskPath
+$vhdInfoText = (& wsl.exe -d $WslDistribution -u root -- qemu-img info --output=json $baseDiskLinux) -join "`n"
+if ($LASTEXITCODE -ne 0) { throw "Cannot inspect appliance VHDX virtual capacity with qemu-img." }
+$vhdInfo = $vhdInfoText | ConvertFrom-Json
+if ([int64]$vhdInfo.'virtual-size' -ne [int64]$systemDiskSizeGb * 1GB) {
+    throw "Appliance VHDX virtual capacity does not match system_disk_size_gb."
+}
 if ($actualSeedHash -ne [string]$applianceManifest.seed_iso_sha256) {
     throw "Appliance seed hash does not match appliance-manifest.json."
 }
@@ -349,6 +488,12 @@ foreach ($seedName in @("user-data", "network-config", "meta-data")) {
     $seedText = (& tar.exe -xOf $seedIsoPath $seedName) -join "`n"
     if ($LASTEXITCODE -ne 0) { throw "Cannot read $seedName from appliance seed ISO." }
     $sourceText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $guestRoot "cloud-init\$seedName")
+    if ($seedName -eq "meta-data") {
+        if (-not $sourceText.Contains("__ONTOTWIN_APPLIANCE_INSTANCE_ID__")) {
+            throw "Cloud-init meta-data source is missing the appliance instance-id token."
+        }
+        $sourceText = $sourceText.Replace("__ONTOTWIN_APPLIANCE_INSTANCE_ID__", $expectedCloudInitInstanceId)
+    }
     if ((Normalize-SeedText $seedText) -cne (Normalize-SeedText $sourceText)) {
         throw "Appliance seed ISO contains stale $seedName; rebuild it from the current Hyper-V guest sources."
     }
@@ -359,12 +504,27 @@ $expectedPayloadEndpoint = "http://172.28.251.1:$expectedPayloadPort"
 if (-not $seedUserData.Contains($expectedPayloadEndpoint)) {
     throw "Appliance seed does not use the host payload port $expectedPayloadPort."
 }
+if ($seedUserData -notmatch '(?ms)^growpart:\s*.*?^\s+devices:\s*\[''\/''\]\s*$' -or
+    $seedUserData -notmatch '(?m)^resize_rootfs:\s*true\s*$') {
+    throw "Appliance seed must explicitly grow the root partition and filesystem."
+}
 $bootstrapPath = Join-Path $guestRoot "bootstrap.sh"
+$controlPath = Join-Path $guestRoot "control.py"
+Assert-UnixTextFormat -Path $bootstrapPath -ExpectedPrefix "#!/bin/bash`n"
+Assert-UnixTextFormat -Path $controlPath -ExpectedPrefix "#!/usr/bin/env python3`n"
+$bootstrapLinux = Convert-ToWslPath $bootstrapPath
+$controlLinux = Convert-ToWslPath $controlPath
+& wsl.exe -d $WslDistribution -u root -- bash -n $bootstrapLinux
+if ($LASTEXITCODE -ne 0) { throw "Guest bootstrap.sh failed bash syntax validation." }
+$pythonSyntaxCheck = "import ast,pathlib,sys; ast.parse(pathlib.Path(sys.argv[1]).read_text(encoding='utf-8'), filename=sys.argv[1])"
+& wsl.exe -d $WslDistribution -u root -- python3 -c $pythonSyntaxCheck $controlLinux
+if ($LASTEXITCODE -ne 0) { throw "Guest control.py failed Python syntax validation." }
 $bootstrapText = Get-Content -Raw -Encoding UTF8 -LiteralPath $bootstrapPath
-$controlText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $guestRoot "control.py")
+$controlText = Get-Content -Raw -Encoding UTF8 -LiteralPath $controlPath
 if (-not $bootstrapText.Contains($expectedPayloadEndpoint)) {
     throw "Guest bootstrap does not use the host payload port $expectedPayloadPort."
 }
+Assert-RootCapacitySafety -BootstrapText $bootstrapText
 $composeText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $release "Deploy\docker-compose.release.yml")
 Assert-BackendUpgradeSafety -BootstrapText $bootstrapText -ComposeText $composeText -ControlText $controlText
 $releaseManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $release "release-manifest.json") | ConvertFrom-Json
@@ -401,8 +561,16 @@ foreach ($imageGate in @(
     Assert-DockerArchiveTag -Archive (Join-Path $release "Images\$($imageGate.Archive)") -ExpectedTag $configuredTag
 }
 $runtimeIdentity = Get-Content -Raw -LiteralPath (Join-Path $release "ZHHZ\ontotwin-runtime-manifest.json") | ConvertFrom-Json
-if ($runtimeIdentity.project_name -ne "ZHHZ" -or $runtimeIdentity.target_name -ne "ZHHZ") {
-    throw "Installer runtime identity mismatch: project='$($runtimeIdentity.project_name)', target='$($runtimeIdentity.target_name)'."
+$runtimeProjectName = [string]$runtimeIdentity.project_name
+$runtimeTargetName = [string]$runtimeIdentity.target_name
+if ($runtimeProjectName -notmatch '^[A-Za-z0-9_]+$' -or $runtimeTargetName -notmatch '^[A-Za-z0-9_]+$' -or
+    $runtimeProjectName -ne $runtimeTargetName) {
+    throw "Installer runtime identity mismatch: project='$runtimeProjectName', target='$runtimeTargetName'."
+}
+
+$runtimeExecutable = Join-Path $release "ZHHZ\$runtimeTargetName.exe"
+if (-not (Test-Path -LiteralPath $runtimeExecutable -PathType Leaf)) {
+    throw "Installer runtime executable is missing: $runtimeExecutable"
 }
 if ([string]$releaseManifest.runtime_project -ne [string]$runtimeIdentity.project_name -or
     [string]$releaseManifest.runtime_target -ne [string]$runtimeIdentity.target_name -or
@@ -416,7 +584,7 @@ Assert-RuntimeEvidence `
     -RuntimeRoot (Join-Path $release "ZHHZ") `
     -RuntimeIdentity $runtimeIdentity `
     -RuntimeComponent $releaseManifest.component_versions.runtime
-Assert-RuntimePackaging -RuntimeRoot (Join-Path $release "ZHHZ")
+Assert-RuntimePackaging -RuntimeRoot (Join-Path $release "ZHHZ") -ExpectedProjectName $runtimeProjectName
 
 if (Test-Path -LiteralPath $output) {
     if (@(Get-ChildItem -LiteralPath $output -Force).Count -gt 0) { throw "OutputDirectory must be empty: $output" }
@@ -442,9 +610,13 @@ $releaseManifest.component_versions = [ordered]@{
     installer = $releaseManifest.component_versions.installer
     appliance = [ordered]@{
         version = [string]$applianceManifest.version
+        cloud_init_instance_id = $expectedCloudInitInstanceId
         system_vhdx_sha256 = $actualDiskHash
         seed_iso_sha256 = $actualSeedHash
         payload_port = $expectedPayloadPort
+        system_disk_size_gb = $systemDiskSizeGb
+        minimum_guest_root_size_gb = $minimumGuestRootSizeGb
+        minimum_guest_root_free_gb = $minimumGuestRootFreeGb
         docker_engine_version = [string]$applianceManifest.docker_engine_version
         docker_engine_sha256 = $actualDockerHash
         docker_compose_version = [string]$applianceManifest.docker_compose_version
@@ -461,6 +633,8 @@ foreach ($name in @("ontotwin-ubuntu.vhdx", "seed.iso", "appliance-manifest.json
 
 Copy-Item -LiteralPath (Join-Path $guestRoot "bootstrap.sh") -Destination $backendPayload
 Copy-Item -LiteralPath (Join-Path $guestRoot "control.py") -Destination $backendPayload
+Assert-UnixTextFormat -Path (Join-Path $backendPayload "bootstrap.sh") -ExpectedPrefix "#!/bin/bash`n"
+Assert-UnixTextFormat -Path (Join-Path $backendPayload "control.py") -ExpectedPrefix "#!/usr/bin/env python3`n"
 Copy-Item -LiteralPath (Join-Path $appliance "docker-static.tgz") -Destination $backendPayload
 Copy-Item -LiteralPath (Join-Path $appliance "docker-compose") -Destination $backendPayload
 
@@ -500,6 +674,12 @@ try {
     $releaseArchive = Join-Path $backendPayload "release.tar.gz"
     & tar.exe -czf $releaseArchive -C $releaseStage .
     if ($LASTEXITCODE -ne 0) { throw "Backend release archive creation failed." }
+    $restoreMembers = @(@(& tar.exe -tf $releaseArchive) | Where-Object {
+        ([string]$_).Replace('\', '/').TrimStart([char[]]@('.', '/')) -eq "Database/postgres/01-restore.sh"
+    })
+    if ($LASTEXITCODE -ne 0 -or $restoreMembers.Count -ne 1) {
+        throw "Backend release archive must contain exactly one Database/postgres/01-restore.sh."
+    }
     $nestedManifest = Read-TarJsonMember -Archive $releaseArchive -RelativePath "release-manifest.json"
     if ([string]$nestedManifest.release_version -ne $releaseVersion) {
         throw "Nested backend release version '$($nestedManifest.release_version)' does not match '$releaseVersion'."

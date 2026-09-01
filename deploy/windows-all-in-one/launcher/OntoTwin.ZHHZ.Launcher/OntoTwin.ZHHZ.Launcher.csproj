@@ -8,7 +8,7 @@
     <AssemblyName>OntoTwin-ZHHZ-Launcher</AssemblyName>
     <RootNamespace>OntoTwin.ZHHZ.Launcher</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <PublishSingleFile>true</PublishSingleFile>
+    <PublishSingleFile>false</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishTrimmed>false</PublishTrimmed>

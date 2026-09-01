@@ -22,8 +22,9 @@ $archive = [System.IO.Path]::GetFullPath($ArchiveDirectory)
 $uat = Join-Path $engine "Engine\Build\BatchFiles\RunUAT.bat"
 $projectName = [System.IO.Path]::GetFileNameWithoutExtension($project)
 $projectRoot = [System.IO.Path]::GetDirectoryName($project)
-$dynamicGeometryRelativePath = "Content\AVIC_Show\Art\A03_ParkLevel\AVIC_0706\Geometries"
-$dynamicGeometryCookPath = "/Game/AVIC_Show/Art/A03_ParkLevel/AVIC_0706/Geometries"
+$dynamicGeometryRelativePath = "Content\AVIC_Show\Art\A03_ParkLevel\A2026-0819\Geometries"
+$dynamicGeometryCookPath = "/Game/AVIC_Show/Art/A03_ParkLevel/A2026-0819/Geometries"
+$dynamicGeometryCookRulePath = "/Game/AVIC_Show/Art/A03_ParkLevel/A2026-0819"
 $dynamicGeometrySource = Join-Path $projectRoot $dynamicGeometryRelativePath
 $packagingConfig = Join-Path $projectRoot "Config\DefaultGame.ini"
 
@@ -43,9 +44,12 @@ if (-not (Test-Path -LiteralPath $packagingConfig -PathType Leaf)) {
     throw "Project packaging configuration was not found: $packagingConfig"
 }
 $packagingConfigText = Get-Content -LiteralPath $packagingConfig -Raw
-$requiredCookSetting = "+DirectoriesToAlwaysCook=(Path=`"$dynamicGeometryCookPath`")"
-if (-not $packagingConfigText.Contains($requiredCookSetting)) {
-    throw "Dynamic geometry cook rule is missing from ${packagingConfig}: $requiredCookSetting"
+$requiredCookSettings = @(
+    "+DirectoriesToAlwaysCook=(Path=`"$dynamicGeometryCookPath`")",
+    "+DirectoriesToAlwaysCook=(Path=`"$dynamicGeometryCookRulePath`")"
+)
+if (-not ($requiredCookSettings | Where-Object { $packagingConfigText.Contains($_) })) {
+    throw "Dynamic geometry cook rule is missing from ${packagingConfig}. Expected one of: $($requiredCookSettings -join ', ')"
 }
 if (Test-Path -LiteralPath $archive) {
     if (@(Get-ChildItem -LiteralPath $archive -Force).Count -gt 0) {

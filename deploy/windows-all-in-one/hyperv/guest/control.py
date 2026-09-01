@@ -101,6 +101,14 @@ def bootstrap_in_progress():
         return False
 
 
+def root_capacity():
+    try:
+        usage = shutil.disk_usage("/")
+        return usage.total, usage.free
+    except Exception:
+        return None, None
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "OntoTwinGuestControl/1.0"
 
@@ -129,6 +137,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         compose_exit_code, services, compose_error = compose_status()
         bootstrap_active = bootstrap_in_progress()
+        root_total, root_free = root_capacity()
         self.write_json(200, {
             "ready": not bootstrap_active and backend_ready(),
             "bootstrap_in_progress": bootstrap_active,
@@ -136,6 +145,8 @@ class Handler(BaseHTTPRequestHandler):
             "services": services,
             "compose_error": compose_error,
             "bootstrap_log_tail": bootstrap_log_tail(),
+            "root_total_bytes": root_total,
+            "root_free_bytes": root_free,
         })
 
     def do_POST(self):
@@ -194,12 +205,15 @@ class Handler(BaseHTTPRequestHandler):
             if result.returncode != 0:
                 raise RuntimeError(result.stderr.decode("utf-8", errors="replace"))
 
+            release_manifest_path = RELEASE_ROOT / "release-manifest.json"
+            release_manifest = json.loads(
+                release_manifest_path.read_text(encoding="utf-8"))
             manifest = {
                 "product": "OntoTwin ZHHZ",
                 "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
                 "release_version": environment.get("ONTOTWIN_RELEASE_VERSION", "unknown"),
                 "data_version": environment.get("ONTOTWIN_DATA_VERSION", "unknown"),
-                "project_id": "ds_1784694647848",
+                "project_id": release_manifest.get("project_id", "unknown"),
                 "neo4j_policy": "rebuild-from-release-seed",
             }
             (working / "backup-manifest.json").write_text(

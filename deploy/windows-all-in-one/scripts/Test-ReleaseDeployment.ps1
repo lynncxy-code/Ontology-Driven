@@ -5,7 +5,11 @@ param(
 
     [string]$BackendImage = "ontotwin-zhhz/backend:3.7.1-r1-test",
     [string]$PostgresImage = "postgres:16",
-    [string]$Neo4jImage = "neo4j:5"
+    [string]$Neo4jImage = "neo4j:5",
+    [string]$ProjectId = "",
+    [int]$ExpectedInstanceCount = -1,
+    [string]$UeProjectId = "",
+    [string]$UeProjectName = ""
 )
 
 Set-StrictMode -Version Latest
@@ -16,6 +20,15 @@ $exportRoot = [System.IO.Path]::GetFullPath($ExportDirectory)
 if (-not (Test-Path -LiteralPath (Join-Path $exportRoot "postgres\zhhz.dump") -PathType Leaf)) {
     throw "ZHHZ PostgreSQL export was not found under: $exportRoot"
 }
+$dataManifestPath = Join-Path $exportRoot "data-manifest.json"
+if (-not (Test-Path -LiteralPath $dataManifestPath -PathType Leaf)) {
+    throw "Release data manifest was not found: $dataManifestPath"
+}
+$dataManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $dataManifestPath | ConvertFrom-Json
+if ([string]::IsNullOrWhiteSpace($ProjectId)) { $ProjectId = [string]$dataManifest.project_id }
+if ($ExpectedInstanceCount -lt 0) { $ExpectedInstanceCount = [int]$dataManifest.postgres.instances }
+if ([string]::IsNullOrWhiteSpace($UeProjectName)) { $UeProjectName = [string]$dataManifest.project_name }
+if ([string]::IsNullOrWhiteSpace($UeProjectId)) { $UeProjectId = "ueproj_$UeProjectName" }
 
 $suffix = [Guid]::NewGuid().ToString("N").Substring(0, 12)
 $projectName = "ontotwin-zhhz-test-$suffix"
@@ -133,8 +146,8 @@ ONTOTWIN_MEDIA_HTTP_EXCEPTIONS=
     $snapshots = Invoke-WebRequest -UseBasicParsing -Uri "$baseUri/api/v2/state/snapshots" -TimeoutSec 30
     $registry = Invoke-RestMethod -Uri "$baseUri/api/v2/ontology/registry" -TimeoutSec 20
     $ueHeaders = @{
-        "X-OntoTwin-UE-Project-Id" = "ueproj_ZHHZ"
-        "X-OntoTwin-UE-Project-Name" = "ZHHZ"
+        "X-OntoTwin-UE-Project-Id" = $UeProjectId
+        "X-OntoTwin-UE-Project-Name" = $UeProjectName
     }
     $deltaReset = Invoke-WebRequest -UseBasicParsing -Uri "$baseUri/api/v2/state/snapshot_changes" -Headers $ueHeaders -TimeoutSec 30
     $deltaResetBody = $deltaReset.Content | ConvertFrom-Json
@@ -167,9 +180,9 @@ SELECT
   md5(string_agg(rid || ':' || data::text, '|' ORDER BY rid)),
   (SELECT md5(string_agg(id || ':' || render_config::text, '|' ORDER BY id))
      FROM instance
-    WHERE project_id='ds_1784694647848' AND deleted_at IS NULL)
+    WHERE project_id='$ProjectId' AND deleted_at IS NULL)
 FROM object_type
-WHERE project_id='ds_1784694647848' AND deleted_at IS NULL;
+WHERE project_id='$ProjectId' AND deleted_at IS NULL;
 "@
     $configHashArguments = @(
         "compose", "-p", $projectName, "--env-file", $envFile, "-f", $composeFile,
@@ -183,10 +196,10 @@ WHERE project_id='ds_1784694647848' AND deleted_at IS NULL;
     Invoke-RestMethod -Method Post -Uri "$baseUri/api/v2/ontology/datasets/activate" `
         -ContentType "application/json" -Body '{"dataset_id":"demo"}' -TimeoutSec 20 | Out-Null
     $switchBack = Invoke-RestMethod -Method Post -Uri "$baseUri/api/v2/ontology/datasets/activate" `
-        -ContentType "application/json" -Body '{"dataset_id":"ds_1784694647848"}' -TimeoutSec 20
+        -ContentType "application/json" -Body (@{dataset_id=$ProjectId} | ConvertTo-Json -Compress) -TimeoutSec 20
     $configHashesAfter = ([string](& docker @configHashArguments)).Trim()
     if ($LASTEXITCODE -ne 0 -or $configHashesAfter -ne $configHashesBefore -or
-        $switchBack.active -ne "ds_1784694647848") {
+        $switchBack.active -ne $ProjectId) {
         throw "Dataset switch regression: ZHHZ type or instance configuration was rewritten."
     }
 
@@ -227,8 +240,8 @@ WHERE project_id='ds_1784694647848' AND deleted_at IS NULL;
             "-At", "-c", "SELECT count(*) FROM instance WHERE deleted_at IS NULL;"
         )
         $restoredInstanceCount = ([string](& docker @restoredCountArguments)).Trim()
-        if ($LASTEXITCODE -ne 0 -or $restoredInstanceCount -ne "228") {
-            throw "Customer restore script did not restore the expected 228 active instances."
+        if ($LASTEXITCODE -ne 0 -or $restoredInstanceCount -ne [string]$ExpectedInstanceCount) {
+            throw "Customer restore script did not restore the expected $ExpectedInstanceCount active instances."
         }
     } finally {
         $env:COMPOSE_PROJECT_NAME = $previousComposeProjectName
@@ -236,7 +249,7 @@ WHERE project_id='ds_1784694647848' AND deleted_at IS NULL;
 
     $datasetRows = @($datasets)
     $activeDataset = @($datasetRows | Where-Object { $_.is_active }) | Select-Object -First 1
-    if (-not $activeDataset -or $activeDataset.id -ne "ds_1784694647848") {
+    if (-not $activeDataset -or $activeDataset.id -ne $ProjectId) {
         throw "ZHHZ is not the active release dataset."
     }
 

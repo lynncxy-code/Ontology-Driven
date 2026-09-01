@@ -191,7 +191,6 @@ try
     ZipFile.ExtractToDirectory(archive, staging, overwriteFiles: true);
     foreach (var required in new[]
     {
-        Path.Combine(staging, "ZHHZ", "ZHHZ.exe"),
         Path.Combine(staging, "Appliance", "appliance-manifest.json"),
         Path.Combine(staging, "Appliance", "ontotwin-ubuntu.vhdx"),
         Path.Combine(staging, "Appliance", "seed.iso"),
@@ -201,17 +200,26 @@ try
     {
         if (!File.Exists(required)) throw new InvalidDataException($"Extracted payload is incomplete: {required}");
     }
+    string runtimeTarget;
     using (var manifestDocument = JsonDocument.Parse(
                File.ReadAllText(Path.Combine(staging, "release-manifest.json"), Encoding.UTF8)))
     {
         payloadVersion = manifestDocument.RootElement.GetProperty("release_version").GetString()
             ?? throw new InvalidDataException("The payload release version is empty.");
+        runtimeTarget = manifestDocument.RootElement.GetProperty("runtime_target").GetString()
+            ?? throw new InvalidDataException("The payload runtime target is empty.");
     }
     if (payloadVersion.Any(character =>
             !(char.IsAsciiLetterOrDigit(character) || character is '.' or '-' or '_')))
         throw new InvalidDataException($"The payload release version is invalid: {payloadVersion}");
     if (payloadVersion.Length is 0 or > 80)
         throw new InvalidDataException($"The payload release version length is invalid: {payloadVersion.Length}");
+    if (runtimeTarget.Length is 0 or > 80 || runtimeTarget.Any(character =>
+            !(char.IsAsciiLetterOrDigit(character) || character == '_')))
+        throw new InvalidDataException($"The payload runtime target is invalid: {runtimeTarget}");
+    var runtimeExecutable = Path.Combine(staging, "ZHHZ", runtimeTarget + ".exe");
+    if (!File.Exists(runtimeExecutable))
+        throw new InvalidDataException($"Extracted payload runtime is incomplete: {runtimeExecutable}");
     Log($"Validated payload version {payloadVersion}.");
 
     destination = BuildUniqueSideBySideDestination(destinationParent, payloadVersion);

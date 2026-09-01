@@ -47,7 +47,7 @@
         Id="PayloadRuntimeSearch"
         After="PayloadReleaseManifestSearch"
         Condition="InstalledAppRoot"
-        Path="[InstalledAppRoot]\ZHHZ\ZHHZ.exe"
+        Path="[InstalledAppRoot]\ZHHZ\$(var.RuntimeExecutableName)"
         Variable="PayloadRuntimeExists"
         Result="exists" />
 

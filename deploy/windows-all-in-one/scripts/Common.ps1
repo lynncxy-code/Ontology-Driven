@@ -24,7 +24,7 @@ function Assert-ReleaseLayout {
         }
     }
 
-    $runtimeExe = Join-Path $script:ReleaseRoot "ZHHZ\ZHHZ.exe"
+    $runtimeExe = Get-ZHHZRuntimePath
     if (-not (Test-Path -LiteralPath $runtimeExe -PathType Leaf)) {
         throw "ZHHZ runtime was not found: $runtimeExe"
     }
@@ -145,7 +145,17 @@ function Wait-OntoTwinBackend {
 }
 
 function Get-ZHHZRuntimePath {
-    return Join-Path $script:ReleaseRoot "ZHHZ\ZHHZ.exe"
+    $runtimeRoot = Join-Path $script:ReleaseRoot "ZHHZ"
+    $identityPath = Join-Path $runtimeRoot "ontotwin-runtime-manifest.json"
+    if (-not (Test-Path -LiteralPath $identityPath -PathType Leaf)) {
+        throw "Runtime identity manifest was not found: $identityPath"
+    }
+    $identity = Get-Content -Raw -Encoding UTF8 -LiteralPath $identityPath | ConvertFrom-Json
+    $targetName = [string]$identity.target_name
+    if ($targetName -notmatch '^[A-Za-z0-9_]+$') {
+        throw "Runtime target name is invalid: $targetName"
+    }
+    return Join-Path $runtimeRoot "$targetName.exe"
 }
 
 function Get-ZHHZRuntimeProcesses {

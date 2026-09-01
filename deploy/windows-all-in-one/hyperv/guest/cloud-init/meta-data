@@ -1,2 +1,2 @@
-instance-id: ontotwin-zhhz-appliance-v1
+instance-id: __ONTOTWIN_APPLIANCE_INSTANCE_ID__
 local-hostname: ontotwin-zhhz

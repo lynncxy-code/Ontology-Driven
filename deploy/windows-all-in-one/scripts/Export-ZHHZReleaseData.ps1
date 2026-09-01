@@ -4,6 +4,8 @@ param(
     [string]$OutputDirectory,
 
     [string]$ProjectId = "ds_1784694647848",
+    [string]$ProjectName = "ZHHZ",
+    [string]$OntologyRegistryProjectId = "",
     [string]$SourceDatabase = "ontotwin",
     [string]$SourceDatabaseUser = "ontotwin"
 )
@@ -13,6 +15,15 @@ $ErrorActionPreference = "Stop"
 
 if ($ProjectId -notmatch '^[A-Za-z0-9_.:-]+$') {
     throw "ProjectId contains unsupported characters: $ProjectId"
+}
+if ([string]::IsNullOrWhiteSpace($ProjectName)) {
+    throw "ProjectName must not be empty."
+}
+if ([string]::IsNullOrWhiteSpace($OntologyRegistryProjectId)) {
+    $OntologyRegistryProjectId = $ProjectId
+}
+if ($OntologyRegistryProjectId -notmatch '^[A-Za-z0-9_.:-]+$') {
+    throw "OntologyRegistryProjectId contains unsupported characters: $OntologyRegistryProjectId"
 }
 
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\.."))
@@ -120,9 +131,9 @@ try {
 
 $registryRoot = Join-Path $repositoryRoot "backend\ontology_registry"
 $neo4jSources = @{
-    "ontotwin.zhhz.cypher" = Join-Path $registryRoot "ontotwin.$ProjectId.cypher"
-    "ontotwin.zhhz.extensions.cypher" = Join-Path $registryRoot "ontotwin.$ProjectId.extensions.cypher"
-    "ontotwin.zhhz.ontology.json" = Join-Path $registryRoot "ontotwin.$ProjectId.ontology.json"
+    "ontotwin.zhhz.cypher" = Join-Path $registryRoot "ontotwin.$OntologyRegistryProjectId.cypher"
+    "ontotwin.zhhz.extensions.cypher" = Join-Path $registryRoot "ontotwin.$OntologyRegistryProjectId.extensions.cypher"
+    "ontotwin.zhhz.ontology.json" = Join-Path $registryRoot "ontotwin.$OntologyRegistryProjectId.ontology.json"
 }
 foreach ($entry in $neo4jSources.GetEnumerator()) {
     if (-not (Test-Path -LiteralPath $entry.Value -PathType Leaf)) {
@@ -150,7 +161,7 @@ $releaseFiles = @(Get-ChildItem -LiteralPath $outputRoot -Recurse -File | ForEac
 $manifest = [ordered]@{
     generated_at = (Get-Date).ToString("o")
     project_id = $ProjectId
-    project_name = "ZHHZ"
+    project_name = $ProjectName
     postgres = [ordered]@{
         projects = [int]$countParts[0]
         object_types = [int]$countParts[1]
@@ -158,7 +169,7 @@ $manifest = [ordered]@{
         zones = [int]$countParts[3]
         active_project_id = $countParts[4]
     }
-    neo4j_source = "clean initialization from ZHHZ ontology registry"
+    neo4j_source = "clean initialization from shared ontology registry $OntologyRegistryProjectId"
     files = $releaseFiles
 }
 $encoding = New-Object System.Text.UTF8Encoding($false)

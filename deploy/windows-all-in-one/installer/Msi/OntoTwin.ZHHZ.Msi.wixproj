@@ -5,7 +5,7 @@
     <DefineConstants>
       MsiVersion=$(MsiVersion);
       PayloadVersion=$(PayloadVersion);
-      LauncherPath=$(LauncherPath);
+      LauncherDirectory=$(LauncherDirectory);
       LauncherIconPath=$(LauncherIconPath);
       ServicePath=$(ServicePath);
       HostScriptPath=$(HostScriptPath);

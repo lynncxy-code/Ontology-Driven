@@ -32,21 +32,10 @@ public partial class MainWindow : Window
         _operationButtons = [StartButton, StopButton, ConsoleButton, BackupButton, RefreshButton];
         _steps = [Step1, Step2, Step3, Step4, Step5];
         _installRoot = ResolveInstallRoot();
-
-        var logDirectory = Path.Combine(ResolveDataRoot(), "Logs");
-        try
-        {
-            Directory.CreateDirectory(logDirectory);
-        }
-        catch
-        {
-            logDirectory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "OntoTwin-ZHHZ",
-                "Logs");
-            Directory.CreateDirectory(logDirectory);
-        }
-        _diagnosticLogPath = Path.Combine(logDirectory, "launcher.log");
+        var payloadVersion = ResolvePayloadVersion();
+        VersionText.Text = $"一体化客户版 · {payloadVersion}";
+        _diagnosticLogPath = App.DiagnosticLogPath;
+        App.Log($"Main window initialized. PayloadVersion={payloadVersion}; InstallRoot={_installRoot}");
         Loaded += async (_, _) => await RefreshStatusAsync();
     }
 
@@ -361,8 +350,33 @@ public partial class MainWindow : Window
     private static void OpenConsole() =>
         Process.Start(new ProcessStartInfo("http://127.0.0.1:5000/nexus") { UseShellExecute = true });
 
-    private string ResolveRuntimePath() =>
-        Path.Combine(ResolveAppRoot(_installRoot), "ZHHZ", "ZHHZ.exe");
+    private string ResolveRuntimePath()
+    {
+        var appRoot = ResolveAppRoot(_installRoot);
+        var manifestPath = Path.Combine(appRoot, "release-manifest.json");
+        using var manifest = JsonDocument.Parse(File.ReadAllText(manifestPath, Encoding.UTF8));
+        var target = manifest.RootElement.GetProperty("runtime_target").GetString();
+        if (string.IsNullOrWhiteSpace(target) || target.Any(character =>
+                !(char.IsAsciiLetterOrDigit(character) || character == '_')))
+            throw new InvalidDataException("发布清单中的 UE Target 名称无效。");
+        return Path.Combine(appRoot, "ZHHZ", target + ".exe");
+    }
+
+    private static string ResolvePayloadVersion()
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\OntoTwin\ZHHZ");
+            var configured = key?.GetValue("PayloadVersion") as string;
+            if (!string.IsNullOrWhiteSpace(configured)) return configured;
+        }
+        catch (Exception exception)
+        {
+            App.Log("Cannot read PayloadVersion from the registry; using the assembly version.", exception);
+        }
+
+        return typeof(App).Assembly.GetName().Version?.ToString() ?? "版本未知";
+    }
 
     private void SetBusy(bool busy, string status)
     {

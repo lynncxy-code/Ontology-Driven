@@ -4,6 +4,11 @@ ssh_pwauth: false
 users: []
 package_update: false
 package_upgrade: false
+growpart:
+  mode: auto
+  devices: ['/']
+  ignore_growroot_disabled: false
+resize_rootfs: true
 write_files:
   - path: /usr/local/sbin/ontotwin-bootstrap-runner.sh
     permissions: '0755'

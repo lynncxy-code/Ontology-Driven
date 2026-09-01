@@ -124,7 +124,8 @@ class MaterialWritebackTestCase(unittest.TestCase):
         }
 
     def material_at(self, instance_id):
-        project = self.store.get_active_copy()
+        # 断言要看部件明细，get_active_copy 默认已把 render_parts 投影掉了。
+        project = self.store.get_active_copy(with_render_parts=True)
         return project["instances"][instance_id]["render_config"]["render_parts"][0][
             "material_paths"
         ][0]
@@ -152,7 +153,7 @@ class MaterialWritebackTestCase(unittest.TestCase):
         self.assertEqual(self.new_a, self.component_material_at("a"))
 
         reopened = ProjectStore(self.projects_dir, self.active_file)
-        persisted = reopened.get_active_copy()
+        persisted = reopened.get_active_copy(with_render_parts=True)
         self.assertEqual(
             self.new_a,
             persisted["instances"]["a"]["render_config"]["render_parts"][0][

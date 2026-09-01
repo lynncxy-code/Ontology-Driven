@@ -116,6 +116,46 @@ def _as_graph_dataset(project_id, project_name, project_created_at, dataset):
     return normalized
 
 
+def _copy_project_without_render_parts(project):
+    """Deep-copy a project while projecting away per-instance assembly part lists.
+
+    只有 instances[*].render_config.render_parts 被剔除，其余字段（含 raw_state、
+    interface_configs、model_override）一律原样深拷贝，调用方拿到的仍是可以随意
+    改动的独立副本。被剔掉的位置补 part_count，让装配判定和"多少个部件"的展示
+    不必回读明细。
+    """
+    out = {}
+    for key, value in project.items():
+        if key != "instances":
+            out[key] = copy.deepcopy(value)
+
+    instances = project.get("instances")
+    if not isinstance(instances, dict):
+        out["instances"] = copy.deepcopy(instances) if "instances" in project else {}
+        return out
+
+    slim_instances = {}
+    for instance_id, record in instances.items():
+        if not isinstance(record, dict):
+            slim_instances[instance_id] = copy.deepcopy(record)
+            continue
+        slim = {k: copy.deepcopy(v) for k, v in record.items() if k != "render_config"}
+        config = record.get("render_config")
+        if isinstance(config, dict):
+            slim_config = {
+                k: copy.deepcopy(v) for k, v in config.items() if k != "render_parts"
+            }
+            if "render_parts" in config:
+                parts = config.get("render_parts")
+                slim_config["part_count"] = len(parts) if isinstance(parts, list) else 0
+            slim["render_config"] = slim_config
+        elif "render_config" in record:
+            slim["render_config"] = copy.deepcopy(config)
+        slim_instances[instance_id] = slim
+    out["instances"] = slim_instances
+    return out
+
+
 class UnsupportedProjectSchemaError(RuntimeError):
     pass
 
@@ -729,10 +769,25 @@ class ProjectStore:
         with self._lock:
             return self._current
 
-    def get_active_copy(self):
-        """Return a detached project snapshot for feature services and API responses."""
+    def get_active_copy(self, with_render_parts=False):
+        """Return a detached project snapshot for feature services and API responses.
+
+        默认剔除每个实例 render_config 里的 render_parts（assembly_v1 的部件明细）。
+        现场项目 507 个实例平均带 25KB 部件、单实例最多 1013 个，这一个字段就是
+        14MB 工程里的绝大部分体积，全量 deepcopy 单次约 300ms；而本方法的调用点
+        （zone / scene / web / overlay / spatial / floor 等）没有一个真正读部件明细，
+        只有装配判定和数量展示要用，所以补 render_config["part_count"] 顶替。
+
+        真正要改写部件的路径（customer_edit_changes 的整包备份与回写）显式传
+        with_render_parts=True 拿全量。UE 快照下发走 get_active() / _current，
+        不经过这里，不受影响。
+        """
         with self._lock:
-            return copy.deepcopy(self._current) if self._current else None
+            if not self._current:
+                return None
+            if with_render_parts:
+                return copy.deepcopy(self._current)
+            return _copy_project_without_render_parts(self._current)
 
     def transact_active(self, updater):
         """Apply one low-frequency project update atomically and persist it once."""
@@ -918,6 +973,11 @@ class ProjectStore:
 
     @staticmethod
     def _instance_metadata(instance_id, inst, now):
+        # last_seen 允许为 None：UE 反向收编（source=ue_migrated）的实例入库时
+        # 从未上报过心跳，PG 里该列就是 NULL。语义上「从未上报」= 离线，
+        # 不能拿它做减法（float - None 抛 TypeError，整个列表接口 500）。
+        last_seen = inst.get("last_seen")
+        online = last_seen is not None and (now - last_seen) < 3.0
         return {
             "id": instance_id,
             "object_type_rid": inst["object_type_rid"],
@@ -932,9 +992,9 @@ class ProjectStore:
             "source_asset_path": inst.get("source_asset_path", ""),
             "classification_status": inst.get("classification_status", "confirmed"),
             "classification_key": inst.get("classification_key", ""),
-            "status": "online" if (now - inst["last_seen"]) < 3.0 else "offline",
-            "last_seen": inst["last_seen"],
-            "created_at": inst["created_at"],
+            "status": "online" if online else "offline",
+            "last_seen": last_seen,
+            "created_at": inst.get("created_at"),
         }
 
     def get_instance_metadata(self, instance_id):

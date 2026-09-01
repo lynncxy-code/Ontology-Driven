@@ -2557,7 +2557,10 @@ def _build_snapshot(instance_id, ctx=None):
     # project's Models directory.
 
     now = time.time()
-    online = (now - inst_meta.get("last_seen", 0)) < 3.0
+    # 注意别写成 .get("last_seen", 0)：ue_migrated 实例的该键存在但值为 None，
+    # 默认值不会生效，None 参与减法会让快照接口整个 500（UE 侧直接断流）。
+    last_seen = inst_meta.get("last_seen")
+    online = last_seen is not None and (now - last_seen) < 3.0
 
     interfaces = {}
 

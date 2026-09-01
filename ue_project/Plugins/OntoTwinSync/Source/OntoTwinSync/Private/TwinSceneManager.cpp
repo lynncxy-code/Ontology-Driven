@@ -308,22 +308,22 @@ void ATwinSceneManager::BeginPlay()
             EnableInput(PC);
             if (InputComponent)
             {
-                InputComponent->BindKey(ToggleEditKey, IE_Pressed, this, &ATwinSceneManager::RequestRuntimeEditToggle);
-                if (AlternateToggleEditKey != EKeys::Invalid && AlternateToggleEditKey != ToggleEditKey)
-                {
-                    InputComponent->BindKey(AlternateToggleEditKey, IE_Pressed, this, &ATwinSceneManager::RequestRuntimeEditToggle);
-                }
+                InputComponent->BindKey(
+                    RuntimeEditorToggleKey,
+                    IE_Pressed,
+                    this,
+                    &ATwinSceneManager::RequestRuntimeEditToggle);
             }
         }
 
         UE_LOG(LogTemp, Log,
-            TEXT("[RuntimeEditor] 已启用 | 主热键=%s | 备用热键=%s | PIE 中 F8 可能被编辑器 Eject 吃掉，建议用备用热键"),
-            *ToggleEditKey.ToString(), *AlternateToggleEditKey.ToString());
+            TEXT("[RuntimeEditor] 已启用 | 场景编辑快捷键=%s"),
+            *RuntimeEditorToggleKey.ToString());
         if (GEngine)
         {
             GEngine->AddOnScreenDebugMessage(-1, 6.0f, FColor::Cyan,
-                FString::Printf(TEXT("Runtime Editor: %s / %s"),
-                    *ToggleEditKey.ToString(), *AlternateToggleEditKey.ToString()));
+                FString::Printf(TEXT("Runtime Editor: %s"),
+                    *RuntimeEditorToggleKey.ToString()));
         }
     }
     else
@@ -353,6 +353,7 @@ void ATwinSceneManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
     }
     RealtimeSocket.Reset();
     bRuntimeEditDirty = false;
+    bRuntimeEnterRoamingAfterExit = false;
     ExitRuntimeEditMode();
     if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
     {
@@ -2539,10 +2540,7 @@ void ATwinSceneManager::ToggleRuntimeEditMode()
 
     if (!bRuntimeEditMode && InteractionManager && InteractionManager->IsRoamingActive())
     {
-        RuntimeStatusMessage = TEXT("请先退出人物漫游，再进入运行时编辑器");
-        InteractionManager->NotifyRuntimeEditorBlocked();
-        UpdateRuntimeEditorPanel();
-        return;
+        InteractionManager->ExitRoaming();
     }
 
     if (bRuntimeEditMode)
@@ -2557,6 +2555,12 @@ void ATwinSceneManager::ToggleRuntimeEditMode()
 
 void ATwinSceneManager::RequestRuntimeEditToggle()
 {
+    if (bRuntimeEditMode && RuntimeEditorPanel && IsValid(RuntimeEditorPanel)
+        && RuntimeEditorPanel->IsConfirmationOpen())
+    {
+        return;
+    }
+
     UWorld* World = GetWorld();
     const float Now = World ? World->GetTimeSeconds() : 0.0f;
     if (Now - RuntimeLastToggleInputTime < 0.15f)
@@ -2566,6 +2570,33 @@ void ATwinSceneManager::RequestRuntimeEditToggle()
 
     RuntimeLastToggleInputTime = Now;
     ToggleRuntimeEditMode();
+}
+
+void ATwinSceneManager::RequestRoamingAfterRuntimeEdit()
+{
+    if (!bRuntimeEditMode)
+    {
+        if (InteractionManager && !InteractionManager->IsRoamingActive())
+        {
+            InteractionManager->ToggleRoaming();
+        }
+        return;
+    }
+    if (bRuntimeEnterRoamingAfterExit
+        || (RuntimeEditorPanel && IsValid(RuntimeEditorPanel)
+            && RuntimeEditorPanel->IsConfirmationOpen()))
+    {
+        return;
+    }
+
+    bRuntimeEnterRoamingAfterExit = true;
+    ExitRuntimeEditMode();
+}
+
+void ATwinSceneManager::CancelRuntimeEditExitRequest()
+{
+    bRuntimeExitAfterSave = false;
+    bRuntimeEnterRoamingAfterExit = false;
 }
 
 void ATwinSceneManager::EnterRuntimeEditMode()
@@ -2644,6 +2675,9 @@ void ATwinSceneManager::FinishExitRuntimeEditMode()
 {
     if (!bRuntimeEditMode) return;
 
+    const bool bEnterRoamingAfterExit = bRuntimeEnterRoamingAfterExit;
+    bRuntimeEnterRoamingAfterExit = false;
+
     ClearRuntimeSelection(false);
     ReleaseCleanUnselectedRuntimeStates();
     HideRuntimeEditorPanel();
@@ -2676,6 +2710,21 @@ void ATwinSceneManager::FinishExitRuntimeEditMode()
     SetPollTimerInterval(PollInterval, PollInterval);
     if (InteractionManager) InteractionManager->SetRuntimeEditorSuppressed(false);
     if (WebInteractionManager) WebInteractionManager->SetRuntimeEditorSuppressed(false);
+
+    if (bEnterRoamingAfterExit && InteractionManager && GetWorld())
+    {
+        TWeakObjectPtr<UTwinInteractionManagerComponent> WeakInteractionManager(
+            InteractionManager);
+        GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda(
+            [WeakInteractionManager]()
+            {
+                UTwinInteractionManagerComponent* Manager = WeakInteractionManager.Get();
+                if (Manager && !Manager->IsRoamingActive())
+                {
+                    Manager->ToggleRoaming();
+                }
+            }));
+    }
 }
 
 void ATwinSceneManager::SaveAndExitRuntimeEdit()
@@ -2708,12 +2757,7 @@ void ATwinSceneManager::TickRuntimeEditor(float DeltaTime)
         return;
     }
 
-    const bool bPrimaryTogglePressed = PC->WasInputKeyJustPressed(ToggleEditKey);
-    const bool bAlternateTogglePressed =
-        AlternateToggleEditKey != EKeys::Invalid &&
-        AlternateToggleEditKey != ToggleEditKey &&
-        PC->WasInputKeyJustPressed(AlternateToggleEditKey);
-    if (bPrimaryTogglePressed || bAlternateTogglePressed)
+    if (PC->WasInputKeyJustPressed(RuntimeEditorToggleKey))
     {
         RequestRuntimeEditToggle();
         return;
@@ -2724,8 +2768,8 @@ void ATwinSceneManager::TickRuntimeEditor(float DeltaTime)
         return;
     }
 
-    // Web 投影与 F8 可能同时启动。只要用户尚未编辑业务，就持续接收更新版本，
-    // 避免进入 F8 时的一次性空快照把业务下拉永久锁死。
+    // Web 投影与 F10 可能同时启动。只要用户尚未编辑业务，就持续接收更新版本，
+    // 避免进入 F10 时的一次性空快照把业务下拉永久锁死。
     RefreshRuntimeBusinessSnapshot();
 
     if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel) && RuntimeEditorPanel->IsConfirmationOpen())
@@ -3431,7 +3475,7 @@ void ATwinSceneManager::SelectRuntimeInstance(ATwinInstance* Instance, bool bTog
         if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel))
         {
             RuntimeEditorPanel->ShowToast(
-                TEXT("该实例由实时位置源驱动，不能在 F8 中修改"),
+                TEXT("该实例由实时位置源驱动，不能在 F10 中修改"),
                 EOntoTwinRuntimeToastType::Warning);
         }
         UpdateRuntimeEditorPanel();
@@ -3721,7 +3765,7 @@ bool ATwinSceneManager::TraceRuntimeCursor(FHitResult& OutHit) const
     // A migration preview can temporarily contain a legacy source actor at
     // exactly the same transform as its database-driven TwinInstance. The
     // legacy component may win the single Visibility trace, which used to
-    // clear the F8 selection even though the Twin was directly underneath it.
+    // clear the F10 selection even though the Twin was directly underneath it.
     // Look through only a very shallow stack of identical meshes. The strict
     // distance and mesh checks prevent selecting an unrelated Twin behind a
     // normal scene occluder.
@@ -4793,6 +4837,7 @@ void ATwinSceneManager::SaveRuntimeEdit()
     }
     if (!bRuntimeCanSave)
     {
+        CancelRuntimeEditExitRequest();
         RuntimeStatusMessage = TEXT("当前数据集访问未就绪");
         if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel))
         {
@@ -4813,6 +4858,7 @@ void ATwinSceneManager::SaveRuntimeEdit()
         if (!WebInteractionManager || !RuntimeBusinessConfig.IsValid()
             || RuntimeBusinessRevision < 0)
         {
+            CancelRuntimeEditExitRequest();
             RuntimeStatusMessage = TEXT("业务配置尚未就绪，本地修改仍保留");
             UpdateRuntimeEditorPanel();
             return;
@@ -4831,7 +4877,7 @@ void ATwinSceneManager::SaveRuntimeEdit()
                 Self->bRuntimeEditSaving = false;
                 if (!bSuccess)
                 {
-                    Self->bRuntimeExitAfterSave = false;
+                    Self->CancelRuntimeEditExitRequest();
                     Self->RuntimeStatusMessage = Error;
                     if (Self->RuntimeEditorPanel && IsValid(Self->RuntimeEditorPanel))
                     {
@@ -5022,7 +5068,7 @@ void ATwinSceneManager::SaveRuntimeEdit()
                         }
                     }
                 }
-                Self->bRuntimeExitAfterSave = false;
+                Self->CancelRuntimeEditExitRequest();
                 Self->RuntimeStatusMessage = Code == 409
                     ? TEXT("保存冲突：后端状态已变化")
                     : FString::Printf(TEXT("保存失败（%d）"), Code);

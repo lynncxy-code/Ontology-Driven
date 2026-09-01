@@ -101,7 +101,7 @@ public:
               meta=(DisplayName="类型名称"))
     FString TwinObjectTypeName;
 
-    /** OntoTwin 数据侧是否允许 F8 修改空间状态；缺失时兼容为允许。 */
+    /** OntoTwin 数据侧是否允许 F10 修改空间状态；缺失时兼容为允许。 */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="孪生体|同步控制",
               meta=(DisplayName="允许运行时空间编辑"))
     bool bRuntimeSpatialEditable = true;

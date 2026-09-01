@@ -40,6 +40,7 @@
 #include "EngineUtils.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "GameFramework/DefaultPawn.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Camera/PlayerCameraManager.h"
@@ -448,6 +449,20 @@ void UTwinInteractionManagerComponent::TickComponent(
         && PlayerController->WasInputKeyJustPressed(ToggleViewKey))
     {
         ToggleCameraMode();
+    }
+
+    // Keep mouse capture state resilient when a host replaces its Enhanced
+    // Input component or swallows the button release event.
+    if (PlayerController && bRoamingActive && bEnhancedInputReady)
+    {
+        if (PlayerController->WasInputKeyJustPressed(MouseLookKey))
+        {
+            SetRoamingMouseLook(true);
+        }
+        if (PlayerController->WasInputKeyJustReleased(MouseLookKey))
+        {
+            SetRoamingMouseLook(false);
+        }
     }
 
     if (PlayerController && !bRoamingActive
@@ -892,16 +907,28 @@ void UTwinInteractionManagerComponent::ApplyHotConfig(const FTwinRoamingRuntimeC
     RoamingCharacter->RouteFollower->SetLoop(Config.bRouteLoop);
     const bool bUsingSessionCharacter = !ActiveSessionCharacterId.IsEmpty()
         && ActiveSessionCharacterId != Config.CharacterId;
-    RoamingCharacter->SkinComponent->Configure(
-        bUsingSessionCharacter ? ActiveSessionSkinPrimaryAssetIds : Config.SkinPrimaryAssetIds,
-        bUsingSessionCharacter ? ActiveSessionDefaultSkinId : Config.DefaultSkinId);
-    if (RoamingCharacter->SkinComponent->GetActiveSkinId().IsEmpty())
+    if (RoamingCharacter->SkinComponent)
     {
-        FString SkinError;
-        if (!RoamingCharacter->SkinComponent->ApplyDefaultSkin(SkinError))
+        const TMap<FString, FString>& SkinMap = bUsingSessionCharacter
+            ? ActiveSessionSkinPrimaryAssetIds : Config.SkinPrimaryAssetIds;
+        const FString& DefaultSkinId = bUsingSessionCharacter
+            ? ActiveSessionDefaultSkinId : Config.DefaultSkinId;
+        RoamingCharacter->SkinComponent->Configure(SkinMap, DefaultSkinId);
+        if (RoamingCharacter->SkinComponent->GetActiveSkinId().IsEmpty())
         {
-            DegradedFeatures.AddUnique(TEXT("default_skin_missing"));
+            FString SkinError;
+            if (!SkinMap.IsEmpty() && !DefaultSkinId.IsEmpty()
+                && !RoamingCharacter->SkinComponent->ApplyDefaultSkin(SkinError))
+            {
+                DegradedFeatures.AddUnique(TEXT("default_skin_missing"));
+            }
+            else if (SkinMap.IsEmpty())
+            {
+                RoamingCharacter->SkinComponent->ClearSkinOverrides();
+                DegradedFeatures.Remove(TEXT("default_skin_missing"));
+            }
         }
+        RoamingCharacter->RefreshLocomotionAnimation();
     }
 }
 
@@ -1316,6 +1343,25 @@ void UTwinInteractionManagerComponent::ApplyStartupView(bool bForce)
         UE_LOG(LogTemp, Log,
             TEXT("OntoTwin startup view applied: camera_id=%s actor=%s"),
             *StartupViewAnchor->CameraId, *StartupViewAnchor->GetName());
+    }
+
+    // GameModeBase creates a visible engine sphere when no host-specific pawn
+    // class is configured. Once the startup camera becomes the view target,
+    // bOwnerNoSee no longer protects that sphere from the active camera. Hide
+    // only the exact native class; project pawns and OntoTwin camera/roaming
+    // pawns must remain untouched.
+    if (APawn* Pawn = PlayerController->GetPawn();
+        Pawn && Pawn->GetClass() == ADefaultPawn::StaticClass())
+    {
+        const bool bNeedsSuppression = !Pawn->IsHidden() || Pawn->GetActorEnableCollision();
+        Pawn->SetActorHiddenInGame(true);
+        Pawn->SetActorEnableCollision(false);
+        if (bNeedsSuppression)
+        {
+            UE_LOG(LogTemp, Log,
+                TEXT("OntoTwin startup view suppressed native DefaultPawn: actor=%s"),
+                *Pawn->GetName());
+        }
     }
 }
 
@@ -1788,8 +1834,13 @@ bool UTwinInteractionManagerComponent::CanUseMinimapTeleport() const
     {
         return false;
     }
+    // The minimap is a screen-space control and must remain usable in every
+    // roaming camera mode.  First-person/near-follow no longer require the
+    // Tab dock: releasing the RMB puts the pointer back in UI mode.  While
+    // RMB is held, camera look owns the pointer and map clicks are ignored.
     return RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God
-        || bHudInteraction;
+        || bHudInteraction
+        || !bRoamingMouseLook;
 }
 
 bool UTwinInteractionManagerComponent::DeprojectMinimapUV(
@@ -2345,6 +2396,8 @@ bool UTwinInteractionManagerComponent::EnterRoaming(FString& OutError)
     }
 
     bPreRoamingMouseCursor = PlayerController->bShowMouseCursor;
+    bRoamingMouseLook = false;
+    bFirstPersonCrosshairEnabled = false;
     OriginalPawn = PlayerController->GetPawn();
     FActorSpawnParameters SpawnParams;
     SpawnParams.Owner = SceneManager;
@@ -2379,10 +2432,16 @@ bool UTwinInteractionManagerComponent::EnterRoaming(FString& OutError)
     RoamingCharacter->SkinComponent->Configure(
         CurrentConfig.SkinPrimaryAssetIds, CurrentConfig.DefaultSkinId);
     FString SkinError;
-    if (!RoamingCharacter->SkinComponent->ApplyDefaultSkin(SkinError))
+    if (!CurrentConfig.SkinPrimaryAssetIds.IsEmpty()
+        && !RoamingCharacter->SkinComponent->ApplyDefaultSkin(SkinError))
     {
         DegradedFeatures.AddUnique(TEXT("default_skin_missing"));
     }
+    else if (CurrentConfig.SkinPrimaryAssetIds.IsEmpty())
+    {
+        RoamingCharacter->SkinComponent->ClearSkinOverrides();
+    }
+    RoamingCharacter->RefreshLocomotionAnimation();
 
     RoamingCharacter->RouteFollower->OnNarrationRequested.AddUObject(
         this, &UTwinInteractionManagerComponent::HandleNarrationRequested);
@@ -2478,6 +2537,8 @@ void UTwinInteractionManagerComponent::ExitRoaming()
     StopNarration(false);
     if (!bRoamingActive && !RoamingCharacter)
     {
+        bFirstPersonCrosshairEnabled = false;
+        bCrosshairInteractive = false;
         ShutdownMinimap(false);
         SetMinimapState(CurrentConfig.bEnabled && CurrentConfig.bMinimapEnabled
             ? TEXT("waiting") : TEXT("disabled"));
@@ -2512,6 +2573,8 @@ void UTwinInteractionManagerComponent::ExitRoaming()
     bCharacterSwitchInProgress = false;
     bRoamingActive = false;
     bHudInteraction = false;
+    bRoamingMouseLook = false;
+    bFirstPersonCrosshairEnabled = false;
     if (PlayerController)
     {
         PlayerController->bShowMouseCursor = bPreRoamingMouseCursor;
@@ -2544,6 +2607,11 @@ void UTwinInteractionManagerComponent::ToggleRoaming()
 {
     UE_LOG(LogTemp, Log, TEXT("OntoTwin F7 roaming toggle received; active=%s revision=%d"),
         bRoamingActive ? TEXT("true") : TEXT("false"), AppliedRevision);
+    if (SceneManager && SceneManager->IsRuntimeEditModeActive())
+    {
+        SceneManager->RequestRoamingAfterRuntimeEdit();
+        return;
+    }
     if (bHudInteraction) SetHudInteraction(false);
     if (bRoamingActive)
     {
@@ -2657,11 +2725,22 @@ void UTwinInteractionManagerComponent::SetHudInteraction(bool bOpen)
         bGlobalHudInputCaptured = true;
     }
     bHudInteraction = bNextOpen;
+    if (bRoamingActive && bHudInteraction)
+    {
+        bRoamingMouseLook = false;
+    }
     // RoamingHUD keeps status, hints and minimap. The independent RuntimeDock
     // owns the fixed-height action drawer.
     if (RoamingHUD) RoamingHUD->SetInteractionOpen(false);
     if (RuntimeDock) RuntimeDock->SetDockOpen(bHudInteraction);
     if (!PlayerController) return;
+
+    if (bRoamingActive)
+    {
+        ApplyRoamingMouseInputMode();
+        RefreshHud();
+        return;
+    }
 
     const bool bGodMode = RoamingCharacter
         && RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God;
@@ -2696,6 +2775,38 @@ void UTwinInteractionManagerComponent::SetHudInteraction(bool bOpen)
     RefreshHud();
 }
 
+void UTwinInteractionManagerComponent::SetRoamingMouseLook(bool bActive)
+{
+    if (!bRoamingActive || bHudInteraction || !PlayerController)
+    {
+        return;
+    }
+    bRoamingMouseLook = bActive;
+    ApplyRoamingMouseInputMode();
+}
+
+void UTwinInteractionManagerComponent::ApplyRoamingMouseInputMode()
+{
+    if (!bRoamingActive || !PlayerController)
+    {
+        return;
+    }
+
+    const bool bPointerInteraction = bHudInteraction || !bRoamingMouseLook;
+    PlayerController->bShowMouseCursor = bPointerInteraction;
+    if (bPointerInteraction)
+    {
+        FInputModeGameAndUI InputMode;
+        InputMode.SetHideCursorDuringCapture(false);
+        InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+        PlayerController->SetInputMode(InputMode);
+    }
+    else
+    {
+        PlayerController->SetInputMode(FInputModeGameOnly());
+    }
+}
+
 void UTwinInteractionManagerComponent::CycleSkin()
 {
     if (!RoamingCharacter) return;
@@ -2705,6 +2816,7 @@ void UTwinInteractionManagerComponent::CycleSkin()
     {
         LastError.Reset();
         DegradedFeatures.Remove(TEXT("default_skin_missing"));
+        RoamingCharacter->RefreshLocomotionAnimation();
     }
     RefreshHud();
 }
@@ -2843,6 +2955,14 @@ bool UTwinInteractionManagerComponent::SelectRuntimeCharacter(const FString& Cha
         {
             bSucceeded = RoamingCharacter->SkinComponent->ApplyDefaultSkin(Error);
         }
+        else
+        {
+            RoamingCharacter->SkinComponent->ClearSkinOverrides();
+        }
+        if (bSucceeded)
+        {
+            RoamingCharacter->RefreshLocomotionAnimation();
+        }
     }
 
     if (bSucceeded)
@@ -2894,6 +3014,11 @@ bool UTwinInteractionManagerComponent::SelectRuntimeCharacter(const FString& Cha
                 {
                     RoamingCharacter->SkinComponent->ApplyDefaultSkin(RestoreError);
                 }
+                else
+                {
+                    RoamingCharacter->SkinComponent->ClearSkinOverrides();
+                }
+                RoamingCharacter->RefreshLocomotionAnimation();
             }
         }
         RoamingCharacter->SetActorLocationAndRotation(
@@ -3107,6 +3232,7 @@ void UTwinInteractionManagerComponent::DestroyHud()
     }
     NarrationAudioComponent = nullptr;
     NarrationSound = nullptr;
+    bFirstPersonCrosshairEnabled = false;
     bCrosshairInteractive = false;
 }
 
@@ -3165,7 +3291,10 @@ void UTwinInteractionManagerComponent::RefreshHud()
             && RoamingCharacter->CameraMode
             && RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::FirstPerson;
         CrosshairHUD->SetReticleState(
-            bFirstPerson && !bHudInteraction && !IsCameraTransitioning(),
+            bFirstPersonCrosshairEnabled
+                && bFirstPerson
+                && !bHudInteraction
+                && !IsCameraTransitioning(),
             bCrosshairInteractive);
     }
 }
@@ -3173,7 +3302,8 @@ void UTwinInteractionManagerComponent::RefreshHud()
 void UTwinInteractionManagerComponent::UpdateCrosshairTarget()
 {
     bCrosshairInteractive = false;
-    if (!bRoamingActive || bHudInteraction || !PlayerController || !SceneManager
+    if (!bFirstPersonCrosshairEnabled || !bRoamingActive || bHudInteraction
+        || !PlayerController || !SceneManager
         || !RoamingCharacter || !RoamingCharacter->CameraMode
         || RoamingCharacter->CameraMode->IsTransitioning()
         || RoamingCharacter->CameraMode->GetMode() != ETwinRoamingCameraMode::FirstPerson)
@@ -3223,6 +3353,7 @@ void UTwinInteractionManagerComponent::BuildDefaultInputContext()
     ToggleAction = MakeAction(TEXT("IA_TwinRoamingToggle"), EInputActionValueType::Boolean);
     MoveAction = MakeAction(TEXT("IA_TwinRoamingMove"), EInputActionValueType::Axis2D);
     LookAction = MakeAction(TEXT("IA_TwinRoamingLook"), EInputActionValueType::Axis2D);
+    LookCaptureAction = MakeAction(TEXT("IA_TwinRoamingLookCapture"), EInputActionValueType::Boolean);
     VerticalAction = MakeAction(TEXT("IA_TwinRoamingVertical"), EInputActionValueType::Axis1D);
     HudAction = MakeAction(TEXT("IA_TwinRoamingHUD"), EInputActionValueType::Boolean);
     InteractAction = MakeAction(TEXT("IA_TwinRoamingInteract"), EInputActionValueType::Boolean);
@@ -3243,6 +3374,7 @@ void UTwinInteractionManagerComponent::BuildDefaultInputContext()
     DefaultMappingContext->MapKey(SprintAction, EKeys::LeftShift);
     DefaultMappingContext->MapKey(SelectAction, EKeys::LeftMouseButton);
     DefaultMappingContext->MapKey(LookAction, EKeys::Mouse2D);
+    DefaultMappingContext->MapKey(LookCaptureAction, MouseLookKey);
     DefaultMappingContext->MapKey(SpeedAction, EKeys::MouseWheelAxis);
 
     FEnhancedActionKeyMapping& MoveForward = DefaultMappingContext->MapKey(MoveAction, EKeys::W);
@@ -3319,6 +3451,9 @@ void UTwinInteractionManagerComponent::BindEnhancedInput()
     }
     Input->BindAction(MoveAction, ETriggerEvent::Triggered, this, &UTwinInteractionManagerComponent::OnMove);
     Input->BindAction(LookAction, ETriggerEvent::Triggered, this, &UTwinInteractionManagerComponent::OnLook);
+    Input->BindAction(LookCaptureAction, ETriggerEvent::Started, this, &UTwinInteractionManagerComponent::OnLookCaptureStarted);
+    Input->BindAction(LookCaptureAction, ETriggerEvent::Completed, this, &UTwinInteractionManagerComponent::OnLookCaptureEnded);
+    Input->BindAction(LookCaptureAction, ETriggerEvent::Canceled, this, &UTwinInteractionManagerComponent::OnLookCaptureEnded);
     Input->BindAction(VerticalAction, ETriggerEvent::Triggered, this, &UTwinInteractionManagerComponent::OnVertical);
     Input->BindAction(HudAction, ETriggerEvent::Started, this, &UTwinInteractionManagerComponent::OnToggleHud);
     Input->BindAction(InteractAction, ETriggerEvent::Started, this, &UTwinInteractionManagerComponent::OnInteract);
@@ -3344,6 +3479,8 @@ void UTwinInteractionManagerComponent::TickFallbackInput(float DeltaTime)
 {
     if (!PlayerController) return;
     if (!bRoamingActive || !RoamingCharacter) return;
+    if (PlayerController->WasInputKeyJustPressed(MouseLookKey)) SetRoamingMouseLook(true);
+    if (PlayerController->WasInputKeyJustReleased(MouseLookKey)) SetRoamingMouseLook(false);
     if (RoamingCharacter->CameraMode->IsTransitioning()) return;
     if (PlayerController->WasInputKeyJustPressed(ToggleHudKey)) ToggleHudInteraction();
     if (bHudInteraction) return;
@@ -3351,10 +3488,17 @@ void UTwinInteractionManagerComponent::TickFallbackInput(float DeltaTime)
     if (PlayerController->WasInputKeyJustPressed(PauseRouteKey)) HandleRoutePauseAction();
 
     const bool bGod = RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God;
-    if (PlayerController->WasInputKeyJustPressed(EKeys::LeftMouseButton)
-        || (!bGod && PlayerController->WasInputKeyJustPressed(InteractKey)))
+    if (PlayerController->WasInputKeyJustPressed(EKeys::LeftMouseButton))
     {
-        SelectFromView(bGod);
+        if (!PlayerController->IsInputKeyDown(MouseLookKey))
+        {
+            SelectFromView(bGod || !bRoamingMouseLook);
+        }
+    }
+    if (!bGod && PlayerController->WasInputKeyJustPressed(InteractKey)
+        && !PlayerController->IsInputKeyDown(MouseLookKey))
+    {
+        SelectFromView(false);
     }
     if (PlayerController->WasInputKeyJustPressed(EKeys::SpaceBar)
         && RoamingCharacter->CameraMode->GetMode() != ETwinRoamingCameraMode::God)
@@ -3391,7 +3535,7 @@ void UTwinInteractionManagerComponent::TickFallbackInput(float DeltaTime)
     PlayerController->GetInputMouseDelta(MouseX, MouseY);
     if (bGod)
     {
-        if (PlayerController->IsInputKeyDown(EKeys::RightMouseButton))
+        if (bRoamingMouseLook)
         {
             RoamingCharacter->CameraMode->GetGodPawn()->Look(FVector2D(MouseX, MouseY));
         }
@@ -3407,7 +3551,10 @@ void UTwinInteractionManagerComponent::TickFallbackInput(float DeltaTime)
                 == ETwinRoamingCameraMode::FirstPerson
             ? CurrentConfig.FirstPersonCamera.LookSensitivity
             : CurrentConfig.NearCamera.LookSensitivity;
-        RoamingCharacter->Look(FVector2D(MouseX, MouseY), Sensitivity);
+        if (bRoamingMouseLook)
+        {
+            RoamingCharacter->Look(FVector2D(MouseX, MouseY), Sensitivity);
+        }
         if (PlayerController->WasInputKeyJustPressed(EKeys::C)) RoamingCharacter->Crouch();
         if (PlayerController->WasInputKeyJustReleased(EKeys::C)) RoamingCharacter->UnCrouch();
     }
@@ -3437,14 +3584,11 @@ void UTwinInteractionManagerComponent::OnMove(const FInputActionValue& Value)
 void UTwinInteractionManagerComponent::OnLook(const FInputActionValue& Value)
 {
     if (!bRoamingActive || bHudInteraction || !RoamingCharacter || !PlayerController
-        || RoamingCharacter->CameraMode->IsTransitioning()) return;
+        || RoamingCharacter->CameraMode->IsTransitioning() || !bRoamingMouseLook) return;
     const FVector2D Look = Value.Get<FVector2D>();
     if (RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God)
     {
-        if (PlayerController->IsInputKeyDown(EKeys::RightMouseButton))
-        {
-            if (ATwinGodViewPawn* Pawn = RoamingCharacter->CameraMode->GetGodPawn()) Pawn->Look(Look);
-        }
+        if (ATwinGodViewPawn* Pawn = RoamingCharacter->CameraMode->GetGodPawn()) Pawn->Look(Look);
     }
     else
     {
@@ -3477,6 +3621,19 @@ void UTwinInteractionManagerComponent::OnPauseRoute(const FInputActionValue&)
     HandleRoutePauseAction();
 }
 
+void UTwinInteractionManagerComponent::OnLookCaptureStarted(const FInputActionValue&)
+{
+    SetRoamingMouseLook(true);
+}
+
+void UTwinInteractionManagerComponent::OnLookCaptureEnded(const FInputActionValue&)
+{
+    if (bRoamingActive && !bHudInteraction)
+    {
+        SetRoamingMouseLook(false);
+    }
+}
+
 void UTwinInteractionManagerComponent::OnInteract(const FInputActionValue&)
 {
     if (RoamingCharacter
@@ -3497,11 +3654,12 @@ void UTwinInteractionManagerComponent::OnSelect(const FInputActionValue&)
     {
         return;
     }
-    if (RoamingCharacter && !RoamingCharacter->CameraMode->IsTransitioning())
+    if (RoamingCharacter && !RoamingCharacter->CameraMode->IsTransitioning()
+        && (!PlayerController || !PlayerController->IsInputKeyDown(MouseLookKey)))
     {
         const bool bGodMode =
             RoamingCharacter->CameraMode->GetMode() == ETwinRoamingCameraMode::God;
-        SelectFromView(bGodMode);
+        SelectFromView(bGodMode || !bRoamingMouseLook);
     }
 }
 
@@ -4281,7 +4439,7 @@ void UTwinInteractionManagerComponent::GetHudShortcutItems(
     if (Mode == ETwinRoamingCameraMode::God)
     {
         AddShortcut(TEXT("WASD"), TEXT("平移"));
-        AddShortcut(TEXT("右键"), TEXT("观察"));
+        AddShortcut(TEXT("右键"), TEXT("按住观察"));
         AddShortcut(TEXT("Q / E"), TEXT("升降"));
         AddShortcut(TEXT("滚轮"), TEXT("调整速度"));
         if (bRouteCanPause)
@@ -4309,8 +4467,12 @@ void UTwinInteractionManagerComponent::GetHudShortcutItems(
 
     AddShortcut(TEXT("WASD"), TEXT("移动"));
     AddShortcut(
-        TEXT("E / 左键"),
-        TEXT("选择并打开网页详情"));
+        TEXT("右键"),
+        TEXT("按住观察"));
+    AddShortcut(
+        TEXT("左键"),
+        TEXT("选择详情"));
+    AddShortcut(TEXT("E"), TEXT("准星选择"));
     AddShortcut(TEXT("Space"), TEXT("跳跃"));
     if (bRouteCanPause)
     {
@@ -4437,8 +4599,50 @@ void UTwinInteractionManagerComponent::ActivateRuntimeHome()
     {
         SceneManager->WebInteractionManager->ResetHome();
     }
+    // “主页”表示回到非漫游的场景起点，不能只抢回启动镜头。
+    // 走完整退出流程，确保人物、路线、输入、小地图和漫游状态 HUD 一并清理。
+    if (bRoamingActive || RoamingCharacter)
+    {
+        ExitRoaming();
+        return;
+    }
     RestoreStartupView();
     SetHudInteraction(false);
+    RefreshHud();
+}
+
+bool UTwinInteractionManagerComponent::CanToggleRuntimeEditor() const
+{
+    return SceneManager
+        && SceneManager->bEnableRuntimeEditor
+        && !SceneManager->IsRuntimeEditModeActive();
+}
+
+void UTwinInteractionManagerComponent::ToggleRuntimeEditor()
+{
+    if (!SceneManager) return;
+    SceneManager->ToggleRuntimeEditMode();
+    RefreshHud();
+}
+
+bool UTwinInteractionManagerComponent::CanToggleFirstPersonCrosshair() const
+{
+    return bRoamingActive
+        && RoamingCharacter
+        && RoamingCharacter->CameraMode
+        && !RoamingCharacter->CameraMode->IsTransitioning()
+        && RoamingCharacter->CameraMode->GetMode()
+            == ETwinRoamingCameraMode::FirstPerson;
+}
+
+void UTwinInteractionManagerComponent::ToggleFirstPersonCrosshair()
+{
+    if (!CanToggleFirstPersonCrosshair()) return;
+    bFirstPersonCrosshairEnabled = !bFirstPersonCrosshairEnabled;
+    if (!bFirstPersonCrosshairEnabled)
+    {
+        bCrosshairInteractive = false;
+    }
     RefreshHud();
 }
 

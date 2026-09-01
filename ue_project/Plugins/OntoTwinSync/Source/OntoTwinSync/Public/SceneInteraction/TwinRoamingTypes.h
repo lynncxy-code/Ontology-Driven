@@ -218,6 +218,19 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Character|Animation")
     TSoftObjectPtr<UAnimationAsset> AutoRouteAnimation;
 
+    /**
+     * Optional native clips for meshes that do not have a compatible
+     * Animation Blueprint.  Both clips must use the exact Skeleton referenced
+     * by BaseMesh.  When present, the roaming character drives these clips in
+     * single-node mode; they are intentionally independent from the worker /
+     * Manny retarget source above.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Character|Animation")
+    TSoftObjectPtr<UAnimationAsset> DirectIdleAnimation;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Character|Animation")
+    TSoftObjectPtr<UAnimationAsset> DirectWalkAnimation;
+
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Character|Animation", meta=(ClampMin="1.0"))
     float AutoRouteAnimationReferenceSpeedCmS = 180.0f;
 

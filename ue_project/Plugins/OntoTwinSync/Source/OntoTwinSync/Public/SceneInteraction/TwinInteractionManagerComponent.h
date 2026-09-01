@@ -86,6 +86,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|Input")
     FKey PauseRouteKey = EKeys::P;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|Input")
+    FKey MouseLookKey = EKeys::RightMouseButton;
+
     /** Configurable fixed runtime/home camera; falls back to camera.god.default when absent. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Scene Interaction|Camera")
     FString StartupViewCameraId = TEXT("camera.startup.default");
@@ -177,7 +180,12 @@ public:
         TArray<FString>& OutDisplayNames,
         TArray<int32>& OutMemberCounts) const;
     void ActivateRuntimeHome();
+    bool CanToggleRuntimeEditor() const;
+    void ToggleRuntimeEditor();
     void SetRuntimeEditorSuppressed(bool bSuppressed);
+    bool IsFirstPersonCrosshairEnabled() const { return bFirstPersonCrosshairEnabled; }
+    bool CanToggleFirstPersonCrosshair() const;
+    void ToggleFirstPersonCrosshair();
     bool OpenWebProjectHome();
     bool OpenWebZone(const FString& ZoneId);
     bool OpenWebBusinessView(
@@ -265,6 +273,8 @@ private:
     UPROPERTY()
     UInputAction* LookAction = nullptr;
     UPROPERTY()
+    UInputAction* LookCaptureAction = nullptr;
+    UPROPERTY()
     UInputAction* VerticalAction = nullptr;
     UPROPERTY()
     UInputAction* HudAction = nullptr;
@@ -309,6 +319,7 @@ private:
     bool bShuttingDown = false;
     bool bRoamingActive = false;
     bool bHudInteraction = false;
+    bool bRoamingMouseLook = false;
     bool bRestoreHudAfterRuntimeEditor = false;
     bool bPendingReload = false;
     bool bEnhancedInputReady = false;
@@ -316,6 +327,7 @@ private:
     bool bTakeoverEnabled = true;
     bool bDefaultModeApplied = false;
     bool bSceneBaselineReady = false;
+    bool bFirstPersonCrosshairEnabled = false;
     bool bCrosshairInteractive = false;
     bool bRouteSwitchInProgress = false;
     bool bCharacterSwitchInProgress = false;
@@ -434,6 +446,8 @@ private:
     FString NarrationCachePath(const FTwinNarrationRuntimeSegment& Segment) const;
     void UpdateCrosshairTarget();
     void SetHudInteraction(bool bOpen);
+    void SetRoamingMouseLook(bool bActive);
+    void ApplyRoamingMouseInputMode();
     void RestoreOriginalPawn();
     void HandleRoutePauseAction();
 
@@ -454,6 +468,8 @@ private:
 
     void OnMove(const FInputActionValue& Value);
     void OnLook(const FInputActionValue& Value);
+    void OnLookCaptureStarted(const FInputActionValue& Value);
+    void OnLookCaptureEnded(const FInputActionValue& Value);
     void OnVertical(const FInputActionValue& Value);
     void OnToggle(const FInputActionValue& Value);
     void OnToggleHud(const FInputActionValue& Value);

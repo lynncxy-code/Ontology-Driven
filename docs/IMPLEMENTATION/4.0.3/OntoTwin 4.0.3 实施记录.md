@@ -97,3 +97,14 @@
 - 后端容器定向单测通过；`ZHHZEditor Win64 Development` 已在 UE 5.6 完整编译、链接成功。
 - 2026-08-26 已将首版 Space 暂停与 Dock 会话人物切换最小同步到当前验收宿主 `D:\ZHHZ\ZHHZ_NEW`；同步前备份位于 `D:\ZHHZ\Backups\OntoTwinSync_ZHHZ_NEW_20260826_105112`。随后根据验收反馈将路线暂停键独立调整为 P，并把 Space 恢复为人物跳跃；最终编译信息见本节后续记录。
 - 2026-08-26 已把最终键位同步至 `D:\ZHHZ\ZHHZ_NEW`，同步前增量备份位于 `D:\ZHHZ\Backups\OntoTwinSync_ZHHZ_NEW_20260826_110812`。`ZHHZ_NEWEditor Win64 Development` 完整编译、链接成功；最终 DLL 时间为 `2026-08-26 11:08:30`，SHA-256 为 `56E7B5E2DF372A8E3E92CA05A42348E9E64D2EEED804CD58EF87C30AC4413ABD`。
+
+## 8. 2026-08-28 右键观察与指针交互
+
+- 近身、第一人称和上帝视角统一采用“按住右键观察，释放后点击”的鼠标契约。
+- 新增 `IA_TwinRoamingLookCapture`，右键按下时切换 `GameOnly`、隐藏并捕获鼠标；释放或取消时切回 `GameAndUI`、显示并释放鼠标。
+- 近身/第一人称释放右键后的左键改为按指针位置射线；按住右键期间左键不会误触发场景选择；`E` 仍使用屏幕中心准星。
+- Dock 打开时强制进入指针交互态，关闭后保持指针可用；再次按住右键即可恢复镜头观察。
+- 本节代码和文档已在母本完成静态检查，待关闭 UE 后同步到宿主并完成 `ZHHZ_NEWEditor` 编译及 PIE 人工验收。
+- 2026-08-28 已同步至 `D:\ZHHZ\ZHHZ_NEW`；第二份增量备份位于 `D:\ZHHZ\Backups\OntoTwinSync_ZHHZ_NEW_20260828_152014`。首次编译因目标 Editor 缓存残留而出现 `TwinSkinAsset` 假语法错误，清理 `D:\ZHHZ\ZHHZ_NEW\Intermediate\Build\Win64\ZHHZ_NEWEditor` 后冷重建成功。10 个相关源码文件哈希全部一致，最终 DLL 时间为 `2026-08-28 15:22:41`，SHA-256 为 `CC180B479C4C1A5B2AF9F1EE7C26A3526625492FA5F54411690E3B6A6F4D73B6`；UE/UBT 进程为 0。
+- 随后将 HUD 的观察键提示改为读取 `MouseLookKey` 配置（默认右键），单文件备份位于 `D:\ZHHZ\Backups\OntoTwinSync_ZHHZ_NEW_20260828_152413`；增量重建成功，最终 DLL 时间为 `2026-08-28 15:24:21`，SHA-256 为 `CB92A1583262F113C621D9DEB7A4299CB592E27E152CBCC7E7F79ECEA2BDE9D2`。
+- 追加右键释放事件的主 Tick 保护，单文件备份位于 `D:\ZHHZ\Backups\OntoTwinSync_ZHHZ_NEW_20260828_152549`；增量重建成功，最终 DLL 时间为 `2026-08-28 15:25:57`，SHA-256 为 `3A60A2BAD2D6D04BE50315098DA6D25C2CCFFC66F438DB841FF8B11C57856195`。

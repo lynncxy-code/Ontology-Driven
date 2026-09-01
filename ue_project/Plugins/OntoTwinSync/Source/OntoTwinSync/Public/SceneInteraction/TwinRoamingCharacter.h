@@ -56,10 +56,21 @@ public:
     void Look(const FVector2D& Input, float Sensitivity);
     void SetAutoRouteCameraSmoothing(bool bEnabled);
     bool SetAutoRouteAnimation(bool bActive, float SpeedCmS = 0.0f);
+    /** Re-assert the current character's animation after a skin mesh swap. */
+    void RefreshLocomotionAnimation();
 
 private:
     UPROPERTY(Transient)
     UAnimationAsset* AutoRouteAnimation = nullptr;
+
+    UPROPERTY(Transient)
+    UAnimationAsset* DirectIdleAnimation = nullptr;
+
+    UPROPERTY(Transient)
+    UAnimationAsset* DirectWalkAnimation = nullptr;
+
+    UPROPERTY(Transient)
+    UAnimationAsset* ActiveDirectAnimation = nullptr;
 
     UPROPERTY(Transient)
     TSubclassOf<UAnimInstance> VisibleAnimClass;
@@ -70,6 +81,7 @@ private:
     float AutoRouteAnimationReferenceSpeedCmS = 180.0f;
     bool bAutoRouteAnimationActive = false;
     bool bVisibleAutoRouteAnimationActive = false;
+    bool bDirectLocomotion = false;
     float WalkSpeedCmS = 250.0f;
     float SprintSpeedCmS = 500.0f;
     FTwinFirstPersonCameraSettings FirstPersonCameraSettings;
@@ -84,4 +96,7 @@ private:
     float PersonCameraTargetHeight = 35.0f;
     float PersonCameraStartFov = 90.0f;
     float PersonCameraTargetFov = 90.0f;
+
+    void UpdateDirectLocomotionAnimation();
+    void ApplyDirectAnimation(UAnimationAsset* Animation);
 };

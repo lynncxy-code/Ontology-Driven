@@ -55,7 +55,7 @@ Web“UE 运行状态”会显示小地图当前状态。若显示“缺少地�
 
 - `TwinMinimapAnchor_All`：`MinimapId = minimap.default`，只提供一次性小地图取景。
 - 漫游视角锚点：`CameraId = camera.god.default`，用于 F7 漫游中的默认上帝视角。
-- 固定视角锚点：`CameraId` 与 `StartupViewCameraId` 一致（默认 `camera.startup.default`），用于运行时开局、F7 退出漫游及 F8 退出模型编辑后的固定视角；缺失时兼容回退到 `camera.god.default`。
+- 固定视角锚点：`CameraId` 与 `StartupViewCameraId` 一致（默认 `camera.startup.default`），用于运行时开局、F7 退出漫游及 F10 退出场景编辑后的固定视角；缺失时兼容回退到 `camera.god.default`。
 
 相机专属隐藏可在 Project Settings 的 `OntoTwin Camera Visibility` 中配置，也可在单个
 `TwinMinimapAnchor` / `TwinGodViewAnchor` 的 `Hidden Actor Names` 与 `Hidden Level Names`

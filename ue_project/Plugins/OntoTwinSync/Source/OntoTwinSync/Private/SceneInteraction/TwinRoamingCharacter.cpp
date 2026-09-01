@@ -63,6 +63,10 @@ ATwinRoamingCharacter::ATwinRoamingCharacter()
 void ATwinRoamingCharacter::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+    if (bDirectLocomotion && !bVisibleAutoRouteAnimationActive)
+    {
+        UpdateDirectLocomotionAnimation();
+    }
     if (!bPersonCameraTransitioning || !NearCameraArm || !NearCamera) return;
 
     PersonCameraTransitionElapsed += DeltaSeconds;
@@ -99,63 +103,151 @@ bool ATwinRoamingCharacter::ApplyCharacterAsset(UTwinCharacterAsset* Asset, FStr
         return false;
     }
 
-    GetCapsuleComponent()->SetCapsuleSize(Asset->CapsuleRadiusCm, Asset->CapsuleHalfHeightCm);
-    GetMesh()->SetRelativeLocationAndRotation(
-        Asset->MeshOffsetCm,
-        FRotator(0.0f, Asset->MeshYawOffsetDeg, 0.0f));
-    GetMesh()->SetSkeletalMesh(BaseMesh);
-    GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
-    VisibleAnimClass = Asset->AnimInstanceClass.LoadSynchronous();
-    bVisibleAutoRouteAnimationActive = false;
-    if (VisibleAnimClass)
+    // Resolve and validate every animation reference before touching the
+    // live component.  A character switch is a transaction: a bad soft
+    // reference must not leave the previous AnimBP or materials attached to
+    // the new mesh.
+    UClass* NewVisibleAnimClass = Asset->AnimInstanceClass.LoadSynchronous();
+    USkeletalMesh* NewSourceMesh = Asset->AnimationSourceMesh.LoadSynchronous();
+    UClass* NewSourceAnimClass =
+        Asset->AnimationSourceAnimInstanceClass.LoadSynchronous();
+    UAnimationAsset* NewAutoRouteAnimation =
+        Asset->AutoRouteAnimation.LoadSynchronous();
+    UAnimationAsset* NewDirectIdleAnimation =
+        Asset->DirectIdleAnimation.LoadSynchronous();
+    UAnimationAsset* NewDirectWalkAnimation =
+        Asset->DirectWalkAnimation.LoadSynchronous();
+    const bool bHasDirectAnimation =
+        NewDirectIdleAnimation || NewDirectWalkAnimation;
+
+    if (bHasDirectAnimation && NewVisibleAnimClass)
     {
-        GetMesh()->SetAnimInstanceClass(VisibleAnimClass);
+        OutError = TEXT(
+            "Direct locomotion clips cannot be combined with a visible Anim Blueprint");
+        return false;
+    }
+    if (bHasDirectAnimation && (NewSourceMesh || NewSourceAnimClass))
+    {
+        OutError = TEXT(
+            "Direct locomotion clips cannot be combined with a hidden animation source");
+        return false;
+    }
+    if (bHasDirectAnimation && NewAutoRouteAnimation)
+    {
+        OutError = TEXT(
+            "Direct locomotion uses DirectWalkAnimation; AutoRouteAnimation must be empty");
+        return false;
     }
 
-    USkeletalMesh* SourceMesh = Asset->AnimationSourceMesh.LoadSynchronous();
-    UClass* SourceAnimClass = Asset->AnimationSourceAnimInstanceClass.LoadSynchronous();
+    if ((NewSourceMesh && !NewSourceAnimClass)
+        || (!NewSourceMesh && NewSourceAnimClass))
+    {
+        OutError = TEXT("Animation source mesh and Anim Blueprint must be configured together");
+        return false;
+    }
+
+    const USkeleton* BaseSkeleton = BaseMesh->GetSkeleton();
+    if (bHasDirectAnimation)
+    {
+        const TArray<UAnimationAsset*> DirectClips = {
+            NewDirectIdleAnimation, NewDirectWalkAnimation};
+        for (const UAnimationAsset* Clip : DirectClips)
+        {
+            if (!Clip || Clip->GetSkeleton() != BaseSkeleton)
+            {
+                OutError = FString::Printf(
+                    TEXT("Direct locomotion animation Skeleton mismatch: mesh=%s animation=%s"),
+                    BaseSkeleton ? *BaseSkeleton->GetPathName() : TEXT("none"),
+                    (Clip && Clip->GetSkeleton())
+                        ? *Clip->GetSkeleton()->GetPathName()
+                        : TEXT("none"));
+                return false;
+            }
+        }
+    }
+
+    const USkeleton* ExpectedRouteSkeleton = NewSourceMesh
+        ? NewSourceMesh->GetSkeleton()
+        : BaseSkeleton;
+    if (NewAutoRouteAnimation)
+    {
+        if (NewAutoRouteAnimation->GetSkeleton() != ExpectedRouteSkeleton)
+        {
+            OutError = FString::Printf(
+                TEXT("Automatic route animation Skeleton mismatch: animation=%s expected=%s"),
+                NewAutoRouteAnimation->GetSkeleton()
+                    ? *NewAutoRouteAnimation->GetSkeleton()->GetPathName()
+                    : TEXT("none"),
+                ExpectedRouteSkeleton ? *ExpectedRouteSkeleton->GetPathName() : TEXT("none"));
+            return false;
+        }
+        if (!NewSourceMesh && !NewVisibleAnimClass)
+        {
+            OutError = TEXT(
+                "Automatic route animation requires a visible Anim Blueprint for restoration");
+            return false;
+        }
+    }
+
+    USkeletalMeshComponent* VisibleMesh = GetMesh();
+    if (!VisibleMesh || !AnimationSourceMesh)
+    {
+        OutError = TEXT("Roaming mesh components are unavailable");
+        return false;
+    }
+
+    GetCapsuleComponent()->SetCapsuleSize(Asset->CapsuleRadiusCm, Asset->CapsuleHalfHeightCm);
+    // Explicitly clear transient state from the previous character.  In
+    // particular, SetSkeletalMesh alone does not remove override materials,
+    // and a null AnimInstanceClass otherwise leaves the previous AnimBP alive.
+    VisibleMesh->Stop();
+    VisibleMesh->ClearAnimScriptInstance();
+    VisibleMesh->SetAnimInstanceClass(nullptr);
+    VisibleMesh->EmptyOverrideMaterials();
+    VisibleMesh->SetRelativeLocationAndRotation(
+        Asset->MeshOffsetCm,
+        FRotator(0.0f, Asset->MeshYawOffsetDeg, 0.0f));
+    VisibleMesh->SetSkeletalMesh(BaseMesh);
+    VisibleAnimClass = NewVisibleAnimClass;
+    DirectIdleAnimation = NewDirectIdleAnimation;
+    DirectWalkAnimation = NewDirectWalkAnimation;
+    ActiveDirectAnimation = nullptr;
+    bDirectLocomotion = bHasDirectAnimation;
+    bVisibleAutoRouteAnimationActive = false;
+    if (bDirectLocomotion)
+    {
+        VisibleMesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+        ApplyDirectAnimation(DirectIdleAnimation ? DirectIdleAnimation : DirectWalkAnimation);
+    }
+    else
+    {
+        VisibleMesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+        if (VisibleAnimClass)
+        {
+            VisibleMesh->SetAnimInstanceClass(VisibleAnimClass);
+        }
+    }
+
+    USkeletalMesh* SourceMesh = NewSourceMesh;
+    UClass* SourceAnimClass = NewSourceAnimClass;
+    AnimationSourceMesh->Stop();
+    AnimationSourceMesh->ClearAnimScriptInstance();
+    AnimationSourceMesh->SetAnimInstanceClass(nullptr);
     AnimationSourceMesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
     AnimationSourceMesh->SetSkeletalMesh(nullptr);
-    AnimationSourceMesh->SetAnimInstanceClass(nullptr);
     AnimationSourceAnimClass = nullptr;
     bAutoRouteAnimationActive = false;
     if (SourceMesh || SourceAnimClass)
     {
-        if (!SourceMesh || !SourceAnimClass)
-        {
-            OutError = TEXT("Animation source mesh and Anim Blueprint must be configured together");
-            return false;
-        }
         AnimationSourceMesh->SetSkeletalMesh(SourceMesh);
         AnimationSourceMesh->SetAnimInstanceClass(SourceAnimClass);
         AnimationSourceAnimClass = SourceAnimClass;
         UE_LOG(LogTemp, Log, TEXT("OntoTwin locomotion source configured: mesh=%s anim=%s"),
             *SourceMesh->GetPathName(), *SourceAnimClass->GetPathName());
     }
-    AutoRouteAnimation = Asset->AutoRouteAnimation.LoadSynchronous();
+    AutoRouteAnimation = NewAutoRouteAnimation;
     AutoRouteAnimationReferenceSpeedCmS = FMath::Max(
         1.0f, Asset->AutoRouteAnimationReferenceSpeedCmS);
-    if (AutoRouteAnimation)
-    {
-        USkeleton* ExpectedSkeleton = SourceMesh
-            ? SourceMesh->GetSkeleton()
-            : BaseMesh->GetSkeleton();
-        if (AutoRouteAnimation->GetSkeleton() != ExpectedSkeleton)
-        {
-            OutError = FString::Printf(
-                TEXT("Automatic route animation Skeleton mismatch: animation=%s expected=%s"),
-                AutoRouteAnimation->GetSkeleton()
-                    ? *AutoRouteAnimation->GetSkeleton()->GetPathName()
-                    : TEXT("none"),
-                ExpectedSkeleton ? *ExpectedSkeleton->GetPathName() : TEXT("none"));
-            return false;
-        }
-        if (!SourceMesh && !VisibleAnimClass)
-        {
-            OutError = TEXT("Automatic route animation requires a visible Anim Blueprint for restoration");
-            return false;
-        }
-    }
     return true;
 }
 
@@ -285,7 +377,12 @@ void ATwinRoamingCharacter::SetAutoRouteCameraSmoothing(bool bEnabled)
 
 bool ATwinRoamingCharacter::SetAutoRouteAnimation(bool bActive, float SpeedCmS)
 {
-    if (!AutoRouteAnimation)
+    // Direct characters use their own Skeleton-native walk clip.  Blueprint
+    // characters continue to use the explicit AutoRouteAnimation field.
+    UAnimationAsset* RouteAnimation = bDirectLocomotion
+        ? (DirectWalkAnimation ? DirectWalkAnimation : AutoRouteAnimation)
+        : AutoRouteAnimation;
+    if (!RouteAnimation)
     {
         return false;
     }
@@ -299,12 +396,12 @@ bool ATwinRoamingCharacter::SetAutoRouteAnimation(bool bActive, float SpeedCmS)
             if (!bAutoRouteAnimationActive)
             {
                 AnimationSourceMesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-                AnimationSourceMesh->SetAnimation(AutoRouteAnimation);
+                AnimationSourceMesh->SetAnimation(RouteAnimation);
                 AnimationSourceMesh->Play(true);
                 bAutoRouteAnimationActive = true;
                 UE_LOG(LogTemp, Log,
                     TEXT("OntoTwin auto-route animation started on hidden retarget source: %s"),
-                    *AutoRouteAnimation->GetPathName());
+                    *RouteAnimation->GetPathName());
             }
             AnimationSourceMesh->SetPlayRate(FMath::Clamp(
                 SpeedCmS / AutoRouteAnimationReferenceSpeedCmS, 0.25f, 3.0f));
@@ -321,27 +418,36 @@ bool ATwinRoamingCharacter::SetAutoRouteAnimation(bool bActive, float SpeedCmS)
         return true;
     }
 
-    if (!GetMesh() || !VisibleAnimClass)
+    if (!GetMesh() || (!VisibleAnimClass && !bDirectLocomotion))
     {
         return false;
     }
     if (bActive)
     {
-        if (!bVisibleAutoRouteAnimationActive)
+        if (!bVisibleAutoRouteAnimationActive
+            || (bDirectLocomotion && ActiveDirectAnimation != RouteAnimation))
         {
             GetMesh()->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-            GetMesh()->SetAnimation(AutoRouteAnimation);
+            GetMesh()->SetAnimation(RouteAnimation);
             GetMesh()->Play(true);
             bVisibleAutoRouteAnimationActive = true;
+            ActiveDirectAnimation = RouteAnimation;
             UE_LOG(LogTemp, Log,
                 TEXT("OntoTwin auto-route animation started on visible mesh: %s"),
-                *AutoRouteAnimation->GetPathName());
+                *RouteAnimation->GetPathName());
         }
         GetMesh()->SetPlayRate(FMath::Clamp(
             SpeedCmS / AutoRouteAnimationReferenceSpeedCmS, 0.25f, 3.0f));
     }
     else if (bVisibleAutoRouteAnimationActive)
     {
+        if (bDirectLocomotion)
+        {
+            bVisibleAutoRouteAnimationActive = false;
+            ActiveDirectAnimation = nullptr;
+            UpdateDirectLocomotionAnimation();
+            return true;
+        }
         GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
         GetMesh()->SetAnimInstanceClass(VisibleAnimClass);
         bVisibleAutoRouteAnimationActive = false;
@@ -350,4 +456,57 @@ bool ATwinRoamingCharacter::SetAutoRouteAnimation(bool bActive, float SpeedCmS)
             *VisibleAnimClass->GetPathName());
     }
     return true;
+}
+
+void ATwinRoamingCharacter::ApplyDirectAnimation(UAnimationAsset* Animation)
+{
+    if (!GetMesh()) return;
+    if (!Animation)
+    {
+        GetMesh()->Stop();
+        ActiveDirectAnimation = nullptr;
+        return;
+    }
+    if (ActiveDirectAnimation == Animation
+        && GetMesh()->GetAnimationMode() == EAnimationMode::AnimationSingleNode)
+    {
+        return;
+    }
+    GetMesh()->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+    GetMesh()->SetAnimation(Animation);
+    GetMesh()->Play(true);
+    ActiveDirectAnimation = Animation;
+}
+
+void ATwinRoamingCharacter::UpdateDirectLocomotionAnimation()
+{
+    if (!bDirectLocomotion || !GetMesh() || bVisibleAutoRouteAnimationActive)
+    {
+        return;
+    }
+
+    const UCharacterMovementComponent* Movement = GetCharacterMovement();
+    const bool bMoving = GetVelocity().SizeSquared2D() > FMath::Square(5.0f)
+        || (Movement && Movement->GetCurrentAcceleration().SizeSquared2D()
+            > FMath::Square(5.0f));
+    UAnimationAsset* Desired = bMoving && DirectWalkAnimation
+        ? DirectWalkAnimation
+        : (DirectIdleAnimation ? DirectIdleAnimation : DirectWalkAnimation);
+    ApplyDirectAnimation(Desired);
+}
+
+void ATwinRoamingCharacter::RefreshLocomotionAnimation()
+{
+    if (!GetMesh()) return;
+    bVisibleAutoRouteAnimationActive = false;
+    ActiveDirectAnimation = nullptr;
+    if (bDirectLocomotion)
+    {
+        UpdateDirectLocomotionAnimation();
+    }
+    else
+    {
+        GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+        GetMesh()->SetAnimInstanceClass(VisibleAnimClass);
+    }
 }

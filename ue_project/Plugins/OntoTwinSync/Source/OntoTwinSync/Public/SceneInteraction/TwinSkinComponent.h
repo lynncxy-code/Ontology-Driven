@@ -19,6 +19,8 @@ public:
     bool ApplySkin(const FString& SkinId, FString& OutError);
     bool ApplyDefaultSkin(FString& OutError);
     bool CycleSkin(FString& OutError);
+    /** Remove session-only material overrides when the next character has no skin. */
+    void ClearSkinOverrides();
 
     FString GetActiveSkinId() const { return ActiveSkinId; }
     const TArray<FString>& GetAllowedSkinIds() const { return AllowedSkinIds; }

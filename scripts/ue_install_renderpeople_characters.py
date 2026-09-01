@@ -16,6 +16,14 @@ EXPECTED_SKELETON = (
     f"{PACK_CHARACTER_DIR}/00_rp_master/Mannequin/"
     "UE4_Mannequin_Skeleton.UE4_Mannequin_Skeleton"
 )
+DIRECT_IDLE_ANIMATION = (
+    f"{PACK_CHARACTER_DIR}/00_Animations/"
+    "rp_sophia_animated_003_idling_ue4"
+)
+DIRECT_WALK_ANIMATION = (
+    f"{PACK_CHARACTER_DIR}/00_Animations/"
+    "rp_nathan_animated_003_walking_ue4"
+)
 OBSERVER_CHARACTER = "/OntoTwinCharacterPack_Core/Characters/ObserverBase"
 OBSERVER_SKIN = "/OntoTwinCharacterPack_Core/Skins/ObserverGray"
 CHARACTERS = (
@@ -56,10 +64,6 @@ if not observer_character or not observer_skin:
 
 character_template_properties = (
     "character_class",
-    "anim_instance_class",
-    "animation_source_mesh",
-    "animation_source_anim_instance_class",
-    "auto_route_animation",
     "auto_route_animation_reference_speed_cm_s",
     "capsule_radius_cm",
     "capsule_half_height_cm",
@@ -84,6 +88,20 @@ for display_name, source_asset_name in CHARACTERS:
             f"expected {EXPECTED_SKELETON!r}"
         )
 
+    idle_animation = unreal.load_asset(DIRECT_IDLE_ANIMATION)
+    walk_animation = unreal.load_asset(DIRECT_WALK_ANIMATION)
+    if not idle_animation or not walk_animation:
+        raise RuntimeError("Native RenderPeople idle/walk clips are unavailable")
+    idle_skeleton = idle_animation.get_editor_property("skeleton")
+    walk_skeleton = walk_animation.get_editor_property("skeleton")
+    if idle_skeleton != actual_skeleton or walk_skeleton != actual_skeleton:
+        raise RuntimeError(
+            f"{display_name} native clip Skeleton mismatch: "
+            f"mesh={actual_skeleton_path}, "
+            f"idle={idle_skeleton.get_path_name() if idle_skeleton else ''}, "
+            f"walk={walk_skeleton.get_path_name() if walk_skeleton else ''}"
+        )
+
     character_name = f"RenderPeople{display_name}"
     skin_name = f"{character_name}Default"
     character, character_created = create_or_load(
@@ -98,12 +116,18 @@ for display_name, source_asset_name in CHARACTERS:
             property_name, observer_character.get_editor_property(property_name)
         )
     character.set_editor_property("base_mesh", source_mesh)
+    # RenderPeople is driven by native clips on its own Skeleton.  Never copy
+    # the worker's myAnimBlueprint, hidden Quinn source, or AutoRouteAnimation.
+    character.set_editor_property("anim_instance_class", None)
+    character.set_editor_property("animation_source_mesh", None)
+    character.set_editor_property("animation_source_anim_instance_class", None)
+    character.set_editor_property("auto_route_animation", None)
+    character.set_editor_property("direct_idle_animation", idle_animation)
+    character.set_editor_property("direct_walk_animation", walk_animation)
 
     skin.set_editor_property("skeleton_id", "skeleton.renderpeople.ue4.v1")
     skin.set_editor_property("mesh", source_mesh)
-    skin.set_editor_property(
-        "anim_instance_class", observer_skin.get_editor_property("anim_instance_class")
-    )
+    skin.set_editor_property("anim_instance_class", None)
     skin.set_editor_property("material_overrides", [])
 
     if not unreal.EditorAssetLibrary.save_loaded_asset(
@@ -124,6 +148,8 @@ for display_name, source_asset_name in CHARACTERS:
             "skin_primary_asset_id": f"TwinSkin:{skin_name}",
             "source_mesh": source_mesh.get_path_name(),
             "source_skeleton": actual_skeleton_path,
+            "direct_idle_animation": idle_animation.get_path_name(),
+            "direct_walk_animation": walk_animation.get_path_name(),
         }
     )
 

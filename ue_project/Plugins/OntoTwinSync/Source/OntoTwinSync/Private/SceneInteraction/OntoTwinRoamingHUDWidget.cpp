@@ -165,10 +165,13 @@ void UOntoTwinRoamingHUDWidget::BuildDefaultLayout()
     MinimapWidget->SetInteractionManager(Manager);
     MinimapWidget->SetVisibility(ESlateVisibility::Collapsed);
     UCanvasPanelSlot* MinimapSlot = Root->AddChildToCanvas(MinimapWidget);
-    MinimapSlot->SetAnchors(FAnchors(1.0f, 0.0f));
-    MinimapSlot->SetAlignment(FVector2D(1.0f, 0.0f));
-    MinimapSlot->SetPosition(FVector2D(-24.0f, 24.0f));
-    MinimapSlot->SetAutoSize(true);
+    // The minimap owns a full logical-viewport canvas.  Its visible panel and
+    // button are positioned inside that canvas so changing panel size or
+    // growth direction never changes the button's screen anchor.
+    MinimapSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+    MinimapSlot->SetOffsets(FMargin(0.0f));
+    MinimapSlot->SetAlignment(FVector2D::ZeroVector);
+    MinimapSlot->SetAutoSize(false);
 
     // Bottom-center status is direct content without a backing plate.
     UHorizontalBox* StatusRow = WidgetTree->ConstructWidget<UHorizontalBox>(

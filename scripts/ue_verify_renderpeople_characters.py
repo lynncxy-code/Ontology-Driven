@@ -8,18 +8,13 @@ CHARACTER_DIR = "/Game/OntoTwin/SceneInteraction/Characters/RenderPeople"
 SKIN_DIR = "/Game/OntoTwin/SceneInteraction/Skins/RenderPeople"
 CHARACTERS = ("Carla", "Claudia", "Eric", "Manuel", "Nathan", "Sophia")
 GROUND_ROOT = "/Game/Art/A08_Characters/00_Ground_Staff/ThirdPerson"
-EXPECTED_VISIBLE_ANIM = (
-    f"{GROUND_ROOT}/SkeletonIK/myAnimBlueprint.myAnimBlueprint_C"
+EXPECTED_IDLE_ANIMATION = (
+    "/Game/Scanned3DPeoplePack/RP_Character/00_Animations/"
+    "rp_sophia_animated_003_idling_ue4.rp_sophia_animated_003_idling_ue4"
 )
-EXPECTED_SOURCE_MESH = (
-    f"{GROUND_ROOT}/Meshes/SKM_Quinn_Simple.SKM_Quinn_Simple"
-)
-EXPECTED_SOURCE_ANIM = (
-    f"{GROUND_ROOT}/Mannequin/Mannequins/Animations/ABP_Quinn.ABP_Quinn_C"
-)
-EXPECTED_ROUTE_ANIMATION = (
-    f"{GROUND_ROOT}/Mannequin/Mannequins/Animations/Quinn/"
-    "MF_Walk_Fwd.MF_Walk_Fwd"
+EXPECTED_WALK_ANIMATION = (
+    "/Game/Scanned3DPeoplePack/RP_Character/00_Animations/"
+    "rp_nathan_animated_003_walking_ue4.rp_nathan_animated_003_walking_ue4"
 )
 
 
@@ -59,6 +54,12 @@ for display_name in CHARACTERS:
                 "route_animation": path_name(
                     character.get_editor_property("auto_route_animation")
                 ),
+                "direct_idle_animation": path_name(
+                    character.get_editor_property("direct_idle_animation")
+                ),
+                "direct_walk_animation": path_name(
+                    character.get_editor_property("direct_walk_animation")
+                ),
                 "skin_class": skin.get_class().get_name(),
                 "skin_skeleton_id": str(
                     skin.get_editor_property("skeleton_id")
@@ -79,6 +80,18 @@ for display_name in CHARACTERS:
             if route_animation
             else None
         )
+        idle_animation = character.get_editor_property("direct_idle_animation")
+        walk_animation = character.get_editor_property("direct_walk_animation")
+        base_mesh = character.get_editor_property("base_mesh")
+        item["mesh_skeleton"] = path_name(
+            base_mesh.get_editor_property("skeleton") if base_mesh else None
+        )
+        item["idle_skeleton"] = path_name(
+            idle_animation.get_editor_property("skeleton") if idle_animation else None
+        )
+        item["walk_skeleton"] = path_name(
+            walk_animation.get_editor_property("skeleton") if walk_animation else None
+        )
     item["success"] = (
         item["character_loaded"]
         and item["skin_loaded"]
@@ -87,13 +100,16 @@ for display_name in CHARACTERS:
         and item.get("skin_skeleton_id") == "skeleton.renderpeople.ue4.v1"
         and bool(item.get("character_mesh"))
         and item.get("character_mesh") == item.get("skin_mesh")
-        and item.get("character_anim_class") == EXPECTED_VISIBLE_ANIM
-        and item.get("skin_anim_class") == EXPECTED_VISIBLE_ANIM
-        and item.get("source_mesh") == EXPECTED_SOURCE_MESH
-        and item.get("source_anim_class") == EXPECTED_SOURCE_ANIM
-        and item.get("route_animation") == EXPECTED_ROUTE_ANIMATION
-        and bool(item.get("source_skeleton"))
-        and item.get("source_skeleton") == item.get("route_skeleton")
+        and not item.get("character_anim_class")
+        and not item.get("skin_anim_class")
+        and not item.get("source_mesh")
+        and not item.get("source_anim_class")
+        and not item.get("route_animation")
+        and item.get("direct_idle_animation") == EXPECTED_IDLE_ANIMATION
+        and item.get("direct_walk_animation") == EXPECTED_WALK_ANIMATION
+        and bool(item.get("mesh_skeleton"))
+        and item.get("mesh_skeleton") == item.get("idle_skeleton")
+        and item.get("mesh_skeleton") == item.get("walk_skeleton")
     )
     results.append(item)
 

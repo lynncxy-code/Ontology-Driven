@@ -29,15 +29,23 @@
 
 namespace
 {
-constexpr float CompactDockWidth = 810.0f;
-constexpr float ReloadDockWidth = 870.0f;
+constexpr float CompactDockWidth = 870.0f;
+constexpr float ReloadDockWidth = 930.0f;
 constexpr float CompactActionWidth = 194.0f;
 constexpr float ReloadActionWidth = 254.0f;
 constexpr float SectionDividerMargin = 9.0f;
 constexpr float DockHeight = 158.0f;
 constexpr float ContentHeight = 110.0f;
 constexpr float SurfaceRadius = 18.0f;
-constexpr float DrawerHandleHeight = 20.0f;
+constexpr float DrawerHandleVisualWidth = 56.0f;
+constexpr float DrawerHandleVisualHeight = 24.0f;
+constexpr float DrawerHandleHitWidth = 64.0f;
+constexpr float DrawerHandleHitHeight = 48.0f;
+constexpr float DrawerHandleBottomSafeInset = 4.0f;
+constexpr float DrawerHandleTopOverlap = 8.0f;
+constexpr float DrawerOpenDuration = 0.22f;
+constexpr float DrawerCloseDuration = 0.16f;
+constexpr float DrawerReduceMotionDuration = 0.12f;
 
 FLinearColor InnerFill()
 {
@@ -125,29 +133,29 @@ FButtonStyle BuildIconButtonStyle(const bool bActive)
         .SetDisabledForeground(FSlateColor(FOntoTwinGlassTheme::MutedText()));
 }
 
-FButtonStyle BuildDrawerCircleStyle()
+FButtonStyle BuildDrawerHandleStyle()
 {
     FButtonStyle Style = FCoreStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("Button"));
     const FSlateColor Foreground(FOntoTwinGlassTheme::PrimaryText());
     return Style
         .SetNormal(FSlateRoundedBoxBrush(
             FLinearColor(0.055f, 0.055f, 0.055f, 0.78f),
-            DrawerHandleHeight * 0.5f,
+            DrawerHandleVisualHeight * 0.5f,
             FLinearColor(0.96f, 0.96f, 0.96f, 0.24f),
             1.0f))
         .SetHovered(FSlateRoundedBoxBrush(
             FLinearColor(0.13f, 0.13f, 0.13f, 0.86f),
-            DrawerHandleHeight * 0.5f,
+            DrawerHandleVisualHeight * 0.5f,
             FLinearColor(0.96f, 0.96f, 0.96f, 0.34f),
             1.0f))
         .SetPressed(FSlateRoundedBoxBrush(
             FLinearColor(0.20f, 0.20f, 0.20f, 0.90f),
-            DrawerHandleHeight * 0.5f,
+            DrawerHandleVisualHeight * 0.5f,
             FLinearColor(0.96f, 0.96f, 0.96f, 0.40f),
             1.0f))
         .SetDisabled(FSlateRoundedBoxBrush(
             FLinearColor(0.04f, 0.04f, 0.04f, 0.48f),
-            DrawerHandleHeight * 0.5f,
+            DrawerHandleVisualHeight * 0.5f,
             FLinearColor(0.96f, 0.96f, 0.96f, 0.12f),
             1.0f))
         .SetNormalForeground(Foreground)
@@ -283,7 +291,11 @@ int32 UOntoTwinRuntimeDockIconWidget::NativePaint(
     };
     const FLinearColor Tint =
         FOntoTwinGlassTheme::PrimaryText() * InWidgetStyle.GetColorAndOpacityTint();
-    const float Stroke = 1.55f * Scale;
+    const float Stroke =
+        (Icon == EOntoTwinRuntimeDockIcon::DrawerUp
+            || Icon == EOntoTwinRuntimeDockIcon::DrawerDown
+            ? 2.0f
+            : 1.55f) * Scale;
     const int32 PaintLayer = BaseLayer + 1;
     const auto Draw = [&](TArray<FVector2f> Points)
     {
@@ -367,6 +379,13 @@ int32 UOntoTwinRuntimeDockIconWidget::NativePaint(
         Draw({P(17.0f, 13.0f), P(17.0f, 17.0f), P(13.0f, 17.0f)});
         Circle(10.0f, 10.0f, 1.5f);
         break;
+    case EOntoTwinRuntimeDockIcon::Crosshair:
+        Circle(10.0f, 10.0f, 4.0f);
+        Draw({P(10.0f, 2.0f), P(10.0f, 6.0f)});
+        Draw({P(10.0f, 14.0f), P(10.0f, 18.0f)});
+        Draw({P(2.0f, 10.0f), P(6.0f, 10.0f)});
+        Draw({P(14.0f, 10.0f), P(18.0f, 10.0f)});
+        break;
     case EOntoTwinRuntimeDockIcon::Skin:
         Draw({P(7.0f, 4.0f), P(3.0f, 6.5f), P(5.0f, 10.0f), P(7.0f, 9.0f),
               P(7.0f, 17.0f), P(13.0f, 17.0f), P(13.0f, 9.0f), P(15.0f, 10.0f),
@@ -410,6 +429,21 @@ void UOntoTwinRuntimeDockButton::HandleClicked()
     {
         DockOwner->HandleDockAction(DockAction, Payload, Depth);
     }
+}
+
+void UOntoTwinRuntimeDockButton::SetAccessibleLabel(const FText& InLabel)
+{
+    SetToolTipText(InLabel);
+
+#if WITH_EDITORONLY_DATA
+    bOverrideAccessibleDefaults = true;
+    bCanChildrenBeAccessible = false;
+    AccessibleBehavior = ESlateAccessibleBehavior::Custom;
+    AccessibleSummaryBehavior = ESlateAccessibleBehavior::Custom;
+    AccessibleText = InLabel;
+    AccessibleSummaryText = InLabel;
+    SynchronizeAccessibleData();
+#endif
 }
 
 TSharedRef<SWidget> UOntoTwinRuntimeDockWidget::RebuildWidget()
@@ -491,27 +525,62 @@ void UOntoTwinRuntimeDockWidget::BuildDefaultLayout()
 
     DockTrigger = WidgetTree->ConstructWidget<USizeBox>(
         USizeBox::StaticClass(), TEXT("RuntimeDockTriggerBounds"));
-    DockTrigger->SetWidthOverride(DrawerHandleHeight);
-    DockTrigger->SetHeightOverride(DrawerHandleHeight);
-    UOntoTwinRuntimeDockButton* TriggerButton =
+    DockTrigger->SetWidthOverride(DrawerHandleHitWidth);
+    DockTrigger->SetHeightOverride(DrawerHandleHitHeight);
+    DockTriggerButton =
         WidgetTree->ConstructWidget<UOntoTwinRuntimeDockButton>(
             UOntoTwinRuntimeDockButton::StaticClass(), TEXT("RuntimeDockTrigger"));
-    TriggerButton->Configure(this, EOntoTwinRuntimeDockAction::ToggleDock);
-    TriggerButton->SetStyle(BuildDrawerCircleStyle());
+    DockTriggerButton->Configure(this, EOntoTwinRuntimeDockAction::ToggleDock);
+    DockTriggerButton->SetStyle(BuildDrawerHandleStyle());
+    DockTriggerButton->SetAccessibleLabel(FText::FromString(TEXT("展开控制面板")));
+    DockTriggerButton->SetVisibility(ESlateVisibility::Visible);
+
+    UOverlay* TriggerOverlay = WidgetTree->ConstructWidget<UOverlay>(
+        UOverlay::StaticClass(), TEXT("RuntimeDockTriggerOverlay"));
+    TriggerOverlay->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    DockTrigger->AddChild(TriggerOverlay);
+
+    USizeBox* TriggerVisualBounds = WidgetTree->ConstructWidget<USizeBox>(
+        USizeBox::StaticClass(), TEXT("RuntimeDockTriggerVisualBounds"));
+    TriggerVisualBounds->SetWidthOverride(DrawerHandleVisualWidth);
+    TriggerVisualBounds->SetHeightOverride(DrawerHandleVisualHeight);
+    TriggerVisualBounds->AddChild(DockTriggerButton);
+    UOverlaySlot* TriggerVisualSlot =
+        TriggerOverlay->AddChildToOverlay(TriggerVisualBounds);
+    TriggerVisualSlot->SetHorizontalAlignment(HAlign_Center);
+    TriggerVisualSlot->SetVerticalAlignment(VAlign_Center);
+
     USizeBox* TriggerIconBounds = WidgetTree->ConstructWidget<USizeBox>(
         USizeBox::StaticClass(), TEXT("RuntimeDockTriggerIconBounds"));
-    TriggerIconBounds->SetWidthOverride(14.0f);
-    TriggerIconBounds->SetHeightOverride(10.0f);
+    TriggerIconBounds->SetWidthOverride(16.0f);
+    TriggerIconBounds->SetHeightOverride(16.0f);
     DockTriggerIcon = WidgetTree->ConstructWidget<UOntoTwinRuntimeDockIconWidget>(
         UOntoTwinRuntimeDockIconWidget::StaticClass(), TEXT("RuntimeDockTriggerIcon"));
     DockTriggerIcon->SetIcon(EOntoTwinRuntimeDockIcon::DrawerUp);
     TriggerIconBounds->AddChild(DockTriggerIcon);
-    TriggerButton->AddChild(TriggerIconBounds);
+    DockTriggerButton->AddChild(TriggerIconBounds);
     if (UButtonSlot* HandleContentSlot = Cast<UButtonSlot>(TriggerIconBounds->Slot))
     {
         HandleContentSlot->SetPadding(FMargin(0.0f));
     }
-    DockTrigger->AddChild(TriggerButton);
+
+    USizeBox* FocusRingBounds = WidgetTree->ConstructWidget<USizeBox>(
+        USizeBox::StaticClass(), TEXT("RuntimeDockTriggerFocusBounds"));
+    FocusRingBounds->SetWidthOverride(DrawerHandleHitWidth);
+    FocusRingBounds->SetHeightOverride(DrawerHandleVisualHeight + 2.0f);
+    DockTriggerFocusRing = WidgetTree->ConstructWidget<UBorder>(
+        UBorder::StaticClass(), TEXT("RuntimeDockTriggerFocusRing"));
+    DockTriggerFocusRing->SetBrush(FSlateRoundedBoxBrush(
+        FLinearColor::Transparent,
+        (DrawerHandleVisualHeight + 2.0f) * 0.5f,
+        FLinearColor(1.0f, 1.0f, 1.0f, 0.34f),
+        1.0f));
+    DockTriggerFocusRing->SetVisibility(ESlateVisibility::Collapsed);
+    FocusRingBounds->AddChild(DockTriggerFocusRing);
+    UOverlaySlot* FocusRingSlot = TriggerOverlay->AddChildToOverlay(FocusRingBounds);
+    FocusRingSlot->SetHorizontalAlignment(HAlign_Center);
+    FocusRingSlot->SetVerticalAlignment(VAlign_Center);
+
     DockTriggerSlot = Root->AddChildToCanvas(DockTrigger);
     DockTriggerSlot->SetAnchors(FAnchors(0.5f, 1.0f));
     DockTriggerSlot->SetAlignment(FVector2D(0.5f, 1.0f));
@@ -523,12 +592,12 @@ void UOntoTwinRuntimeDockWidget::BuildDefaultLayout()
         USizeBox::StaticClass(), TEXT("RuntimeDockFixedBounds"));
     DockShell->SetWidthOverride(CompactDockWidth);
     DockShell->SetHeightOverride(DockHeight);
-    UCanvasPanelSlot* DockSlot = Root->AddChildToCanvas(DockShell);
-    DockSlot->SetAnchors(FAnchors(0.5f, 1.0f));
-    DockSlot->SetAlignment(FVector2D(0.5f, 1.0f));
-    DockSlot->SetPosition(FVector2D::ZeroVector);
-    DockSlot->SetAutoSize(true);
-    DockSlot->SetZOrder(1);
+    DockShellSlot = Root->AddChildToCanvas(DockShell);
+    DockShellSlot->SetAnchors(FAnchors(0.5f, 1.0f));
+    DockShellSlot->SetAlignment(FVector2D(0.5f, 1.0f));
+    DockShellSlot->SetPosition(FVector2D::ZeroVector);
+    DockShellSlot->SetAutoSize(true);
+    DockShellSlot->SetZOrder(1);
 
     UOverlay* GlassLayers = WidgetTree->ConstructWidget<UOverlay>(
         UOverlay::StaticClass(), TEXT("RuntimeDockGlassLayers"));
@@ -722,6 +791,32 @@ void UOntoTwinRuntimeDockWidget::BuildDefaultLayout()
         TabSlot->SetPadding(FMargin(2.0f, 0.0f));
     }
 
+    AddNavSeparator();
+    USizeBox* SceneEditBounds = WidgetTree->ConstructWidget<USizeBox>(
+        USizeBox::StaticClass(), TEXT("RuntimeDockSceneEditBounds"));
+    SceneEditBounds->SetWidthOverride(52.0f);
+    SceneEditBounds->SetHeightOverride(26.0f);
+    SceneEditButton = WidgetTree->ConstructWidget<UOntoTwinRuntimeDockButton>(
+        UOntoTwinRuntimeDockButton::StaticClass(), TEXT("RuntimeDockSceneEdit"));
+    SceneEditButton->Configure(this, EOntoTwinRuntimeDockAction::ToggleRuntimeEditor);
+    SceneEditButton->SetStyle(BuildTabButtonStyle(false));
+    SceneEditButton->SetToolTipText(FText::FromString(TEXT("进入场景编辑（F10）")));
+    SceneEditButton->SetAccessibleLabel(FText::FromString(TEXT("进入场景编辑，快捷键 F10")));
+    UTextBlock* SceneEditLabel = MakeText(
+        TEXT("RuntimeDockSceneEditLabel"), TEXT("编辑"), 10.0f, false,
+        FOntoTwinGlassTheme::PrimaryText());
+    SceneEditLabel->SetJustification(ETextJustify::Center);
+    SceneEditButton->AddChild(SceneEditLabel);
+    if (UButtonSlot* SceneEditContentSlot = Cast<UButtonSlot>(SceneEditLabel->Slot))
+    {
+        SceneEditContentSlot->SetPadding(FMargin(8.0f, 3.0f));
+    }
+    SceneEditBounds->AddChild(SceneEditButton);
+    UHorizontalBoxSlot* SceneEditSlot =
+        NavRow->AddChildToHorizontalBox(SceneEditBounds);
+    SceneEditSlot->SetVerticalAlignment(VAlign_Center);
+    SceneEditSlot->SetPadding(FMargin(2.0f, 0.0f));
+
     USizeBox* SwitcherBounds = WidgetTree->ConstructWidget<USizeBox>(
         USizeBox::StaticClass(), TEXT("RuntimeDockFixedContentBounds"));
     SwitcherBounds->SetHeightOverride(ContentHeight);
@@ -899,6 +994,7 @@ void UOntoTwinRuntimeDockWidget::BuildRoamingPanel()
         Button->Configure(this, Action);
         Button->SetStyle(BuildIconButtonStyle(false));
         Button->SetToolTipText(FText::FromString(Tooltip));
+        Button->SetAccessibleLabel(FText::FromString(Tooltip));
         UVerticalBox* Content = WidgetTree->ConstructWidget<UVerticalBox>(
             UVerticalBox::StaticClass(), NAME_None);
         Content->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
@@ -1047,7 +1143,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
     USizeBox* ViewBounds = WidgetTree->ConstructWidget<USizeBox>(
         USizeBox::StaticClass(), TEXT("RuntimeDockViewBounds"));
-    ViewBounds->SetWidthOverride(194.0f);
+    ViewBounds->SetWidthOverride(254.0f);
     ViewBounds->SetHeightOverride(90.0f);
     UVerticalBox* ViewStack = WidgetTree->ConstructWidget<UVerticalBox>(
         UVerticalBox::StaticClass(), TEXT("RuntimeDockViewStack"));
@@ -1070,8 +1166,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
     CameraFirstPersonButton = MakeCommandButton(
         TEXT("RuntimeDockCameraFirst"), EOntoTwinRuntimeDockIcon::ViewFirstPerson, TEXT("第一"),
         EOntoTwinRuntimeDockAction::CameraFirstPerson, TEXT("第一人称"));
+    CrosshairButton = MakeCommandButton(
+        TEXT("RuntimeDockCrosshair"), EOntoTwinRuntimeDockIcon::Crosshair, TEXT("准星"),
+        EOntoTwinRuntimeDockAction::ToggleCrosshair,
+        TEXT("第一人称准星（默认关闭）"));
     for (UOntoTwinRuntimeDockButton* Button :
-        {CameraGlobalButton, CameraShoulderButton, CameraFirstPersonButton})
+        {CameraGlobalButton, CameraShoulderButton, CameraFirstPersonButton, CrosshairButton})
     {
         USizeBox* ButtonBounds = WidgetTree->ConstructWidget<USizeBox>(
             USizeBox::StaticClass(), NAME_None);
@@ -1162,23 +1262,167 @@ void UOntoTwinRuntimeDockWidget::RefreshFromManager()
     UpdateRoamingState();
 }
 
-void UOntoTwinRuntimeDockWidget::SetDockOpen(bool bOpen)
+void UOntoTwinRuntimeDockWidget::NativeTick(
+    const FGeometry& MyGeometry,
+    const float InDeltaTime)
 {
-    bDockOpen = bOpen;
-    if (bOpen)
+    Super::NativeTick(MyGeometry, InDeltaTime);
+
+    if (bDockAnimationActive)
     {
-        RefreshFromManager();
+        const float DeltaTime = FMath::Max(0.0f, InDeltaTime);
+        if (FOntoTwinGlassRenderer::ShouldReduceMotion())
+        {
+            DockAnimationDuration = FMath::Min(
+                DockAnimationDuration,
+                DrawerReduceMotionDuration);
+        }
+        DockAnimationElapsed += DeltaTime;
+        const float Alpha = DockAnimationDuration > KINDA_SMALL_NUMBER
+            ? FMath::Clamp(
+                DockAnimationElapsed / DockAnimationDuration,
+                0.0f,
+                1.0f)
+            : 1.0f;
+        const float EasedAlpha = FMath::InterpEaseOut(
+            0.0f,
+            1.0f,
+            Alpha,
+            2.0f);
+        DockAnimationProgress = FMath::Lerp(
+            DockAnimationStartProgress,
+            DockAnimationTargetProgress,
+            EasedAlpha);
+        ApplyDockVisualState(DockAnimationProgress);
+
+        if (Alpha >= 1.0f)
+        {
+            bDockAnimationActive = false;
+            DockAnimationProgress = DockAnimationTargetProgress;
+            ApplyDockVisualState(DockAnimationProgress);
+            if (!bDockOpen && DockShell)
+            {
+                DockShell->SetVisibility(ESlateVisibility::Collapsed);
+            }
+        }
     }
-    if (DockShell)
+
+    UpdateDockTriggerFocusVisual();
+}
+
+void UOntoTwinRuntimeDockWidget::ApplyDockVisualState(const float OpenProgress)
+{
+    const float Progress = FMath::Clamp(OpenProgress, 0.0f, 1.0f);
+    const float HitVerticalPadding =
+        (DrawerHandleHitHeight - DrawerHandleVisualHeight) * 0.5f;
+    // Keep the complete 48px hit target inside the bottom safe area. The
+    // visual capsule therefore sits 9px above that minimum inset.
+    const float CollapsedPositionY = -DrawerHandleBottomSafeInset;
+    const float ExpandedPositionY =
+        -DockHeight + DrawerHandleTopOverlap + HitVerticalPadding;
+
+    if (DockShellSlot)
     {
-        DockShell->SetVisibility(
-            bOpen ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+        DockShellSlot->SetPosition(FVector2D(
+            0.0f,
+            DockHeight * (1.0f - Progress)));
     }
     if (DockTriggerSlot)
     {
         DockTriggerSlot->SetPosition(FVector2D(
             0.0f,
-            bOpen ? -DockHeight + DrawerHandleHeight * 0.5f : 0.0f));
+            FMath::Lerp(CollapsedPositionY, ExpandedPositionY, Progress)));
+    }
+    if (DockShell && Progress > KINDA_SMALL_NUMBER
+        && DockShell->GetVisibility() == ESlateVisibility::Collapsed)
+    {
+        DockShell->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    }
+}
+
+void UOntoTwinRuntimeDockWidget::UpdateDockTriggerAccessibility()
+{
+    if (!DockTriggerButton)
+    {
+        return;
+    }
+
+    const FText AccessibleLabel = FText::FromString(
+        bDockOpen ? TEXT("收起控制面板") : TEXT("展开控制面板"));
+    DockTriggerButton->SetAccessibleLabel(AccessibleLabel);
+}
+
+void UOntoTwinRuntimeDockWidget::UpdateDockTriggerFocusVisual()
+{
+    if (!DockTriggerFocusRing || !DockTriggerButton)
+    {
+        return;
+    }
+
+    const bool bFocused = DockTriggerButton->HasKeyboardFocus();
+    if (bFocused == bDrawerFocusVisible)
+    {
+        return;
+    }
+
+    bDrawerFocusVisible = bFocused;
+    DockTriggerFocusRing->SetVisibility(
+        bFocused
+            ? ESlateVisibility::SelfHitTestInvisible
+            : ESlateVisibility::Collapsed);
+}
+
+void UOntoTwinRuntimeDockWidget::SetDockOpen(bool bOpen)
+{
+    const float TargetProgress = bOpen ? 1.0f : 0.0f;
+    const bool bSameTarget = FMath::IsNearlyEqual(
+        DockAnimationTargetProgress,
+        TargetProgress);
+    bDockOpen = bOpen;
+    if (bOpen)
+    {
+        RefreshFromManager();
+    }
+    UpdateDockTriggerAccessibility();
+
+    if (bSameTarget && bDockAnimationActive)
+    {
+        return;
+    }
+
+    if (bSameTarget && !bDockAnimationActive)
+    {
+        DockAnimationProgress = TargetProgress;
+        ApplyDockVisualState(DockAnimationProgress);
+        if (!bOpen && DockShell)
+        {
+            DockShell->SetVisibility(ESlateVisibility::Collapsed);
+        }
+        return;
+    }
+
+    DockAnimationStartProgress = DockAnimationProgress;
+    DockAnimationTargetProgress = TargetProgress;
+    DockAnimationElapsed = 0.0f;
+    DockAnimationDuration = FOntoTwinGlassRenderer::ShouldReduceMotion()
+        ? DrawerReduceMotionDuration
+        : (bOpen ? DrawerOpenDuration : DrawerCloseDuration);
+    bDockAnimationActive = !FMath::IsNearlyEqual(
+        DockAnimationStartProgress,
+        DockAnimationTargetProgress);
+
+    if (bOpen && DockShell)
+    {
+        DockShell->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    }
+    ApplyDockVisualState(DockAnimationProgress);
+
+    if (!bDockAnimationActive)
+    {
+        if (!bOpen && DockShell)
+        {
+            DockShell->SetVisibility(ESlateVisibility::Collapsed);
+        }
     }
     if (DockTriggerIcon)
     {
@@ -1553,6 +1797,11 @@ void UOntoTwinRuntimeDockWidget::UpdateRoamingState()
 {
     if (!Manager) return;
     const bool bActive = Manager->IsRoamingActive();
+    if (SceneEditButton)
+    {
+        SceneEditButton->SetIsEnabled(Manager->CanToggleRuntimeEditor());
+        SceneEditButton->SetStyle(BuildTabButtonStyle(false));
+    }
     const bool bShowReload = bActive && Manager->HasPendingReload();
     if (ReloadCharacterBounds)
     {
@@ -1608,6 +1857,12 @@ void UOntoTwinRuntimeDockWidget::UpdateRoamingState()
         CameraFirstPersonButton->SetStyle(BuildIconButtonStyle(
             Mode == ETwinRoamingCameraMode::FirstPerson));
     }
+    if (CrosshairButton)
+    {
+        CrosshairButton->SetIsEnabled(Manager->CanToggleFirstPersonCrosshair());
+        CrosshairButton->SetStyle(BuildIconButtonStyle(
+            Manager->IsFirstPersonCrosshairEnabled()));
+    }
 }
 
 UWidget* UOntoTwinRuntimeDockWidget::GenerateSelectorItem(FString Item)
@@ -1662,6 +1917,9 @@ void UOntoTwinRuntimeDockWidget::HandleDockAction(
     case EOntoTwinRuntimeDockAction::Home:
         Manager->ActivateRuntimeHome();
         return;
+    case EOntoTwinRuntimeDockAction::ToggleRuntimeEditor:
+        Manager->ToggleRuntimeEditor();
+        return;
     case EOntoTwinRuntimeDockAction::TabSpace:
         SetActiveTab(1);
         return;
@@ -1707,6 +1965,9 @@ void UOntoTwinRuntimeDockWidget::HandleDockAction(
         break;
     case EOntoTwinRuntimeDockAction::CameraFirstPerson:
         Manager->SetCameraMode(ETwinRoamingCameraMode::FirstPerson);
+        break;
+    case EOntoTwinRuntimeDockAction::ToggleCrosshair:
+        Manager->ToggleFirstPersonCrosshair();
         break;
     case EOntoTwinRuntimeDockAction::CycleSkin:
         Manager->CycleSkin();

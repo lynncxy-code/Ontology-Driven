@@ -7,6 +7,7 @@
 #include "OntoTwinRuntimeDockWidget.generated.h"
 
 class UButton;
+class UBorder;
 class UCanvasPanelSlot;
 class UComboBoxString;
 class UHorizontalBox;
@@ -26,6 +27,7 @@ enum class EOntoTwinRuntimeDockIcon : uint8
     ViewGlobal,
     ViewShoulder,
     ViewFirstPerson,
+    Crosshair,
     Skin,
     ReturnRoute,
     RestartRoute,
@@ -59,6 +61,7 @@ enum class EOntoTwinRuntimeDockAction : uint8
 {
     ToggleDock,
     Home,
+    ToggleRuntimeEditor,
     TabSpace,
     TabBusiness,
     TabRoaming,
@@ -70,6 +73,7 @@ enum class EOntoTwinRuntimeDockAction : uint8
     CameraGlobal,
     CameraShoulder,
     CameraFirstPerson,
+    ToggleCrosshair,
     CycleSkin,
     ResumeRoute,
     RestartRoute,
@@ -88,6 +92,7 @@ public:
         EOntoTwinRuntimeDockAction InAction,
         const FString& InPayload = FString(),
         int32 InDepth = INDEX_NONE);
+    void SetAccessibleLabel(const FText& InLabel);
 
 private:
     UPROPERTY()
@@ -121,6 +126,7 @@ public:
 
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
+    virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
     UPROPERTY()
@@ -133,7 +139,16 @@ private:
     USizeBox* DockTrigger = nullptr;
 
     UPROPERTY()
+    UOntoTwinRuntimeDockButton* DockTriggerButton = nullptr;
+
+    UPROPERTY()
+    UBorder* DockTriggerFocusRing = nullptr;
+
+    UPROPERTY()
     UCanvasPanelSlot* DockTriggerSlot = nullptr;
+
+    UPROPERTY()
+    UCanvasPanelSlot* DockShellSlot = nullptr;
 
     UPROPERTY()
     UOntoTwinRuntimeDockIconWidget* DockTriggerIcon = nullptr;
@@ -149,6 +164,9 @@ private:
 
     UPROPERTY()
     UOntoTwinRuntimeDockButton* RoamingTabButton = nullptr;
+
+    UPROPERTY()
+    UOntoTwinRuntimeDockButton* SceneEditButton = nullptr;
 
     UPROPERTY()
     UTextBlock* SpaceBreadcrumb = nullptr;
@@ -192,6 +210,9 @@ private:
     UOntoTwinRuntimeDockButton* CameraFirstPersonButton = nullptr;
 
     UPROPERTY()
+    UOntoTwinRuntimeDockButton* CrosshairButton = nullptr;
+
+    UPROPERTY()
     USizeBox* ReloadCharacterBounds = nullptr;
 
     UPROPERTY()
@@ -223,6 +244,13 @@ private:
     bool bBusinessScopeUsesCurrent = false;
     bool bRefreshingSelectors = false;
     bool bDockOpen = false;
+    bool bDockAnimationActive = false;
+    bool bDrawerFocusVisible = false;
+    float DockAnimationProgress = 0.0f;
+    float DockAnimationStartProgress = 0.0f;
+    float DockAnimationTargetProgress = 0.0f;
+    float DockAnimationElapsed = 0.0f;
+    float DockAnimationDuration = 0.0f;
 
     void BuildDefaultLayout();
     void BuildSpacePanel();
@@ -238,6 +266,9 @@ private:
     void UpdateTabStyles();
     void UpdateRoamingState();
     void SetActiveTab(int32 TabIndex);
+    void ApplyDockVisualState(float OpenProgress);
+    void UpdateDockTriggerAccessibility();
+    void UpdateDockTriggerFocusVisual();
 
     UOntoTwinRuntimeDockButton* MakeButton(
         const FName Name,

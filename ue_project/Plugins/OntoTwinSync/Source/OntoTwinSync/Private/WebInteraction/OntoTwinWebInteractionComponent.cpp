@@ -695,7 +695,7 @@ bool UOntoTwinWebInteractionComponent::CreateRuntimeBusiness(
     const TSharedPtr<FJsonObject> View = MakeShared<FJsonObject>();
     View->SetStringField(TEXT("business_view_id"), BusinessId);
     View->SetStringField(TEXT("name"), CleanName);
-    View->SetStringField(TEXT("description"), TEXT("由 F8 业务编辑创建"));
+    View->SetStringField(TEXT("description"), TEXT("由 F10 业务编辑创建"));
     View->SetBoolField(TEXT("enabled"), true);
     View->SetStringField(TEXT("scene_behavior"), TEXT("isolate_focus"));
     View->SetArrayField(TEXT("rule_groups"), {MakeShared<FJsonValueObject>(Group)});

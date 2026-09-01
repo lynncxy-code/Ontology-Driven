@@ -91,7 +91,7 @@ public:
     /** Home restores the unfiltered scene and hides the browser without destroying it. */
     void ResetHome();
 
-    /** F8 is an exclusive editing surface; preserve and restore the current web session. */
+    /** F10 is an exclusive editing surface; preserve and restore the current web session. */
     void SetRuntimeEditorSuppressed(bool bSuppressed);
 
     bool GetRuntimeBusinessEditSnapshot(

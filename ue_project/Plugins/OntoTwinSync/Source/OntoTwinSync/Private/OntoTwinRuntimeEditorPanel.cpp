@@ -275,6 +275,7 @@ FReply UOntoTwinRuntimeEditorPanel::NativeOnKeyDown(
 {
     if (InKeyEvent.GetKey() == EKeys::Escape && IsConfirmationOpen())
     {
+        if (SceneManager) SceneManager->CancelRuntimeEditExitRequest();
         HideConfirmation();
         return FReply::Handled();
     }
@@ -744,15 +745,29 @@ void UOntoTwinRuntimeEditorPanel::ShowExitConfirmation()
     if (!ConfirmationOverlay) return;
 
     ConfirmationMode = EOntoTwinRuntimePanelConfirmation::ExitEditor;
-    if (ConfirmationTitleText) ConfirmationTitleText->SetText(FText::FromString(TEXT("退出运行时编辑器？")));
+    const bool bSwitchingToRoaming = SceneManager
+        && SceneManager->IsRoamingRequestedAfterRuntimeEditExit();
+    if (ConfirmationTitleText)
+    {
+        ConfirmationTitleText->SetText(FText::FromString(
+            bSwitchingToRoaming ? TEXT("切换到人物漫游？") : TEXT("退出运行时编辑器？")));
+    }
     if (ConfirmationBodyText)
     {
         ConfirmationBodyText->SetText(FText::FromString(
             FString::Printf(TEXT("当前有 %d 个实例包含未保存修改。"),
                 SceneManager ? SceneManager->GetRuntimeEditPendingCount() : 0)));
     }
-    if (ConfirmationPrimaryLabel) ConfirmationPrimaryLabel->SetText(FText::FromString(TEXT("保存并退出")));
-    if (ConfirmationSecondaryLabel) ConfirmationSecondaryLabel->SetText(FText::FromString(TEXT("放弃修改并退出")));
+    if (ConfirmationPrimaryLabel)
+    {
+        ConfirmationPrimaryLabel->SetText(FText::FromString(
+            bSwitchingToRoaming ? TEXT("保存并漫游") : TEXT("保存并退出")));
+    }
+    if (ConfirmationSecondaryLabel)
+    {
+        ConfirmationSecondaryLabel->SetText(FText::FromString(
+            bSwitchingToRoaming ? TEXT("放弃修改并漫游") : TEXT("放弃修改并退出")));
+    }
     if (ConfirmationContinueLabel) ConfirmationContinueLabel->SetText(FText::FromString(TEXT("继续编辑")));
     if (ConfirmationSecondaryButton) ConfirmationSecondaryButton->SetVisibility(ESlateVisibility::Visible);
     ConfirmationOverlay->SetVisibility(ESlateVisibility::Visible);
@@ -1275,6 +1290,7 @@ void UOntoTwinRuntimeEditorPanel::HandleConfirmationSecondaryClicked()
 
 void UOntoTwinRuntimeEditorPanel::HandleConfirmationContinueClicked()
 {
+    if (SceneManager) SceneManager->CancelRuntimeEditExitRequest();
     HideConfirmation();
 }
 

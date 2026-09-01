@@ -24,8 +24,20 @@ void UTwinSkinComponent::Configure(
 
     if (!ActiveSkinId.IsEmpty() && !SkinPrimaryAssetIds.Contains(ActiveSkinId))
     {
-        ActiveSkinId.Reset();
+        ClearSkinOverrides();
     }
+}
+
+void UTwinSkinComponent::ClearSkinOverrides()
+{
+    if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
+    {
+        if (USkeletalMeshComponent* MeshComponent = Character->GetMesh())
+        {
+            MeshComponent->EmptyOverrideMaterials();
+        }
+    }
+    ActiveSkinId.Reset();
 }
 
 UTwinSkinAsset* UTwinSkinComponent::ResolveSkinAsset(
@@ -79,14 +91,44 @@ bool UTwinSkinComponent::ApplySkin(const FString& SkinId, FString& OutError)
         return false;
     }
 
+    // A skin is only valid for the currently selected character Skeleton.
+    // Rejecting a mismatch before mutation prevents a failed switch from
+    // leaving a partially initialized mesh/AnimBP behind.
+    if (USkeletalMesh* CurrentMesh = MeshComponent->GetSkeletalMeshAsset())
+    {
+        if (CurrentMesh->GetSkeleton() != Mesh->GetSkeleton())
+        {
+            OutError = FString::Printf(
+                TEXT("Skin Skeleton mismatch: current=%s skin=%s"),
+                CurrentMesh->GetSkeleton() ? *CurrentMesh->GetSkeleton()->GetPathName() : TEXT("none"),
+                Mesh->GetSkeleton() ? *Mesh->GetSkeleton()->GetPathName() : TEXT("none"));
+            return false;
+        }
+    }
+
+    UClass* AnimClass = SkinAsset->AnimInstanceClass.LoadSynchronous();
+    TArray<UMaterialInterface*> MaterialOverrides;
+    MaterialOverrides.Reserve(SkinAsset->MaterialOverrides.Num());
+    for (const TSoftObjectPtr<UMaterialInterface>& SoftMaterial : SkinAsset->MaterialOverrides)
+    {
+        MaterialOverrides.Add(SoftMaterial.LoadSynchronous());
+    }
+
+    // SetSkeletalMesh does not clear override materials, and a null skin
+    // AnimInstanceClass must not inherit the previous character's AnimBP.
+    MeshComponent->Stop();
+    MeshComponent->ClearAnimScriptInstance();
+    MeshComponent->SetAnimInstanceClass(nullptr);
+    MeshComponent->EmptyOverrideMaterials();
     MeshComponent->SetSkeletalMesh(Mesh);
-    if (UClass* AnimClass = SkinAsset->AnimInstanceClass.LoadSynchronous())
+    MeshComponent->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+    if (AnimClass)
     {
         MeshComponent->SetAnimInstanceClass(AnimClass);
     }
-    for (int32 Index = 0; Index < SkinAsset->MaterialOverrides.Num(); ++Index)
+    for (int32 Index = 0; Index < MaterialOverrides.Num(); ++Index)
     {
-        if (UMaterialInterface* Material = SkinAsset->MaterialOverrides[Index].LoadSynchronous())
+        if (UMaterialInterface* Material = MaterialOverrides[Index])
         {
             MeshComponent->SetMaterial(Index, Material);
         }

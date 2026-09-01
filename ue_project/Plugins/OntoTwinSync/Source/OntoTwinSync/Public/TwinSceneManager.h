@@ -220,12 +220,8 @@ public:
     TSubclassOf<AOntoTwinRuntimeGizmo> RuntimeGizmoClass;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|输入",
-              meta=(DisplayName="切换编辑模式键"))
-    FKey ToggleEditKey = EKeys::F8;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|输入",
-              meta=(DisplayName="备用切换编辑模式键(PIE推荐)"))
-    FKey AlternateToggleEditKey = EKeys::F10;
+              meta=(DisplayName="场景编辑快捷键"))
+    FKey RuntimeEditorToggleKey = EKeys::F10;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|输入",
               meta=(DisplayName="保存键"))
@@ -241,7 +237,7 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|相机",
               meta=(DisplayName="初始移动速度(cm/s)", ClampMin="100.0", ClampMax="10000.0"))
-    float RuntimeEditorCameraMoveSpeedCmS = 2400.0f;
+    float RuntimeEditorCameraMoveSpeedCmS = 600.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|相机",
               meta=(DisplayName="右键观察灵敏度回退值", ClampMin="0.1", ClampMax="5.0",
@@ -282,6 +278,14 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Runtime Editor")
     void ToggleRuntimeEditMode();
+
+    /** F7 从编辑模式切到新漫游会话；脏数据仍走原有保存/放弃确认。 */
+    void RequestRoamingAfterRuntimeEdit();
+    void CancelRuntimeEditExitRequest();
+    bool IsRoamingRequestedAfterRuntimeEditExit() const
+    {
+        return bRuntimeEnterRoamingAfterExit;
+    }
 
     UFUNCTION(BlueprintCallable, Category="Runtime Editor")
     void SaveRuntimeEdit();
@@ -575,7 +579,7 @@ private:
     int32 OverlayMediaRetryIndex = 0;
 
     bool bRuntimeEditMode = false;
-    /** Opt-in, non-persistent command-line acceptance test for F8 singleton selection. */
+    /** Opt-in, non-persistent command-line acceptance test for F10 singleton selection. */
     bool bRuntimeEditSelfTestRequested = false;
     bool bRuntimeEditSelfTestComplete = false;
     bool bRuntimeEditSelfTestQuit = false;
@@ -593,11 +597,12 @@ private:
     bool bRuntimePreviousMouseCursor = false;
     bool bRuntimePreviousAnimRunning = false;
     bool bRuntimeExitAfterSave = false;
+    bool bRuntimeEnterRoamingAfterExit = false;
     bool bRuntimeBusinessDirty = false;
     float RuntimeLastToggleInputTime = -1000.0f;
     FString RuntimePreviousAnimState;
     FString RuntimeBindingMode = TEXT("unknown");
-    FString RuntimeStatusMessage = TEXT("F8/F10: Runtime Editor");
+    FString RuntimeStatusMessage = TEXT("F10：场景编辑");
     FTransform RuntimeEditBaseline = FTransform::Identity;
     FTransform RuntimeDragStartTransform = FTransform::Identity;
     FBox RuntimeEditLocalBounds = FBox(ForceInit);

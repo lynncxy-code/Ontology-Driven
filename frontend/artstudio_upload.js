@@ -35,8 +35,24 @@
         options.onState?.('checking', 0);
         await validateGlb(file, options.maxBytes || DEFAULT_MAX_BYTES);
 
+        // 封面生成是增强能力：浏览器不支持 WebGL、模型材质异常或渲染失败时，
+        // 仍继续上传 GLB，ArtStudio 会使用默认占位图。
+        let cover = null;
+        try {
+            if (global.OntoTwinAssetCover?.generate) {
+                cover = await global.OntoTwinAssetCover.generate(file, {
+                    onState: (stage, progress) => options.onState?.(stage, progress),
+                });
+            } else {
+                options.onState?.('cover_failed', 100);
+            }
+        } catch (_) {
+            options.onState?.('cover_failed', 100);
+        }
+
         const form = new FormData();
         form.append('file', file, file.name);
+        if (cover) form.append('cover', cover, `${name || defaultName(file.name)}-cover.jpg`);
         form.append('name', name);
         form.append('description', description);
         form.append('visibility', visibility);
@@ -50,7 +66,13 @@
             },
         });
         options.onState?.('done', 100);
-        return response.data;
+        const result = response.data;
+        if (cover && result?.asset && !result.asset.cover_url) {
+            // 上游封面地址可能异步生成；先用本地预览让新资产立即可识别。
+            result.asset.cover_url = URL.createObjectURL(cover);
+            result.asset._local_cover = true;
+        }
+        return result;
     }
 
     global.OntoTwinAssetUpload = {

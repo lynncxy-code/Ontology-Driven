@@ -13,6 +13,7 @@ VISIBILITY_USER_PRIVATE = 4
 CATEGORY_MODEL_3D = 1
 STATUS_LISTED = 2
 GLB_MIME = "model/gltf-binary"
+COVER_MAX_BYTES = 2 * 1024 * 1024
 
 
 class ArtStudioUploadError(RuntimeError):
@@ -148,6 +149,54 @@ class ArtStudioUploadService:
                 "filename": original_name,
                 "size": size,
                 "sha256": digest.hexdigest(),
+                "mime": GLB_MIME,
+            }
+        except Exception:
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+            raise
+
+    def _copy_cover_and_inspect(self, file_storage):
+        """Stage an optional browser-rendered JPEG/PNG cover without adding dependencies."""
+        original_name = os.path.basename(str(file_storage.filename or "").strip())
+        content_type = str(file_storage.content_type or "").lower().split(";", 1)[0]
+        if content_type not in ("image/jpeg", "image/png"):
+            raise ArtStudioUploadError("默认封面格式不受支持，将使用 ArtStudio 占位图。", code="invalid_asset_cover")
+
+        digest = hashlib.sha256()
+        size = 0
+        prefix = b""
+        temp_handle = tempfile.NamedTemporaryFile(
+            mode="wb", prefix=".ontotwin-cover-upload-", suffix=".tmp", delete=False
+        )
+        temp_path = temp_handle.name
+        try:
+            with temp_handle:
+                while True:
+                    chunk = file_storage.stream.read(256 * 1024)
+                    if not chunk:
+                        break
+                    size += len(chunk)
+                    if size > COVER_MAX_BYTES:
+                        raise ArtStudioUploadError("默认封面不能超过 2 MB。", code="asset_cover_too_large")
+                    if len(prefix) < 16:
+                        prefix += chunk[: 16 - len(prefix)]
+                    digest.update(chunk)
+                    temp_handle.write(chunk)
+
+            valid_prefix = (content_type == "image/jpeg" and prefix[:3] == b"\xff\xd8\xff") or (
+                content_type == "image/png" and prefix[:8] == b"\x89PNG\r\n\x1a\n"
+            )
+            if not valid_prefix:
+                raise ArtStudioUploadError("默认封面内容无效，将使用 ArtStudio 占位图。", code="invalid_asset_cover")
+            return {
+                "path": temp_path,
+                "filename": original_name or "ontotwin-cover.jpg",
+                "size": size,
+                "sha256": digest.hexdigest(),
+                "mime": content_type,
             }
         except Exception:
             try:
@@ -162,7 +211,7 @@ class ArtStudioUploadService:
                 response = self.http.put(
                     upload_url,
                     data=handle,
-                    headers={"Content-Type": GLB_MIME},
+                    headers={"Content-Type": staged["mime"]},
                     timeout=(10, 600),
                 )
             response.raise_for_status()
@@ -195,7 +244,7 @@ class ArtStudioUploadService:
                     response = self.http.put(
                         upload_url,
                         data=payload,
-                        headers={"Content-Type": GLB_MIME},
+                        headers={"Content-Type": staged["mime"]},
                         timeout=(10, 600),
                     )
                     response.raise_for_status()
@@ -211,11 +260,11 @@ class ArtStudioUploadService:
             ) from exc
         return sorted(completed, key=lambda item: item["partNumber"])
 
-    def _upload_file(self, staged):
+    def _upload_file(self, staged, kind="model"):
         common = {
             "sha256": staged["sha256"],
             "size": staged["size"],
-            "mime": GLB_MIME,
+            "mime": staged["mime"],
             "filename": staged["filename"],
         }
         init = self._api("POST", "/asset-uploads/init", payload=common)
@@ -225,7 +274,7 @@ class ArtStudioUploadService:
                 return str(file_id)
 
         mode = str(init.get("mode") or "").lower()
-        finalize = {**common, "kind": "model"}
+        finalize = {**common, "kind": kind}
         if mode == "single" and init.get("url"):
             self._put_single(init["url"], staged)
             data = self._api(
@@ -238,10 +287,10 @@ class ArtStudioUploadService:
                 "/asset-uploads/complete",
                 payload={
                     "sha256": staged["sha256"],
-                    "mime": GLB_MIME,
+                    "mime": staged["mime"],
                     "filename": staged["filename"],
                     "parts": completed,
-                    "kind": "model",
+                    "kind": kind,
                 },
                 timeout=30,
             )
@@ -261,7 +310,7 @@ class ArtStudioUploadService:
             )
         return str(file_id)
 
-    def _create_asset(self, file_id, name, description, visibility, user_id):
+    def _create_asset(self, file_id, name, description, visibility, user_id, cover_file_id=None):
         visibility_code = (
             VISIBILITY_PUBLIC if visibility == "public" else VISIBILITY_USER_PRIVATE
         )
@@ -273,6 +322,8 @@ class ArtStudioUploadService:
             "ownerUserId": user_id,
             "fileIds": [file_id],
         }
+        if cover_file_id:
+            payload["coverFileId"] = cover_file_id
         if description:
             payload["description"] = description
         data = self._api("POST", "/assets", payload=payload, timeout=30)
@@ -289,7 +340,7 @@ class ArtStudioUploadService:
             )
         return str(asset_id), data
 
-    def upload(self, file_storage, name, visibility="public", description=""):
+    def upload(self, file_storage, name, visibility="public", description="", cover_file=None):
         name = str(name or "").strip()
         description = str(description or "").strip()
         visibility = str(visibility or "public").strip().lower()
@@ -326,13 +377,33 @@ class ArtStudioUploadService:
             )
 
         staged = self._copy_and_inspect(file_storage)
+        cover_staged = None
         asset_id = None
         created = None
         try:
             file_id = self._upload_file(staged)
-            asset_id, created = self._create_asset(
-                file_id, name, description, visibility, user_id
-            )
+            cover_file_id = None
+            if cover_file is not None:
+                try:
+                    cover_staged = self._copy_cover_and_inspect(cover_file)
+                    cover_file_id = self._upload_file(cover_staged, kind="cover")
+                except ArtStudioUploadError:
+                    # 封面是增强能力；ArtStudio 未接受时不影响模型资产创建。
+                    cover_file_id = None
+            try:
+                asset_id, created = self._create_asset(
+                    file_id, name, description, visibility, user_id, cover_file_id
+                )
+            except ArtStudioUploadError as exc:
+                # 旧版 ArtStudio 可能不认识 coverFileId；回退到无封面创建，
+                # 保证默认封面是增强能力而不是模型上传的硬依赖。
+                if not cover_file_id or exc.code not in (
+                    "artstudio_upstream_rejected", "artstudio_asset_create_failed"
+                ):
+                    raise
+                asset_id, created = self._create_asset(
+                    file_id, name, description, visibility, user_id
+                )
             listing_status = "private"
             if visibility == "public":
                 try:
@@ -367,6 +438,11 @@ class ArtStudioUploadService:
                 os.remove(staged["path"])
             except OSError:
                 pass
+            if cover_staged:
+                try:
+                    os.remove(cover_staged["path"])
+                except OSError:
+                    pass
 
     @staticmethod
     def _asset_payload(asset_id, name, data):

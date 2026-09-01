@@ -39,9 +39,19 @@ def valid_glb():
     )
 
 
-def upload_file(data=None, name="machine.glb"):
+def upload_file(data=None, name="machine.glb", content_type=None):
     return types.SimpleNamespace(
-        stream=io.BytesIO(data if data is not None else valid_glb()), filename=name
+        stream=io.BytesIO(data if data is not None else valid_glb()),
+        filename=name,
+        content_type=content_type,
+    )
+
+
+def cover_file():
+    return upload_file(
+        b"\xff\xd8\xff\xe0ontotwin-cover",
+        name="machine-cover.jpg",
+        content_type="image/jpeg",
     )
 
 
@@ -154,6 +164,19 @@ class ArtStudioUploadServiceTests(unittest.TestCase):
         )
         self.assertEqual(4, create_payload["visibility"])
         self.assertEqual(["file-dedup"], create_payload["fileIds"])
+
+    def test_cover_is_uploaded_and_attached_when_available(self):
+        http = FakeHttp()
+        self.service(http).upload(
+            upload_file(), "带封面模型", visibility="public", cover_file=cover_file()
+        )
+
+        create_payload = next(
+            payload for method, path, payload in http.requests
+            if method == "POST" and path == "/assets"
+        )
+        self.assertEqual("file-new", create_payload["coverFileId"])
+        self.assertEqual(2, len(http.puts))
 
     def test_invalid_glb_never_calls_upstream(self):
         http = FakeHttp()

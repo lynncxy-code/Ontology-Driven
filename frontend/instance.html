@@ -8,6 +8,10 @@
     <script src="/vendor/vue-3.3.4.global.prod.js" integrity="sha384-QLgwzsuau/sa8LhRgjRzkvQS0LyUzCM2B8FPwVoSu1KDel940/orifPaumNXp9hK" crossorigin="anonymous"></script>
     <script src="/vendor/axios-1.7.9.min.js" integrity="sha384-jLwhcmGu/RL8PSTUEl/559f8QVLL4QqM+HBvoZlt4F7XCdsdoDGAwW4nPFfoM7lU" crossorigin="anonymous"></script>
     <script src="/artstudio_upload.js"></script>
+    <script type="importmap">
+    {"imports":{"three":"/vendor/three/three.module.js","three/addons/":"/vendor/three/addons/"}}
+    </script>
+    <script type="module" src="/artstudio_cover.js"></script>
     <script src="/hierarchy_menu.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.3.2/bin/jsencrypt.min.js" integrity="sha384-FwzUI3CDdHbj2MEKbnjj0eCvB+gYurE3x3pW/udNFOVUbrCrl3REWMQ1FBTolvoj" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="/nexus_titlebar.css" />
@@ -1086,7 +1090,7 @@
                         <input ref="modelUploadFileInputRef" type="file" accept=".glb,model/gltf-binary" :disabled="modelUploadLoading"
                                @change="onModelUploadFileChange"
                                class="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-xs text-gray-600 file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-gray-800 hover:file:bg-gray-200 disabled:bg-gray-50" />
-                        <span class="mt-1.5 block text-[11px] text-gray-500">仅支持单个、自包含的 GLB 2.0 文件，最大 500 MB。</span>
+                        <span class="mt-1.5 block text-[11px] text-gray-500">仅支持单个、自包含的 GLB 2.0 文件，最大 500 MB。上传时会自动生成默认视角封面。</span>
                     </label>
                     <label class="block">
                         <span class="mb-1.5 block text-xs font-medium text-gray-700">资产名称</span>
@@ -1833,6 +1837,8 @@ createApp({
         });
         const modelUploadStageLabel = computed(() => ({
             checking: '正在检查模型文件',
+            cover: '正在生成默认封面',
+            cover_failed: '封面生成失败，继续上传模型',
             uploading: '正在上传到 OntoTwin',
             publishing: '正在发布到 ArtStudio',
             done: '上传完成',

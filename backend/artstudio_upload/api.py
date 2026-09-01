@@ -45,6 +45,7 @@ def register_artstudio_upload_routes(
                 request.form.get("name"),
                 request.form.get("visibility", "public"),
                 request.form.get("description", ""),
+                request.files.get("cover"),
             )
             return jsonify(result), 201
         except ArtStudioUploadError as exc:

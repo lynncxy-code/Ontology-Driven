@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>逆向建模 · OntoTwin Nexus Beta</title>
+  <link rel="stylesheet" href="reverse-modeling.css?v=beta-4">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="OntoTwin Nexus 主菜单">
+      <div class="brand-row">
+        <div class="brand-mark" aria-hidden="true">N</div>
+        <div class="brand-copy">
+          <strong>OntoTwin Nexus</strong>
+          <span>工业数字孪生平台</span>
+        </div>
+      </div>
+
+      <nav class="side-nav">
+        <section class="nav-group" aria-labelledby="nav-data">
+          <h2 id="nav-data">数据定义</h2>
+          <button class="nav-item" type="button" aria-label="语义图谱总览" data-inactive-nav="语义图谱总览" data-tip="语义图谱总览">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2.5"/><circle cx="18" cy="5" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m7.2 10.8 8.4-4.5M7.2 13.2l8.4 4.5"/></svg>
+            <span>语义图谱总览</span>
+          </button>
+          <button class="nav-item" type="button" aria-label="本体配置中心" data-inactive-nav="本体配置中心" data-tip="本体配置中心">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2.2 2.2M16.8 16.8 19 19M19 5l-2.2 2.2M7.2 16.8 5 19"/></svg>
+            <span>本体配置中心</span>
+          </button>
+        </section>
+
+        <section class="nav-group" aria-labelledby="nav-model">
+          <h2 id="nav-model">模型工坊</h2>
+          <button class="nav-item" type="button" aria-label="CAD 一键成模" data-inactive-nav="CAD 一键成模" data-tip="CAD 一键成模">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m8 16 8-8m-5 0h5v5M7 11v6h6"/></svg>
+            <span>CAD 一键成模</span>
+          </button>
+          <button class="nav-item active" type="button" aria-label="逆向建模 Beta" aria-current="page" data-tip="逆向建模">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4.4 7.7 7.6 4.2 7.6-4.2M12 12v9"/><path d="M8.5 5 16 9"/></svg>
+            <span>逆向建模</span>
+            <span class="beta-badge">Beta</span>
+          </button>
+          <button class="nav-item" type="button" aria-label="坐标标定" data-inactive-nav="坐标标定" data-tip="坐标标定">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18M7 7l10 10M17 7 7 17"/></svg>
+            <span>坐标标定</span>
+          </button>
+        </section>
+
+        <section class="nav-group" aria-labelledby="nav-instance">
+          <h2 id="nav-instance">实例接入</h2>
+          <button class="nav-item" type="button" aria-label="实例绑定台" data-inactive-nav="实例绑定台" data-tip="实例绑定台">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 14.5 7 17a4 4 0 0 0 5.7 5.7l3.2-3.2a4 4 0 0 0 0-5.7M14.5 9.5 17 7a4 4 0 1 0-5.7-5.7L8.1 4.5a4 4 0 0 0 0 5.7"/><path d="m9 15 6-6"/></svg>
+            <span>实例绑定台</span>
+          </button>
+        </section>
+
+        <section class="nav-group" aria-labelledby="nav-scene">
+          <h2 id="nav-scene">场景交互</h2>
+          <button class="nav-item" type="button" aria-label="信息面板" data-inactive-nav="信息面板" data-tip="信息面板">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h7M7 16h5"/></svg>
+            <span>信息面板</span>
+          </button>
+          <button class="nav-item" type="button" aria-label="人物漫游" data-inactive-nav="人物漫游" data-tip="人物漫游">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="4" r="2"/><path d="m9 22 1-7-3-3 2-5 4 2 3 4 3 1M10 15l5 2 1 5"/></svg>
+            <span>人物漫游</span>
+          </button>
+          <button class="nav-item" type="button" aria-label="漫游路线" data-inactive-nav="漫游路线" data-tip="漫游路线">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="18" r="2"/><circle cx="19" cy="6" r="2"/><path d="M7 18h3a3 3 0 0 0 3-3v-6a3 3 0 0 1 3-3h1"/></svg>
+            <span>漫游路线</span>
+          </button>
+          <button class="nav-item" type="button" aria-label="Web 交互" data-inactive-nav="Web 交互" data-tip="Web 交互">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/></svg>
+            <span>Web 交互</span>
+          </button>
+        </section>
+
+        <section class="nav-group" aria-labelledby="nav-ops">
+          <h2 id="nav-ops">运行守护</h2>
+          <button class="nav-item" type="button" aria-label="实例运维与监控" data-inactive-nav="实例运维与监控" data-tip="实例运维与监控">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 22h8M12 18v4"/></svg>
+            <span>实例运维与监控</span>
+          </button>
+          <button class="nav-item" type="button" aria-label="外部数据监控台" data-inactive-nav="外部数据监控台" data-tip="外部数据监控台">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12h4l2-7 4 14 3-10 2 3h5"/></svg>
+            <span>外部数据监控台</span>
+          </button>
+          <button class="nav-item" type="button" aria-label="回收站" data-inactive-nav="回收站" data-tip="回收站">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6"/></svg>
+            <span>回收站</span>
+          </button>
+        </section>
+      </nav>
+
+      <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="收起侧栏" aria-expanded="true" data-tip="收起侧栏">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18m5-12-3 3 3 3"/></svg>
+        <span>收起侧栏</span>
+      </button>
+    </aside>
+
+    <div class="main-shell">
+      <header class="topbar">
+        <div class="breadcrumb"><span>模型工坊</span><i>/</i><strong>逆向建模</strong></div>
+        <div class="top-actions">
+          <button class="service-pill" id="servicePill" type="button" aria-label="检查本地生成服务">
+            <span class="dot dot-muted" id="serviceDot"></span>
+            <span id="serviceText">正在检查本地服务</span>
+          </button>
+          <span class="environment-label">独立 Beta · 本地数据</span>
+        </div>
+      </header>
+
+      <main class="main-content">
+        <section class="page-heading">
+          <div>
+            <div class="eyebrow">模型工坊</div>
+            <h1>逆向建模</h1>
+            <p>从前、后、左、右多视图生成可继续加工的三维资产草稿。</p>
+          </div>
+          <div class="scope-note">
+            <span class="scope-line"></span>
+            <p><strong>能力边界</strong>AI 结果是近似重建，不替代测量、CAD 工程模型或正式设计验收。</p>
+          </div>
+        </section>
+
+        <section class="workspace-grid">
+          <aside class="panel input-panel" aria-label="生成输入与设置">
+            <div class="panel-head">
+              <div><span class="step-no">01</span><h2>多视图参考</h2></div>
+              <button class="btn btn-ghost btn-sm" id="clearAllViews" type="button" disabled>清除全部</button>
+            </div>
+            <p class="multiview-intro">正面为必需视图；补充其余方向可减少遮挡面的结构猜测。各图片主体应保持同一朝向基准和相近比例。</p>
+
+            <div class="multiview-grid" id="multiviewGrid">
+              <article class="view-card" data-view-card="front">
+                <header><strong>正面</strong><span class="view-required">必需</span><button class="view-clear" type="button" data-clear-view="front" aria-label="移除正面视图" hidden>移除</button></header>
+                <div class="view-upload" data-view-upload="front" tabindex="0" role="button" aria-label="选择或拖入正面视图">
+                  <input class="view-input" data-view-input="front" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+                  <div class="view-empty" data-view-empty="front"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="6" width="22" height="20" rx="3"/><circle cx="12" cy="13" r="2.5"/><path d="m7 23 6-6 4 4 3-3 5 5"/></svg><strong>添加正面图</strong><span>点击或拖入</span></div>
+                  <img class="view-preview" data-view-preview="front" alt="正面参考视图" hidden>
+                </div>
+              </article>
+              <article class="view-card" data-view-card="back">
+                <header><strong>后面</strong><span>可选</span><button class="view-clear" type="button" data-clear-view="back" aria-label="移除后面视图" hidden>移除</button></header>
+                <div class="view-upload" data-view-upload="back" tabindex="0" role="button" aria-label="选择或拖入后面视图">
+                  <input class="view-input" data-view-input="back" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+                  <div class="view-empty" data-view-empty="back"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="6" width="22" height="20" rx="3"/><circle cx="12" cy="13" r="2.5"/><path d="m7 23 6-6 4 4 3-3 5 5"/></svg><strong>添加后面图</strong><span>点击或拖入</span></div>
+                  <img class="view-preview" data-view-preview="back" alt="后面参考视图" hidden>
+                </div>
+              </article>
+              <article class="view-card" data-view-card="left">
+                <header><strong>左侧</strong><span>可选</span><button class="view-clear" type="button" data-clear-view="left" aria-label="移除左侧视图" hidden>移除</button></header>
+                <div class="view-upload" data-view-upload="left" tabindex="0" role="button" aria-label="选择或拖入左侧视图">
+                  <input class="view-input" data-view-input="left" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+                  <div class="view-empty" data-view-empty="left"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="6" width="22" height="20" rx="3"/><circle cx="12" cy="13" r="2.5"/><path d="m7 23 6-6 4 4 3-3 5 5"/></svg><strong>添加左侧图</strong><span>点击或拖入</span></div>
+                  <img class="view-preview" data-view-preview="left" alt="左侧参考视图" hidden>
+                </div>
+              </article>
+              <article class="view-card" data-view-card="right">
+                <header><strong>右侧</strong><span>可选</span><button class="view-clear" type="button" data-clear-view="right" aria-label="移除右侧视图" hidden>移除</button></header>
+                <div class="view-upload" data-view-upload="right" tabindex="0" role="button" aria-label="选择或拖入右侧视图">
+                  <input class="view-input" data-view-input="right" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+                  <div class="view-empty" data-view-empty="right"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="6" width="22" height="20" rx="3"/><circle cx="12" cy="13" r="2.5"/><path d="m7 23 6-6 4 4 3-3 5 5"/></svg><strong>添加右侧图</strong><span>点击或拖入</span></div>
+                  <img class="view-preview" data-view-preview="right" alt="右侧参考视图" hidden>
+                </div>
+              </article>
+            </div>
+            <div class="view-summary"><strong id="viewCount">0 / 4 已添加</strong><span>PNG、JPG、WebP；单张不超过 25 MB</span></div>
+
+            <div class="section-rule"></div>
+            <div class="panel-head compact">
+              <div><span class="step-no">02</span><h2>生成方式</h2></div>
+            </div>
+            <div class="segmented" role="radiogroup" aria-label="生成方式">
+              <button class="segment active" type="button" data-mode="shape" role="radio" aria-checked="true">
+                <strong>形体草稿</strong><span>先检查轮廓结构</span>
+              </button>
+              <button class="segment" type="button" data-mode="textured" role="radio" aria-checked="false">
+                <strong>形体与材质</strong><span>同时生成 PBR 材质</span>
+              </button>
+            </div>
+
+            <div class="form-stack">
+              <label class="switch-row">
+                <span><strong>移除图片背景</strong><small>适合主体明确的产品照片</small></span>
+                <input id="removeBackground" type="checkbox" checked>
+                <i class="switch-ui" aria-hidden="true"></i>
+              </label>
+              <label class="switch-row">
+                <span><strong>随机生成编号</strong><small>关闭后可复现同一组参数</small></span>
+                <input id="randomSeed" type="checkbox" checked>
+                <i class="switch-ui" aria-hidden="true"></i>
+              </label>
+              <label class="form-row" id="seedRow">
+                <span class="label">复现编号（Seed）</span>
+                <input class="field" id="seedInput" type="number" min="0" max="10000000" value="1234" disabled>
+              </label>
+            </div>
+
+            <details class="advanced-card" id="advancedCard">
+              <summary><span>高级设置</span><small>保留原模型参数</small><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"/></svg></summary>
+              <div class="advanced-body">
+                <label class="range-row">
+                  <span><strong>推理步数</strong><output id="stepsValue">30</output></span>
+                  <input id="stepsInput" type="range" min="1" max="100" step="1" value="30">
+                </label>
+                <label class="range-row">
+                  <span><strong>网格解析精度</strong><output id="octreeValue">256</output></span>
+                  <input id="octreeInput" type="range" min="16" max="512" step="16" value="256">
+                </label>
+                <div class="two-fields">
+                  <label class="form-row"><span class="label">图像引导强度</span><input class="field" id="guidanceInput" type="number" min="1" max="30" step="0.1" value="5.0"></label>
+                  <label class="form-row"><span class="label">解码分块</span><input class="field" id="chunksInput" type="number" min="1000" max="5000000" step="1000" value="8000"></label>
+                </div>
+                <p class="inline-help">提高解析精度会增加显存和等待时间；解码分块主要影响显存分配，不等同于模型精度。</p>
+              </div>
+            </details>
+
+            <button class="btn btn-primary generate-button" id="generateButton" type="button" disabled>
+              <span id="generateButtonText">生成形体草稿</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
+            </button>
+            <p class="button-note" id="generateNote">至少添加正面视图后即可开始。</p>
+          </aside>
+
+          <section class="panel preview-panel" aria-label="三维结果预览">
+            <div class="preview-toolbar">
+              <div class="view-tabs" role="tablist" aria-label="结果视图">
+                <button class="view-tab active" type="button" data-view="generated" role="tab" aria-selected="true">生成结果</button>
+                <button class="view-tab" type="button" data-view="export" role="tab" aria-selected="false" disabled>导出预览</button>
+                <button class="view-tab" type="button" data-view="stats" role="tab" aria-selected="false">网格信息</button>
+              </div>
+              <div class="preview-state"><span class="dot dot-muted" id="previewDot"></span><span id="previewStateText">等待生成</span></div>
+            </div>
+
+            <div class="viewport" id="viewport">
+              <div class="empty-state" id="emptyState">
+                <svg class="empty-model" viewBox="0 0 180 160" aria-hidden="true"><path d="m90 18 58 33v66l-58 33-58-33V51l58-33Z"/><path d="m33 52 57 34 57-34M90 86v63"/><path d="m55 64 35-20 35 20-35 21-35-21Z"/><path d="M56 104h18m-9-9v18M109 104h18"/></svg>
+                <strong>三维结果将在这里显示</strong>
+                <span>上传多视图并开始生成后，可以旋转、缩放和检查模型。</span>
+              </div>
+              <div class="viewer-host" id="generatedViewer" hidden></div>
+              <div class="viewer-host" id="exportViewer" hidden></div>
+              <div class="stats-view" id="statsView" hidden>
+                <div class="stats-grid" id="statsGrid"></div>
+                <details class="raw-stats"><summary>查看完整运行信息</summary><pre id="statsRaw">暂无数据</pre></details>
+              </div>
+              <div class="job-overlay" id="jobOverlay" hidden>
+                <div class="spinner" aria-hidden="true"></div>
+                <strong id="jobTitle">正在生成三维资产</strong>
+                <span id="jobDetail">本地多视图模型正在处理参考图片，请保持服务窗口开启。</span>
+              </div>
+            </div>
+
+            <div class="viewport-foot">
+              <span>预览支持旋转与缩放，具体控制由混元模型查看器提供。</span>
+              <span>Hunyuan3D-2mv · 本地调用</span>
+            </div>
+          </section>
+
+          <aside class="right-stack" aria-label="任务与导出">
+            <section class="panel status-panel">
+              <div class="panel-head compact"><div><span class="step-no">03</span><h2>任务状态</h2></div></div>
+              <div class="status-block">
+                <div class="status-title"><span class="dot dot-muted" id="jobDot"></span><strong id="jobStatus">尚未开始</strong></div>
+                <p id="jobStatusDetail">添加正面视图并设置生成方式。</p>
+              </div>
+              <dl class="result-meta">
+                <div><dt>生成方式</dt><dd id="resultMode">形体草稿</dd></div>
+                <div><dt>输入视图</dt><dd id="resultViews">—</dd></div>
+                <div><dt>实际编号</dt><dd id="resultSeed">—</dd></div>
+                <div><dt>生成结果</dt><dd id="resultFiles">—</dd></div>
+              </dl>
+              <button class="btn recover-button" id="recoverButton" type="button">恢复最近一次本地结果</button>
+              <p class="inline-help recover-help">生成完成但文件未被识别时，可从混元输出目录恢复，无需重新生成。</p>
+              <div class="download-list" id="generatedDownloads" hidden></div>
+            </section>
+
+            <section class="panel export-panel">
+              <div class="panel-head compact"><div><span class="step-no">04</span><h2>结果导出</h2></div></div>
+              <label class="form-row"><span class="label">文件格式</span><select class="field" id="fileType"><option value="glb">GLB</option><option value="obj">OBJ</option><option value="ply">PLY</option><option value="stl">STL</option></select></label>
+              <label class="switch-row compact-switch">
+                <span><strong>简化网格</strong><small>按目标面数生成轻量副本</small></span>
+                <input id="simplifyMesh" type="checkbox">
+                <i class="switch-ui" aria-hidden="true"></i>
+              </label>
+              <label class="form-row" id="targetFacesRow" hidden><span class="label">目标面数</span><input class="field" id="targetFaces" type="number" min="100" max="1000000" step="100" value="10000"></label>
+              <label class="switch-row compact-switch muted-control" id="textureExportRow">
+                <span><strong>包含材质</strong><small id="textureExportHelp">仅带材质结果可用</small></span>
+                <input id="includeTexture" type="checkbox" disabled>
+                <i class="switch-ui" aria-hidden="true"></i>
+              </label>
+              <button class="btn export-button" id="exportButton" type="button" disabled>转换导出文件</button>
+              <a class="btn btn-primary download-button" id="downloadButton" href="#" hidden>下载导出结果</a>
+              <p class="inline-help">导出只生成本地文件，不写入 OntoTwin 主工具或 UE 工程。</p>
+            </section>
+
+            <section class="panel example-panel">
+              <div class="panel-head compact"><div><h2>示例图片</h2></div><button class="btn btn-ghost btn-sm" id="refreshExamples" type="button">刷新</button></div>
+              <p class="panel-hint">点击示例会填入正面视图，不会修改原文件；其余视图请继续补充。</p>
+              <div class="example-grid" id="exampleGrid"><div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div></div>
+            </section>
+          </aside>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+  <script src="reverse-modeling.js?v=beta-4"></script>
+</body>
+</html>

@@ -192,7 +192,13 @@
                             <span class="flex-1 min-w-0 truncate text-xs font-semibold text-gray-700" :title="group.fullLabel">{{ group.label }}</span>
                             <span class="font-mono text-[10px] text-gray-400">{{ group.items.length }}</span>
                         </button>
-                        <div v-show="isInstanceMenuOpen(group.key)" class="p-2 space-y-2 border-t border-gray-100">
+                        <!-- v-if 而非 v-show：v-show 只是 display:none，节点照建。
+                             收起的分组不该占渲染预算——507 实例时是 4500+ 个节点常驻，
+                             上万条就是几万个。进页面时 expandedInstanceMenus 为空，
+                             这里一条都不建，展开哪组才建哪组。
+                             注意：有筛选条件时 isInstanceMenuOpen 一律返回 true（强制全展开），
+                             所以搜索态下 v-if 和 v-show 等价，省不到——那条路靠下面的防抖。 -->
+                        <div v-if="isInstanceMenuOpen(group.key)" class="p-2 space-y-2 border-t border-gray-100">
                             <div v-for="inst in group.items" :key="inst.id"
                                  @click="selectInstance(inst)"
                                  :class="[
@@ -1520,7 +1526,20 @@ createApp({
 
         // ── Instance list filter ─────────────────────────────────────────
         const UNASSIGNED_ZONE_FILTER = '__unassigned__';
+        // 输入框绑 instanceSearch（即时回显），真正参与过滤的是 instanceSearchApplied。
+        // 不防抖的话每敲一个字符就要把全部实例重新 filter + 重新分组 + 重新渲染；
+        // 而且有搜索词时 isInstanceMenuOpen 会强制展开所有分组，上万条时一次击键
+        // 就是一轮全量渲染。250ms 是停手后才算，连续输入期间只算最后一次。
         const instanceSearch = ref('');
+        const instanceSearchApplied = ref('');
+        let instanceSearchTimer = null;
+        watch(instanceSearch, (value) => {
+            if (instanceSearchTimer) clearTimeout(instanceSearchTimer);
+            instanceSearchTimer = setTimeout(() => {
+                instanceSearchApplied.value = value;
+                instanceSearchTimer = null;
+            }, 250);
+        });
         const instanceTypeFilter = ref('');
         const instanceZoneFilter = ref('');
         const expandedInstanceMenus = ref(new Set());
@@ -1590,7 +1609,7 @@ createApp({
         }
 
         const filteredInstances = computed(() => {
-            const query = instanceSearch.value.toLowerCase();
+            const query = instanceSearchApplied.value.toLowerCase();
             return instances.value.filter(inst => {
                 const searchText = [
                     inst.display_name,
@@ -1610,7 +1629,9 @@ createApp({
         ));
 
         function isInstanceMenuOpen(key) {
-            const filtersActive = Boolean(instanceSearch.value || instanceTypeFilter.value || instanceZoneFilter.value);
+            // 用 applied 而不是即时值：否则刚敲第一个字符时分组已经全部展开、
+            // 过滤却还没生效，会出现"全展开 + 全量条目"的瞬间——正是防抖要避免的那一帧。
+            const filtersActive = Boolean(instanceSearchApplied.value || instanceTypeFilter.value || instanceZoneFilter.value);
             return filtersActive || expandedInstanceMenus.value.has(key);
         }
 
@@ -3054,6 +3075,7 @@ createApp({
             restoreRuntimeStreamUrl();
         });
         onUnmounted(() => {
+            if (instanceSearchTimer) clearTimeout(instanceSearchTimer);
             clearRuntimeStreamTimer();
         });
 

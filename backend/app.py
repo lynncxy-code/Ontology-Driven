@@ -2,6 +2,7 @@ import os
 import time
 import math
 import copy
+import mimetypes
 import requests as http_requests
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
@@ -26,6 +27,11 @@ from representation_container.service import resolve_effective_container
 from scc_w18_semantic_mapping import decorate_graph as decorate_scc_w18_graph
 
 # ── App Setup ───────────────────────────────────────────────────
+# Windows 的 mimetypes 表里没有 woff2，本地字体会被当成 application/octet-stream
+# 发出去。浏览器对 @font-face 不强制校验 MIME，能用，但不正确——显式补上。
+mimetypes.add_type("font/woff2", ".woff2")
+mimetypes.add_type("font/woff", ".woff")
+
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
 app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
 app.json.ensure_ascii = False  # 中文字符不转义为 \uXXXX，便于 2.9.2 调试（Flask 2.2+ 用法）

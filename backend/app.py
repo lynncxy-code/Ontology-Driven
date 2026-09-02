@@ -1716,11 +1716,22 @@ def _model_binding_summary(rid, ot, instances_by_type=None):
         else [inst for inst in instance_store.list_all()
               if inst.get("object_type_rid") == rid]
     )
+    # render_config 只在实例没有 source_asset_path 时才用得上（下面那个分支）。
+    # 以前是每个实例都调一次 get_render_config，等于抢 N 次锁；而写路径的
+    # _save_current() 握着同一把锁全量重写整个项目，UE 实时上报时每次占锁一秒多，
+    # 507 个实例就被放大成好几秒。现在只给真正缺 path 的那些实例批量取，一次抢锁；
+    # 迁移进来的实例都带 source_asset_path，这个集合通常是空的，一次都不用抢。
+    # 判据和下面循环里的 `if not path` 逐字一致，避免两处口径漂移。
+    need_cfg = [inst.get("id") for inst in instances
+                if not (inst.get("source_asset_path") or "")]
+    configs = instance_store.get_render_configs(need_cfg) if need_cfg else {}
+
     for inst in instances:
-        cfg = instance_store.get_render_config(inst.get("id")) or {}
         path = inst.get("source_asset_path") or ""
-        if not path and _is_assembly_render_config(cfg):
-            path = cfg.get("ue_asset_path") or cfg.get("asset_id") or ""
+        if not path:
+            cfg = configs.get(inst.get("id")) or {}
+            if _is_assembly_render_config(cfg):
+                path = cfg.get("ue_asset_path") or cfg.get("asset_id") or ""
         path = str(path or "").strip()
         if not path:
             continue

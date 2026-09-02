@@ -971,6 +971,23 @@ class ProjectStore:
             inst = self._inst().get(instance_id)
             return dict(inst.get("render_config") or {}) if inst else None
 
+    def get_render_configs(self, instance_ids):
+        """一次抢锁取多个实例的 render_config，返回 {id: config}（不存在的跳过）。
+
+        为什么要有这个：写路径的 _save_current() 是全量重写整个项目，而且全程握着
+        同一把 self._lock——14MB 的项目一次就要一秒多。调用方如果逐个实例调
+        get_render_config，抢锁次数等于实例数，每一次都可能排在一次全量写后面，
+        507 个实例就被放大成好几秒。批量取只抢一次锁，最坏只等一次写。
+        """
+        with self._lock:
+            insts = self._inst()
+            out = {}
+            for iid in instance_ids:
+                inst = insts.get(iid)
+                if inst is not None:
+                    out[iid] = dict(inst.get("render_config") or {})
+            return out
+
     @staticmethod
     def _instance_metadata(instance_id, inst, now):
         # last_seen 允许为 None：UE 反向收编（source=ue_migrated）的实例入库时

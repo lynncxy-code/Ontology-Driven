@@ -497,7 +497,13 @@
                                     <div class="text-xs font-semibold text-gray-700">端点响应</div>
                                     <div class="mt-1 text-[11px] font-mono text-gray-500">GET /api/v2/state/snapshot?id={{ selectedInst.id }}</div>
                                 </div>
-                                <span class="text-[9px] font-mono bg-gray-100 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded tracking-widest">READ ONLY</span>
+                                <div class="flex items-center gap-2">
+                                    <button @click="fetchSnap" type="button"
+                                            class="text-[10px] font-medium text-gray-500 hover:text-gray-900 px-2 py-1 bg-white border border-gray-200 rounded shadow-sm hover:shadow transition">
+                                        刷新
+                                    </button>
+                                    <span class="text-[9px] font-mono bg-gray-100 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded tracking-widest">READ ONLY</span>
+                                </div>
                             </div>
                             <div class="p-0 bg-gray-900 overflow-x-auto text-gray-300">
                                 <pre class="p-5 text-xs font-mono leading-relaxed">{{ JSON.stringify(currentSnap, null, 2) }}</pre>
@@ -1933,7 +1939,13 @@ createApp({
 
         async function switchMonitorTab(tab) {
             activeMonitorTab.value = tab;
-            if (tab === 'control' && selectedInst.value) await loadModelBinding();
+            if (!selectedInst.value) return;
+            // 「端点 JSON」和「控制」两个页签渲染的都是 currentSnap。去掉 500ms 轮询后
+            // 它只在选中实例那一刻取过一次，切页签看到的可能是几分钟前的数据——
+            // 而 JSON 页签上还写着 "GET /api/v2/state/snapshot?id=..."，等于在骗人。
+            // 所以切过来时重取一次，保证看到的就是当前值。
+            fetchSnap();
+            if (tab === 'control') await loadModelBinding();
         }
 
         async function loadModelBinding(silent = false) {
@@ -3077,7 +3089,7 @@ createApp({
             runtimeStreamStatusLabel, runtimeStreamStatusDotClass, runtimeStreamError,
             connectRuntimeStream, disconnectRuntimeStream, clearRuntimeStreamUrl, handleRuntimeStreamLoad,
             handleRuntimeStreamError, openRuntimeStreamWindow, fullscreenRuntimeStream,
-            loadInstances, spawnInstance, deleteInstance, selectInstance, applyOverride, resetOverride,
+            loadInstances, spawnInstance, deleteInstance, selectInstance, fetchSnap, applyOverride, resetOverride,
             instanceLivenessTag,
             // FR-7 规范坐标微调
             posOpen, posSaving, pos, posX, openPos, savePos, posEditCanonical, posEditUE, posEditFrame, posEditFloor,

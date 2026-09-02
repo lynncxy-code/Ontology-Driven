@@ -1495,8 +1495,6 @@ createApp({
         const artstudioLoginForm = ref({ username: '', password: '', captcha: '' });
         const artstudioUsernameRef = ref(null);
         const artstudioLoginTriggerRef = ref(null);
-        let pollTimer = null;
-        let instanceListTimer = null;
         const activeDataset = ref(null);
         const runtimeStreamPanelRef = ref(null);
         const runtimeStreamUrl = ref(RUNTIME_STREAM_DEFAULT_URL);
@@ -1878,9 +1876,9 @@ createApp({
         async function refreshInstances() {
             const instRes = await axios.get('/api/v2/instances');
             applyInstanceList(instRes.data);
-            if (activeMonitorTab.value === 'control' && selectedInst.value) {
-                loadModelBinding(true).catch(() => {});
-            }
+            // 这里原来顺带刷一次 model-binding。但模型绑定只会被本页或 MCP 改动，
+            // UE 不写它——跟着列表每 2s 拉一次纯属搭便车，实测响应体一字不变。
+            // 改成选中时查一次 + 改动后主动刷（见 saveModelBinding / clearModelBinding）。
         }
 
         async function loadInstances() {
@@ -2858,7 +2856,6 @@ createApp({
                     selectedInst.value = null;
                     currentSnap.value = null;
                     modelBinding.value = null;
-                    stopPoll();
                 }
                 toast('ok', `已强制销毁实例: ${id}`);
                 await loadInstances();
@@ -2872,9 +2869,12 @@ createApp({
             activeMonitorTab.value = 'control';
             modelBinding.value = null;
             modelBindingError.value = '';
-            stopPoll();
+            // 选中时各查一次即可，不再 500ms 轮询快照。
+            // 实测轮询回来的内容除了服务端每次现取的 timestamp 之外一字不变，
+            // 却要 2 次/秒 × 92KB；而且它会周期性覆盖用户正在填的控制项——
+            // 原来那个 "avoid wiping slider movements" 的护栏就是为它加的。
+            // 代价：UE 里拖动物体时本页不再自动跟动，要看最新点「刷新」。
             fetchSnap();
-            pollTimer = setInterval(fetchSnap, 500);
             loadModelBinding();
         }
 
@@ -3023,7 +3023,6 @@ createApp({
             }
         }
 
-        function stopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
         function toast(type, msg) {
             const id = Date.now();
@@ -3034,13 +3033,15 @@ createApp({
         onMounted(() => {
             loadInstances();
             loadZoneCatalog();
-            instanceListTimer = setInterval(() => { refreshInstances().catch(() => {}); }, 2000);
+            // 原来这里挂了个 2s 定时器全量拉 /api/v2/instances。实测 5 轮响应体
+            // 完全相同（346KB × 30 次/分 = 610MB/小时，有效变化为零）——列表里
+            // 唯一会自己变的只有 status(online/offline)，取决于 UE 心跳。
+            // 改成进页面查一次；之后增删改会各自 loadInstances()，
+            // 用户也可以点右上角「刷新」。
             loadActiveDatasetContext();
             restoreRuntimeStreamUrl();
         });
         onUnmounted(() => {
-            stopPoll();
-            if (instanceListTimer) clearInterval(instanceListTimer);
             clearRuntimeStreamTimer();
         });
 

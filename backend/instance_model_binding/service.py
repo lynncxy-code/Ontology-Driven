@@ -28,9 +28,26 @@ class ActiveProjectChangedError(InstanceModelBindingError):
 
 
 def is_assembly_render_config(config):
+    # part_count 是 get_active_copy 剔除 render_parts 后留下的替身，
+    # 少了它，投影副本里"有部件但没签名"的实例会被误判成非装配。
     return isinstance(config, dict) and (
-        "render_parts" in config or "assembly_signature" in config
+        "render_parts" in config
+        or "part_count" in config
+        or "assembly_signature" in config
     )
+
+
+def _part_count(config):
+    """部件数量：优先数明细，投影副本里退回 part_count。"""
+    if not isinstance(config, dict):
+        return 0
+    parts = config.get("render_parts")
+    if isinstance(parts, list):
+        return len(parts)
+    try:
+        return int(config.get("part_count") or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def model_source(path, asset_id=""):
@@ -240,7 +257,7 @@ class InstanceModelBindingService:
         assembly = None
         if is_assembly_render_config(render_config):
             assembly = {
-                "part_count": len(render_config.get("render_parts") or []),
+                "part_count": _part_count(render_config),
                 "assembly_signature": render_config.get("assembly_signature") or "",
                 "label": render_config.get("object_type_name") or "原始组合模型",
             }

@@ -34,8 +34,12 @@ def normalize_slot(value):
 
 
 def is_assembly_render_config(config):
+    # part_count 是 get_active_copy 投影掉 render_parts 后留下的替身，
+    # 否则装配实例在投影副本里会被当成普通模型，容器配置判定跟着走偏。
     return isinstance(config, dict) and bool(
-        config.get("render_parts") or config.get("assembly_signature")
+        config.get("render_parts")
+        or config.get("part_count")
+        or config.get("assembly_signature")
     )
 
 

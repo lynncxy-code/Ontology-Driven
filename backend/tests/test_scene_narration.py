@@ -6,6 +6,8 @@ import unittest
 import wave
 import struct
 
+from flask import Flask
+
 
 BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BACKEND_DIR not in sys.path:
@@ -21,6 +23,7 @@ from scene_interaction.narration import (
 )
 from scene_interaction.narration_assets import NarrationAssetStorage, inspect_wav
 from scene_interaction.narration_service import NarrationGenerationService
+from scene_interaction.api import register_scene_interaction_routes
 from scene_interaction.service import SceneInteractionService
 from scene_interaction.tts.base import TTSProvider
 
@@ -227,6 +230,52 @@ class NarrationGenerationTests(unittest.TestCase):
         second = self.service.generate("route-a", first["revision"])
         self.assertEqual(0, second["succeeded"])
         self.assertEqual(first["total"], second["reused"])
+
+    def test_narration_asset_download_reads_ue_bound_inactive_project(self):
+        self.service.generate("route-a", 0)
+        asset_id = next(iter(
+            self.store.get_active_copy()["scene_interactions"]["narration_assets"]
+        ))
+        project_a_id = self.store.get_active_id()
+        self.store.set_dataset({
+            "id": project_a_id,
+            "name": "Narration",
+            "graph_data": {"nodes": [], "links": [], "categories": []},
+            "bound_ue_project_id": "ue-narration-a",
+            "bound_ue_project_name": "UE Narration A",
+        })
+        self.store.create_project(
+            "Other Active",
+            project_id="narration-other",
+            dataset={
+                "id": "narration-other",
+                "name": "Other Active",
+                "graph_data": {"nodes": [], "links": [], "categories": []},
+            },
+        )
+
+        import ue_project_binding as binding_index
+        binding_index._ue_index.clear()
+        binding_index.rebuild_index(self.store)
+        app = Flask(__name__)
+        register_scene_interaction_routes(
+            app,
+            self.store,
+            narration_asset_root=os.path.join(self.temp.name, "assets"),
+        )
+        response = app.test_client().get(
+            f"/api/v2/scene-interactions/narration-assets/{asset_id}",
+            headers={
+                "X-OntoTwin-UE-Project-Id": "ue-narration-a",
+                "X-OntoTwin-UE-Project-Name": "UE Narration A",
+                "X-OntoTwin-UE-Context": "editor",
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        self.assertEqual("audio/wav", response.mimetype)
+        self.assertEqual("narration-other", self.store.get_active_id())
+        response.close()
+        binding_index._ue_index.clear()
 
     def test_project_default_voice_change_invalidates_inherited_audio(self):
         generated = self.service.generate("route-a", 0)

@@ -378,7 +378,8 @@ def _write_backup(project, backup_dir):
 
 def apply_customer_edit_changes(store, document, *, commit=False, backup_dir=None):
     normalized = normalize_document(document)
-    project = store.get_active_copy()
+    # 这里要整包备份并改写 render_parts，必须拿全量，不能用默认投影副本。
+    project = store.get_active_copy(with_render_parts=True)
     if not isinstance(project, dict):
         raise CustomerEditError("no_active_project", "no active project")
     summary = mutate_project(copy.deepcopy(project), normalized)

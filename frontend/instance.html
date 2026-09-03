@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>实例运维与监控中心 | OntoTwin Nexus 3.3.3</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/vendor/tailwind-3.4.17.min.css" />
     <script src="/vendor/vue-3.3.4.global.prod.js" integrity="sha384-QLgwzsuau/sa8LhRgjRzkvQS0LyUzCM2B8FPwVoSu1KDel940/orifPaumNXp9hK" crossorigin="anonymous"></script>
     <script src="/vendor/axios-1.7.9.min.js" integrity="sha384-jLwhcmGu/RL8PSTUEl/559f8QVLL4QqM+HBvoZlt4F7XCdsdoDGAwW4nPFfoM7lU" crossorigin="anonymous"></script>
     <script src="/artstudio_upload.js"></script>
@@ -13,7 +13,7 @@
     </script>
     <script type="module" src="/artstudio_cover.js"></script>
     <script src="/hierarchy_menu.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.3.2/bin/jsencrypt.min.js" integrity="sha384-FwzUI3CDdHbj2MEKbnjj0eCvB+gYurE3x3pW/udNFOVUbrCrl3REWMQ1FBTolvoj" crossorigin="anonymous"></script>
+    <script src="/vendor/jsencrypt-3.3.2.min.js" integrity="sha384-FwzUI3CDdHbj2MEKbnjj0eCvB+gYurE3x3pW/udNFOVUbrCrl3REWMQ1FBTolvoj" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="/nexus_titlebar.css" />
     <style>
         .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
@@ -196,7 +196,13 @@
                             <span class="flex-1 min-w-0 truncate text-xs font-semibold text-gray-700" :title="group.fullLabel">{{ group.label }}</span>
                             <span class="font-mono text-[10px] text-gray-400">{{ group.items.length }}</span>
                         </button>
-                        <div v-show="isInstanceMenuOpen(group.key)" class="p-2 space-y-2 border-t border-gray-100">
+                        <!-- v-if 而非 v-show：v-show 只是 display:none，节点照建。
+                             收起的分组不该占渲染预算——507 实例时是 4500+ 个节点常驻，
+                             上万条就是几万个。进页面时 expandedInstanceMenus 为空，
+                             这里一条都不建，展开哪组才建哪组。
+                             注意：有筛选条件时 isInstanceMenuOpen 一律返回 true（强制全展开），
+                             所以搜索态下 v-if 和 v-show 等价，省不到——那条路靠下面的防抖。 -->
+                        <div v-if="isInstanceMenuOpen(group.key)" class="p-2 space-y-2 border-t border-gray-100">
                             <div v-for="inst in group.items" :key="inst.id"
                                  @click="selectInstance(inst)"
                                  :class="[
@@ -501,7 +507,13 @@
                                     <div class="text-xs font-semibold text-gray-700">端点响应</div>
                                     <div class="mt-1 text-[11px] font-mono text-gray-500">GET /api/v2/state/snapshot?id={{ selectedInst.id }}</div>
                                 </div>
-                                <span class="text-[9px] font-mono bg-gray-100 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded tracking-widest">READ ONLY</span>
+                                <div class="flex items-center gap-2">
+                                    <button @click="fetchSnap" type="button"
+                                            class="text-[10px] font-medium text-gray-500 hover:text-gray-900 px-2 py-1 bg-white border border-gray-200 rounded shadow-sm hover:shadow transition">
+                                        刷新
+                                    </button>
+                                    <span class="text-[9px] font-mono bg-gray-100 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded tracking-widest">READ ONLY</span>
+                                </div>
                             </div>
                             <div class="p-0 bg-gray-900 overflow-x-auto text-gray-300">
                                 <pre class="p-5 text-xs font-mono leading-relaxed">{{ JSON.stringify(currentSnap, null, 2) }}</pre>
@@ -1499,8 +1511,6 @@ createApp({
         const artstudioLoginForm = ref({ username: '', password: '', captcha: '' });
         const artstudioUsernameRef = ref(null);
         const artstudioLoginTriggerRef = ref(null);
-        let pollTimer = null;
-        let instanceListTimer = null;
         const activeDataset = ref(null);
         const runtimeStreamPanelRef = ref(null);
         const runtimeStreamUrl = ref(RUNTIME_STREAM_DEFAULT_URL);
@@ -1520,7 +1530,20 @@ createApp({
 
         // ── Instance list filter ─────────────────────────────────────────
         const UNASSIGNED_ZONE_FILTER = '__unassigned__';
+        // 输入框绑 instanceSearch（即时回显），真正参与过滤的是 instanceSearchApplied。
+        // 不防抖的话每敲一个字符就要把全部实例重新 filter + 重新分组 + 重新渲染；
+        // 而且有搜索词时 isInstanceMenuOpen 会强制展开所有分组，上万条时一次击键
+        // 就是一轮全量渲染。250ms 是停手后才算，连续输入期间只算最后一次。
         const instanceSearch = ref('');
+        const instanceSearchApplied = ref('');
+        let instanceSearchTimer = null;
+        watch(instanceSearch, (value) => {
+            if (instanceSearchTimer) clearTimeout(instanceSearchTimer);
+            instanceSearchTimer = setTimeout(() => {
+                instanceSearchApplied.value = value;
+                instanceSearchTimer = null;
+            }, 250);
+        });
         const instanceTypeFilter = ref('');
         const instanceZoneFilter = ref('');
         const expandedInstanceMenus = ref(new Set());
@@ -1590,7 +1613,7 @@ createApp({
         }
 
         const filteredInstances = computed(() => {
-            const query = instanceSearch.value.toLowerCase();
+            const query = instanceSearchApplied.value.toLowerCase();
             return instances.value.filter(inst => {
                 const searchText = [
                     inst.display_name,
@@ -1610,7 +1633,9 @@ createApp({
         ));
 
         function isInstanceMenuOpen(key) {
-            const filtersActive = Boolean(instanceSearch.value || instanceTypeFilter.value || instanceZoneFilter.value);
+            // 用 applied 而不是即时值：否则刚敲第一个字符时分组已经全部展开、
+            // 过滤却还没生效，会出现"全展开 + 全量条目"的瞬间——正是防抖要避免的那一帧。
+            const filtersActive = Boolean(instanceSearchApplied.value || instanceTypeFilter.value || instanceZoneFilter.value);
             return filtersActive || expandedInstanceMenus.value.has(key);
         }
 
@@ -1884,9 +1909,9 @@ createApp({
         async function refreshInstances() {
             const instRes = await axios.get('/api/v2/instances');
             applyInstanceList(instRes.data);
-            if (activeMonitorTab.value === 'control' && selectedInst.value) {
-                loadModelBinding(true).catch(() => {});
-            }
+            // 这里原来顺带刷一次 model-binding。但模型绑定只会被本页或 MCP 改动，
+            // UE 不写它——跟着列表每 2s 拉一次纯属搭便车，实测响应体一字不变。
+            // 改成选中时查一次 + 改动后主动刷（见 saveModelBinding / clearModelBinding）。
         }
 
         async function loadInstances() {
@@ -1941,7 +1966,13 @@ createApp({
 
         async function switchMonitorTab(tab) {
             activeMonitorTab.value = tab;
-            if (tab === 'control' && selectedInst.value) await loadModelBinding();
+            if (!selectedInst.value) return;
+            // 「端点 JSON」和「控制」两个页签渲染的都是 currentSnap。去掉 500ms 轮询后
+            // 它只在选中实例那一刻取过一次，切页签看到的可能是几分钟前的数据——
+            // 而 JSON 页签上还写着 "GET /api/v2/state/snapshot?id=..."，等于在骗人。
+            // 所以切过来时重取一次，保证看到的就是当前值。
+            fetchSnap();
+            if (tab === 'control') await loadModelBinding();
         }
 
         async function loadModelBinding(silent = false) {
@@ -2864,7 +2895,6 @@ createApp({
                     selectedInst.value = null;
                     currentSnap.value = null;
                     modelBinding.value = null;
-                    stopPoll();
                 }
                 toast('ok', `已强制销毁实例: ${id}`);
                 await loadInstances();
@@ -2878,9 +2908,12 @@ createApp({
             activeMonitorTab.value = 'control';
             modelBinding.value = null;
             modelBindingError.value = '';
-            stopPoll();
+            // 选中时各查一次即可，不再 500ms 轮询快照。
+            // 实测轮询回来的内容除了服务端每次现取的 timestamp 之外一字不变，
+            // 却要 2 次/秒 × 92KB；而且它会周期性覆盖用户正在填的控制项——
+            // 原来那个 "avoid wiping slider movements" 的护栏就是为它加的。
+            // 代价：UE 里拖动物体时本页不再自动跟动，要看最新点「刷新」。
             fetchSnap();
-            pollTimer = setInterval(fetchSnap, 500);
             loadModelBinding();
         }
 
@@ -3029,7 +3062,6 @@ createApp({
             }
         }
 
-        function stopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
         function toast(type, msg) {
             const id = Date.now();
@@ -3040,13 +3072,16 @@ createApp({
         onMounted(() => {
             loadInstances();
             loadZoneCatalog();
-            instanceListTimer = setInterval(() => { refreshInstances().catch(() => {}); }, 2000);
+            // 原来这里挂了个 2s 定时器全量拉 /api/v2/instances。实测 5 轮响应体
+            // 完全相同（346KB × 30 次/分 = 610MB/小时，有效变化为零）——列表里
+            // 唯一会自己变的只有 status(online/offline)，取决于 UE 心跳。
+            // 改成进页面查一次；之后增删改会各自 loadInstances()，
+            // 用户也可以点右上角「刷新」。
             loadActiveDatasetContext();
             restoreRuntimeStreamUrl();
         });
         onUnmounted(() => {
-            stopPoll();
-            if (instanceListTimer) clearInterval(instanceListTimer);
+            if (instanceSearchTimer) clearTimeout(instanceSearchTimer);
             clearRuntimeStreamTimer();
         });
 
@@ -3082,7 +3117,7 @@ createApp({
             runtimeStreamStatusLabel, runtimeStreamStatusDotClass, runtimeStreamError,
             connectRuntimeStream, disconnectRuntimeStream, clearRuntimeStreamUrl, handleRuntimeStreamLoad,
             handleRuntimeStreamError, openRuntimeStreamWindow, fullscreenRuntimeStream,
-            loadInstances, spawnInstance, deleteInstance, selectInstance, applyOverride, resetOverride,
+            loadInstances, spawnInstance, deleteInstance, selectInstance, fetchSnap, applyOverride, resetOverride,
             instanceLivenessTag,
             // FR-7 规范坐标微调
             posOpen, posSaving, pos, posX, openPos, savePos, posEditCanonical, posEditUE, posEditFrame, posEditFloor,

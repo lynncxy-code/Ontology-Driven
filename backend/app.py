@@ -1,6 +1,8 @@
 import os
 import time
 import math
+import copy
+import mimetypes
 import requests as http_requests
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
@@ -25,6 +27,11 @@ from representation_container.service import resolve_effective_container
 from scc_w18_semantic_mapping import decorate_graph as decorate_scc_w18_graph
 
 # ── App Setup ───────────────────────────────────────────────────
+# Windows 的 mimetypes 表里没有 woff2，本地字体会被当成 application/octet-stream
+# 发出去。浏览器对 @font-face 不强制校验 MIME，能用，但不正确——显式补上。
+mimetypes.add_type("font/woff2", ".woff2")
+mimetypes.add_type("font/woff", ".woff")
+
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
 app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
 app.json.ensure_ascii = False  # 中文字符不转义为 \uXXXX，便于 2.9.2 调试（Flask 2.2+ 用法）
@@ -1715,11 +1722,22 @@ def _model_binding_summary(rid, ot, instances_by_type=None):
         else [inst for inst in instance_store.list_all()
               if inst.get("object_type_rid") == rid]
     )
+    # render_config 只在实例没有 source_asset_path 时才用得上（下面那个分支）。
+    # 以前是每个实例都调一次 get_render_config，等于抢 N 次锁；而写路径的
+    # _save_current() 握着同一把锁全量重写整个项目，UE 实时上报时每次占锁一秒多，
+    # 507 个实例就被放大成好几秒。现在只给真正缺 path 的那些实例批量取，一次抢锁；
+    # 迁移进来的实例都带 source_asset_path，这个集合通常是空的，一次都不用抢。
+    # 判据和下面循环里的 `if not path` 逐字一致，避免两处口径漂移。
+    need_cfg = [inst.get("id") for inst in instances
+                if not (inst.get("source_asset_path") or "")]
+    configs = instance_store.get_render_configs(need_cfg) if need_cfg else {}
+
     for inst in instances:
-        cfg = instance_store.get_render_config(inst.get("id")) or {}
         path = inst.get("source_asset_path") or ""
-        if not path and _is_assembly_render_config(cfg):
-            path = cfg.get("ue_asset_path") or cfg.get("asset_id") or ""
+        if not path:
+            cfg = configs.get(inst.get("id")) or {}
+            if _is_assembly_render_config(cfg):
+                path = cfg.get("ue_asset_path") or cfg.get("asset_id") or ""
         path = str(path or "").strip()
         if not path:
             continue
@@ -2556,7 +2574,10 @@ def _build_snapshot(instance_id, ctx=None):
     # project's Models directory.
 
     now = time.time()
-    online = (now - inst_meta.get("last_seen", 0)) < 3.0
+    # 注意别写成 .get("last_seen", 0)：ue_migrated 实例的该键存在但值为 None，
+    # 默认值不会生效，None 参与减法会让快照接口整个 500（UE 侧直接断流）。
+    last_seen = inst_meta.get("last_seen")
+    online = last_seen is not None and (now - last_seen) < 3.0
 
     interfaces = {}
 
@@ -4985,6 +5006,34 @@ register_external_data_control_routes(app, project_store, get_runtime_status)
 
 from web_interaction import register_web_interaction_routes
 register_web_interaction_routes(app, project_store)
+
+
+def _dataset_package_lookup(dataset_id):
+    return next(
+        (copy.deepcopy(item) for item in _datasets if item.get("id") == dataset_id),
+        None,
+    )
+
+
+def _dataset_package_names():
+    return [item.get("name") for item in _datasets if item.get("name")]
+
+
+def _dataset_package_imported(dataset):
+    """Refresh the Web catalog only; ProjectStore already committed the inactive project."""
+    if any(item.get("id") == dataset.get("id") for item in _datasets):
+        raise ValueError(f"dataset already exists: {dataset.get('id')}")
+    _datasets.append(dataset)
+
+
+from dataset_package import register_dataset_package_routes
+dataset_package_service = register_dataset_package_routes(
+    app,
+    project_store,
+    dataset_lookup=_dataset_package_lookup,
+    dataset_names=_dataset_package_names,
+    on_import=_dataset_package_imported,
+)
 
 from zone_management import register_zone_management_routes
 register_zone_management_routes(app, project_store)

@@ -74,14 +74,22 @@ def register_web_interaction_routes(app, project_store):
     def runtime():
         def action():
             binding, _ = runtime_binding(False)
-            return service.runtime(request.args.get("known_revision"), binding)
+            return service.runtime(
+                request.args.get("known_revision"),
+                binding,
+                binding.get("project_id"),
+            )
         return execute(action)
 
     @blueprint.post("/api/v2/web-interactions/runtime-events")
     def runtime_events():
         def action():
-            _, ue = runtime_binding(True)
-            return service.runtime_event(request.get_json(silent=True) or {}, ue)
+            binding, ue = runtime_binding(True)
+            return service.runtime_event(
+                request.get_json(silent=True) or {},
+                ue,
+                binding.get("project_id"),
+            )
         return execute(action)
 
     app.register_blueprint(blueprint)

@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>本体配置中心 | OntoTwin Nexus 2.3</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/vendor/tailwind-3.4.17.min.css" />
     <script src="/vendor/vue-3.3.4.global.prod.js" integrity="sha384-QLgwzsuau/sa8LhRgjRzkvQS0LyUzCM2B8FPwVoSu1KDel940/orifPaumNXp9hK" crossorigin="anonymous"></script>
     <script src="/vendor/axios-1.7.9.min.js" integrity="sha384-jLwhcmGu/RL8PSTUEl/559f8QVLL4QqM+HBvoZlt4F7XCdsdoDGAwW4nPFfoM7lU" crossorigin="anonymous"></script>
     <script src="/artstudio_upload.js"></script>
     <script src="/hierarchy_menu.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.3.2/bin/jsencrypt.min.js" integrity="sha384-FwzUI3CDdHbj2MEKbnjj0eCvB+gYurE3x3pW/udNFOVUbrCrl3REWMQ1FBTolvoj" crossorigin="anonymous"></script>
+    <script src="/vendor/jsencrypt-3.3.2.min.js" integrity="sha384-FwzUI3CDdHbj2MEKbnjj0eCvB+gYurE3x3pW/udNFOVUbrCrl3REWMQ1FBTolvoj" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="/nexus_titlebar.css" />
     <style>
         .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
@@ -417,8 +417,28 @@
 
                                 <!-- 资产卡片网格 + 分页（公开库 / 我的资产共用） -->
                                 <template v-if="bindMode === 'library' || (bindMode === 'mine' && artstudioIdentity?.authenticated)">
+                                    <!-- 加载骨架：资产来自外网，首次要等几秒，别留白 -->
+                                    <div v-if="assetsLoading && !pagedAssets.length" class="grid grid-cols-2 gap-3 mb-4">
+                                        <div v-for="n in 4" :key="'skeleton-' + n"
+                                             class="p-3 border border-gray-200 rounded-lg flex flex-col animate-pulse">
+                                            <div class="rounded" style="width:100%; height:90px; background:#f3f4f6; margin-bottom:8px;"></div>
+                                            <div class="rounded" style="width:60%; height:10px; background:#f3f4f6;"></div>
+                                            <div class="rounded mt-2" style="width:85%; height:9px; background:#f6f7f8;"></div>
+                                        </div>
+                                    </div>
+                                    <div v-if="assetsLoading && !pagedAssets.length" class="text-[11px] text-gray-500 mb-4">
+                                        正在读取模型库…
+                                    </div>
+                                    <!-- 空态：加载完了确实没有，给一句下一步 -->
+                                    <div v-else-if="!assetsLoading && !pagedAssets.length && !assetLoadWarning"
+                                         class="mb-4 border border-gray-200 rounded-lg px-4 py-6 text-center">
+                                        <div class="text-xs text-gray-600">没有符合条件的模型</div>
+                                        <div class="text-[11px] text-gray-500 mt-1">
+                                            换个分类或搜索词试试，也可以切到「手动填写路径」直接指定 UE 资产。
+                                        </div>
+                                    </div>
                                     <!-- 资产卡片网格 -->
-                                    <div class="grid grid-cols-2 gap-3 mb-4">
+                                    <div v-if="pagedAssets.length" class="grid grid-cols-2 gap-3 mb-4">
                                         <div v-for="asset in pagedAssets" :key="asset.file_number"
                                              @click="selectLibraryAsset(asset)"
                                              :aria-disabled="asset.bindable === false ? 'true' : 'false'"
@@ -798,6 +818,8 @@ createApp({
         const manualPath    = ref('');
         const assetResult   = ref(null);
         const assetLoadWarning = ref('');
+        // 资产列表来自外网 ArtStudio，首次要几秒。页面不再等它，改成列表区自己显示加载态。
+        const assetsLoading = ref(false);
         const artstudioIdentity = ref(null);
         const identityLoading = ref(false);
         const identityError = ref('');
@@ -1257,14 +1279,17 @@ createApp({
                 assetTotal.value = 0;
                 assetSource.value = "manual";
                 assetLoadWarning.value = "";
+                assetsLoading.value = false;
                 return;
             }
             if (requestMode === 'mine' && !artstudioIdentity.value?.authenticated) {
                 allAssets.value = [];
                 assetTotal.value = 0;
                 assetSource.value = "mine";
+                assetsLoading.value = false;
                 return;
             }
+            assetsLoading.value = true;
 
             const params = { page: assetPage.value, size: ASSET_PAGE_SIZE };
 
@@ -1281,7 +1306,10 @@ createApp({
 
             try {
                 const { data } = await axios.get('/api/v2/assets', { params });
+                // 慢请求回来时可能已经切了模式或翻了页，旧结果直接丢弃，
+                // 加载态留给那个更新的请求去收尾，这里不能抢着关掉。
                 if (requestSeq !== assetLoadSeq || requestMode !== bindMode.value) return;
+                assetsLoading.value = false;
                 allAssets.value  = data.items || [];
                 assetTotal.value = data.total || 0;
                 assetSource.value = data._source || (requestMode === 'mine' ? "mine" : "studio");
@@ -1293,6 +1321,7 @@ createApp({
                 }
             } catch (e) {
                 if (requestSeq !== assetLoadSeq || requestMode !== bindMode.value) return;
+                assetsLoading.value = false;
                 allAssets.value  = [];
                 assetTotal.value = 0;
                 assetSource.value = requestMode === 'mine' ? "mine_error" : "studio_error";
@@ -1431,6 +1460,7 @@ createApp({
                 identityError.value = '尚未连接 ArtStudio 账号。';
                 allAssets.value = [];
                 assetTotal.value = 0;
+                assetsLoading.value = false;
                 selectedAssetFn.value = '';
                 selectedAssetUePath.value = '';
                 toast('ok', '已断开 ArtStudio 账号');
@@ -1468,6 +1498,7 @@ createApp({
             assetLoadWarning.value = '';
             allAssets.value = [];
             assetTotal.value = 0;
+            assetsLoading.value = false;   // 未登录时不再往下走，别把骨架留在那
             if (authenticated) {
                 assetPage.value = 1;
                 await loadAssets();
@@ -1556,7 +1587,8 @@ createApp({
 
         // 切换绑定模式
         async function switchBindMode(mode) {
-            ++assetLoadSeq;
+            ++assetLoadSeq;              // 作废在途请求
+            assetsLoading.value = false; // 作废的请求不会再回来关加载态，这里替它关
             bindMode.value = mode;
             assetResult.value = null;
             selectedAssetFn.value = '';
@@ -1604,7 +1636,10 @@ createApp({
 
         onMounted(async () => {
             await loadTypes();
-            await loadAssets();
+            // 不 await：资产列表要走外网 ArtStudio，实测首次 4.2s。以前串行等在这里，
+            // 意味着 ?rid= 的定位、展开、滚动全部被外网延迟拖住。现在让它自己在后台跑，
+            // 列表区用骨架占位，类型侧的交互立刻可用。
+            loadAssets();
             const urlParams = new URLSearchParams(window.location.search);
             const ridParam = urlParams.get('rid');
             if (ridParam) {
@@ -1624,7 +1659,7 @@ createApp({
             objectTypes, typeSearch, sortedObjectTypes, filteredObjectTypes, objectTypeMenuGroups, expandedTypeMenus, isTypeMenuOpen, toggleTypeMenu, typeCategoryCaption, allInterfaces, allAssets, assetTotal, assetSource, selected, activeDataset,
             parentInterfaces, childInterfaces, pendingInterfaces, pendingRemove, hasRepresentable,
             defaultModel, originalModels,
-            editMode, saving, bindMode, selectedAssetFn, selectedAssetUePath, selectedAsset, manualPath, assetResult, assetLoadWarning, artstudioIdentity, identityLoading, identityError, bindingAsset, promotingModelPath, toasts,
+            editMode, saving, bindMode, selectedAssetFn, selectedAssetUePath, selectedAsset, manualPath, assetResult, assetLoadWarning, assetsLoading, artstudioIdentity, identityLoading, identityError, bindingAsset, promotingModelPath, toasts,
             clearTypeModelOpen, clearTypeModelSaving, clearTypeModelDialog,
             containerBlueprintPath, containerSlot, containerSaving,
             containerBatchOpen, containerBatchSaving, containerBatchDialog,

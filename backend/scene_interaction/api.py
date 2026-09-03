@@ -17,9 +17,15 @@ class SceneInteractionForbiddenError(PermissionError):
         super().__init__(payload.get("message") or payload.get("error") or "forbidden")
 
 
-def register_scene_interaction_routes(app, project_store, catalog_path=None):
+def register_scene_interaction_routes(
+    app, project_store, catalog_path=None, narration_asset_root=None
+):
     blueprint = Blueprint("scene_interaction_api", __name__)
-    service = SceneInteractionService(project_store, ResourceCatalog(catalog_path))
+    service = SceneInteractionService(
+        project_store,
+        ResourceCatalog(catalog_path),
+        narration_asset_root=narration_asset_root,
+    )
 
     def execute(action, success_status=200):
         try:
@@ -159,8 +165,10 @@ def register_scene_interaction_routes(app, project_store, catalog_path=None):
     @blueprint.get("/api/v2/scene-interactions/narration-assets/<asset_id>")
     def get_narration_asset(asset_id):
         try:
-            runtime_binding(require_ue_identity=False)
-            path, metadata = service.narration_asset_file(asset_id)
+            binding, _ = runtime_binding(require_ue_identity=False)
+            path, metadata = service.narration_asset_file(
+                asset_id, binding.get("project_id")
+            )
             response = send_file(
                 path,
                 mimetype="audio/wav",

@@ -21,9 +21,15 @@ class WebInteractionService:
     def __init__(self, store):
         self.store = store
 
-    def _project(self):
-        project = self.store.get_active_copy()
+    def _project(self, project_id=None):
+        project = (
+            self.store.read_project(project_id)
+            if project_id
+            else self.store.get_active_copy()
+        )
         if not project:
+            if project_id:
+                raise WebInteractionNotFoundError(f"项目不存在: {project_id}")
             raise WebInteractionNotFoundError("当前没有激活项目")
         return project
 
@@ -192,17 +198,17 @@ class WebInteractionService:
         self.store.transact_active(update)
         return {"status": "ok", "rolled_back": True, "project_id": project_id, "revision": result["revision"]}
 
-    def runtime(self, known_revision=None, binding=None):
-        project = self._project()
+    def runtime(self, known_revision=None, binding=None, project_id=None):
+        project = self._project(project_id)
         return build_runtime_projection(project, self._web(project), known_revision, binding)
 
-    def runtime_event(self, payload, ue_project):
+    def runtime_event(self, payload, ue_project, project_id=None):
         allowed = {
             "event_type", "request_id", "binding_id", "page_id", "host",
             "action", "result", "error_code", "scene_result", "web_result",
         }
         event = {key: payload.get(key) for key in allowed if key in payload}
-        event["project_id"] = self._project().get("id")
+        event["project_id"] = self._project(project_id).get("id")
         event["ue_project_id"] = (ue_project or {}).get("id")
         event["received_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
         # Deliberately log no URL query, cookies, credentials or page business payload.

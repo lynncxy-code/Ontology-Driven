@@ -86,15 +86,21 @@ class FakeHttp:
                 else {"deduped": False, "mode": "single", "url": "https://store.test/model"}
             )
             return FakeResponse(body={"data": data})
+        if path == "/asset-uploads/single":
+            return FakeResponse(body={
+                "data": {"deduped": False, "url": "https://store.test/cover"}
+            })
         if path == "/asset-uploads/finalize-single":
             return FakeResponse(body={"data": {"fileId": "file-new"}})
         if path == "/assets":
+            payload = kwargs["json"]
             return FakeResponse(body={
                 "data": {
                     "id": "asset-123",
-                    "name": kwargs["json"]["name"],
+                    "name": payload["name"],
                     "currentVersion": 1,
                     "status": 3,
+                    "coverUrls": ["https://store.test/cover.jpg"] if payload.get("coverFileIds") else [],
                 }
             })
         if path == "/assets/asset-123/list":
@@ -167,16 +173,26 @@ class ArtStudioUploadServiceTests(unittest.TestCase):
 
     def test_cover_is_uploaded_and_attached_when_available(self):
         http = FakeHttp()
-        self.service(http).upload(
+        result = self.service(http).upload(
             upload_file(), "带封面模型", visibility="public", cover_file=cover_file()
         )
 
+        paths = [(method, path) for method, path, _ in http.requests]
+        self.assertIn(("POST", "/asset-uploads/single"), paths)
         create_payload = next(
             payload for method, path, payload in http.requests
             if method == "POST" and path == "/assets"
         )
-        self.assertEqual("file-new", create_payload["coverFileId"])
+        self.assertEqual(["file-new"], create_payload["coverFileIds"])
+        self.assertNotIn("coverFileId", create_payload)
+        self.assertEqual("https://store.test/cover.jpg", result["asset"]["cover_url"])
         self.assertEqual(2, len(http.puts))
+        cover_finalize = next(
+            payload for method, path, payload in http.requests
+            if method == "POST" and path == "/asset-uploads/finalize-single"
+            and payload["mime"] == "image/jpeg"
+        )
+        self.assertNotIn("kind", cover_finalize)
 
     def test_invalid_glb_never_calls_upstream(self):
         http = FakeHttp()

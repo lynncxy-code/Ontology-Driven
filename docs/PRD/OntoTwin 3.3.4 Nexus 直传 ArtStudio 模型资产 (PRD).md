@@ -114,10 +114,10 @@ visibility  public | private，必填
 2. 流式写入系统临时文件，同时计算 SHA-256 和大小。
 3. 校验 GLB 文件头和声明长度。
 4. 浏览器使用 Three.js 计算模型包围盒并生成默认视角 JPEG 封面；失败时继续第 5 步。
-5. 调用 ArtStudio `/asset-uploads/init`，分别上传模型和封面文件。
+5. 调用 ArtStudio 上传协议：模型文件使用可续传的 `/asset-uploads/init`；默认封面使用单文件 `/asset-uploads/single`，两者分别完成文件上传。
 6. 按上游结果执行去重、单文件 PUT 或分片 PUT。
 7. 调用完成接口取得 `fileId`。
-8. 调用 `/assets` 创建 3D 模型资产，并在上游支持时写入 `coverFileId`。
+8. 调用 `/assets` 创建 3D 模型资产，并在上游当前契约下写入 `coverFileIds: [coverFileId]`（单张默认封面仍使用数组字段）。
 9. 公共资产调用 `/assets/{id}/list` 立即上架。
 10. 返回与现有 `/api/v2/assets` 列表兼容的资产摘要；若返回 `coverUrl`，前端立即显示封面。
 11. 无论成功失败均清理本地临时文件，日志不得记录 Token 或预签名地址。

@@ -267,20 +267,27 @@ class ArtStudioUploadService:
             "mime": staged["mime"],
             "filename": staged["filename"],
         }
-        init = self._api("POST", "/asset-uploads/init", payload=common)
+        # ArtStudio uses two upload contracts: model files use the resumable
+        # ``init`` flow, while generated thumbnails/covers use the lightweight
+        # ``single`` flow.  The latter intentionally has no ``kind`` field in
+        # its finalize request; the asset create call assigns it as a cover.
+        init_path = "/asset-uploads/init" if kind == "model" else "/asset-uploads/single"
+        init = self._api("POST", init_path, payload=common)
         if init.get("deduped"):
             file_id = init.get("fileId")
             if file_id:
                 return str(file_id)
 
         mode = str(init.get("mode") or "").lower()
-        finalize = {**common, "kind": kind}
-        if mode == "single" and init.get("url"):
+        finalize = {**common}
+        if kind == "model":
+            finalize["kind"] = "model"
+        if (kind != "model" or mode == "single") and init.get("url"):
             self._put_single(init["url"], staged)
             data = self._api(
                 "POST", "/asset-uploads/finalize-single", payload=finalize, timeout=30
             )
-        elif init.get("parts"):
+        elif kind == "model" and init.get("parts"):
             completed = self._put_parts(init["parts"], staged)
             data = self._api(
                 "POST",
@@ -323,7 +330,10 @@ class ArtStudioUploadService:
             "fileIds": [file_id],
         }
         if cover_file_id:
-            payload["coverFileId"] = cover_file_id
+            # ArtStudio's current contract is plural even for one default
+            # cover.  Sending the legacy singular key creates the asset but
+            # silently leaves ``coverFileIds`` empty.
+            payload["coverFileIds"] = [cover_file_id]
         if description:
             payload["description"] = description
         data = self._api("POST", "/assets", payload=payload, timeout=30)
@@ -395,7 +405,7 @@ class ArtStudioUploadService:
                     file_id, name, description, visibility, user_id, cover_file_id
                 )
             except ArtStudioUploadError as exc:
-                # 旧版 ArtStudio 可能不认识 coverFileId；回退到无封面创建，
+                # 旧版 ArtStudio 可能不认识 coverFileIds；回退到无封面创建，
                 # 保证默认封面是增强能力而不是模型上传的硬依赖。
                 if not cover_file_id or exc.code not in (
                     "artstudio_upstream_rejected", "artstudio_asset_create_failed"
@@ -447,6 +457,10 @@ class ArtStudioUploadService:
     @staticmethod
     def _asset_payload(asset_id, name, data):
         data = data if isinstance(data, dict) else {}
+        cover_urls = data.get("coverUrls")
+        cover_url = data.get("coverUrl")
+        if not cover_url and isinstance(cover_urls, list) and cover_urls:
+            cover_url = cover_urls[0]
         return {
             "file_number": str(asset_id),
             "name": str(data.get("name") or name),
@@ -455,7 +469,7 @@ class ArtStudioUploadService:
             "bindable": True,
             "bounding_box": {},
             "download_url": "",
-            "cover_url": str(data.get("coverUrl") or ""),
+            "cover_url": str(cover_url or ""),
             "ue_path": "",
             "current_version": int(data.get("currentVersion") or 1),
             "_source": {"artstudio_id": str(asset_id)},

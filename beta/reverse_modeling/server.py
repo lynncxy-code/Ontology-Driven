@@ -6,6 +6,7 @@ import json
 import mimetypes
 import os
 import shutil
+import struct
 import threading
 import time
 import uuid
@@ -22,6 +23,7 @@ RUNTIME_ROOT = APP_ROOT / "runtime"
 UPLOAD_ROOT = RUNTIME_ROOT / "uploads"
 RESULT_ROOT = RUNTIME_ROOT / "results"
 DEFAULT_BACKEND = "http://127.0.0.1:8081"
+DEFAULT_ONTOTWIN_BACKEND = "http://localhost:5000"
 HUNYUAN_SOURCE = Path(r"D:\AI\Hunyuan3D-2.1-local\src\Hunyuan3D-2.1-main")
 HUNYUAN_MULTIVIEW_OUTPUT = Path(r"D:\AI\Hunyuan3D-2.1-local\output\multiview")
 EXAMPLE_ROOT = HUNYUAN_SOURCE / "assets" / "example_images"
@@ -29,12 +31,14 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 MAX_MULTIVIEW_REQUEST_BYTES = MAX_UPLOAD_BYTES * 4 + 2 * 1024 * 1024
 ALLOWED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 ALLOWED_EXPORT_TYPES = {"glb", "obj", "ply", "stl"}
+MODEL_SUFFIXES = {"glb": ".glb", "obj": ".obj", "ply": ".ply", "stl": ".stl", "gltf": ".gltf"}
 VIEW_KEYS = ("front", "back", "left", "right")
 
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
 CLIENT_CALL_LOCK = threading.Lock()
 BACKEND_URL = DEFAULT_BACKEND
+ONTOTWIN_BACKEND_URL = DEFAULT_ONTOTWIN_BACKEND
 
 
 def now_ms() -> int:
@@ -170,17 +174,188 @@ def resolve_result_path(source) -> Path | None:
     return source_path if source_path.is_file() else None
 
 
-def copy_result_file(source, job_id: str, preferred_name: str) -> str | None:
+def detect_model_format(source_path: Path) -> str | None:
+    """Identify common mesh formats by content instead of trusting the suffix."""
+    try:
+        with source_path.open("rb") as source:
+            header = source.read(4096)
+    except OSError:
+        return None
+    if header.startswith(b"glTF"):
+        return "glb"
+    stripped = header.lstrip()
+    if stripped.startswith(b"ply\n") or stripped.startswith(b"ply\r\n"):
+        return "ply"
+    if stripped.startswith(b"{") and b'"asset"' in stripped:
+        return "gltf"
+    try:
+        sample = header.decode("utf-8")
+    except UnicodeDecodeError:
+        sample = ""
+    if sample:
+        mesh_lines = [line.lstrip() for line in sample.splitlines() if line.strip()]
+        if any(line.startswith(("v ", "vn ", "vt ", "f ", "o ", "g ", "mtllib ", "usemtl ")) for line in mesh_lines):
+            return "obj"
+        if mesh_lines and mesh_lines[0].lower().startswith("solid ") and any("facet normal" in line.lower() for line in mesh_lines):
+            return "stl"
+    suffix = source_path.suffix.lower().lstrip(".")
+    return suffix if suffix in MODEL_SUFFIXES else None
+
+
+def copy_result_file(
+    source,
+    job_id: str,
+    preferred_stem: str,
+    expected_format: str | None = None,
+) -> str | None:
     source_path = resolve_result_path(source)
     if not source_path:
         return None
+    detected_format = detect_model_format(source_path)
+    if expected_format and detected_format and detected_format != expected_format:
+        raise RuntimeError(
+            f"导出服务返回了 {detected_format.upper()} 内容，不是请求的 {expected_format.upper()} 文件。"
+        )
     job_root = RESULT_ROOT / job_id
     job_root.mkdir(parents=True, exist_ok=True)
-    suffix = source_path.suffix.lower()
-    target_name = preferred_name if Path(preferred_name).suffix else preferred_name + suffix
+    suffix = MODEL_SUFFIXES.get(detected_format or "", source_path.suffix.lower())
+    target_name = Path(preferred_stem).stem + suffix
     target = job_root / target_name
     shutil.copy2(source_path, target)
     return str(target)
+
+
+def result_format(path_value: str | None) -> str | None:
+    if not path_value:
+        return None
+    return detect_model_format(Path(path_value))
+
+
+def validate_glb_file(path: Path) -> None:
+    if not path.is_file():
+        raise RuntimeError("当前导出文件不存在，请重新导出 GLB。")
+    size = path.stat().st_size
+    if size < 20:
+        raise RuntimeError("当前导出文件不是完整的 GLB 模型。")
+    with path.open("rb") as source:
+        header = source.read(12)
+    if len(header) != 12:
+        raise RuntimeError("当前导出文件不是完整的 GLB 模型。")
+    magic, version, declared_length = struct.unpack("<III", header)
+    if magic != 0x46546C67 or version != 2:
+        raise RuntimeError("只有有效的 GLB 2.0 导出结果才能上传到模型库。")
+    if declared_length != size:
+        raise RuntimeError("GLB 声明长度与实际文件不一致，请重新导出。")
+
+
+def get_requests():
+    try:
+        import requests
+    except ImportError as error:
+        raise RuntimeError("当前 Beta 服务缺少模型库连接组件，请使用混元本地环境启动。") from error
+    return requests
+
+
+def model_library_status() -> dict:
+    try:
+        requests = get_requests()
+        response = requests.get(
+            f"{ONTOTWIN_BACKEND_URL.rstrip('/')}/api/v2/assets/identity",
+            timeout=(3, 8),
+        )
+        body = response.json() if response.content else {}
+        authenticated = response.ok and body.get("authenticated") is True
+        return {
+            "online": True,
+            "authenticated": authenticated,
+            "user": body.get("user") if authenticated else None,
+            "message": (
+                "模型库已连接"
+                if authenticated
+                else body.get("message") or "请先在 OntoTwin 主工具连接 ArtStudio 账号。"
+            ),
+        }
+    except Exception as error:
+        return {
+            "online": False,
+            "authenticated": False,
+            "user": None,
+            "message": "OntoTwin 主工具或模型库暂不可用。",
+            "detail": str(error),
+        }
+
+
+def run_model_library_upload(job_id: str, export_job_id: str, options: dict) -> None:
+    update_job(job_id, status="running", status_text="正在检查 GLB 导出文件")
+    try:
+        with JOBS_LOCK:
+            export_job = dict(JOBS.get(export_job_id) or {})
+        if export_job.get("status") != "succeeded":
+            raise RuntimeError("请先完成一次 GLB 导出。")
+        export_path_value = export_job.get("_export_path")
+        export_path = Path(export_path_value) if export_path_value else None
+        if not export_path:
+            raise RuntimeError("当前导出任务没有可上传文件。")
+        validate_glb_file(export_path)
+
+        name = str(options.get("name") or "").strip()
+        description = str(options.get("description") or "").strip()
+        visibility = "private" if options.get("visibility") == "private" else "public"
+        if not name:
+            raise RuntimeError("请输入资产名称。")
+        if len(name) > 64:
+            raise RuntimeError("资产名称不能超过 64 个字符。")
+        if len(description) > 1000:
+            raise RuntimeError("资产描述不能超过 1000 个字符。")
+
+        status = model_library_status()
+        if not status.get("online"):
+            raise RuntimeError(status.get("message") or "OntoTwin 主工具暂不可用。")
+        if not status.get("authenticated"):
+            raise RuntimeError(status.get("message") or "请先连接 ArtStudio 账号。")
+
+        update_job(
+            job_id,
+            status_text=(
+                "正在上传并发布到公共模型库"
+                if visibility == "public"
+                else "正在上传到私人模型库"
+            ),
+        )
+        requests = get_requests()
+        with export_path.open("rb") as model_file:
+            response = requests.post(
+                f"{ONTOTWIN_BACKEND_URL.rstrip('/')}/api/v2/assets/uploads",
+                files={"file": (export_path.name, model_file, "model/gltf-binary")},
+                data={
+                    "name": name,
+                    "description": description,
+                    "visibility": visibility,
+                },
+                timeout=(10, 900),
+            )
+        try:
+            body = response.json() if response.content else {}
+        except ValueError:
+            body = {}
+        if not response.ok:
+            error_message = body.get("message") or "模型库没有完成本次上传。"
+            update_job(
+                job_id,
+                status="failed",
+                status_text="上传失败",
+                error=str(error_message),
+                result={"partial": body.get("fields") or {}, "upstream_status": response.status_code},
+            )
+            return
+        update_job(
+            job_id,
+            status="succeeded",
+            status_text="模型已上传到模型库",
+            result=body,
+        )
+    except Exception as error:
+        update_job(job_id, status="failed", status_text="上传失败", error=str(error))
 
 
 def recover_latest_result() -> dict:
@@ -196,9 +371,9 @@ def recover_latest_result() -> dict:
         raise RuntimeError("没有找到可恢复的本地生成结果。")
     source_dir = max(candidates, key=lambda item: item.stat().st_mtime)
     job = create_job("generation")
-    shape_path = copy_result_file(source_dir / "white_mesh.glb", job["id"], "shape_mesh.glb")
+    shape_path = copy_result_file(source_dir / "white_mesh.glb", job["id"], "shape_mesh")
     textured_source = source_dir / "textured_mesh.glb"
-    textured_path = copy_result_file(textured_source, job["id"], "textured_mesh.glb") if textured_source.is_file() else None
+    textured_path = copy_result_file(textured_source, job["id"], "textured_mesh") if textured_source.is_file() else None
     viewer_name = "textured_mesh.html" if (source_dir / "textured_mesh.html").is_file() else "white_mesh.html"
     viewer_url = f"{BACKEND_URL.rstrip('/')}/static/{source_dir.name}/{viewer_name}"
     viewer_html = (
@@ -214,6 +389,8 @@ def recover_latest_result() -> dict:
         "view_count": None,
         "has_shape": bool(shape_path),
         "has_textured": bool(textured_path),
+        "shape_format": result_format(shape_path),
+        "textured_format": result_format(textured_path),
         "shape_download": f"/api/jobs/{job['id']}/download/shape" if shape_path else None,
         "textured_download": f"/api/jobs/{job['id']}/download/textured" if textured_path else None,
         "recovered": True,
@@ -295,11 +472,11 @@ def run_generation(job_id: str, image_paths: dict[str, str], params: dict) -> No
 
         if mode == "textured":
             shape_source, textured_source, viewer_html, stats, resolved_seed = output
-            textured_path = copy_result_file(textured_source, job_id, "textured_mesh.glb")
+            textured_path = copy_result_file(textured_source, job_id, "textured_mesh")
         else:
             shape_source, viewer_html, stats, resolved_seed = output
             textured_path = None
-        shape_path = copy_result_file(shape_source, job_id, "shape_mesh.glb")
+        shape_path = copy_result_file(shape_source, job_id, "shape_mesh")
         result = {
             "mode": mode,
             "viewer_html": rewrite_viewer_html(viewer_html),
@@ -308,6 +485,8 @@ def run_generation(job_id: str, image_paths: dict[str, str], params: dict) -> No
             "view_count": sum(1 for view in VIEW_KEYS if image_paths.get(view)),
             "has_shape": bool(shape_path),
             "has_textured": bool(textured_path),
+            "shape_format": result_format(shape_path),
+            "textured_format": result_format(textured_path),
             "shape_download": f"/api/jobs/{job_id}/download/shape" if shape_path else None,
             "textured_download": f"/api/jobs/{job_id}/download/textured" if textured_path else None,
         }
@@ -356,7 +535,7 @@ def run_export(job_id: str, source_job_id: str, options: dict) -> None:
                 target_faces,
                 api_name="/on_export_click",
             )
-        export_path = copy_result_file(exported_source, job_id, f"reverse_model.{file_type}")
+        export_path = copy_result_file(exported_source, job_id, "reverse_model", expected_format=file_type)
         if not export_path:
             raise RuntimeError("导出服务没有返回文件。")
         result = {
@@ -437,6 +616,8 @@ class BetaHandler(SimpleHTTPRequestHandler):
         path = unquote(parsed.path)
         if path == "/api/health":
             return self.send_json(backend_health())
+        if path == "/api/model-library/status":
+            return self.send_json(model_library_status())
         if path == "/api/examples":
             files = []
             if EXAMPLE_ROOT.is_dir():
@@ -527,6 +708,21 @@ class BetaHandler(SimpleHTTPRequestHandler):
                 job = create_job("export", source_job_id)
                 threading.Thread(target=run_export, args=(job["id"], source_job_id, payload), daemon=True).start()
                 return self.send_json(public_job(job), HTTPStatus.ACCEPTED)
+
+            if parsed.path == "/api/model-library/upload":
+                payload = self.read_json()
+                export_job_id = str(payload.get("export_job_id") or "")
+                with JOBS_LOCK:
+                    export_exists = export_job_id in JOBS
+                if not export_exists:
+                    return self.send_json({"error": "导出任务不存在，请重新导出 GLB。"}, HTTPStatus.NOT_FOUND)
+                job = create_job("model_library_upload", export_job_id)
+                threading.Thread(
+                    target=run_model_library_upload,
+                    args=(job["id"], export_job_id, payload),
+                    daemon=True,
+                ).start()
+                return self.send_json(public_job(job), HTTPStatus.ACCEPTED)
         except (ValueError, json.JSONDecodeError) as error:
             return self.send_json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
         except Exception as error:
@@ -538,19 +734,25 @@ class BetaHandler(SimpleHTTPRequestHandler):
 
 
 def main():
-    global BACKEND_URL
+    global BACKEND_URL, ONTOTWIN_BACKEND_URL
     parser = argparse.ArgumentParser(description="OntoTwin 逆向建模 Beta 前端")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8766, type=int)
     parser.add_argument("--backend", default=os.environ.get("HUNYUAN_BACKEND", DEFAULT_BACKEND))
+    parser.add_argument(
+        "--ontotwin-backend",
+        default=os.environ.get("ONTOTWIN_BACKEND", DEFAULT_ONTOTWIN_BACKEND),
+    )
     args = parser.parse_args()
     BACKEND_URL = args.backend.rstrip("/")
+    ONTOTWIN_BACKEND_URL = args.ontotwin_backend.rstrip("/")
     UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
     RESULT_ROOT.mkdir(parents=True, exist_ok=True)
     server = ThreadingHTTPServer((args.host, args.port), BetaHandler)
     print("OntoTwin 逆向建模 Beta 已启动")
     print(f"页面地址: http://{args.host}:{args.port}")
     print(f"混元服务: {BACKEND_URL}")
+    print(f"模型库入口: {ONTOTWIN_BACKEND_URL}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

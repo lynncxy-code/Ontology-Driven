@@ -5,16 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>逆向建模 · OntoTwin Nexus Beta</title>
-  <link rel="stylesheet" href="reverse-modeling.css?v=beta-4">
+  <link rel="stylesheet" href="reverse-modeling.css?v=beta-7">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar" id="sidebar" aria-label="OntoTwin Nexus 主菜单">
       <div class="brand-row">
-        <div class="brand-mark" aria-hidden="true">N</div>
+        <img class="brand-logo" src="assets/ontotwin-logo.svg?v=20260901-color" alt="OntoTwin Nexus">
         <div class="brand-copy">
           <strong>OntoTwin Nexus</strong>
-          <span>工业数字孪生平台</span>
+          <span>本体驱动工业数字孪生平台</span>
         </div>
       </div>
 
@@ -101,7 +101,7 @@
 
     <div class="main-shell">
       <header class="topbar">
-        <div class="breadcrumb"><span>模型工坊</span><i>/</i><strong>逆向建模</strong></div>
+        <div class="breadcrumb" aria-hidden="true"></div>
         <div class="top-actions">
           <button class="service-pill" id="servicePill" type="button" aria-label="检查本地生成服务">
             <span class="dot dot-muted" id="serviceDot"></span>
@@ -114,7 +114,6 @@
       <main class="main-content">
         <section class="page-heading">
           <div>
-            <div class="eyebrow">模型工坊</div>
             <h1>逆向建模</h1>
             <p>从前、后、左、右多视图生成可继续加工的三维资产草稿。</p>
           </div>
@@ -293,6 +292,12 @@
               </label>
               <button class="btn export-button" id="exportButton" type="button" disabled>转换导出文件</button>
               <a class="btn btn-primary download-button" id="downloadButton" href="#" hidden>下载导出结果</a>
+              <button class="btn library-upload-button" id="libraryUploadButton" type="button" hidden>上传到模型库</button>
+              <p class="inline-help" id="libraryUploadHelp" hidden>仅有效的 GLB 导出结果可以上传；上传不会自动绑定到类型或实例。</p>
+              <div class="model-library-result" id="modelLibraryResult" hidden aria-live="polite">
+                <strong id="modelLibraryResultTitle">模型已上传</strong>
+                <span id="modelLibraryResultMeta"></span>
+              </div>
               <p class="inline-help">导出只生成本地文件，不写入 OntoTwin 主工具或 UE 工程。</p>
             </section>
 
@@ -307,7 +312,55 @@
     </div>
   </div>
 
+  <div class="modal-mask" id="modelLibraryModal" hidden>
+    <form class="modal model-library-modal" id="modelLibraryForm" role="dialog" aria-modal="true" aria-labelledby="modelLibraryTitle">
+      <div class="modal-head">
+        <div>
+          <h3 id="modelLibraryTitle">上传到模型库</h3>
+          <p>将当前 GLB 导出结果保存到 ArtStudio。上传成功后不会自动绑定到类型或实例。</p>
+        </div>
+        <button class="modal-close" id="modelLibraryClose" type="button" aria-label="关闭上传窗口">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="current-export"><span>当前文件</span><strong>GLB 导出结果</strong></div>
+        <label class="form-row">
+          <span class="label">资产名称</span>
+          <input class="field" id="modelLibraryName" type="text" maxlength="64" required placeholder="请输入模型名称">
+        </label>
+        <label class="form-row">
+          <span class="label">描述（选填）</span>
+          <textarea class="field textarea-field" id="modelLibraryDescription" maxlength="1000" rows="3" placeholder="简要说明模型用途"></textarea>
+        </label>
+        <fieldset class="visibility-fieldset">
+          <legend>可见性</legend>
+          <div class="visibility-grid">
+            <label class="visibility-card">
+              <span><input type="radio" name="modelLibraryVisibility" value="public" checked>公共资产</span>
+              <small>上传后立即上架，其他用户可以搜索和使用。</small>
+            </label>
+            <label class="visibility-card">
+              <span><input type="radio" name="modelLibraryVisibility" value="private">私人资产</span>
+              <small>仅当前 ArtStudio 账号可以查看和使用。</small>
+            </label>
+          </div>
+        </fieldset>
+        <p class="panel-hint">本 Beta 不额外生成封面；封面缺失不会阻断模型上传。</p>
+        <div class="upload-stage" id="modelLibraryStage" hidden aria-live="polite">
+          <span class="spinner small-spinner" aria-hidden="true"></span>
+          <div><strong id="modelLibraryStageTitle">正在检查导出文件</strong><small>请保持 OntoTwin 主工具与 ArtStudio 连接可用。</small></div>
+        </div>
+        <p class="modal-error" id="modelLibraryError" hidden role="alert"></p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" id="modelLibraryCancel" type="button">取消</button>
+        <button class="btn btn-primary" id="modelLibrarySubmit" type="submit">上传公共模型</button>
+      </div>
+    </form>
+  </div>
+
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
-  <script src="reverse-modeling.js?v=beta-4"></script>
+  <script src="reverse-modeling.js?v=beta-7"></script>
 </body>
 </html>

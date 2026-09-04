@@ -55,6 +55,21 @@
     includeTexture: $('#includeTexture'),
     exportButton: $('#exportButton'),
     downloadButton: $('#downloadButton'),
+    libraryUploadButton: $('#libraryUploadButton'),
+    libraryUploadHelp: $('#libraryUploadHelp'),
+    modelLibraryResult: $('#modelLibraryResult'),
+    modelLibraryResultTitle: $('#modelLibraryResultTitle'),
+    modelLibraryResultMeta: $('#modelLibraryResultMeta'),
+    modelLibraryModal: $('#modelLibraryModal'),
+    modelLibraryForm: $('#modelLibraryForm'),
+    modelLibraryClose: $('#modelLibraryClose'),
+    modelLibraryCancel: $('#modelLibraryCancel'),
+    modelLibrarySubmit: $('#modelLibrarySubmit'),
+    modelLibraryName: $('#modelLibraryName'),
+    modelLibraryDescription: $('#modelLibraryDescription'),
+    modelLibraryStage: $('#modelLibraryStage'),
+    modelLibraryStageTitle: $('#modelLibraryStageTitle'),
+    modelLibraryError: $('#modelLibraryError'),
     exampleGrid: $('#exampleGrid'),
     refreshExamples: $('#refreshExamples'),
     toastRegion: $('#toastRegion')
@@ -78,9 +93,12 @@
     generating: false,
     exporting: false,
     recovering: false,
+    uploadingToLibrary: false,
     generationJobId: null,
     generationResult: null,
+    exportJobId: null,
     exportResult: null,
+    modelLibraryReturnFocus: null,
     activeView: 'generated'
   };
 
@@ -108,10 +126,10 @@
   function updateGenerateAvailability() {
     const viewCount = VIEW_KEYS.filter((view) => Boolean(state.files[view])).length;
     const hasFront = Boolean(state.files.front);
-    const canGenerate = Boolean(hasFront && state.serviceOnline && !state.generating && !state.exporting && !state.recovering);
+    const canGenerate = Boolean(hasFront && state.serviceOnline && !state.generating && !state.exporting && !state.recovering && !state.uploadingToLibrary);
     elements.generateButton.disabled = !canGenerate;
     elements.clearAllViews.disabled = viewCount === 0;
-    elements.recoverButton.disabled = state.generating || state.exporting || state.recovering;
+    elements.recoverButton.disabled = state.generating || state.exporting || state.recovering || state.uploadingToLibrary;
     elements.viewCount.textContent = viewCount + ' / 4 已添加';
     if (!state.generationResult) elements.resultViews.textContent = viewCount ? viewCount + ' 个方向' : '—';
     elements.generateButtonText.textContent = state.generating
@@ -307,8 +325,8 @@
   function renderGeneratedDownloads(result) {
     elements.generatedDownloads.replaceChildren();
     const links = [];
-    if (result.shape_download) links.push(['形体原始结果', result.shape_download, 'GLB']);
-    if (result.textured_download) links.push(['带材质原始结果', result.textured_download, 'GLB']);
+    if (result.shape_download) links.push(['形体原始结果', result.shape_download, (result.shape_format || '模型').toUpperCase()]);
+    if (result.textured_download) links.push(['带材质原始结果', result.textured_download, (result.textured_format || '模型').toUpperCase()]);
     links.forEach(([label, href, meta]) => {
       const anchor = document.createElement('a');
       anchor.className = 'download-link';
@@ -324,6 +342,7 @@
 
   function applyGenerationResult(result) {
     state.generationResult = result;
+    state.exportJobId = null;
     state.exportResult = null;
     elements.generatedViewer.innerHTML = result.viewer_html || '';
     elements.exportViewer.replaceChildren();
@@ -339,6 +358,9 @@
     elements.textureExportHelp.textContent = result.has_textured ? '本次结果包含 PBR 材质' : '仅带材质结果可用';
     if (!result.has_textured) elements.includeTexture.checked = false;
     elements.downloadButton.hidden = true;
+    elements.libraryUploadButton.hidden = true;
+    elements.libraryUploadHelp.hidden = true;
+    elements.modelLibraryResult.hidden = true;
     const exportTab = $('.view-tab[data-view="export"]');
     exportTab.disabled = true;
     activateView('generated');
@@ -417,10 +439,14 @@
   }
 
   async function startExport() {
-    if (!state.generationJobId || !state.generationResult || state.exporting) return;
+    if (!state.generationJobId || !state.generationResult || state.exporting || state.uploadingToLibrary) return;
     state.exporting = true;
+    state.exportJobId = null;
     elements.exportButton.disabled = true;
     elements.downloadButton.hidden = true;
+    elements.libraryUploadButton.hidden = true;
+    elements.libraryUploadHelp.hidden = true;
+    elements.modelLibraryResult.hidden = true;
     setBusyOverlay(true, '正在转换导出文件', '本次操作只生成本地副本，不会写入 OntoTwin 主工具。');
     setJobStatus('正在导出', '正在转换所选文件格式', 'info');
     try {
@@ -437,11 +463,18 @@
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || '无法创建导出任务。');
+      state.exportJobId = payload.id;
       await pollJob(payload.id, (result) => {
         state.exportResult = result;
         elements.exportViewer.innerHTML = result.viewer_html || '';
         elements.downloadButton.href = result.download;
         elements.downloadButton.hidden = false;
+        elements.libraryUploadButton.hidden = false;
+        elements.libraryUploadHelp.hidden = false;
+        elements.libraryUploadButton.disabled = result.file_type !== 'glb';
+        elements.libraryUploadHelp.textContent = result.file_type === 'glb'
+          ? '上传不会自动绑定到类型或实例。'
+          : '模型库第一版只接收 GLB；请先选择 GLB 并重新转换。';
         const exportTab = $('.view-tab[data-view="export"]');
         exportTab.disabled = false;
         activateView('export');
@@ -456,6 +489,142 @@
       setBusyOverlay(false);
       elements.exportButton.disabled = !state.generationResult;
       updateGenerateAvailability();
+    }
+  }
+
+  function selectedModelLibraryVisibility() {
+    const selected = $('input[name="modelLibraryVisibility"]:checked');
+    return selected && selected.value === 'private' ? 'private' : 'public';
+  }
+
+  function syncModelLibrarySubmitText() {
+    const visibility = selectedModelLibraryVisibility();
+    elements.modelLibrarySubmit.textContent = visibility === 'private' ? '上传私人模型' : '上传公共模型';
+  }
+
+  function setModelLibraryBusy(busy, stageText) {
+    state.uploadingToLibrary = busy;
+    elements.modelLibraryStage.hidden = !busy;
+    if (stageText) elements.modelLibraryStageTitle.textContent = stageText;
+    elements.modelLibraryClose.disabled = busy;
+    elements.modelLibraryCancel.disabled = busy;
+    elements.modelLibrarySubmit.disabled = busy;
+    elements.modelLibraryName.disabled = busy;
+    elements.modelLibraryDescription.disabled = busy;
+    $$('input[name="modelLibraryVisibility"]').forEach((input) => { input.disabled = busy; });
+    if (!busy) syncModelLibrarySubmitText();
+    updateGenerateAvailability();
+  }
+
+  function closeModelLibraryModal(force = false) {
+    if (state.uploadingToLibrary && !force) return;
+    elements.modelLibraryModal.hidden = true;
+    elements.modelLibraryError.hidden = true;
+    elements.modelLibraryError.textContent = '';
+    if (state.modelLibraryReturnFocus) state.modelLibraryReturnFocus.focus();
+  }
+
+  async function openModelLibraryModal() {
+    if (!state.exportJobId || !state.exportResult || state.exportResult.file_type !== 'glb') {
+      toast('请先完成一次 GLB 导出。', 'err');
+      return;
+    }
+    const trigger = elements.libraryUploadButton;
+    trigger.disabled = true;
+    try {
+      const response = await fetch('/api/model-library/status', { cache: 'no-store' });
+      const status = await response.json();
+      if (!response.ok || !status.online || !status.authenticated) {
+        throw new Error(status.message || '请先在 OntoTwin 主工具连接 ArtStudio 账号。');
+      }
+      state.modelLibraryReturnFocus = trigger;
+      const seed = state.generationResult && state.generationResult.seed;
+      elements.modelLibraryName.value = seed == null ? '逆向建模资产' : '逆向建模-' + seed;
+      elements.modelLibraryDescription.value = '';
+      const publicOption = $('input[name="modelLibraryVisibility"][value="public"]');
+      publicOption.checked = true;
+      elements.modelLibraryError.hidden = true;
+      elements.modelLibraryStage.hidden = true;
+      syncModelLibrarySubmitText();
+      elements.modelLibraryModal.hidden = false;
+      window.setTimeout(() => elements.modelLibraryName.focus(), 0);
+    } catch (error) {
+      toast(error.message || '模型库暂不可用。', 'err');
+    } finally {
+      trigger.disabled = false;
+    }
+  }
+
+  function showModelLibraryResult(result, partial = false) {
+    const asset = result && result.asset ? result.asset : {};
+    const visibility = result && result.visibility === 'private' ? '私人资产' : '公共资产';
+    const listing = result && result.listing_status === 'listed' ? '已上架' : visibility;
+    elements.modelLibraryResultTitle.textContent = partial ? '资产已创建，但公共发布失败' : '模型已上传到模型库';
+    elements.modelLibraryResultMeta.textContent = [
+      asset.name || elements.modelLibraryName.value,
+      listing,
+      asset.file_number ? '资产编号 ' + asset.file_number : ''
+    ].filter(Boolean).join(' · ');
+    elements.modelLibraryResult.hidden = false;
+  }
+
+  async function pollModelLibraryUpload(jobId) {
+    while (true) {
+      await new Promise((resolve) => window.setTimeout(resolve, 900));
+      const response = await fetch('/api/jobs/' + encodeURIComponent(jobId), { cache: 'no-store' });
+      const job = await response.json();
+      if (!response.ok) throw new Error(job.error || '无法读取上传状态。');
+      if (job.status === 'queued' || job.status === 'running') {
+        elements.modelLibraryStageTitle.textContent = job.status_text || '正在上传到模型库';
+        continue;
+      }
+      return job;
+    }
+  }
+
+  async function submitModelLibraryUpload(event) {
+    event.preventDefault();
+    if (state.uploadingToLibrary || !state.exportJobId) return;
+    const name = elements.modelLibraryName.value.trim();
+    const description = elements.modelLibraryDescription.value.trim();
+    if (!name) {
+      elements.modelLibraryError.textContent = '请输入资产名称。';
+      elements.modelLibraryError.hidden = false;
+      elements.modelLibraryName.focus();
+      return;
+    }
+    elements.modelLibraryError.hidden = true;
+    setModelLibraryBusy(true, '正在检查 GLB 导出文件');
+    setJobStatus('正在上传到模型库', '正在检查并提交当前 GLB 导出结果。', 'info');
+    try {
+      const response = await fetch('/api/model-library/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          export_job_id: state.exportJobId,
+          name,
+          description,
+          visibility: selectedModelLibraryVisibility()
+        })
+      });
+      const created = await response.json();
+      if (!response.ok) throw new Error(created.error || '无法创建模型库上传任务。');
+      const job = await pollModelLibraryUpload(created.id);
+      if (job.status !== 'succeeded') {
+        const partial = job.result && job.result.partial ? job.result.partial : {};
+        if (partial.asset_created && partial.asset) showModelLibraryResult({ asset: partial.asset, visibility: selectedModelLibraryVisibility() }, true);
+        throw new Error(job.error || '模型库没有完成本次上传。');
+      }
+      showModelLibraryResult(job.result || {});
+      closeModelLibraryModal(true);
+      setJobStatus('已上传到模型库', (job.result && job.result.message) || '模型资产已创建；未自动绑定。', 'ok');
+      toast((job.result && job.result.message) || '模型已上传到模型库。', 'ok');
+    } catch (error) {
+      elements.modelLibraryError.textContent = error.message || '模型上传失败，请重试。';
+      elements.modelLibraryError.hidden = false;
+      setJobStatus('模型库上传失败', error.message || '模型上传失败，请重试。', 'err');
+    } finally {
+      setModelLibraryBusy(false);
     }
   }
 
@@ -570,6 +739,17 @@
     elements.simplifyMesh.addEventListener('change', () => { elements.targetFacesRow.hidden = !elements.simplifyMesh.checked; });
     elements.generateButton.addEventListener('click', startGeneration);
     elements.exportButton.addEventListener('click', startExport);
+    elements.libraryUploadButton.addEventListener('click', openModelLibraryModal);
+    elements.modelLibraryForm.addEventListener('submit', submitModelLibraryUpload);
+    elements.modelLibraryClose.addEventListener('click', () => closeModelLibraryModal());
+    elements.modelLibraryCancel.addEventListener('click', () => closeModelLibraryModal());
+    elements.modelLibraryModal.addEventListener('click', (event) => {
+      if (event.target === elements.modelLibraryModal) closeModelLibraryModal();
+    });
+    elements.modelLibraryModal.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeModelLibraryModal();
+    });
+    $$('input[name="modelLibraryVisibility"]').forEach((input) => input.addEventListener('change', syncModelLibrarySubmitText));
     elements.recoverButton.addEventListener('click', recoverLatestResult);
     $$('.view-tab').forEach((button) => button.addEventListener('click', () => activateView(button.dataset.view)));
     elements.refreshExamples.addEventListener('click', loadExamples);

@@ -4,7 +4,7 @@
 
 ## 使用方法
 
-1. 双击 `D:\AI\Hunyuan3D-2.1-local\start_hunyuan3d_multiview.bat`，启动 Hunyuan3D-2mv，并确认服务地址为 `http://127.0.0.1:8081/`。
+1. 双击本目录的 `start_hunyuan_service.bat`，启动 Hunyuan3D-2mv；它会复用 `D:\AI\Hunyuan3D-2.1-local` 中的现有模型与启动配置，服务地址为 `http://127.0.0.1:8081/`。
 2. 双击 `start_reverse_modeling.bat`。
 3. 浏览器打开 `http://127.0.0.1:8766/`。
 

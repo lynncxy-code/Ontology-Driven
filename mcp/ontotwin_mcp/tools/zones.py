@@ -24,5 +24,19 @@ def register(mcp, client, registry):
             body["expected_project_id"] = expected_project_id
         return client.put_json("assign_zones", "/api/v2/zones/assignments", json=body)
 
-    for f in (get_zones, assign_zones):
+    @mcp.tool()
+    def save_zone_catalog(zones: list, expected_project_id: str = "") -> dict:
+        """本操作会修改当前激活项目：整表保存分区目录（分区的定义，不是实例归属）。
+
+        zones 每项形如 {"zone_id": "floor3", "name": "三楼", "parent_zone_id": "",
+        "level": "floor"}；level 取 building/floor/room/area/custom。
+        zone_id 只允许字母数字与 _ . : / -。整表替换：目录里没列出的分区会消失，
+        所以先 get_zones 拿到现有的再改。实例的分区归属用 assign_zones 单独管。
+        """
+        body = {"zones": zones}
+        if expected_project_id:
+            body["expected_project_id"] = expected_project_id
+        return client.put_json("save_zone_catalog", "/api/v2/zones/catalog", json=body)
+
+    for f in (get_zones, assign_zones, save_zone_catalog):
         registry[f.__name__] = f

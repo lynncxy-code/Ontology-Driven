@@ -58,6 +58,9 @@ backend/data/trash/
 # Local task and test artifacts
 .tmp/
 
+# review-push 本地验证证据（报告与日志，不进业务提交）
+.review-push/
+
 # Local build, staging, backup, and generated export artifacts
 .backups/
 .build/

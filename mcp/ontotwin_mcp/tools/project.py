@@ -50,5 +50,25 @@ def register(mcp, client, registry):
             json={"name": name, "activate": False},
         )
 
-    for f in (list_projects, get_active_project, activate_project, create_empty_project):
+    @mcp.tool()
+    def list_scenes() -> dict:
+        """只读：所有项目的实例侧概况（各项目实例数、分区数、未分区数、UE 绑定）。
+
+        与 list_projects 的区别：那个从数据集角度看类型库，这个从实例角度看场景规模，
+        清理前拿它判断哪个项目是空的。
+        """
+        return client.get("list_scenes", "/api/v2/scenes")
+
+    @mcp.tool()
+    def clear_scene() -> dict:
+        """本操作会修改当前激活项目：清空其全部实例（保留项目与类型库）。
+
+        高危：一次抹掉当前项目所有实例，UE 轮询到后会销毁对应孪生体。
+        实例会进回收站（list_trash 可见、restore_trash_item 可整批恢复），
+        但类型能力配置与坐标标定不受影响。执行前先 get_active_project 确认切对了项目。
+        """
+        return client.post_json("clear_scene", "/api/v2/scene/clear")
+
+    for f in (list_projects, get_active_project, activate_project,
+              create_empty_project, list_scenes, clear_scene):
         registry[f.__name__] = f

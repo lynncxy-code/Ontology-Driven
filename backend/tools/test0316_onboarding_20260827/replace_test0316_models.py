@@ -23,6 +23,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from project_store import _clean_hierarchy_path, _default_raw_state, apply_instance_metadata
 from project_store_pg import ProjectStorePG
+from tools.ue_replacement import (
+    apply_declared_replacement,
+    manifest_hashes,
+    validate_apply_manifest,
+    validate_input_consistency,
+    validate_project_identity,
+)
 
 
 def _sha(obj: object) -> str:
@@ -113,10 +120,39 @@ def _new_record(actor: dict, type_specs: dict, now: float) -> dict:
     return rec
 
 
-def build_plan(store: ProjectStorePG, project_id: str, input_payload: dict, type_specs: dict) -> tuple[dict, dict]:
-    declared_pid = str(input_payload.get("project_id") or "").strip()
-    if declared_pid and declared_pid != project_id:
-        raise SystemExit(f"project_id_mismatch:{declared_pid}!={project_id}")
+def _type_rid(actor: dict) -> str:
+    asset = str(actor.get("static_mesh_asset") or actor.get("mesh_asset") or "").strip()
+    return "ri.obj.test0316_" + hashlib.sha256(asset.encode("utf-8")).hexdigest()[:24]
+
+
+def _replacement_declaration(input_payload: dict, scope: dict | None, new_ids: list[str], source_guids: list[str]) -> dict:
+    """Normalize the old test0316 manifest shape into a generic declaration.
+
+    Older exports did not carry a replacement object.  They remain usable when
+    the caller supplies ``--scope`` pointing at the checked-in dry-run/apply
+    manifest.  We deliberately refuse to infer old IDs by scanning all
+    ``ue_migrated`` records.
+    """
+    declaration = input_payload.get("replacement")
+    if not isinstance(declaration, dict):
+        declaration = scope if isinstance(scope, dict) else {}
+    old_ids = declaration.get("old_instance_ids") or declaration.get("replaced_live_instance_ids")
+    source = declaration.get("source_actor_guids") or declaration.get("source_container_guids")
+    if not old_ids or not source:
+        raise SystemExit("replacement declaration requires explicit old_instance_ids and source_actor_guids (use --scope for legacy test0316 fixtures)")
+    old_ids = [str(value or "").strip() for value in old_ids]
+    source = [str(value or "").strip() for value in source]
+    out = dict(declaration)
+    out["old_instance_ids"] = old_ids
+    out["source_actor_guids"] = source
+    out.setdefault("expected_old_instance_count", len(old_ids))
+    out.setdefault("expected_new_instance_count", len(new_ids))
+    out.setdefault("new_instance_ids_hash", _id_hash(new_ids))
+    out.setdefault("expected_delete_actor_guid_count", len(source))
+    return out
+
+
+def build_plan(store: ProjectStorePG, project_id: str, input_payload: dict, type_specs: dict, scope: dict | None = None) -> tuple[dict, dict]:
     project = store.read_project(project_id)
     if not project:
         raise SystemExit(f"project_not_found:{project_id}")
@@ -125,20 +161,32 @@ def build_plan(store: ProjectStorePG, project_id: str, input_payload: dict, type
     expected_name = str(input_payload.get("ue_project_name") or "").strip()
     bound_ue = str(dataset.get("bound_ue_project_id") or "").strip()
     bound_name = str(dataset.get("bound_ue_project_name") or "").strip()
-    if expected_ue and bound_ue != expected_ue:
-        raise SystemExit(f"binding_mismatch:{bound_ue}!={expected_ue}")
-    if expected_name and bound_name != expected_name:
-        raise SystemExit(f"binding_name_mismatch:{bound_name}!={expected_name}")
+    validate_project_identity(
+        input_payload,
+        project_id,
+        bound_ue_project_id=bound_ue,
+        bound_ue_project_name=bound_name,
+    )
 
     current = project.get("instances") or {}
-    replace_ids = sorted(
-        iid for iid, rec in current.items()
-        if isinstance(rec, dict) and str(rec.get("source") or "") == "ue_migrated"
+    actors, input_source_guids = validate_input_consistency(
+        input_payload, type_specs, actor_type_resolver=_type_rid
     )
+    # Scope is explicit; never fall back to scanning the project for all
+    # ue_migrated instances.  This protects manual/realtime records and makes
+    # the apply set reviewable before execution.
+    declaration = _replacement_declaration(input_payload, scope, [], input_source_guids)
+    replace_ids = [str(value) for value in declaration["old_instance_ids"]]
+    missing = [iid for iid in replace_ids if iid not in current]
+    if missing:
+        raise SystemExit(f"replacement old instances are missing: {missing}")
+    wrong_source = [iid for iid in replace_ids if str((current[iid] or {}).get("source") or "") != "ue_migrated"]
+    if wrong_source:
+        raise SystemExit(f"replacement old instances have unexpected source: {wrong_source}")
     preserve_ids = sorted(iid for iid in current if iid not in set(replace_ids))
     now = time.time()
     new_records = {}
-    for actor in input_payload.get("actors") or []:
+    for actor in actors:
         rec = _new_record(actor, type_specs, now)
         if rec["id"] in new_records:
             raise SystemExit(f"duplicate_instance_id:{rec['id']}")
@@ -189,6 +237,31 @@ def build_plan(store: ProjectStorePG, project_id: str, input_payload: dict, type
     out_project["dataset"]["node_count"] = len(graph["nodes"])
     out_project["dataset"]["link_count"] = len(graph["links"])
 
+    declaration = _replacement_declaration(input_payload, scope, list(new_records), input_source_guids)
+    declaration["expected_delete_actor_guid_count"] = len(set(input_source_guids))
+    replacement_stats = {"blocked": 0, "skipped": 0, "legacy": 0, "replaced": 0}
+    new_mapping = {
+        str(actor.get("ext_guid") or "").strip(): new_records[
+            _safe_iid(str(actor.get("ext_guid") or "").strip())
+        ]["id"]
+        for actor in actors
+    }
+    cleanup, replacement_info = apply_declared_replacement(
+        declaration,
+        {iid: copy.deepcopy(current[iid]) for iid in current},
+        new_mapping,
+        replacement_stats,
+        list(input_source_guids),
+    )
+    hashes = manifest_hashes(
+        input_payload,
+        type_specs,
+        replaced_live_instance_ids=replace_ids,
+        final_instance_ids=instances,
+        new_instance_ids=list(new_records),
+        final_instance_count=len(instances),
+        final_type_count=len(object_types),
+    )
     manifest = {
         "schema_version": "test0316_model_replacement_v1",
         "project_id": project_id,
@@ -209,6 +282,8 @@ def build_plan(store: ProjectStorePG, project_id: str, input_payload: dict, type
         "source_actor_guids": sorted(str(a.get("ext_guid") or "") for a in input_payload.get("actors") or []),
         "project_before_digest": _sha(project),
         "project_after_digest": _sha(out_project),
+        "replacement": replacement_info,
+        **hashes,
     }
     return out_project, manifest
 
@@ -220,24 +295,25 @@ def main() -> None:
     ap.add_argument("--types", required=True)
     ap.add_argument("--manifest", required=True)
     ap.add_argument("--apply", action="store_true")
+    ap.add_argument("--scope", default="",
+                     help="JSON replacement declaration with explicit old_instance_ids/source_actor_guids")
     ap.add_argument("--expected-manifest", default="",
                      help="dry-run manifest to compare before an apply")
     args = ap.parse_args()
     payload = _load(args.input)
     types = _load(args.types)
+    scope = _load(args.scope) if args.scope else None
     store = ProjectStorePG()
-    project, manifest = build_plan(store, args.project_id, payload, types)
-    if args.apply and args.expected_manifest:
+    project, manifest = build_plan(store, args.project_id, payload, types, scope)
+    if args.apply and not args.expected_manifest:
+        raise SystemExit("apply requires --expected-manifest from an approved dry-run")
+    if args.apply:
         expected = _load(args.expected_manifest)
-        checks = {
-            "project_before_digest": expected.get("project_before_digest"),
-            "new_instance_ids_hash": expected.get("new_instance_ids_hash"),
-            "new_instance_count": expected.get("new_instance_count"),
-            "new_type_count": expected.get("new_type_count"),
-        }
-        for key, value in checks.items():
-            if value is not None and manifest.get(key) != value:
-                raise SystemExit(f"apply_gate_mismatch:{key}:{manifest.get(key)}!={value}")
+        strict = all(key in expected for key in (
+            "input_digest", "types_digest", "final_instance_ids_hash",
+            "replaced_live_instance_ids_hash", "source_actor_guids_hash",
+        ))
+        validate_apply_manifest(expected, manifest, strict=strict)
     if args.apply:
         store.write_project(args.project_id, project)
         manifest["applied"] = True

@@ -33,12 +33,20 @@ import csv
 import argparse
 import hashlib
 import uuid
+import sys
+
+_HERE = os.path.dirname(__file__)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
 
 from project_store import ProjectStore, _default_raw_state, apply_instance_metadata   # ONTOTWIN_STORE=pg 时自动是 PG 版
 from db import pg
 from ue_project_binding import bind_active_dataset
+try:
+    from tools.ue_replacement import apply_declared_replacement, instance_ids_hash
+except ImportError:  # direct invocation from backend/tools
+    from ue_replacement import apply_declared_replacement, instance_ids_hash
 
-_HERE = os.path.dirname(__file__)
 LEGACY_RID = "legacy.unclassified"
 MIGRATION_RESULT_SCHEMA_VERSION = "assembly_v1"
 LEGACY_TYPE = {
@@ -178,77 +186,24 @@ def _build_migration_result(
 
 
 def _instance_ids_hash(instance_ids):
-    payload = "\n".join(sorted(instance_ids)).encode("utf-8")
-    return "sha256:" + hashlib.sha256(payload).hexdigest()
+    return instance_ids_hash(instance_ids)
 
 
-def _apply_declared_replacement(payload, insts, instance_mapping, stats, delete_actor_guids):
+def _apply_declared_replacement(
+    payload, insts, instance_mapping, stats, delete_actor_guids, *, expected_source=None
+):
     """Validate and stage an exact old-assembly/new-singleton atomic swap."""
     declaration = payload.get("replacement")
     if not isinstance(declaration, dict):
         raise SystemExit("--replace-declared-in-input requires a replacement object")
-    old_ids = list(declaration.get("old_instance_ids") or [])
-    container_guids = [
-        str(value or "").strip()
-        for value in declaration.get("source_container_guids") or []
-    ]
-    expected_old = int(declaration.get("expected_old_instance_count") or 0)
-    expected_new = int(declaration.get("expected_new_instance_count") or 0)
-    expected_delete = int(declaration.get("expected_delete_actor_guid_count") or 0)
-    if len(old_ids) != expected_old or len(set(old_ids)) != expected_old:
-        raise SystemExit("replacement old_instance_ids count/uniqueness check failed")
-    if len(container_guids) != expected_old or len(set(container_guids)) != expected_old:
-        raise SystemExit("replacement source_container_guids count/uniqueness check failed")
-    if len(instance_mapping) != expected_new:
-        raise SystemExit(
-            f"replacement expected {expected_new} migrated instances, got {len(instance_mapping)}"
-        )
-    new_ids = list(instance_mapping.values())
-    if len(set(new_ids)) != expected_new:
-        raise SystemExit("replacement generated duplicate instance IDs")
-    expected_hash = declaration.get("new_instance_ids_hash") or ""
-    actual_hash = _instance_ids_hash(new_ids)
-    if not expected_hash or expected_hash != actual_hash:
-        raise SystemExit(
-            f"replacement instance-ID hash mismatch: expected {expected_hash}, got {actual_hash}"
-        )
-    if any(stats.get(key, 0) for key in ("blocked", "skipped", "legacy")):
-        raise SystemExit("replacement refused because migration has blocked/skipped/legacy actors")
-    missing_old = [instance_id for instance_id in old_ids if instance_id not in insts]
-    if missing_old:
-        raise SystemExit(f"replacement old instances are missing: {missing_old}")
-    if set(old_ids) & set(new_ids):
-        raise SystemExit("replacement old and new instance IDs overlap")
-    actual_container_guids = {
-        str((insts[instance_id] or {}).get("ext_guid") or "").strip()
-        for instance_id in old_ids
-    }
-    if actual_container_guids != set(container_guids):
-        raise SystemExit(
-            "replacement source container GUIDs do not match existing old instances"
-        )
-
-    cleanup = list(delete_actor_guids)
-    cleanup_seen = set(cleanup)
-    for guid in container_guids:
-        if guid and guid not in cleanup_seen:
-            cleanup_seen.add(guid)
-            cleanup.append(guid)
-    if len(cleanup) != expected_delete:
-        raise SystemExit(
-            f"replacement expected {expected_delete} cleanup GUIDs, got {len(cleanup)}"
-        )
-    for instance_id in old_ids:
-        insts.pop(instance_id)
-    stats["replaced"] = len(old_ids)
-    return cleanup, {
-        "applied": True,
-        "old_instance_ids": old_ids,
-        "old_instance_count": len(old_ids),
-        "new_instance_count": len(new_ids),
-        "new_instance_ids_hash": actual_hash,
-        "delete_actor_guid_count": len(cleanup),
-    }
+    return apply_declared_replacement(
+        declaration,
+        insts,
+        instance_mapping,
+        stats,
+        delete_actor_guids,
+        expected_source=expected_source,
+    )
 
 
 def _unsupported_components(actor):
@@ -560,6 +515,7 @@ def migrate(
             instance_mapping,
             stats,
             delete_actor_guids,
+            expected_source="ue_migrated",
         )
 
     print("拟迁移统计:", stats, "| Legacy 桶:", "新建" if (need_legacy and LEGACY_RID not in store.get_object_types()) else "复用/无")

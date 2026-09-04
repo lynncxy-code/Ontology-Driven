@@ -1,0 +1,8 @@
+{
+  "old_instance_ids": ["ue-old-001"],
+  "source_actor_guids": ["GUID-OLD-001"],
+  "expected_old_instance_count": 1,
+  "expected_new_instance_count": 1,
+  "new_instance_ids_hash": "sha256:replace-after-dry-run",
+  "expected_delete_actor_guid_count": 2
+}

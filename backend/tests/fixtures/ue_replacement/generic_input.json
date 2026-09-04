@@ -1,0 +1,14 @@
+{
+  "project_id": "ds_demo",
+  "ue_project_id": "ueproj_demo",
+  "ue_project_name": "DemoPlant",
+  "target_map": "/Game/Demo/Maps/Main",
+  "actors": [
+    {
+      "ext_guid": "GUID-NEW-001",
+      "type_rid": "ot.demo.pump",
+      "static_mesh_asset": "/Game/Demo/Pump.Pump",
+      "transform": {"tx": 10, "ty": 20, "tz": 0}
+    }
+  ]
+}

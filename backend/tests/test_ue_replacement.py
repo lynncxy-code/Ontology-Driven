@@ -1,4 +1,6 @@
+import json
 import unittest
+from pathlib import Path
 
 from backend.tools.ue_replacement import (
     apply_declared_replacement,
@@ -12,6 +14,26 @@ from backend.tools.ue_replacement import (
 
 
 class DeclarativeReplacementTests(unittest.TestCase):
+    def test_non_test0316_fixture_uses_generic_contract(self):
+        root = Path(__file__).parent / "fixtures" / "ue_replacement"
+        payload = json.loads((root / "generic_input.json").read_text(encoding="utf-8"))
+        types = json.loads((root / "generic_types.json").read_text(encoding="utf-8"))
+        scope = json.loads((root / "generic_scope.json").read_text(encoding="utf-8"))
+        validate_project_identity(
+            payload,
+            "ds_demo",
+            bound_ue_project_id="ueproj_demo",
+            bound_ue_project_name="DemoPlant",
+        )
+        actors, guids = validate_input_consistency(
+            payload,
+            types,
+            actor_type_resolver=lambda actor: actor["type_rid"],
+        )
+        self.assertEqual(actors[0]["ext_guid"], "GUID-NEW-001")
+        self.assertEqual(guids, ["GUID-NEW-001"])
+        self.assertEqual(scope["old_instance_ids"], ["ue-old-001"])
+
     def test_scope_requires_explicit_ids_and_source_guids(self):
         instances = {
             "old-a": {"source": "ue_migrated", "ext_guid": "GUID-A"},

@@ -1,0 +1,8 @@
+{
+  "ot.demo.pump": {
+    "rid": "ot.demo.pump",
+    "name": "Demo Pump",
+    "category": "Demo Equipment",
+    "injected_interfaces": ["I3D_Representable", "I3D_Spatial"]
+  }
+}

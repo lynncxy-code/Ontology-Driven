@@ -305,7 +305,7 @@ def _download_worker(asset_id, filename, path):
     succeeded = False
     try:
         for attempt in range(3):   # S3 链路不稳，重试 3 次
-            upstream, _ = open_download_stream(asset_id)
+            upstream, _, _ = open_download_stream(asset_id)
             if upstream is None:
                 time.sleep(2)
                 continue
@@ -340,21 +340,37 @@ def _download_worker(asset_id, filename, path):
 def open_download_stream(asset_id, expected_version=None):
     """
     打开 glb 的流式下载（供代理转发）。
-    返回 (requests.Response, filename) 或 (None, None)。
+    返回 (requests.Response, filename, info)，失败时前两项为 None。
+    info = {"reason": "ok"|"version_mismatch"|"no_glb"|"unreachable",
+            "current_version": int|None}
     调用方负责 iter_content 并最终 close。
+
+    这里只打一次 ArtStudio 详情接口，并把版本号一并回传。调用方据此自己判版本，
+    不必再单独调 get_version——那会多一次外网往返，而每多一跳就多一次撞上
+    延迟尖峰的机会（现场中位 0.39s 但偶发 4.19s）。
+    顺带把版本写进 TTL 缓存，让紧随其后的 refresh_stable_id 直接命中。
     """
     detail = fetch_detail(asset_id)
-    if expected_version is not None and detail:
-        if int(detail.get("version") or 1) != int(expected_version):
-            return None, None
+    if not detail:
+        return None, None, {"reason": "unreachable", "current_version": None}
+
+    current_version = int(detail.get("version") or 1)
+    _version_cache[asset_id] = (current_version, time.time() + _VERSION_TTL)
+
+    if expected_version is not None and current_version != int(expected_version):
+        # 版本对不上是「资产更新了」，不是「资产没了」——交给调用方回 409 而非 404。
+        return None, None, {"reason": "version_mismatch",
+                            "current_version": current_version}
+
     f = pick_glb_file(detail)
     if not f:
-        return None, None
+        return None, None, {"reason": "no_glb", "current_version": current_version}
     try:
         # 大模型(80MB+) over S3 慢链路：连接 10s，读 180s（两次读之间的间隔上限）
         r = requests.get(f["download_url"], stream=True, timeout=(10, 180))
         r.raise_for_status()
     except Exception:
-        return None, None
+        return None, None, {"reason": "unreachable",
+                            "current_version": current_version}
     filename = f["name"] or f"{asset_id}.glb"
-    return r, filename
+    return r, filename, {"reason": "ok", "current_version": current_version}

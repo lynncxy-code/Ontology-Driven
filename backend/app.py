@@ -41,7 +41,11 @@ CORS(app)
 ARTSTUDIO_BASE_URL = os.environ.get(
     "ARTSTUDIO_BASE_URL", "https://artstudio.digioasis.tech/api"
 ).rstrip("/")
-ARTSTUDIO_TIMEOUT = float(os.environ.get("ARTSTUDIO_TIMEOUT", "5"))
+# 5 秒太贴脸：现场实测 ArtStudio 详情接口中位 0.39s，但偶发尖峰到 4.19s，
+# 一抖就超时。超时的后果不是慢，是 UE 那边直接拿 404 → 换模型显示成占位立方体，
+# 而且失败是静默的（UE 只打日志，Web 端只知道"配置已保存"）。
+# 这是外网调用的上限保护，不是性能目标，放宽到 20s。
+ARTSTUDIO_TIMEOUT = float(os.environ.get("ARTSTUDIO_TIMEOUT", "20"))
 ARTSTUDIO_TOKEN = os.environ.get("ARTSTUDIO_TOKEN") or None
 ARTSTUDIO_UPLOAD_MAX_MB = max(1, int(os.environ.get("ARTSTUDIO_UPLOAD_MAX_MB", "500")))
 
@@ -2238,18 +2242,26 @@ def download_artstudio_asset():
         if expected_version < 1:
             return jsonify({"error": "invalid_version", "message": "模型版本号无效。"}), 400
 
-        current_version = artstudio_client.get_version(asset_id)
-        if current_version is not None and current_version != expected_version:
+    # 版本校验并入下面这一次调用：它内部本来就要拉一次详情，详情里就带版本号。
+    # 以前这里先单独 get_version 再 open_download_stream，等于两次外网往返；
+    # 而 UE 下载必带 version（TwinInstance.cpp 拼的就是 ?id=..&version=..），
+    # 于是每次换模型都要赌两次网络，任一次撞上延迟尖峰就 404、UE 显示占位立方体。
+    upstream, filename, info = artstudio_client.open_download_stream(
+        asset_id, expected_version
+    )
+    if upstream is None:
+        if info.get("reason") == "version_mismatch":
+            # 资产更新了，不是没了——保持 409 语义，让前端提示重新选模型。
             return jsonify({
                 "error": "asset_version_changed",
                 "message": "ArtStudio 模型版本已更新，请重新选择该模型后再试。",
                 "expected_version": expected_version,
-                "current_version": current_version,
+                "current_version": info.get("current_version"),
             }), 409
-
-    upstream, filename = artstudio_client.open_download_stream(asset_id, expected_version)
-    if upstream is None:
-        return jsonify({"error": f"资产 {asset_id} 无 glb 文件或不可达"}), 404
+        return jsonify({
+            "error": f"资产 {asset_id} 无 glb 文件或不可达",
+            "reason": info.get("reason"),
+        }), 404
 
     def _gen():
         try:

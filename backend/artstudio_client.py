@@ -151,6 +151,36 @@ def fetch_identity():
     }
 
 
+# ── 瞬时故障重试 ──────────────────────────────────────────────────
+# 现场实测：详情接口正常 0.38s、S3 正常 0.45s，但约 7~15% 的请求会直接
+# ConnectionError（"Max retries exceeded"），和超时无关——超时从 5s 调到 20s
+# 后，失败耗时仍固定停在 4.18s。这类是瞬时抖动：30 轮实测里首次失败 2 次，
+# 重试全部救回、0 次仍失败。
+#
+# 只重试「传输层故障」和 5xx：requests 只在传输出问题时抛异常，HTTP 状态码
+# 是正常返回的。4xx 是上游的确定性答复（资产不存在/无权限），重试纯属白等。
+_RETRY_BACKOFF = (0.5, 1.5)   # 两次重试前各等多久；长度即重试次数
+
+
+def _get_with_retry(url, **kwargs):
+    """带瞬时故障重试的 GET。返回 Response（含 4xx）或 None（重试耗尽）。"""
+    for attempt in range(len(_RETRY_BACKOFF) + 1):
+        try:
+            resp = requests.get(url, **kwargs)
+        except Exception:
+            pass                      # 传输层故障：连接失败/超时/断流，值得重试
+        else:
+            if resp.status_code < 500:
+                return resp           # 2xx/3xx/4xx 都是确定性答复，不重试
+            try:
+                resp.close()          # stream=True 时别漏掉连接
+            except Exception:
+                pass
+        if attempt < len(_RETRY_BACKOFF):
+            time.sleep(_RETRY_BACKOFF[attempt])
+    return None
+
+
 def _ext_of(file_obj):
     """从 file 对象推断扩展名（小写，不含点）。"""
     name = file_obj.get("displayName") or file_obj.get("downloadUrl") or file_obj.get("url") or ""
@@ -165,16 +195,20 @@ def fetch_detail(asset_id):
     """
     try:
         headers = _headers()
-        resp = requests.get(
+        resp = _get_with_retry(
             f"{_BASE_URL}/assets/{asset_id}",
             headers=headers, timeout=_TIMEOUT,
         )
+        if resp is None:
+            return None
         # 公开资产不能被设备上的过期会话拖累；私有资产匿名重试仍会被上游拒绝。
         if headers and resp.status_code in (401, 403):
-            resp = requests.get(
+            resp = _get_with_retry(
                 f"{_BASE_URL}/assets/{asset_id}",
                 timeout=_TIMEOUT,
             )
+            if resp is None:
+                return None
         resp.raise_for_status()
         data = (resp.json() or {}).get("data", {})
     except Exception:
@@ -365,11 +399,19 @@ def open_download_stream(asset_id, expected_version=None):
     f = pick_glb_file(detail)
     if not f:
         return None, None, {"reason": "no_glb", "current_version": current_version}
+    # 大模型(80MB+) over S3 慢链路：连接 10s，读 180s（两次读之间的间隔上限）。
+    # S3 这一跳和详情接口一样会偶发 ConnectionError，同样走重试。
+    r = _get_with_retry(f["download_url"], stream=True, timeout=(10, 180))
+    if r is None:
+        return None, None, {"reason": "unreachable",
+                            "current_version": current_version}
     try:
-        # 大模型(80MB+) over S3 慢链路：连接 10s，读 180s（两次读之间的间隔上限）
-        r = requests.get(f["download_url"], stream=True, timeout=(10, 180))
         r.raise_for_status()
     except Exception:
+        try:
+            r.close()
+        except Exception:
+            pass
         return None, None, {"reason": "unreachable",
                             "current_version": current_version}
     filename = f["name"] or f"{asset_id}.glb"

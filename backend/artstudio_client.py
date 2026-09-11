@@ -161,9 +161,18 @@ def fetch_identity():
 # 是正常返回的。4xx 是上游的确定性答复（资产不存在/无权限），重试纯属白等。
 _RETRY_BACKOFF = (0.5, 1.5)   # 两次重试前各等多久；长度即重试次数
 
+# 重试的总时间预算（秒，含各次请求与退避）。
+# 重试要救的是「快速失败」：现场那种 ConnectionError 固定 4.18s 就返回，重试
+# 立刻能成。反过来，一个已经挂了很久的请求，再试一次多半还是挂，却要让调用方
+# 多等一整个超时。没有这个预算的话最坏情况会把 S3 的 180s 读超时乘以 3
+# （≈570s），而 Flask 是 threaded=True 无线程池上限，几个 UE 同时撞上就会各占
+# 一个线程好几分钟。加了预算后：快速失败照常重试，慢性劣化只试一次就放手。
+_RETRY_TIME_BUDGET = 30.0
 
-def _get_with_retry(url, **kwargs):
+
+def _get_with_retry(url, retry_budget=_RETRY_TIME_BUDGET, **kwargs):
     """带瞬时故障重试的 GET。返回 Response（含 4xx）或 None（重试耗尽）。"""
+    started = time.time()
     for attempt in range(len(_RETRY_BACKOFF) + 1):
         try:
             resp = requests.get(url, **kwargs)
@@ -176,8 +185,11 @@ def _get_with_retry(url, **kwargs):
                 resp.close()          # stream=True 时别漏掉连接
             except Exception:
                 pass
-        if attempt < len(_RETRY_BACKOFF):
-            time.sleep(_RETRY_BACKOFF[attempt])
+        if attempt >= len(_RETRY_BACKOFF):
+            break
+        if time.time() - started >= retry_budget:
+            break                     # 已经耗掉太多时间，再重试只是让调用方干等
+        time.sleep(_RETRY_BACKOFF[attempt])
     return None
 
 

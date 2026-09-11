@@ -112,6 +112,48 @@ class GetWithRetryTestCase(unittest.TestCase):
             artstudio_client._get_with_retry("http://x/y")
         self.assertEqual(list(artstudio_client._RETRY_BACKOFF), waited)
 
+    def test_slow_failure_is_not_retried(self):
+        """慢性劣化不该重试：已经挂了很久的请求，再试一次只是让调用方干等。
+
+        没有这个预算，最坏情况会把 S3 的 180s 读超时乘以 3（≈570s），
+        而 Flask 是 threaded=True 无线程池上限。
+        """
+        clock = [0.0]
+        calls = []
+
+        def slow_fail(url, **kw):
+            calls.append(url)
+            clock[0] += 40.0          # 单次就烧掉超过预算的时间
+            raise OSError("hang then fail")
+
+        with mock.patch.object(artstudio_client.requests, "get", create=True,
+                               side_effect=slow_fail), \
+             mock.patch.object(artstudio_client.time, "time", lambda: clock[0]), \
+             _no_sleep():
+            resp = artstudio_client._get_with_retry("http://x/y")
+        self.assertIsNone(resp)
+        self.assertEqual(1, len(calls), "超出时间预算后不该再重试")
+
+    def test_fast_failure_still_retried_within_budget(self):
+        """快速失败仍要重试——这才是重试真正要救的那一类。"""
+        clock = [0.0]
+        calls = []
+
+        def fast_fail(url, **kw):
+            calls.append(url)
+            clock[0] += 4.18          # 现场实测的 ConnectionError 固定耗时
+            if len(calls) < 3:
+                raise OSError("Max retries exceeded")
+            return _Resp(200)
+
+        with mock.patch.object(artstudio_client.requests, "get", create=True,
+                               side_effect=fast_fail), \
+             mock.patch.object(artstudio_client.time, "time", lambda: clock[0]), \
+             _no_sleep():
+            resp = artstudio_client._get_with_retry("http://x/y")
+        self.assertIsNotNone(resp)
+        self.assertEqual(3, len(calls))
+
     def test_server_error_response_is_closed(self):
         """stream=True 的 5xx 响应要关掉，别漏连接。"""
         bad = _Resp(503)

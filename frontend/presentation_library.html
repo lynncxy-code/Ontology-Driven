@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>表现验收向导 | OntoTwin Nexus</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/vendor/vue-3.3.4.global.prod.js"></script>
+    <script src="/vendor/axios-1.7.9.min.js"></script>
+    <link rel="stylesheet" href="/nexus_titlebar.css" />
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+        .status-dot { width: 7px; height: 7px; border-radius: 999px; display: inline-block; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen font-sans antialiased">
+<div id="app" class="min-h-screen">
+    <header class="nexus-titlebar">
+        <div class="nexus-titlebar__main">
+            <h1 class="nexus-titlebar__title">表现验收向导</h1>
+            <p class="nexus-titlebar__subtitle">从当前类型配置一路检查到 test0316 的实际执行</p>
+        </div>
+        <div class="nexus-titlebar__actions flex items-center gap-2">
+            <a href="/ontology?nexus=true" class="text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md border border-transparent hover:border-gray-300">返回类型配置</a>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto w-full px-5 py-6 space-y-5">
+        <section class="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-base font-semibold text-gray-900">按顺序验收，不需要理解“路由”</h2>
+                    <p class="mt-2 text-xs leading-relaxed text-gray-600 max-w-3xl">这个向导只从本体配置中心进入，不是独立菜单。先在类型页保存方案，再在这里检查语义结果，最后到隔离的 test0316/Host 工程确认 UE 是否真正执行。</p>
+                </div>
+                <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 min-w-[230px]">
+                    <div class="text-[10px] text-gray-400 uppercase tracking-wide">Nexus 能力</div>
+                    <div class="mt-1 flex items-center gap-2 text-xs font-medium"><span :class="['status-dot', status.available ? 'bg-gray-900' : 'bg-gray-300']"></span>{{ status.available ? '预览接口可用' : '正在检查…' }}</div>
+                    <div class="mt-2 text-[10px] text-gray-500">已登记 {{ status.channel_count || 0 }} 个表现通道</div>
+                </div>
+            </div>
+            <div v-if="statusError" class="mt-4 border-l-2 border-gray-400 pl-3 text-xs text-gray-600">{{ statusError }}</div>
+        </section>
+
+        <section class="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-sm font-semibold text-gray-900">三个用例</h2>
+                    <p class="mt-1 text-[11px] text-gray-500">每个用例都标出“在哪操作”和“看到什么才算通过”。</p>
+                </div>
+                <span class="text-[10px] text-gray-400">基于 test0316 现有链路</span>
+            </div>
+            <div class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-3 text-[11px] text-gray-600">
+                <div class="rounded-md border border-gray-200 bg-gray-50/50 p-3">
+                    <div class="font-medium text-gray-900">用例 1 · 类型配置与语义预览</div>
+                    <p class="mt-1 leading-relaxed">操作位置：本体配置中心 → AGV → 设备表现策略。保存“工业设备默认表现”后，在下方运行六个情景。</p>
+                    <p class="mt-2 leading-relaxed">通过标志：四个通道显示“工业默认行为库”，一次性动作只出现一条。</p>
+                </div>
+                <div class="rounded-md border border-gray-200 bg-gray-50/50 p-3">
+                    <div class="font-medium text-gray-900">用例 2 · test0316 运行态执行</div>
+                    <p class="mt-1 leading-relaxed">操作位置：隔离 UE 工程 PIE。确认场景只有一个 TwinSceneManager，连接当前 Nexus 后等待动态实例加载，再观察 AGV 运行/状态变化。</p>
+                    <p class="mt-2 leading-relaxed">通过标志：实例由快照创建，实时位置流（若启用）优先于 HTTP；画面没有重复生成或旧字段二次触发。</p>
+                </div>
+                <div class="rounded-md border border-gray-200 bg-gray-50/50 p-3">
+                    <div class="font-medium text-gray-900">用例 3 · 安全回退与兼容</div>
+                    <p class="mt-1 leading-relaxed">操作位置：返回类型页切换“安全静态表现”并保存，再回到本向导检查；UE 端断开行为库/实时流后重启 PIE。</p>
+                    <p class="mt-2 leading-relaxed">通过标志：实例仍可见、动画/特效停止到安全状态，HTTP 快照继续同步；旧 Visual/Behavioral 快照仍可工作且不双重执行。</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
+            <div class="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                    <h2 class="text-sm font-semibold text-gray-900">选择验收对象</h2>
+                    <p class="mt-1 text-[11px] text-gray-500">只显示已经具备三维表现能力的类型；名称来自你的本体配置。</p>
+                </div>
+                <a href="/ontology?nexus=true" class="text-xs text-gray-600 underline underline-offset-2 hover:text-gray-900">还没有类型？先去启用设备表现能力</a>
+            </div>
+            <div class="mt-4 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
+                <div>
+                    <label for="acceptance-type" class="block text-[10px] text-gray-500 mb-1">设备类型</label>
+                    <select id="acceptance-type" v-model="selectedTypeRid" class="w-full text-xs border border-gray-300 rounded-md px-3 py-2 bg-white outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900" :disabled="!representableTypes.length">
+                        <option v-if="!representableTypes.length" value="">暂无可验收类型</option>
+                        <option v-for="type in representableTypes" :key="type.rid" :value="type.rid">{{ type.name || '未命名设备类型' }}</option>
+                    </select>
+                </div>
+                <div class="text-[11px] text-gray-500 pb-2">当前方案：<span class="font-medium text-gray-800">{{ selectedTypeName }}</span></div>
+            </div>
+        </section>
+
+        <section class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-200 bg-gray-50/60 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-sm font-semibold text-gray-900">用例 1：Nexus 语义结果检查</h2>
+                    <p class="mt-1 text-[11px] text-gray-500">每次检查都会运行五个现场情景，并额外检查一次性启动提示。结果只读，不会修改类型配置。</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" @click="runAcceptance('industrial.default')" :disabled="loading || !selectedTypeRid" class="text-xs font-medium px-4 py-2 rounded-md bg-gray-900 text-white border border-gray-900 hover:bg-black disabled:opacity-40">{{ loading && mode === 'industrial.default' ? '检查中…' : '检查工业默认表现' }}</button>
+                    <button type="button" @click="runAcceptance('safe_fallback')" :disabled="loading || !selectedTypeRid" class="text-xs font-medium px-4 py-2 rounded-md bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-40">{{ loading && mode === 'safe_fallback' ? '检查中…' : '检查安全静态表现' }}</button>
+                </div>
+            </div>
+            <div class="p-5">
+                <div v-if="!results.length" class="border-l-2 border-gray-300 pl-3 text-xs text-gray-500">尚未运行检查。建议先点击“检查工业默认表现”。</div>
+                <div v-else class="space-y-4">
+                    <div class="flex flex-wrap items-center gap-3 text-xs"><span :class="['status-dot', allPassed ? 'bg-gray-900' : 'bg-gray-400']"></span><span class="font-medium">{{ allPassed ? '情景检查全部通过' : '有情景需要关注' }}</span><span class="text-gray-500">{{ mode === 'industrial.default' ? '工业默认表现' : '安全静态表现' }}</span></div>
+                    <div class="overflow-x-auto border border-gray-100 rounded-md">
+                        <table class="w-full text-left text-[11px] text-gray-600">
+                            <thead class="text-[10px] text-gray-500 bg-gray-50 border-b border-gray-100"><tr><th class="px-3 py-2 font-medium">现场情景</th><th class="px-3 py-2 font-medium">检查内容</th><th class="px-3 py-2 font-medium">结果</th><th class="px-3 py-2 font-medium">说明</th></tr></thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <tr v-for="item in results" :key="item.key">
+                                    <td class="px-3 py-2 font-medium text-gray-800">{{ item.label }}</td>
+                                    <td class="px-3 py-2">{{ item.expectation }}</td>
+                                    <td class="px-3 py-2"><span class="inline-flex items-center gap-1.5"><span :class="['status-dot', item.pass ? 'bg-gray-900' : 'bg-gray-400']"></span>{{ item.pass ? '通过' : '未通过' }}</span></td>
+                                    <td class="px-3 py-2">{{ item.detail }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <details class="border border-gray-200 rounded-lg">
+                        <summary class="cursor-pointer px-4 py-3 text-[11px] font-medium text-gray-600">查看技术证据（开发者）</summary>
+                        <pre class="mx-4 mb-4 max-h-72 overflow-auto rounded-md bg-gray-950 px-3 py-2 text-[10px] leading-relaxed text-gray-200">{{ technicalEvidence }}</pre>
+                    </details>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
+            <h2 class="text-sm font-semibold text-gray-900">验收边界</h2>
+            <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px] text-gray-600">
+                <div class="rounded-md border border-gray-200 p-3"><div class="font-medium text-gray-800">本页可确认</div><p class="mt-1 leading-relaxed">语义归一化、通道来源、平台默认与静态回退是否符合约定。</p></div>
+                <div class="rounded-md border border-gray-200 p-3"><div class="font-medium text-gray-800">需要 UE 工程确认</div><p class="mt-1 leading-relaxed">在隔离 UE 工程中运行 PIE/Cook，确认具体动画、材质和特效执行器已加载。</p></div>
+                <div class="rounded-md border border-gray-200 p-3"><div class="font-medium text-gray-800">项目自定义表现</div><p class="mt-1 leading-relaxed">由项目开发者接入 Blueprint/Animation Blueprint；普通用户无需填写内部行为 ID。</p></div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script>
+const { createApp, ref, computed, onMounted } = Vue;
+
+createApp({
+    setup() {
+        const status = ref({ available: false, channel_count: 0 });
+        const statusError = ref('');
+        const types = ref([]);
+        const selectedTypeRid = ref('');
+        const loading = ref(false);
+        const mode = ref('industrial.default');
+        const results = ref([]);
+        const evidence = ref([]);
+
+        const representableTypes = computed(() => [...types.value]
+            .filter(type => type.has_representable)
+            .sort((a, b) => {
+                const rank = type => {
+                    const text = `${type.name || ''} ${type.category || ''}`.toLowerCase();
+                    if (text.includes('agv') || text.includes('robot') || text.includes('forklift') || text.includes('machine')) return 0;
+                    return 1;
+                };
+                return rank(a) - rank(b) || String(a.name || '').localeCompare(String(b.name || ''), 'zh-CN');
+            }));
+        const selectedTypeName = computed(() => representableTypes.value.find(type => type.rid === selectedTypeRid.value)?.name || '未选择');
+        const allPassed = computed(() => results.value.length > 0 && results.value.every(item => item.pass));
+        const technicalEvidence = computed(() => JSON.stringify(evidence.value, null, 2));
+
+        const scenarios = [
+            { key: 'running', label: '设备正常运行', expectation: '运行表现', raw_state: { status: 'running' }, channel: 'animation' },
+            { key: 'fault', label: '设备发生故障', expectation: '故障告警', raw_state: { status: 'fault' }, channel: 'visual' },
+            { key: 'low_battery', label: '设备低电量', expectation: '低电量提示', raw_state: { status: 'running', battery_level: 18 }, channel: 'visual' },
+            { key: 'maintenance', label: '设备进入维护', expectation: '维护提示', raw_state: { status: 'running', maintenance_mode: true }, channel: 'visual' },
+            { key: 'offline', label: '设备离线', expectation: '失联提示', raw_state: { status: 'offline' }, channel: 'visual' },
+            { key: 'action', label: '启动一次性提示', expectation: '动作只记录一次', raw_state: { status: 'running', presentation_actions: [{ id: 'industrial.fx.start_pulse', event_id: 'acceptance-event', sequence: 1 }] }, channel: null },
+        ];
+
+        function sourceLabel(source) {
+            return { platform: '工业默认行为库', safe_fallback: '静态安全回退', project: '项目实现' }[source] || '未解析';
+        }
+
+        async function load() {
+            try {
+                const [statusRes, typesRes] = await Promise.all([
+                    axios.get('/api/v2/presentation-library/status'),
+                    axios.get('/api/v2/ontology/types'),
+                ]);
+                status.value = statusRes.data || {};
+                types.value = Array.isArray(typesRes.data) ? typesRes.data : [];
+                const requestedRid = new URLSearchParams(window.location.search).get('rid');
+                if (requestedRid && representableTypes.value.some(type => type.rid === requestedRid)) {
+                    selectedTypeRid.value = requestedRid;
+                } else if (!selectedTypeRid.value && representableTypes.value.length) {
+                    selectedTypeRid.value = representableTypes.value[0].rid;
+                }
+            } catch (error) {
+                statusError.value = error.response?.data?.error || '无法读取验收能力，请确认 Nexus 服务正在运行。';
+            }
+        }
+
+        async function runAcceptance(selectedMode) {
+            if (!selectedTypeRid.value || loading.value) return;
+            loading.value = true;
+            mode.value = selectedMode;
+            results.value = [];
+            evidence.value = [];
+            const profile = { version: '1.0', normalization_profile: 'industrial.v1', behavior_library: selectedMode };
+            try {
+                const rows = [];
+                for (const scenario of scenarios) {
+                    const response = await axios.post(`/api/v2/ontology/types/${encodeURIComponent(selectedTypeRid.value)}/presentation-preview`, {
+                        instance_id: `acceptance:${scenario.key}`,
+                        raw_state: scenario.raw_state,
+                        presentation_profile: profile,
+                    });
+                    const payload = response.data;
+                    const channels = payload.presentation?.resolution?.channels || {};
+                    const actions = payload.presentation?.actions || [];
+                    const route = scenario.channel ? channels[scenario.channel] : null;
+                    const pass = scenario.channel
+                        ? route?.source === (selectedMode === 'industrial.default' ? 'platform' : 'safe_fallback')
+                        : actions.length === 1;
+                    rows.push({
+                        key: scenario.key,
+                        label: scenario.label,
+                        expectation: scenario.expectation,
+                        pass,
+                        detail: scenario.channel
+                            ? `${sourceLabel(route?.source)} · ${route?.status === 'fallback' ? '已安全回退' : '已匹配'}`
+                            : (actions.length === 1 ? '动作已进入一次性动作队列' : '未发现一次性动作'),
+                    });
+                    evidence.value.push({ scenario: scenario.label, raw_state: scenario.raw_state, channels, actions });
+                }
+                results.value = rows;
+            } catch (error) {
+                statusError.value = error.response?.data?.error || '情景验收请求失败。';
+            } finally {
+                loading.value = false;
+            }
+        }
+
+        onMounted(load);
+        return { status, statusError, representableTypes, selectedTypeRid, selectedTypeName, loading, mode, results, allPassed, technicalEvidence, runAcceptance };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>本体配置中心 | OntoTwin Nexus 2.3</title>
-    <link rel="stylesheet" href="/vendor/tailwind-3.4.17.min.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="/vendor/vue-3.3.4.global.prod.js" integrity="sha384-QLgwzsuau/sa8LhRgjRzkvQS0LyUzCM2B8FPwVoSu1KDel940/orifPaumNXp9hK" crossorigin="anonymous"></script>
     <script src="/vendor/axios-1.7.9.min.js" integrity="sha384-jLwhcmGu/RL8PSTUEl/559f8QVLL4QqM+HBvoZlt4F7XCdsdoDGAwW4nPFfoM7lU" crossorigin="anonymous"></script>
     <script src="/artstudio_upload.js"></script>
     <script src="/hierarchy_menu.js"></script>
-    <script src="/vendor/jsencrypt-3.3.2.min.js" integrity="sha384-FwzUI3CDdHbj2MEKbnjj0eCvB+gYurE3x3pW/udNFOVUbrCrl3REWMQ1FBTolvoj" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.3.2/bin/jsencrypt.min.js" integrity="sha384-FwzUI3CDdHbj2MEKbnjj0eCvB+gYurE3x3pW/udNFOVUbrCrl3REWMQ1FBTolvoj" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="/nexus_titlebar.css" />
     <style>
         .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
@@ -81,10 +81,10 @@
                                     <div class="flex flex-wrap gap-1.5 mt-2" v-if="ot.injected_interfaces.length > 0">
                                         <span v-for="iface in ot.injected_interfaces" :key="iface"
                                               :class="[
-                                                 'text-[9px] font-mono px-1.5 py-0.5 rounded-md border',
-                                                 iface === 'I3D_Representable' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-green-50 text-green-700 border-green-200'
+                                                 'text-[9px] px-1.5 py-0.5 rounded-md border',
+                                                 capabilityTagClass(iface)
                                               ]">
-                                            {{ iface.replace('I3D_', '') }}
+                                            {{ interfaceShortName(iface) }}
                                         </span>
                                     </div>
                                 </div>
@@ -154,11 +154,58 @@
                                     </tbody>
                                 </table>
                             </div>
+                            <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+                                <span class="text-[11px] text-gray-500 mr-1">已启用能力</span>
+                                <span v-for="rid in selected.injected_interfaces || []" :key="rid"
+                                      :class="['rounded-md border px-2 py-1 text-[11px]', capabilityTagClass(rid)]">
+                                    {{ interfaceShortName(rid) }}
+                                </span>
+                                <span v-if="!selected.injected_interfaces?.length" class="text-[11px] text-gray-400">尚未启用</span>
+                                <button type="button" @click="interfaceEditorOpen = !interfaceEditorOpen"
+                                        :aria-expanded="interfaceEditorOpen" aria-controls="capability-editor" :disabled="saving"
+                                        class="ml-auto text-[11px] font-medium rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-gray-700 hover:bg-gray-50">
+                                    {{ interfaceEditorOpen ? '收起能力设置' : '编辑能力' }}
+                                </button>
+                            </div>
+                            <div v-if="interfaceEditorOpen" id="capability-editor" class="mt-3 rounded-lg border border-gray-200 bg-white overflow-hidden">
+                                <fieldset class="p-3" :disabled="saving" aria-describedby="capability-help">
+                                    <legend class="sr-only">选择类型能力</legend>
+                                    <p id="capability-help" class="text-[11px] text-gray-500 mb-3">勾选启用，取消勾选停用。保存后才会更新左侧标签和下方配置。</p>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+                                        <label v-for="cap in capabilityInterfaces" :key="cap.rid"
+                                               :class="['flex items-center gap-2 rounded-md border p-3 cursor-pointer hover:bg-gray-50', isChecked(cap.rid) ? 'border-gray-300 bg-gray-50/50' : 'border-gray-200', capabilityDisabled(cap.rid) ? 'opacity-50 cursor-not-allowed' : '']">
+                                            <input type="checkbox" :checked="isChecked(cap.rid)" @change="toggleCapability(cap.rid)" :disabled="capabilityDisabled(cap.rid)"
+                                                   :aria-label="cap.label" class="h-4 w-4 shrink-0 accent-gray-900 focus-visible:outline-gray-900" />
+                                            <span class="min-w-0 flex-1">
+                                                <span :class="['inline-flex rounded-md border px-1.5 py-0.5 text-[11px]', capabilityTagClass(cap.rid)]">{{ cap.label }}</span>
+                                                <span class="block text-[10px] text-gray-500 mt-1">{{ capabilityDisabled(cap.rid) ? '需先勾选三维存在' : cap.description }}</span>
+                                            </span>
+                                            <span class="text-[10px] text-gray-500 shrink-0">{{ pendingRemove.has(cap.rid) ? '待停用' : pendingInterfaces.has(cap.rid) ? '待启用' : isInjected(cap.rid) ? '已启用' : '未启用' }}</span>
+                                        </label>
+                                    </div>
+                                </fieldset>
+                                <div class="flex flex-wrap items-center gap-2 border-t border-gray-200 bg-gray-50 px-3 py-3">
+                                    <span role="status" class="flex-1 text-[11px] text-gray-500">{{ capabilityChangeSummary }}</span>
+                                    <button type="button" @click="cancelCapabilityChanges" :disabled="saving || !capabilityChangeCount" class="rounded-md border border-gray-300 bg-white px-3 py-2 text-xs text-gray-600 disabled:opacity-40">撤销更改</button>
+                                    <button type="button" @click="requestCapabilitySave" :disabled="saving || !capabilityChangeCount" class="rounded-md bg-gray-900 px-4 py-2 text-xs font-medium text-white hover:bg-black disabled:opacity-40">{{ saving ? '保存中…' : '保存更改' }}</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
+                    <div v-if="hasVisual || hasBehavioral" class="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+                        <button v-if="hasVisual" type="button" @click="activeCapabilityTab = 'visual'"
+                                :class="['flex-1 rounded-md px-3 py-2 text-xs font-medium transition', activeCapabilityTab === 'visual' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50']">
+                            外观表现 <span class="ml-1 font-mono text-[9px] opacity-70">I3D_Visual</span>
+                        </button>
+                        <button v-if="hasBehavioral" type="button" @click="activeCapabilityTab = 'behavioral'"
+                                :class="['flex-1 rounded-md px-3 py-2 text-xs font-medium transition', activeCapabilityTab === 'behavioral' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50']">
+                            动态行为 <span class="ml-1 font-mono text-[9px] opacity-70">I3D_Behavioral</span>
+                        </button>
+                    </div>
+
                     <!-- Interface Injection -->
-                    <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                    <div v-if="false" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                         <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
                             <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">能力接口挂载</span>
                             <div class="flex items-center gap-2">
@@ -217,7 +264,8 @@
                                     </div>
                                     <div class="flex-1">
                                         <div class="flex items-center gap-2">
-                                            <span class="text-sm font-bold font-mono text-gray-900">{{ iface.rid }}</span>
+                                            <span class="text-sm font-bold text-gray-900">{{ interfaceDisplayName(iface.rid) }}</span>
+                                            <span v-if="interfaceDisplayName(iface.rid) !== iface.rid" class="text-[10px] text-gray-400">核心能力</span>
                                             <span class="text-[10px] bg-red-50 text-red-600 border border-red-100 px-1.5 py-0.5 rounded font-medium">必选</span>
                                             <span v-if="isInjected(iface.rid) && !pendingRemove.has(iface.rid)" class="text-[10px] text-green-600 font-medium ml-auto">已生效</span>
                                             <span v-if="pendingRemove.has(iface.rid)" class="text-[10px] text-red-500 font-medium ml-auto">待卸载</span>
@@ -257,13 +305,17 @@
                                             </div>
                                             <div class="flex-1">
                                                 <div class="flex items-center gap-2">
-                                                    <span class="text-sm font-bold font-mono text-gray-900">{{ iface.rid }}</span>
+                                                    <span class="text-sm font-bold text-gray-900">{{ interfaceDisplayName(iface.rid) }}</span>
+                                                    <span v-if="interfaceDisplayName(iface.rid) !== iface.rid" class="text-[10px] text-gray-400">兼容能力</span>
                                                     <span class="text-[10px] bg-gray-100 text-gray-500 border border-gray-200 px-1.5 py-0.5 rounded font-medium">按需</span>
                                                     <span v-if="isInjected(iface.rid) && !pendingRemove.has(iface.rid)" class="text-[10px] text-green-600 font-medium ml-auto">已生效</span>
                                                     <span v-if="pendingRemove.has(iface.rid)" class="text-[10px] text-red-500 font-medium ml-auto">待卸载</span>
                                                 </div>
-                                                <p class="text-xs text-gray-500 mt-1 leading-relaxed">{{ iface.description }}</p>
-                                                <div class="flex flex-wrap gap-1.5 mt-2.5">
+                                                <p class="text-xs text-gray-500 mt-1 leading-relaxed">{{ interfaceDescription(iface) }}</p>
+                                                <div v-if="iface.rid === 'I3D_Behavioral'" class="flex flex-wrap gap-1.5 mt-2.5">
+                                                    <span v-for="item in presentationFeatureLabels" :key="item" class="text-[10px] bg-gray-50 text-gray-500 px-1.5 py-0.5 border border-gray-200 rounded">{{ item }}</span>
+                                                </div>
+                                                <div v-else class="flex flex-wrap gap-1.5 mt-2.5">
                                                     <span v-for="p in iface.properties" :key="p.name" class="text-[10px] font-mono bg-gray-50 text-gray-500 px-1.5 py-0.5 border border-gray-200 rounded">{{ p.name }}</span>
                                                 </div>
                                             </div>
@@ -278,8 +330,203 @@
                         </div>
                     </div>
 
+                    <!-- User-facing semantic presentation policy -->
+                    <div v-if="false" class="mt-6 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <div class="px-5 py-4 border-b border-gray-200 bg-gray-50/50 flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-900">设备表现策略</h3>
+                                <p class="mt-1 text-[11px] leading-relaxed text-gray-500">选择设备在运行、故障、低电量和维护时采用哪套默认表现。系统会自动把实时状态转换为动画、提示、特效和标签，不需要填写任何 ID 或槽位。</p>
+                            </div>
+                            <span :class="['inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md border', isPresentationInjected ? 'text-gray-900 bg-gray-100 border-gray-300' : 'text-gray-500 bg-white border-gray-200']">
+                                <span :class="['w-1.5 h-1.5 rounded-full', isPresentationInjected ? 'bg-gray-900' : 'bg-gray-300']"></span>
+                                {{ isPresentationInjected ? presentationProfileSummary : '尚未启用设备表现能力' }}
+                            </span>
+                        </div>
+
+                        <div class="p-5 space-y-5">
+                            <div v-if="!isPresentationInjected" class="border-l-2 border-gray-400 pl-3 text-[11px] leading-relaxed text-gray-600">
+                                <p>启用后，本类型会使用工业设备默认表现。原有的动画、视觉接口仍会保留，旧项目无需迁移。</p>
+                                <button type="button" @click="enablePresentationInterface" :disabled="presentationSaving || saving" class="mt-3 text-xs font-medium px-3 py-1.5 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black disabled:opacity-40">
+                                    {{ presentationSaving ? '正在启用…' : '启用设备表现能力' }}
+                                </button>
+                            </div>
+
+                            <template v-else>
+                                <section class="border border-gray-200 rounded-lg overflow-hidden">
+                                    <div class="px-4 py-3 border-b border-gray-200 bg-gray-50/60">
+                                        <h4 class="text-xs font-semibold text-gray-900">默认表现方案</h4>
+                                        <p class="mt-1 text-[10px] text-gray-500">普通用户只需要选择方案；行为库会自动处理状态优先级和受控表现槽位。</p>
+                                    </div>
+                                    <div class="p-4 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-4 items-start">
+                                        <div>
+                                            <label for="presentation-library" class="block text-xs font-medium text-gray-800 mb-1.5">设备表现方案</label>
+                                            <select id="presentation-library" v-model="presentationSelections.behavior_library" class="w-full text-xs border border-gray-300 rounded-md px-3 py-2 outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900">
+                                                <option value="industrial.default">工业设备默认表现</option>
+                                                <option value="safe_fallback">安全静态表现</option>
+                                            </select>
+                                            <p class="mt-2 text-[10px] leading-relaxed text-gray-500">工业默认表现包含运行状态动画、故障/低电量/维护提示和一次性动作；安全静态表现只保留可见性与静态告警。</p>
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2 text-[11px] text-gray-600">
+                                            <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-2"><span class="block text-[10px] text-gray-400">运行</span><span class="font-medium">持续运行表现</span></div>
+                                            <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-2"><span class="block text-[10px] text-gray-400">故障</span><span class="font-medium">停止并突出告警</span></div>
+                                            <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-2"><span class="block text-[10px] text-gray-400">低电量 / 通信降级</span><span class="font-medium">叠加提示</span></div>
+                                            <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-2"><span class="block text-[10px] text-gray-400">维护 / 离线</span><span class="font-medium">维护或失联提示</span></div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <button type="button" @click="savePresentationProfile" :disabled="presentationSaving" class="text-xs font-medium px-4 py-2 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black disabled:opacity-40">
+                                        {{ presentationSaving ? '正在保存…' : '保存设备表现方案' }}
+                                    </button>
+                                    <span class="text-[11px] text-gray-500">保存后，新建实例和实时快照会使用此方案。</span>
+                                </div>
+
+                                <section class="border border-gray-200 rounded-lg overflow-hidden">
+                                    <div class="px-4 py-3 border-b border-gray-200 bg-gray-50/60 flex flex-wrap items-center justify-between gap-2">
+                                        <div>
+                                            <h4 class="text-xs font-semibold text-gray-900">表现验收预览</h4>
+                                            <p class="mt-1 text-[10px] text-gray-500">选择一个现场情景，检查四类表现最终由默认行为库还是安全静态方案提供。</p>
+                                        </div>
+                                        <button type="button" @click="previewPresentation" :disabled="presentationPreviewLoading" class="text-xs font-medium px-3 py-1.5 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                                            {{ presentationPreviewLoading ? '检查中…' : '运行情景预览' }}
+                                        </button>
+                                    </div>
+                                    <div class="p-4 space-y-3">
+                                        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+                                            <div><label for="presentation-scenario" class="block text-[10px] text-gray-500 mb-1">验收情景</label><select id="presentation-scenario" v-model="presentationPreviewForm.scenario" class="w-full text-[11px] border border-gray-300 rounded-md px-2.5 py-1.5 outline-none focus:border-gray-900"><option value="running">设备正常运行</option><option value="fault">设备发生故障</option><option value="low_battery">设备低电量</option><option value="maintenance">设备进入维护</option><option value="offline">设备离线</option></select></div>
+                                            <div><label for="presentation-action" class="block text-[10px] text-gray-500 mb-1">一次性动作（可选）</label><select id="presentation-action" v-model="presentationPreviewForm.action" class="w-full text-[11px] border border-gray-300 rounded-md px-2.5 py-1.5 outline-none focus:border-gray-900"><option value="">无</option><option value="start_pulse">启动提示</option><option value="warning_flash">告警闪烁</option></select></div>
+                                        </div>
+                                        <div v-if="presentationPreview" class="overflow-x-auto border border-gray-100 rounded-md">
+                                            <table class="w-full text-left text-[11px] text-gray-600">
+                                                <thead class="text-[10px] text-gray-500 bg-gray-50 border-b border-gray-100"><tr><th class="px-3 py-2 font-medium">表现通道</th><th class="px-3 py-2 font-medium">提供方</th><th class="px-3 py-2 font-medium">结果</th></tr></thead>
+                                                <tbody class="divide-y divide-gray-100"><tr v-for="route in presentationPreviewRoutes" :key="route.channel"><td class="px-3 py-2 font-medium text-gray-800">{{ route.label }}</td><td class="px-3 py-2">{{ presentationSourceLabel(route.source) }}</td><td class="px-3 py-2">{{ presentationBehaviorLabel(route) }}</td></tr></tbody>
+                                            </table>
+                                            <div v-if="presentationPreviewDiagnostics.length" class="px-3 py-2 text-[10px] text-gray-500 border-t border-gray-100">{{ presentationPreviewDiagnostics.map(item => item.message).join('；') }}</div>
+                                        </div>
+                                        <div v-else class="text-[11px] text-gray-500 border-l-2 border-gray-300 pl-3">尚未运行预览。预览只读，不会修改类型配置。</div>
+                                    </div>
+                                </section>
+
+                                <section class="border border-gray-200 rounded-lg bg-gray-50/40">
+                                    <div class="px-4 py-3 border-b border-gray-200 flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                            <h4 class="text-xs font-semibold text-gray-900">下一步：在 test0316 验收实际执行</h4>
+                                            <p class="mt-1 text-[10px] leading-relaxed text-gray-500">这里完成的是 Nexus 语义决策；UE 画面要按向导顺序在隔离工程中确认。不要离开当前类型去找另一个“验收菜单”。</p>
+                                        </div>
+                                        <a :href="`/presentation_library?nexus=true&rid=${encodeURIComponent(selected.rid)}`"
+                                           class="shrink-0 text-xs font-medium px-3 py-1.5 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black inline-flex items-center gap-1.5">
+                                            打开验收向导
+                                            <span aria-hidden="true">→</span>
+                                        </a>
+                                    </div>
+                                    <div class="p-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px] text-gray-600">
+                                        <div class="rounded-md border border-gray-200 bg-white p-3">
+                                            <div class="font-medium text-gray-900">1 · 配置</div>
+                                            <p class="mt-1 leading-relaxed">选择工业设备默认表现并保存。普通用户不输入行为 ID、资产路径或槽位。</p>
+                                        </div>
+                                        <div class="rounded-md border border-gray-200 bg-white p-3">
+                                            <div class="font-medium text-gray-900">2 · 预览</div>
+                                            <p class="mt-1 leading-relaxed">在上方选择运行、故障、低电量、维护、离线和一次性动作，确认四个通道的来源。</p>
+                                        </div>
+                                        <div class="rounded-md border border-gray-200 bg-white p-3">
+                                            <div class="font-medium text-gray-900">3 · UE 实机</div>
+                                            <p class="mt-1 leading-relaxed">打开 test0316 的 PIE，确认实例加载、状态表现和断线回退；向导会标出当前工程的限制。</p>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <details class="border border-gray-200 rounded-lg">
+                                    <summary class="cursor-pointer px-4 py-3 text-[11px] font-medium text-gray-600">查看技术诊断（开发者）</summary>
+                                    <pre class="mx-4 mb-4 max-h-52 overflow-auto rounded-md bg-gray-950 px-3 py-2 text-[10px] leading-relaxed text-gray-200">{{ presentationTechnicalSummary }}</pre>
+                                </details>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- 4.5 Dynamic behavior configuration -->
+                    <div v-if="hasBehavioral && activeCapabilityTab === 'behavioral'" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <div class="px-5 py-4 border-b border-gray-200 bg-gray-50/50 flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-sm font-semibold text-gray-900">动态行为</h3>
+                                    <span class="font-mono text-[10px] text-gray-400">I3D_Behavioral</span>
+                                </div>
+                                <p class="mt-1 text-[11px] leading-relaxed text-gray-500">按业务状态为动画、特效和动态材质分别选择可用表现。用户只选择来源和资源，不需要填写 ID 或 UE 路径。</p>
+                            </div>
+                            <span class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2 py-1 text-[10px] text-gray-600">
+                                <span :class="['h-1.5 w-1.5 rounded-full', behaviorSyncState === 'applied' ? 'bg-gray-900' : 'bg-gray-300']"></span>
+                                {{ behaviorSyncLabel }}
+                            </span>
+                        </div>
+                        <div class="border-b border-gray-200 px-5 pt-3">
+                            <div class="flex items-center gap-1">
+                                <button type="button" @click="activeBehaviorTab = 'states'"
+                                        :class="['border-b-2 px-3 py-2 text-xs font-medium', activeBehaviorTab === 'states' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-800']">状态表现</button>
+                                <button type="button" @click="activeBehaviorTab = 'summary'"
+                                        :class="['border-b-2 px-3 py-2 text-xs font-medium', activeBehaviorTab === 'summary' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-800']">配置结果</button>
+                            </div>
+                        </div>
+                        <div v-if="activeBehaviorTab === 'states'" class="p-5 space-y-4">
+                            <p v-if="behaviorCatalogLoading" class="text-xs text-gray-500">正在读取表现目录…</p>
+                            <p v-if="behaviorCatalogError" class="text-xs text-gray-700">{{ behaviorCatalogError }} <button type="button" @click="loadBehaviorResources(selected.rid)" class="underline">重试</button></p>
+                            <p class="text-[11px] text-gray-500">工业示例包提供旋转指示、闪烁、材质高亮和标签。需要 UE 加载对应插件；选择后按状态生效。</p>
+                            <section v-for="group in behaviorStateGroups" :key="group.key" class="rounded-lg border border-gray-200 overflow-hidden">
+                                <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50/60 px-4 py-3">
+                                    <div>
+                                        <h4 class="text-xs font-semibold text-gray-900">{{ group.label }}</h4>
+                                        <p class="mt-0.5 text-[10px] text-gray-500">{{ group.description }}</p>
+                                    </div>
+                                    <span class="font-mono text-[10px] text-gray-400">{{ group.key }}</span>
+                                </div>
+                                <div class="divide-y divide-gray-100">
+                                    <details v-for="state in group.states" :key="state.key" class="group">
+                                        <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-medium text-gray-800 hover:bg-gray-50">
+                                            <span>{{ state.label }}</span><span class="text-[10px] text-gray-400">配置通道 ›</span>
+                                        </summary>
+                                        <div class="space-y-3 border-t border-gray-100 bg-white px-4 py-3">
+                                            <div v-for="channel in behaviorChannels" :key="channel.id" class="rounded-md border border-gray-200 p-3">
+                                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                                    <span class="text-[11px] font-medium text-gray-800">{{ channel.label }}</span>
+                                                    <span class="text-[10px] text-gray-400">{{ selectedBehaviorResourceLabel(group.key, state.key, channel.id) || '未选择' }}</span>
+                                                </div>
+                                                <div class="mt-2 flex flex-wrap gap-1.5">
+                                                    <button v-for="source in behaviorSources" :key="source.id" type="button" @click="selectBehaviorSource(group.key, state.key, channel.id, source.id)"
+                                                            :class="['rounded-md border px-2 py-1 text-[10px] transition', selectedBehaviorSource(group.key, state.key, channel.id) === source.id ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 bg-white text-gray-600 hover:border-gray-500']">{{ source.label }}</button>
+                                                </div>
+                                                <p v-if="selectedBehaviorSource(group.key, state.key, channel.id) && !behaviorCatalogLoading && !behaviorResourcesFor(channel.id, selectedBehaviorSource(group.key, state.key, channel.id), group.key, state.key).length" class="mt-2 text-[11px] text-gray-500">该来源尚未发布此通道资源。</p>
+                                                <div v-if="selectedBehaviorSource(group.key, state.key, channel.id)" class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                                    <button v-for="resource in behaviorResourcesFor(channel.id, selectedBehaviorSource(group.key, state.key, channel.id), group.key, state.key)" :key="resource.id" type="button" @click="selectBehaviorResource(group.key, state.key, channel.id, resource)"
+                                                            :class="['text-left rounded-md border p-2.5 transition', selectedBehaviorResourceId(group.key, state.key, channel.id) === resource.id ? 'border-gray-900 bg-gray-50 ring-1 ring-gray-900' : 'border-gray-200 bg-white hover:border-gray-400']">
+                                                        <div class="flex items-start gap-2">
+                                                            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gray-100 text-[10px] text-gray-500">{{ resource.preview }}</div>
+                                                            <div class="min-w-0"><div class="truncate text-[11px] font-medium text-gray-800">{{ resource.name }}</div><div class="mt-0.5 text-[10px] text-gray-500">{{ resource.type }} · {{ resource.version }}</div><div class="mt-1 text-[10px] text-gray-400">{{ resource.compatibility }}</div></div>
+                                                        </div>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </details>
+                                </div>
+                            </section>
+                            <div class="flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4">
+                                <button type="button" @click="savePresentationProfile" :disabled="presentationSaving" class="rounded-md bg-gray-900 px-4 py-2 text-xs font-medium text-white hover:bg-black disabled:opacity-40">{{ presentationSaving ? '正在保存…' : '保存动态行为' }}</button>
+                                <span class="text-[11px] text-gray-500">保存代表配置已写入；当前页面尚未接入 UE 应用回执。</span>
+                            </div>
+                        </div>
+                        <div v-else class="p-5">
+                            <div class="rounded-lg border border-gray-200 bg-gray-50/40 p-4">
+                                <h4 class="text-xs font-semibold text-gray-900">当前配置结果</h4>
+                                <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                    <div v-for="channel in behaviorChannels" :key="channel.id" class="rounded-md border border-gray-200 bg-white p-3"><div class="text-[10px] text-gray-400">{{ channel.label }}</div><div class="mt-1 text-xs font-medium text-gray-800">{{ configuredBehaviorCount(channel.id) }} 个状态</div></div>
+                                </div>
+                                <p class="mt-3 text-[11px] text-gray-500">平台会按固定规则合并同时成立的状态；动画保持主状态，特效和动态材质作为修饰叠加。</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Model Binding -->
-                    <div v-if="selected && !hasRepresentable" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                    <div v-if="selected && !hasRepresentable && !hasVisual" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                         <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
                             <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">三维模型绑定</span>
                             <span class="text-[10px] text-gray-400">尚未启用</span>
@@ -287,7 +534,7 @@
                         <div class="p-5 text-sm text-gray-500">启用并保存三维表现能力后，即可配置类型默认模型。</div>
                     </div>
                     <transition name="fade">
-                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm" v-if="hasRepresentable">
+                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm" v-if="(hasRepresentable || hasVisual) && activeCapabilityTab === 'visual'">
                             <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
                                 <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">三维模型绑定</span>
                                 <span class="text-[10px] text-gray-400">用于 UE 预览与实例生成</span>
@@ -417,28 +664,8 @@
 
                                 <!-- 资产卡片网格 + 分页（公开库 / 我的资产共用） -->
                                 <template v-if="bindMode === 'library' || (bindMode === 'mine' && artstudioIdentity?.authenticated)">
-                                    <!-- 加载骨架：资产来自外网，首次要等几秒，别留白 -->
-                                    <div v-if="assetsLoading && !pagedAssets.length" class="grid grid-cols-2 gap-3 mb-4">
-                                        <div v-for="n in 4" :key="'skeleton-' + n"
-                                             class="p-3 border border-gray-200 rounded-lg flex flex-col animate-pulse">
-                                            <div class="rounded" style="width:100%; height:90px; background:#f3f4f6; margin-bottom:8px;"></div>
-                                            <div class="rounded" style="width:60%; height:10px; background:#f3f4f6;"></div>
-                                            <div class="rounded mt-2" style="width:85%; height:9px; background:#f6f7f8;"></div>
-                                        </div>
-                                    </div>
-                                    <div v-if="assetsLoading && !pagedAssets.length" class="text-[11px] text-gray-500 mb-4">
-                                        正在读取模型库…
-                                    </div>
-                                    <!-- 空态：加载完了确实没有，给一句下一步 -->
-                                    <div v-else-if="!assetsLoading && !pagedAssets.length && !assetLoadWarning"
-                                         class="mb-4 border border-gray-200 rounded-lg px-4 py-6 text-center">
-                                        <div class="text-xs text-gray-600">没有符合条件的模型</div>
-                                        <div class="text-[11px] text-gray-500 mt-1">
-                                            换个分类或搜索词试试，也可以切到「手动填写路径」直接指定 UE 资产。
-                                        </div>
-                                    </div>
                                     <!-- 资产卡片网格 -->
-                                    <div v-if="pagedAssets.length" class="grid grid-cols-2 gap-3 mb-4">
+                                    <div class="grid grid-cols-2 gap-3 mb-4">
                                         <div v-for="asset in pagedAssets" :key="asset.file_number"
                                              @click="selectLibraryAsset(asset)"
                                              :aria-disabled="asset.bindable === false ? 'true' : 'false'"
@@ -598,6 +825,22 @@
             </template>
         </div>
     </div>
+
+    <transition name="fade">
+        <div v-if="capabilityConfirmOpen" class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 px-4"
+             @click.self="closeCapabilityConfirm" @keydown.esc.stop="closeCapabilityConfirm">
+            <div ref="capabilityConfirmDialog" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="capability-confirm-title"
+                 @keydown.tab="trapCapabilityFocus" class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl outline-none">
+                <h3 id="capability-confirm-title" class="text-base font-semibold">确认停用能力</h3>
+                <p class="mt-3 text-sm text-gray-600">将停用：{{ [...pendingRemove].map(interfaceShortName).join('、') }}。保存后，这些能力不再下发给此类型的实例，相应配置入口将关闭。</p>
+                <p v-if="pendingRemove.has('I3D_Representable')" class="mt-3 text-sm text-gray-700">停用三维存在还会清除类型默认模型绑定，并停用空间定位和信息叠加；外观表现、动态行为不受影响。</p>
+                <div class="mt-5 flex justify-end gap-2">
+                    <button type="button" @click="closeCapabilityConfirm" :disabled="saving" class="rounded-md border border-gray-300 px-3 py-2 text-sm disabled:opacity-40">返回修改</button>
+                    <button type="button" @click="saveCapabilityChanges" :disabled="saving" class="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-40">{{ saving ? '保存中…' : '确认并保存' }}</button>
+                </div>
+            </div>
+        </div>
+    </transition>
 
     <!-- 清除类型默认模型确认 -->
     <transition name="fade">
@@ -818,8 +1061,6 @@ createApp({
         const manualPath    = ref('');
         const assetResult   = ref(null);
         const assetLoadWarning = ref('');
-        // 资产列表来自外网 ArtStudio，首次要几秒。页面不再等它，改成列表区自己显示加载态。
-        const assetsLoading = ref(false);
         const artstudioIdentity = ref(null);
         const identityLoading = ref(false);
         const identityError = ref('');
@@ -846,6 +1087,71 @@ createApp({
         const containerBatchSaving = ref(false);
         const containerBatchDialog = ref(null);
         let containerBatchReturnFocus = null;
+        const presentationSaving = ref(false);
+        const presentationPreviewLoading = ref(false);
+        const presentationPreview = ref(null);
+        const presentationSelections = ref({ channels: {} });
+        const interfaceEditorOpen = ref(false);
+        const activeCapabilityTab = ref('visual');
+        const activeBehaviorTab = ref('states');
+        const behaviorSyncState = ref('idle');
+        const behaviorChannels = [
+            { id: 'animation', label: '动画' },
+            { id: 'fx', label: '特效' },
+            { id: 'visual', label: '动态材质' },
+            { id: 'label', label: '标签' },
+        ];
+        const behaviorSources = [
+            { id: 'project', label: '当前项目表现' },
+            { id: 'ontotwin_common', label: 'OntoTwin 通用表现' },
+        ];
+        const behaviorResources = ref([]);
+        const behaviorCatalogError = ref('');
+        const behaviorCatalogLoading = ref(false);
+        const behaviorObservedState = ref({});
+        function normalizeBehaviorResource(resource) {
+            const typeLabels = { animation: '动画', fx: '特效', visual: '动态材质', dynamic_material: '动态材质', label: '标签' };
+            const previewKind = resource.preview?.kind || resource.resource_type || resource.channel;
+            return {
+                id: resource.resource_id || resource.id,
+                revision: resource.revision || 1,
+                source: resource.source,
+                channel: resource.channel === 'material' ? 'visual' : resource.channel,
+                name: resource.display_name || resource.name || resource.resource_id,
+                type: typeLabels[resource.resource_type] || typeLabels[resource.channel] || resource.resource_type || resource.type || '表现',
+                version: resource.package_version || `目录修订 ${resource.revision || 1}`,
+                preview: previewKind === 'material' || resource.resource_type === 'dynamic_material' ? 'MAT' : previewKind === 'loop' || resource.channel === 'fx' ? 'FX' : 'ANI',
+                compatibility: resource.description || '已发布的表现资源',
+            };
+        }
+        async function loadBehaviorResources(objectTypeRid) {
+            behaviorResources.value = [];
+            behaviorObservedState.value = {};
+            behaviorCatalogError.value = '';
+            behaviorCatalogLoading.value = true;
+            const sample = typeInstances.value.find(item => item.object_type_rid === objectTypeRid);
+            const sampleRequest = sample
+                ? axios.get('/api/v2/state/snapshot', { params: { id: sample.id } }).catch(() => null)
+                : Promise.resolve(null);
+            try {
+                const [{ data }, snapshot] = await Promise.all([
+                    axios.get('/api/v2/presentation-catalog', { params: { object_type_rid: objectTypeRid } }),
+                    sampleRequest,
+                ]);
+                if (selected.value?.rid !== objectTypeRid) return;
+                behaviorResources.value = (data.resources || []).map(normalizeBehaviorResource);
+                behaviorObservedState.value = snapshot?.data?.raw_state || {};
+            } catch (e) {
+                if (selected.value?.rid === objectTypeRid)
+                    behaviorCatalogError.value = '表现目录读取失败，请重试。当前未提供可选择资源。';
+            } finally {
+                if (selected.value?.rid === objectTypeRid) behaviorCatalogLoading.value = false;
+            }
+        }
+        const presentationPreviewForm = ref({
+            scenario: 'running',
+            action: '',
+        });
         const toasts        = ref([]);
         const assetPage     = ref(1);
         const assetCategory = ref("");          // 分类筛选，""=全部
@@ -876,6 +1182,67 @@ createApp({
             { value: "5", label: "资产包" },
         ];
 
+        const presentationFeatureLabels = ['主状态表现', '告警与维护提示', '一次性动作'];
+
+        function interfaceDisplayName(rid) {
+            return {
+                I3D_Representable: '三维存在能力',
+                I3D_Visual: '外观表现能力',
+                I3D_Behavioral: '动态行为能力',
+                I3D_Spatial: '空间定位能力',
+                I3D_Overlay: '信息叠加能力',
+            }[rid] || rid;
+        }
+
+        function interfaceShortName(rid) {
+            return {
+                I3D_Representable: '三维存在',
+                I3D_Visual: '外观表现',
+                I3D_Behavioral: '动态行为',
+                I3D_Spatial: '空间定位',
+                I3D_Overlay: '信息叠加',
+            }[rid] || rid.replace(/^I3D_/, '');
+        }
+
+        function interfaceDescription(iface) {
+            return iface?.description || '';
+        }
+
+        function createPresentationSelections(profile = {}) {
+            const channels = {};
+            const raw = profile && typeof profile === 'object' && profile.channels && typeof profile.channels === 'object' ? profile.channels : {};
+            for (const [channel, config] of Object.entries(raw)) {
+                const states = config?.states && typeof config.states === 'object' ? config.states : {};
+                for (const [stateKey, selection] of Object.entries(states)) {
+                    const parts = String(stateKey).split(':');
+                    const field = parts.shift() || 'status';
+                    const state = parts.join(':') || stateKey;
+                    if (selection && typeof selection === 'object') channels[behaviorEntryKey(field, state, channel)] = { ...selection };
+                }
+            }
+            return { channels };
+        }
+
+        function buildPresentationProfile() {
+            const channels = {};
+            for (const [key, value] of Object.entries(presentationSelections.value.channels || {})) {
+                const [field, state, channel] = key.split('::');
+                if (!field || !state || !channel || !value?.resource_id || !value?.source) continue;
+                channels[channel] ||= { states: {} };
+                channels[channel].states[`${field}:${state}`] = {
+                    source: value.source,
+                    resource_id: value.resource_id,
+                    revision: value.revision || 1,
+                    behavior_id: value.resource_id,
+                };
+            }
+            return {
+                version: '1.0',
+                normalization_profile: 'industrial.v1',
+                channels,
+            };
+        }
+
         const assetTotalPages = computed(() => Math.max(1, Math.ceil(assetTotal.value / ASSET_PAGE_SIZE)));
         // 服务端已分页，allAssets 就是当前页数据
         const pagedAssets = computed(() => allAssets.value);
@@ -891,6 +1258,70 @@ createApp({
 
         const parentInterfaces = computed(() => allInterfaces.value.filter(i => i.tier === 'parent'));
         const childInterfaces  = computed(() => allInterfaces.value.filter(i => i.tier === 'child'));
+        const capabilityInterfaces = computed(() => [
+            { rid: 'I3D_Representable', label: '三维存在' },
+            { rid: 'I3D_Spatial', label: '空间定位' },
+            { rid: 'I3D_Visual', label: '外观表现' },
+            { rid: 'I3D_Behavioral', label: '动态行为' },
+            { rid: 'I3D_Overlay', label: '信息叠加' },
+        ].map(cap => ({...cap, description: ({
+            I3D_Representable: '模型与三维实体', I3D_Spatial: '位置、旋转与缩放',
+            I3D_Visual: '可见性与外观', I3D_Behavioral: '按状态配置动态表现',
+            I3D_Overlay: '实例信息面板',
+        })[cap.rid]})));
+        function capabilityTagClass(rid) {
+            return rid === 'I3D_Representable' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-green-50 text-green-700 border-green-200';
+        }
+        const capabilityChangeCount = computed(() => pendingInterfaces.value.size + pendingRemove.value.size);
+        const capabilityChangeSummary = computed(() => capabilityChangeCount.value
+            ? `未保存：启用 ${pendingInterfaces.value.size} 项，停用 ${pendingRemove.value.size} 项`
+            : '当前能力已保存');
+        const capabilityConfirmOpen = ref(false);
+        const capabilityConfirmDialog = ref(null);
+        let capabilitySaveFocus = null;
+        function capabilityDisabled(rid) {
+            return ['I3D_Spatial', 'I3D_Overlay'].includes(rid) && !isChecked('I3D_Representable');
+        }
+        function toggleCapability(rid) {
+            if (saving.value || capabilityDisabled(rid)) return;
+            const enabled = !isChecked(rid);
+            const adding = new Set(pendingInterfaces.value);
+            const removing = new Set(pendingRemove.value);
+            const setDraft = (key, value) => {
+                adding.delete(key); removing.delete(key);
+                if (value && !isInjected(key)) adding.add(key);
+                if (!value && isInjected(key)) removing.add(key);
+            };
+            setDraft(rid, enabled);
+            if (rid === 'I3D_Representable' && !enabled) {
+                for (const child of ['I3D_Spatial', 'I3D_Overlay', 'I3D_Presentation']) setDraft(child, false);
+            }
+            pendingInterfaces.value = adding;
+            pendingRemove.value = removing;
+        }
+        async function requestCapabilitySave() {
+            if (!capabilityChangeCount.value || saving.value) return;
+            if (!pendingRemove.value.size) return saveCapabilityChanges();
+            capabilitySaveFocus = document.activeElement;
+            capabilityConfirmOpen.value = true;
+            await nextTick();
+            capabilityConfirmDialog.value?.focus();
+        }
+        function closeCapabilityConfirm() {
+            if (saving.value) return;
+            capabilityConfirmOpen.value = false;
+            nextTick(() => capabilitySaveFocus?.focus());
+        }
+        function trapCapabilityFocus(event) {
+            const buttons = [...(capabilityConfirmDialog.value?.querySelectorAll('button:not(:disabled)') || [])];
+            if (!buttons.length) { event.preventDefault(); return; }
+            const first = buttons[0], last = buttons[buttons.length - 1];
+            if (event.shiftKey && (document.activeElement === first || document.activeElement === capabilityConfirmDialog.value)) {
+                event.preventDefault(); last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault(); first.focus();
+            }
+        }
 
         const sortedObjectTypes = computed(() => {
             return [...objectTypes.value].sort((a, b) => {
@@ -952,6 +1383,144 @@ createApp({
             return injected.includes('I3D_Representable') || pendingInterfaces.value.has('I3D_Representable');
         });
 
+        const isPresentationInjected = computed(() => (
+            Boolean(selected.value?.injected_interfaces?.includes('I3D_Behavioral'))
+                || pendingInterfaces.value.has('I3D_Behavioral')
+        ));
+
+        const hasVisual = computed(() => isInjected('I3D_Visual'));
+        const hasBehavioral = computed(() => isInjected('I3D_Behavioral'));
+        const behaviorSyncLabel = computed(() => ({ idle: '尚未保存', saving: '正在保存…', saved: '已保存，等待运行时确认' }[behaviorSyncState.value] || '待同步'));
+
+        function isCapabilityEnabled(rid) { return isChecked(rid); }
+
+        const behaviorStateGroups = computed(() => {
+            const raw = behaviorObservedState.value;
+            const definitions = new Map();
+            for (const prop of selected.value?.properties || []) {
+                if (/status|state|mode|battery|电量|状态|维护|通信/i.test(prop.name || '')) {
+                    definitions.set(prop.name, { label: prop.label || prop.name, values: prop.options || [] });
+                }
+            }
+            for (const key of ['status', 'state', 'battery_level', 'maintenance_mode', 'communication_status']) {
+                if (raw[key] !== undefined && !definitions.has(key)) definitions.set(key, { label: ({
+                    status:'运行状态', state:'设备状态', battery_level:'电量状态',
+                    maintenance_mode:'维护模式', communication_status:'通信状态',
+                })[key], values: [] });
+            }
+            // Preserve existing configurations, including legacy Chinese state labels.
+            for (const entryKey of Object.keys(presentationSelections.value.channels || {})) {
+                const [field, state] = entryKey.split('::');
+                if (!definitions.has(field)) definitions.set(field, {label: field, values: []});
+                definitions.get(field).values = [...new Set([...definitions.get(field).values, state])];
+            }
+            const labels = {normal:'正常', idle:'待机', running:'运行', fault:'故障', offline:'离线', true:'开启', false:'关闭'};
+            return [...definitions.entries()].map(([key, def]) => {
+                let values = [...def.values];
+                if (key === 'battery_level') values = ['正常','低电量'];
+                else {
+                    if (raw[key] !== undefined) values.push(String(raw[key]));
+                    if (key === 'status' || key === 'state') values.push('normal','idle','running','fault','offline');
+                    if (typeof raw[key] === 'boolean') values.push('true','false');
+                }
+                return {key, label:def.label,
+                    description: raw[key] !== undefined ? '最近读取值：' + raw[key] + (key === 'battery_level' ? '；低电量条件为 ≤20' : '') : '来自类型字段或已有配置',
+                    states:[...new Set(values)].map(value => ({key:String(value), label:labels[value] || String(value)}))};
+            });
+        });
+
+        function behaviorEntryKey(field, state, channel) { return `${field}::${state}::${channel}`; }
+        function ensureBehaviorEntry(field, state, channel) {
+            const key = behaviorEntryKey(field, state, channel);
+            presentationSelections.value.channels ||= {};
+            if (!presentationSelections.value.channels[key]) presentationSelections.value.channels[key] = { source: '', resource_id: '' };
+            return presentationSelections.value.channels[key];
+        }
+        function selectedBehaviorSource(field, state, channel) { return presentationSelections.value.channels?.[behaviorEntryKey(field, state, channel)]?.source || ''; }
+        function selectedBehaviorResourceId(field, state, channel) { return presentationSelections.value.channels?.[behaviorEntryKey(field, state, channel)]?.resource_id || ''; }
+        function selectedBehaviorResourceLabel(field, state, channel) {
+            const id = selectedBehaviorResourceId(field, state, channel);
+            return behaviorResources.value.find(item => item.id === id)?.name || '';
+        }
+        function behaviorResourcesFor(channel, source, field, state) {
+            const candidates = behaviorResources.value.filter(item => item.channel === channel && item.source === source);
+            return candidates;
+        }
+        function selectBehaviorSource(field, state, channel, source) {
+            const entry = ensureBehaviorEntry(field, state, channel);
+            entry.source = source;
+            entry.resource_id = '';
+            behaviorSyncState.value = 'idle';
+        }
+        function selectBehaviorResource(field, state, channel, resource) {
+            const entry = ensureBehaviorEntry(field, state, channel);
+            entry.source = resource.source;
+            entry.resource_id = resource.id;
+            entry.revision = resource.revision || 1;
+            behaviorSyncState.value = 'idle';
+        }
+        function configuredBehaviorCount(channel) {
+            return Object.entries(presentationSelections.value.channels || {}).filter(([key, value]) => key.endsWith(`::${channel}`) && value?.resource_id).length;
+        }
+
+        const presentationProfileSummary = computed(() => {
+            return configuredBehaviorCount('animation') + configuredBehaviorCount('fx') + configuredBehaviorCount('visual') > 0
+                ? '动态行为已配置'
+                : '尚未配置动态行为';
+        });
+
+        const presentationPreviewChannels = [
+            { id: 'animation', label: '动画' },
+            { id: 'visual', label: '视觉提示' },
+            { id: 'fx', label: '特效' },
+            { id: 'label', label: '状态标签' },
+        ];
+
+        const presentationPreviewRoutes = computed(() => {
+            const channels = presentationPreview.value?.presentation?.resolution?.channels || {};
+            return presentationPreviewChannels.map(channel => ({
+                channel: channel.id,
+                label: channel.label,
+                ...(channels[channel.id] || {
+                    source: 'safe_fallback',
+                    behavior_id: 'safe.none',
+                    slot: channel.slot,
+                    status: 'fallback',
+                }),
+            }));
+        });
+
+        const presentationPreviewDiagnostics = computed(() => (
+            presentationPreview.value?.presentation?.resolution?.diagnostics || []
+        ));
+
+        function presentationSourceLabel(source) {
+            return {
+                project: '项目实现',
+                platform: '工业默认行为库',
+                safe_fallback: '静态安全回退',
+            }[source] || '未解析';
+        }
+
+        function presentationBehaviorLabel(route) {
+            if (route?.status === 'fallback' || route?.source === 'safe_fallback') return '静态安全表现';
+            const id = String(route?.behavior_id || '');
+            if (id.includes('critical')) return '严重告警提示';
+            if (id.includes('warning')) return '告警提示';
+            if (id.includes('maintenance')) return '维护提示';
+            if (id.includes('running')) return '持续运行表现';
+            if (id.includes('offline')) return '失联提示';
+            if (id.includes('idle')) return '待机表现';
+            if (id.includes('start_pulse')) return '启动提示';
+            return route?.source === 'platform' ? '已匹配默认表现' : '已解析';
+        }
+
+        const presentationTechnicalSummary = computed(() => {
+            const profile = buildPresentationProfile();
+            const resolution = presentationPreview.value?.presentation?.resolution || null;
+            return JSON.stringify({ profile, resolution }, null, 2);
+        });
+
         const defaultModel = computed(() => {
             return selected.value?.model_binding?.default_model || null;
         });
@@ -961,7 +1530,7 @@ createApp({
         });
 
         function isInjected(rid) { return selected.value?.injected_interfaces?.includes(rid) || false; }
-        function isChecked(rid)  { return isInjected(rid) || pendingInterfaces.value.has(rid); }
+        function isChecked(rid)  { return (isInjected(rid) && !pendingRemove.value.has(rid)) || pendingInterfaces.value.has(rid); }
 
         function enterEditMode() {
             pendingRemove.value = new Set();
@@ -1027,10 +1596,16 @@ createApp({
                 }
                 return;
             }
-            // 普通模式：只允许新增勾选，已挂载接口不可点击
-            if (isInjected(rid)) return;
+            // 紧凑能力编辑器：已挂载能力再次点击即标记/取消卸载。
+            if (isInjected(rid)) {
+                const next = new Set(pendingRemove.value);
+                if (next.has(rid)) next.delete(rid);
+                else next.add(rid);
+                pendingRemove.value = next;
+                return;
+            }
             const iface = allInterfaces.value.find(i => i.rid === rid);
-            if (iface?.tier === 'child' && !hasRepresentable.value) return;
+            if (iface?.tier === 'child' && !hasRepresentable.value && !['I3D_Visual', 'I3D_Behavioral'].includes(rid)) return;
             if (pendingInterfaces.value.has(rid)) pendingInterfaces.value.delete(rid);
             else pendingInterfaces.value.add(rid);
         }
@@ -1050,6 +1625,115 @@ createApp({
                 await loadTypes();
             } catch (e) { toast('err', e.response?.data?.error || '保存失败'); }
             finally { saving.value = false; }
+        }
+
+        function cancelCapabilityChanges() {
+            pendingInterfaces.value = new Set();
+            pendingRemove.value = new Set();
+        }
+
+        async function saveCapabilityChanges() {
+            if (!selected.value || (pendingInterfaces.value.size === 0 && pendingRemove.value.size === 0)) return;
+            saving.value = true;
+            try {
+                for (const rid of pendingRemove.value) {
+                    await axios.post('/api/v2/ontology/inject/remove', {
+                        object_type_rid: selected.value.rid,
+                        interface_rid: rid,
+                    });
+                }
+                if (pendingInterfaces.value.size > 0) {
+                    await axios.post('/api/v2/ontology/inject', {
+                        object_type_rid: selected.value.rid,
+                        interfaces: [...pendingInterfaces.value],
+                    });
+                }
+                pendingInterfaces.value = new Set();
+                pendingRemove.value = new Set();
+                toast('ok', '能力变更已保存');
+                await loadTypes();
+                if (activeCapabilityTab.value === 'behavioral' && !hasBehavioral.value) activeCapabilityTab.value = 'visual';
+                if (activeCapabilityTab.value === 'visual' && !hasVisual.value && hasBehavioral.value) activeCapabilityTab.value = 'behavioral';
+            } catch (e) {
+                toast('err', e.response?.data?.error || '能力变更保存失败');
+            } finally {
+                saving.value = false;
+                closeCapabilityConfirm();
+            }
+        }
+
+        async function enablePresentationInterface() {
+            if (!selected.value || isPresentationInjected.value || presentationSaving.value) return;
+            presentationSaving.value = true;
+            try {
+                await axios.post('/api/v2/ontology/inject', {
+                    object_type_rid: selected.value.rid,
+                    interfaces: ['I3D_Behavioral'],
+                });
+                await loadTypes();
+                toast('ok', '语义表现接口已启用');
+            } catch (e) {
+                toast('err', e.response?.data?.error || '启用语义表现接口失败');
+            } finally {
+                presentationSaving.value = false;
+            }
+        }
+
+        async function savePresentationProfile() {
+            if (!selected.value || presentationSaving.value) return;
+            presentationSaving.value = true;
+            behaviorSyncState.value = 'saving';
+            try {
+                const profile = buildPresentationProfile();
+                const { data } = await axios.put(
+                    `/api/v2/ontology/types/${encodeURIComponent(selected.value.rid)}/behavior-config`,
+                    { presentation_profile: profile },
+                );
+                selected.value.presentation_profile = data.presentation_profile || profile;
+                presentationSelections.value = createPresentationSelections(selected.value.presentation_profile);
+                behaviorSyncState.value = 'saved';
+                await loadTypes();
+                toast('ok', '动态行为已保存，等待运行时确认');
+            } catch (e) {
+                behaviorSyncState.value = 'idle';
+                toast('err', e.response?.data?.error || '语义表现配置保存失败');
+            } finally {
+                presentationSaving.value = false;
+            }
+        }
+
+        async function previewPresentation() {
+            if (!selected.value || presentationPreviewLoading.value) return;
+            presentationPreviewLoading.value = true;
+            try {
+                const form = presentationPreviewForm.value;
+                const rawState = { status: 'running' };
+                if (form.scenario === 'fault') rawState.status = 'fault';
+                if (form.scenario === 'offline') rawState.status = 'offline';
+                if (form.scenario === 'low_battery') rawState.battery_level = 18;
+                if (form.scenario === 'maintenance') rawState.maintenance_mode = true;
+                if (form.action) {
+                    rawState.presentation_actions = [{
+                        id: form.action === 'warning_flash' ? 'industrial.fx.warning_flash' : 'industrial.fx.start_pulse',
+                        event_id: 'preview-event',
+                        sequence: 1,
+                    }];
+                }
+                const { data } = await axios.post(
+                    `/api/v2/ontology/types/${encodeURIComponent(selected.value.rid)}/presentation-preview`,
+                    {
+                        instance_id: `preview:${selected.value.rid}`,
+                        raw_state: rawState,
+                        presentation_profile: buildPresentationProfile(),
+                    },
+                );
+                presentationPreview.value = data;
+            } catch (e) {
+                presentationPreview.value = null;
+                toast('err', e.response?.data?.error || '路由预览失败');
+            } finally {
+                presentationPreviewLoading.value = false;
+            }
         }
 
         async function removeInterface(rid) {
@@ -1178,17 +1862,23 @@ createApp({
         }
 
         function selectType(ot) {
+            if (saving.value) return;
             selected.value = { ...ot };
+            activeCapabilityTab.value = (ot.injected_interfaces || []).includes('I3D_Behavioral') ? 'behavioral' : 'visual';
             pendingInterfaces.value = new Set();
             pendingRemove.value = new Set();
             editMode.value = false;
             assetResult.value = null;
+            presentationSelections.value = createPresentationSelections(ot.presentation_profile || {});
+            behaviorSyncState.value = Object.keys(presentationSelections.value.channels).length ? 'saved' : 'idle';
+            presentationPreview.value = null;
             selectedAssetFn.value = ot.asset_id || '';
             selectedAssetUePath.value = ot.ue_asset_path || '';
             manualPath.value = ot.asset_id || '';
             containerBlueprintPath.value = ot.container_blueprint_id || '';
             containerSlot.value = ot.container_slot || 'primary';
             assetPage.value = 1; // reset pagination
+            loadBehaviorResources(ot.rid);
         }
 
         async function loadTypes() {
@@ -1206,8 +1896,11 @@ createApp({
                 const fresh = typesRes.data.find(t => t.rid === selected.value.rid);
                 if (fresh) {
                     selected.value = { ...fresh };
+                    presentationSelections.value = createPresentationSelections(fresh.presentation_profile || {});
+                    presentationPreview.value = null;
                     containerBlueprintPath.value = fresh.container_blueprint_id || '';
                     containerSlot.value = fresh.container_slot || 'primary';
+                    loadBehaviorResources(fresh.rid);
                 }
             }
         }
@@ -1279,17 +1972,14 @@ createApp({
                 assetTotal.value = 0;
                 assetSource.value = "manual";
                 assetLoadWarning.value = "";
-                assetsLoading.value = false;
                 return;
             }
             if (requestMode === 'mine' && !artstudioIdentity.value?.authenticated) {
                 allAssets.value = [];
                 assetTotal.value = 0;
                 assetSource.value = "mine";
-                assetsLoading.value = false;
                 return;
             }
-            assetsLoading.value = true;
 
             const params = { page: assetPage.value, size: ASSET_PAGE_SIZE };
 
@@ -1306,10 +1996,7 @@ createApp({
 
             try {
                 const { data } = await axios.get('/api/v2/assets', { params });
-                // 慢请求回来时可能已经切了模式或翻了页，旧结果直接丢弃，
-                // 加载态留给那个更新的请求去收尾，这里不能抢着关掉。
                 if (requestSeq !== assetLoadSeq || requestMode !== bindMode.value) return;
-                assetsLoading.value = false;
                 allAssets.value  = data.items || [];
                 assetTotal.value = data.total || 0;
                 assetSource.value = data._source || (requestMode === 'mine' ? "mine" : "studio");
@@ -1321,7 +2008,6 @@ createApp({
                 }
             } catch (e) {
                 if (requestSeq !== assetLoadSeq || requestMode !== bindMode.value) return;
-                assetsLoading.value = false;
                 allAssets.value  = [];
                 assetTotal.value = 0;
                 assetSource.value = requestMode === 'mine' ? "mine_error" : "studio_error";
@@ -1460,7 +2146,6 @@ createApp({
                 identityError.value = '尚未连接 ArtStudio 账号。';
                 allAssets.value = [];
                 assetTotal.value = 0;
-                assetsLoading.value = false;
                 selectedAssetFn.value = '';
                 selectedAssetUePath.value = '';
                 toast('ok', '已断开 ArtStudio 账号');
@@ -1498,7 +2183,6 @@ createApp({
             assetLoadWarning.value = '';
             allAssets.value = [];
             assetTotal.value = 0;
-            assetsLoading.value = false;   // 未登录时不再往下走，别把骨架留在那
             if (authenticated) {
                 assetPage.value = 1;
                 await loadAssets();
@@ -1587,8 +2271,7 @@ createApp({
 
         // 切换绑定模式
         async function switchBindMode(mode) {
-            ++assetLoadSeq;              // 作废在途请求
-            assetsLoading.value = false; // 作废的请求不会再回来关加载态，这里替它关
+            ++assetLoadSeq;
             bindMode.value = mode;
             assetResult.value = null;
             selectedAssetFn.value = '';
@@ -1636,10 +2319,7 @@ createApp({
 
         onMounted(async () => {
             await loadTypes();
-            // 不 await：资产列表要走外网 ArtStudio，实测首次 4.2s。以前串行等在这里，
-            // 意味着 ?rid= 的定位、展开、滚动全部被外网延迟拖住。现在让它自己在后台跑，
-            // 列表区用骨架占位，类型侧的交互立刻可用。
-            loadAssets();
+            await loadAssets();
             const urlParams = new URLSearchParams(window.location.search);
             const ridParam = urlParams.get('rid');
             if (ridParam) {
@@ -1657,9 +2337,19 @@ createApp({
         });
         return {
             objectTypes, typeSearch, sortedObjectTypes, filteredObjectTypes, objectTypeMenuGroups, expandedTypeMenus, isTypeMenuOpen, toggleTypeMenu, typeCategoryCaption, allInterfaces, allAssets, assetTotal, assetSource, selected, activeDataset,
-            parentInterfaces, childInterfaces, pendingInterfaces, pendingRemove, hasRepresentable,
+            parentInterfaces, childInterfaces, pendingInterfaces, pendingRemove, hasRepresentable, hasVisual, hasBehavioral,
+            capabilityInterfaces, interfaceEditorOpen, isCapabilityEnabled, activeCapabilityTab,
+            capabilityTagClass, capabilityChangeCount, capabilityChangeSummary, capabilityDisabled, toggleCapability,
+            capabilityConfirmOpen, capabilityConfirmDialog, requestCapabilitySave, closeCapabilityConfirm, trapCapabilityFocus,
+            presentationFeatureLabels, interfaceDisplayName, interfaceShortName, interfaceDescription,
+            presentationSelections, presentationPreviewForm, activeBehaviorTab, behaviorChannels, behaviorSources, behaviorSyncState, behaviorSyncLabel, behaviorStateGroups,
+            behaviorCatalogLoading, behaviorCatalogError, loadBehaviorResources,
+            selectedBehaviorSource, selectedBehaviorResourceId, selectedBehaviorResourceLabel, behaviorResourcesFor, selectBehaviorSource, selectBehaviorResource, configuredBehaviorCount,
+            isPresentationInjected, presentationProfileSummary, presentationPreview, presentationPreviewRoutes, presentationPreviewDiagnostics,
+            presentationSourceLabel, presentationBehaviorLabel, presentationTechnicalSummary,
+            presentationSaving, presentationPreviewLoading,
             defaultModel, originalModels,
-            editMode, saving, bindMode, selectedAssetFn, selectedAssetUePath, selectedAsset, manualPath, assetResult, assetLoadWarning, assetsLoading, artstudioIdentity, identityLoading, identityError, bindingAsset, promotingModelPath, toasts,
+            editMode, saving, bindMode, selectedAssetFn, selectedAssetUePath, selectedAsset, manualPath, assetResult, assetLoadWarning, artstudioIdentity, identityLoading, identityError, bindingAsset, promotingModelPath, toasts,
             clearTypeModelOpen, clearTypeModelSaving, clearTypeModelDialog,
             containerBlueprintPath, containerSlot, containerSaving,
             containerBatchOpen, containerBatchSaving, containerBatchDialog,
@@ -1667,7 +2357,8 @@ createApp({
             assetPage, assetTotalPages, pagedAssets, assetCategory, assetOwnerType, assetQuery, ASSET_CATEGORIES,
             assetUploadOpen, assetUploadLoading, assetUploadError, assetUploadProgress, assetUploadFile, assetUploadForm,
             assetUploadDialog, assetUploadFileInput, assetUploadTrigger, assetUploadStageLabel,
-            isInjected, isChecked, toggleInterface, saveInterfaces, removeInterface, bindAsset, selectLibraryAsset, selectType,
+            isInjected, isChecked, toggleInterface, saveInterfaces, saveCapabilityChanges, cancelCapabilityChanges, removeInterface, bindAsset, selectLibraryAsset, selectType,
+            enablePresentationInterface, savePresentationProfile, previewPresentation,
             modelSourceLabel, assetSourceLabel, promoteModel,
             openClearTypeModel, closeClearTypeModel, clearTypeDefaultModel,
             saveRepresentationContainer, openContainerBatch, closeContainerBatch, applyContainerBatch,

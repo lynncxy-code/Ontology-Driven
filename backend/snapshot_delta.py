@@ -15,6 +15,8 @@ from collections import deque
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 
+from presentation_routing import profile_fingerprint, profile_from_object_type
+
 SCHEMA_VERSION = "snapshot_delta_v1"
 _IGNORED_DIFF_FIELDS = {"timestamp", "raw_state"}
 _EMPTY_DICT = {}
@@ -303,6 +305,10 @@ def _tokens_from_instances(instances, zone, object_types, project_id):
         type_overlay = interface_configs.get("I3D_Overlay")
         if not isinstance(type_overlay, dict):
             type_overlay = _EMPTY_DICT
+        presentation_profile = profile_from_object_type(object_type)
+        render_presentation_profile = render_config.get("presentation_profile")
+        if not isinstance(render_presentation_profile, dict):
+            render_presentation_profile = _EMPTY_DICT
         last_seen = float(instance.get("last_seen") or 0.0)
         tokens[instance_id] = (
             id(instance),
@@ -339,6 +345,8 @@ def _tokens_from_instances(instances, zone, object_types, project_id):
             object_type.get("container_slot"),
             tuple(object_type.get("injected_interfaces") or []),
             type_overlay.get("revision"),
+            profile_fingerprint(presentation_profile),
+            profile_fingerprint(render_presentation_profile),
         )
     return project_id, tokens
 

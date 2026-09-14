@@ -12,6 +12,20 @@ from mapping_store import (
     TRANSFORM_TYPES, MOCK_ASSETS, OBJECT_TYPES,
     InstanceStore, MockInstanceSimulator
 )
+from presentation_routing import (
+    build_presentation,
+    profile_from_object_type,
+    PRESENTATION_BEHAVIOR_LIBRARIES,
+    DEFAULT_PLATFORM_BEHAVIORS,
+    DEFAULT_PLATFORM_MODIFIERS,
+)
+from presentation_catalog import (
+    CATALOG_VERSION,
+    catalog_payload,
+    get_resource as get_presentation_resource,
+    list_resources as list_presentation_resources,
+    validate_selection as validate_presentation_selection,
+)
 from ontology_parser import validate_files, parse_ontology_csvs
 from writeback import apply_batch_writeback, apply_writeback, runtime_edit_state_hash
 from material_writeback import apply_material_writeback
@@ -99,6 +113,10 @@ def index():
 @app.route('/nexus')
 def serve_nexus():
     return app.send_static_file('nexus.html')
+
+@app.route('/presentation_library')
+def serve_presentation_library():
+    return app.send_static_file('presentation_library.html')
 
 @app.route('/ontology')
 def serve_ontology():
@@ -1773,6 +1791,7 @@ def _object_type_response(rid, ot, instances_by_type=None):
         "properties": ot.get("properties", []),
         "injected_interfaces": injected,
         "interface_configs": ot.get("interface_configs", {}),
+        "presentation_profile": profile_from_object_type(ot),
         "asset_id": ot.get("asset_id"),
         "ue_asset_path": ot.get("ue_asset_path", ""),
         "container_blueprint_id": ot.get("container_blueprint_id", ""),
@@ -1802,6 +1821,227 @@ def get_object_type(object_type_rid):
     if not ot:
         return jsonify({"error": "ObjectType not found"}), 404
     return jsonify(_object_type_response(object_type_rid, ot))
+
+
+def _presentation_profile_contains_disallowed_key(value):
+    """Reject asset paths and instance-level overrides at the presentation boundary."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if str(key).lower() in {"asset_path", "asset_paths", "instance_override", "instance_overrides"}:
+                return True
+            if _presentation_profile_contains_disallowed_key(child):
+                return True
+    elif isinstance(value, list):
+        return any(_presentation_profile_contains_disallowed_key(child) for child in value)
+    return False
+
+
+@app.route('/api/v2/presentation-library/status', methods=['GET'])
+def presentation_library_status():
+    """Describe the finite industrial library without claiming UE runtime state."""
+    return jsonify({
+        "available": True,
+        "interface_rid": "I3D_Presentation",
+        "behavior_libraries": [
+            {"id": key, "label": label}
+            for key, label in PRESENTATION_BEHAVIOR_LIBRARIES.items()
+        ],
+        "supported_states": ["待机", "运行", "故障", "离线"],
+        "supported_modifiers": ["告警", "严重告警", "低电量", "维护", "通信降级"],
+        "channel_count": 4,
+        "platform_behavior_count": sum(len(value) for value in DEFAULT_PLATFORM_BEHAVIORS.values()),
+        "platform_modifier_count": len(DEFAULT_PLATFORM_MODIFIERS),
+        "runtime_note": "Nexus 预览可验证路由契约；UE 插件实际加载仍需在隔离工程 PIE/Cook 中确认。",
+    })
+
+
+@app.route('/api/v2/presentation-catalog', methods=['GET'])
+@app.route('/api/v2/presentation-library/catalog', methods=['GET'])
+def presentation_catalog():
+    """Return the curated presentation-resource metadata catalog."""
+    return jsonify(catalog_payload(
+        source=request.args.get('source'),
+        channel=request.args.get('channel'),
+        object_type=request.args.get('object_type_rid') or request.args.get('object_type'),
+        state=request.args.get('state'),
+        include_unavailable=request.args.get('include_unavailable', '').lower() in {'1', 'true'},
+    ))
+
+
+@app.route('/api/v2/presentation-catalog/<resource_id>', methods=['GET'])
+def presentation_catalog_resource(resource_id):
+    resource = get_presentation_resource(resource_id, request.args.get('revision', type=int))
+    if not resource:
+        return jsonify({"error": "presentation resource not found"}), 404
+    return jsonify(resource)
+
+
+def _store_behavior_profile(ot, profile):
+    """Persist I3D_Behavioral config while retaining legacy readers."""
+    configs = ot.setdefault("interface_configs", {})
+    if not isinstance(configs, dict):
+        configs = {}
+        ot["interface_configs"] = configs
+    behavioral = configs.get("I3D_Behavioral")
+    if not isinstance(behavioral, dict):
+        behavioral = {}
+    behavioral["presentation_profile"] = copy.deepcopy(profile)
+    configs["I3D_Behavioral"] = behavioral
+    legacy = configs.get("I3D_Presentation")
+    if not isinstance(legacy, dict):
+        legacy = {}
+    legacy["presentation_profile"] = copy.deepcopy(profile)
+    configs["I3D_Presentation"] = legacy
+    ot["presentation_profile"] = copy.deepcopy(profile)
+
+
+def _validate_behavior_profile(profile):
+    if not isinstance(profile, dict):
+        return "presentation_profile must be an object"
+    channels = profile.get("channels", {})
+    if channels is not None and not isinstance(channels, dict):
+        return "presentation_profile.channels must be an object"
+    if _presentation_profile_contains_disallowed_key(profile):
+        return "presentation_profile only accepts logical resource references and controlled slots"
+    for channel, config in (channels or {}).items():
+        if channel not in {"animation", "visual", "material", "fx", "label"}:
+            return f"unsupported presentation channel: {channel}"
+        validation_channel = "visual" if channel == "material" else channel
+        if not isinstance(config, dict):
+            continue
+        groups = (config.get("states") or {}, config.get("primary_states") or {}, config.get("modifiers") or {})
+        for group in groups:
+            if not isinstance(group, dict):
+                continue
+            for selection in group.values():
+                if isinstance(selection, dict) and (selection.get("resource_id") or selection.get("source")):
+                    ok, error, _ = validate_presentation_selection(selection, channel=validation_channel)
+                    if not ok:
+                        return error
+        if config.get("resource_id") or config.get("source"):
+            ok, error, _ = validate_presentation_selection(config, channel=validation_channel)
+            if not ok:
+                return error
+    return None
+
+
+@app.route('/api/v2/ontology/types/<object_type_rid>/behavior-config', methods=['GET', 'PUT', 'DELETE'])
+def manage_behavior_config(object_type_rid):
+    """Read and persist ObjectType-level I3D_Behavioral configuration."""
+    ot = _object_types.get(object_type_rid)
+    if not ot:
+        return jsonify({"error": "ObjectType not found"}), 404
+    if request.method == 'GET':
+        return jsonify({
+            "object_type_rid": object_type_rid,
+            "interface_rid": "I3D_Behavioral",
+            "presentation_profile": profile_from_object_type(ot),
+        })
+    if request.method == 'DELETE':
+        configs = ot.setdefault("interface_configs", {})
+        if isinstance(configs, dict):
+            configs.pop("I3D_Behavioral", None)
+        _persist_active_project()
+        return jsonify({"object_type_rid": object_type_rid, "presentation_profile": {}})
+    data = request.get_json(silent=True) or {}
+    profile = data.get("presentation_profile", data.get("behavior_config", data))
+    error = _validate_behavior_profile(profile)
+    if error:
+        return jsonify({"error": error}), 400
+    _store_behavior_profile(ot, profile)
+    _persist_active_project()
+    return jsonify({
+        "object_type_rid": object_type_rid,
+        "interface_rid": "I3D_Behavioral",
+        "presentation_profile": profile,
+        "sync": {"status": "saved"},
+    })
+
+
+@app.route('/api/v2/ontology/types/<object_type_rid>/presentation-profile', methods=['GET', 'PUT', 'DELETE'])
+def manage_presentation_profile(object_type_rid):
+    """Read or update the ObjectType-level semantic presentation profile.
+
+    The profile is stored in the existing ``interface_configs`` extension point
+    to avoid a ProjectStore format migration.  Instance-level route overrides
+    are intentionally not accepted in 4.5.0.
+    """
+    ot = _object_types.get(object_type_rid)
+    if not ot:
+        return jsonify({"error": "ObjectType not found"}), 404
+    if request.method == 'GET':
+        return jsonify({
+            "object_type_rid": object_type_rid,
+            "presentation_profile": profile_from_object_type(ot),
+        })
+    configs = ot.setdefault("interface_configs", {})
+    if not isinstance(configs, dict):
+        configs = {}
+        ot["interface_configs"] = configs
+    if request.method == 'DELETE':
+        configs.pop("I3D_Presentation", None)
+        ot.pop("presentation_profile", None)
+        _persist_active_project()
+        return jsonify({"object_type_rid": object_type_rid, "presentation_profile": {}})
+    data = request.get_json(silent=True)
+    profile = data.get("presentation_profile") if isinstance(data, dict) else None
+    if not isinstance(profile, dict):
+        return jsonify({"error": "presentation_profile must be an object"}), 400
+    channels = profile.get("channels", {})
+    if channels is not None and not isinstance(channels, dict):
+        return jsonify({"error": "presentation_profile.channels must be an object"}), 400
+    # Keep profile references logical: asset paths and instance overrides are
+    # rejected at the API boundary rather than silently persisted.
+    if _presentation_profile_contains_disallowed_key(profile):
+        return jsonify({"error": "presentation_profile only accepts logical behavior IDs and controlled slots"}), 400
+    behavior_library = profile.get("behavior_library", "industrial.default")
+    if behavior_library not in PRESENTATION_BEHAVIOR_LIBRARIES and behavior_library not in {"none", "disabled"}:
+        return jsonify({"error": "presentation_profile.behavior_library is not supported"}), 400
+    configs["I3D_Presentation"] = {"presentation_profile": profile}
+    _persist_active_project()
+    return jsonify({
+        "object_type_rid": object_type_rid,
+        "presentation_profile": profile_from_object_type(ot),
+    })
+
+
+@app.route('/api/v2/ontology/types/<object_type_rid>/presentation-preview', methods=['POST'])
+def preview_presentation_profile(object_type_rid):
+    """Preview a type-level presentation route without persisting it.
+
+    The UI uses this endpoint to make acceptance reproducible without requiring
+    a live UE project or a hand-written HTTP request. A supplied profile is
+    evaluated only for the preview; it is never written to ProjectStore.
+    """
+    ot = _object_types.get(object_type_rid)
+    if not ot:
+        return jsonify({"error": "ObjectType not found"}), 404
+    data = request.get_json(silent=True) or {}
+    raw_state = data.get("raw_state", {})
+    if not isinstance(raw_state, dict):
+        return jsonify({"error": "raw_state must be an object"}), 400
+    profile = data.get("presentation_profile")
+    if profile is None:
+        profile = profile_from_object_type(ot)
+    if not isinstance(profile, dict):
+        return jsonify({"error": "presentation_profile must be an object"}), 400
+    if _presentation_profile_contains_disallowed_key(profile):
+        return jsonify({"error": "presentation_profile only accepts logical behavior IDs and controlled slots"}), 400
+    behavior_library = profile.get("behavior_library", "industrial.default")
+    if behavior_library not in PRESENTATION_BEHAVIOR_LIBRARIES and behavior_library not in {"none", "disabled"}:
+        return jsonify({"error": "presentation_profile.behavior_library is not supported"}), 400
+    instance_id = str(data.get("instance_id") or f"preview:{object_type_rid}").strip()
+    if not instance_id:
+        instance_id = f"preview:{object_type_rid}"
+    presentation = build_presentation(instance_id, raw_state, profile)
+    return jsonify({
+        "object_type_rid": object_type_rid,
+        "instance_id": instance_id,
+        "raw_state": raw_state,
+        "presentation_profile": profile,
+        "presentation": presentation,
+    })
+
 
 @app.route('/api/v2/object-types/<object_type_rid>/model-binding/promote', methods=['POST'])
 def promote_migration_model(object_type_rid):
@@ -1849,7 +2089,7 @@ def inject_interfaces():
     # 校验：若要挂载子接口，必须先有 I3D_Representable
     current = set(_object_types[rid].get("injected_interfaces", []))
     adding = set(interfaces)
-    child_ifaces = {"I3D_Spatial", "I3D_Visual", "I3D_Behavioral", "I3D_Overlay"}
+    child_ifaces = {"I3D_Presentation", "I3D_Spatial", "I3D_Visual", "I3D_Behavioral", "I3D_Overlay"}
     if adding & child_ifaces and "I3D_Representable" not in (current | adding):
         return jsonify({"error": "子能力接口需要先挂载 I3D_Representable"}), 400
 
@@ -1890,8 +2130,9 @@ def remove_interface():
 
     current = list(_object_types[rid].get("injected_interfaces", []))
     if iface == "I3D_Representable":
-        # 移除顶层接口，级联删除所有子接口
-        current = []
+        # 外观与动态行为是并列能力；卸载三维存在只级联移除仍依赖它的旧层级能力。
+        representable_dependents = {"I3D_Representable", "I3D_Presentation", "I3D_Spatial", "I3D_Overlay"}
+        current = [i for i in current if i not in representable_dependents]
         _object_types[rid]["asset_id"] = None
         _object_types[rid]["ue_asset_path"] = None
     else:
@@ -2393,6 +2634,9 @@ def _build_render_config(object_type_rid):
     return {
         "injected_interfaces": list(ot.get("injected_interfaces", [])),
         "interface_configs": dict(ot.get("interface_configs") or {}),
+        # Keep the profile in the existing render_config extension point so
+        # newly spawned instances carry a portable, type-level route snapshot.
+        "presentation_profile": profile_from_object_type(ot),
         "asset_id": asset_id,
         "ue_asset_path": ot.get("ue_asset_path") or asset_meta.get("ue_path") or asset_id,
         "container_blueprint_id": ot.get("container_blueprint_id") or "",
@@ -2615,6 +2859,23 @@ def _build_snapshot(instance_id, ctx=None):
             "fx_trigger":       raw.get("fx_trigger", ""),
             "ui_label_content": raw.get("ui_label_content", instance_id)
         }
+
+    if "I3D_Behavioral" in injected or "I3D_Presentation" in injected:
+        # A live type profile wins while the type exists.  Only an instance
+        # whose type left the active project uses its frozen render_config
+        # profile; deleting a live profile must not resurrect stale config.
+        profile_source = ot if ot_rid in ctx.object_types else cfg
+        profile = profile_from_object_type(profile_source)
+        presentation = build_presentation(instance_id, raw, profile)
+        interfaces["I3D_Presentation"] = presentation
+        # Keep the legacy projections present for clients that only understand
+        # the old interfaces, while marking the new authority explicitly.
+        if "I3D_Visual" in interfaces:
+            interfaces["I3D_Visual"]["presentation_revision"] = presentation.get("presentation_revision", 0)
+            interfaces["I3D_Visual"]["presentation_authoritative"] = True
+        if "I3D_Behavioral" in interfaces:
+            interfaces["I3D_Behavioral"]["presentation_revision"] = presentation.get("presentation_revision", 0)
+            interfaces["I3D_Behavioral"]["presentation_authoritative"] = True
 
     if "I3D_Overlay" in injected:
         try:

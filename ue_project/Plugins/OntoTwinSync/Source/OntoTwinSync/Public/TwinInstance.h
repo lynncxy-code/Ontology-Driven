@@ -205,6 +205,22 @@ public:
     /** 应用后端快照到 Actor（由 SceneManager 每 500ms 调用） */
     void ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool bIsDelta = false);
 
+    /**
+     * 执行语义表现路由的受控入口。工业/项目插件通过
+     * IOntoTwinPresentationExecutor 注册实现；核心层负责发现、去重和安全回退。
+     */
+    bool ExecutePresentationRoute(
+        const FString& Channel,
+        const FString& BehaviorId,
+        const FString& Slot,
+        const FString& Source = TEXT("platform"),
+        const TSharedPtr<FJsonObject>& Params = nullptr);
+
+    /** 供可选行为插件调用的稳定核心动作，不暴露 UE 资产路径。 */
+    void PlayPresentationAnimation(const FString& StateName);
+    void ApplyPresentationMaterialVariant(const FString& VariantName);
+    void TriggerPresentationFx(const FString& FxName);
+
     /** 应用 WebSocket 实时空间数据；保持期内优先于 HTTP 快照。 */
     void ApplyRealtimeSpatial(double X, double Y, double HeadingDeg, float HoldSeconds);
 
@@ -436,6 +452,7 @@ private:
 
     /** 从 JSON 接口数据中驱动三大能力 */
     void ApplySpatialFromSnapshot(const TSharedPtr<FJsonObject>& SpatialObj);
+    void ApplyPresentationFromSnapshot(const TSharedPtr<FJsonObject>& PresentationObj);
     void ApplyVisualFromSnapshot(const TSharedPtr<FJsonObject>& VisualObj);
     void ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& BehaviorObj);
     void ApplyRepresentableFromSnapshot(
@@ -462,6 +479,13 @@ private:
 
     /** 当前标签文字缓存（防止重复刷新）*/
     FString CurrentLabelContent;
+
+    /** I3D_Presentation 存在时，Visual/Behavioral 的旧动画/特效字段只作兼容投影。 */
+    bool bPresentationAuthoritative = false;
+    int32 CurrentPresentationRevision = 0;
+    FString CurrentPresentationDecisionId;
+    TSet<FString> ConsumedPresentationEventIds;
+    TMap<FString, FString> ActivePresentationRouteKeys;
 
     UPROPERTY()
     UOntoTwinOverlayWidget* WorldOverlayWidget = nullptr;

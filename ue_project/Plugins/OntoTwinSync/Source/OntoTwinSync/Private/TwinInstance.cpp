@@ -11,6 +11,7 @@
 #include "DigitalTwinSyncComponent.h"
 #include "OntoTwinOverlayWidget.h"
 #include "Representation/TwinRepresentationHostComponent.h"
+#include "Presentation/OntoTwinPresentationExecutor.h"
 #include "Components/MeshComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Engine/LevelScriptActor.h"
@@ -548,6 +549,29 @@ void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool 
     }
 
     UE_LOG(LogTemp, Verbose, TEXT("[孪生体] 应用快照 (ID=%s)"), *InstanceId);
+
+    // A full snapshot without the coordinator is an old/compatibility
+    // payload.  Delta payloads preserve the previous authority until a new
+    // coordinator object arrives.
+    if (!bIsDelta && !(*InterfacesObj)->HasField(TEXT("I3D_Presentation")))
+    {
+        if (bPresentationAuthoritative)
+        {
+            ExecutePresentationRoute(TEXT("animation"), TEXT("safe.idle"), TEXT("motion"));
+            ExecutePresentationRoute(TEXT("visual"), TEXT("safe.visible"), TEXT("status_indicator"));
+            ExecutePresentationRoute(TEXT("fx"), TEXT("safe.none"), TEXT("alarm"));
+            ExecutePresentationRoute(TEXT("label"), TEXT("safe.label"), TEXT("label"));
+        }
+        bPresentationAuthoritative = false;
+        ActivePresentationRouteKeys.Reset();
+    }
+
+    // ── I3D_Presentation ────────────────────────────────────────────────
+    const TSharedPtr<FJsonObject>* PresentationObj;
+    if ((*InterfacesObj)->TryGetObjectField(TEXT("I3D_Presentation"), PresentationObj))
+    {
+        ApplyPresentationFromSnapshot(*PresentationObj);
+    }
 
     // ── I3D_Representable ────────────────────────────────────────────────
     const TSharedPtr<FJsonObject>* RepObj;
@@ -1278,8 +1302,11 @@ void ATwinInstance::ApplyRenderPartsFromSnapshot(
                 }
                 else
                 {
-                    bHadLoadFailure = true;
-                    UE_LOG(LogTemp, Error,
+                    // A missing optional material must not collapse the whole
+                    // assembly to the placeholder cube.  The mesh is still a
+                    // valid renderable part and UE will use its authored
+                    // material/default surface until the material is available.
+                    UE_LOG(LogTemp, Warning,
                         TEXT("[孪生体] 复合部件材质加载失败: %s (ID=%s, part=%d, slot=%d)"),
                         *MaterialPath, *InstanceId, PartIndex, MaterialIndex);
                 }
@@ -2365,7 +2392,9 @@ void ATwinInstance::ApplyVisualFromSnapshot(const TSharedPtr<FJsonObject>& Visua
 {
     // ── 材质变体 (material_variant) ──────────────────────────────────────
     FString MaterialVariant;
-    if (VisualObj->TryGetStringField(TEXT("material_variant"), MaterialVariant) && MaterialVariant != CurrentMaterialVariant)
+    if (!bPresentationAuthoritative
+        && VisualObj->TryGetStringField(TEXT("material_variant"), MaterialVariant)
+        && MaterialVariant != CurrentMaterialVariant)
     {
         CurrentMaterialVariant = MaterialVariant;
 
@@ -2399,7 +2428,9 @@ void ATwinInstance::ApplyVisualFromSnapshot(const TSharedPtr<FJsonObject>& Visua
 void ATwinInstance::ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& BehaviorObj)
 {
     FString AnimState;
-    if (BehaviorObj->TryGetStringField(TEXT("animation_state"), AnimState) && AnimState != CurrentAnimState)
+    if (!bPresentationAuthoritative
+        && BehaviorObj->TryGetStringField(TEXT("animation_state"), AnimState)
+        && AnimState != CurrentAnimState)
     {
         CurrentAnimState = AnimState;
         // C++ 直接驱动程序化动画，不再依赖蓝图
@@ -2408,7 +2439,9 @@ void ATwinInstance::ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& B
     }
 
     FString FxTrigger;
-    if (BehaviorObj->TryGetStringField(TEXT("fx_trigger"), FxTrigger) && FxTrigger != CurrentFxTrigger)
+    if (!bPresentationAuthoritative
+        && BehaviorObj->TryGetStringField(TEXT("fx_trigger"), FxTrigger)
+        && FxTrigger != CurrentFxTrigger)
     {
         CurrentFxTrigger = FxTrigger;
         OnFxTriggered(FxTrigger);  // 抛出给蓝图实现

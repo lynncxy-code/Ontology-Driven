@@ -22,8 +22,8 @@ from runtime_source_policy import is_websocket_spatial_instance
 
 
 # ═══════════════════════════════════════════════════════════════
-# 接口规范 V1.1 — 两层结构
-# I3D_Representable（顶层·必选）+ 3 个子能力（可选）
+# 接口规范 V1.1/4.5 — 两层结构
+# I3D_Representable（顶层·必选）+ 可选表现/空间/视觉/行为能力
 # ═══════════════════════════════════════════════════════════════
 
 INTERFACES = [
@@ -36,6 +36,23 @@ INTERFACES = [
         "properties": [
             {"name": "asset_id",    "label": "资产唯一码 (GLB)", "type": "string"},
             {"name": "is_visible",  "label": "是否渲染",         "type": "boolean"}
+        ]
+    },
+    {
+        "rid": "I3D_Presentation",
+        "label": "语义表现协调接口",
+        "tier": "child",
+        "required": False,
+        "description": "以主状态、修饰条件和一次性动作协调多通道表现；路由结果是表现执行的唯一权威来源。",
+        "properties": [
+            {"name": "schema_version", "label": "表现协议版本", "type": "string", "default": "1.0"},
+            {"name": "presentation_revision", "label": "表现修订号", "type": "number", "default": 0},
+            {"name": "decision_id", "label": "决策 ID", "type": "string"},
+            {"name": "primary_state", "label": "主状态", "type": "object"},
+            {"name": "modifiers", "label": "修饰条件", "type": "array"},
+            {"name": "actions", "label": "一次性动作", "type": "array"},
+            {"name": "resolution", "label": "通道路由结果", "type": "object"},
+            {"name": "diagnostics", "label": "路由诊断", "type": "array"}
         ]
     },
     {

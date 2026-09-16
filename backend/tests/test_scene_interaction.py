@@ -16,6 +16,8 @@ from scene_interaction.api import register_scene_interaction_routes
 from scene_interaction.catalog import ResourceCatalog
 from scene_interaction.service import RuntimeStatusRegistry, SceneInteractionService
 from project_store import ProjectStore
+from external_data_control import register_external_data_control_routes
+from scene_interaction.service import get_runtime_status
 
 
 def roaming_config():
@@ -776,6 +778,73 @@ class SceneInteractionTestCase(unittest.TestCase):
         self.assertEqual(200, heartbeat.status_code)
         self.assertTrue(heartbeat.get_json()["runtime_status"]["online"])
         self.assertEqual("ready", heartbeat.get_json()["runtime_status"]["minimap_state"])
+
+    def test_post_heartbeat_fields_are_projected_by_external_data_status(self):
+        # This is the end-to-end contract check: the real runtime POST passes
+        # through validation/registry first, then the external-data GET must
+        # retain provider categories and unapplied reasons.
+        import ue_project_binding as _ub
+        _ub._ue_index.clear()
+        _ub.rebuild_index(self.store)
+
+        app = Flask(__name__)
+        register_scene_interaction_routes(app, self.store)
+        register_external_data_control_routes(app, self.store, get_runtime_status)
+        client = app.test_client()
+        headers = {
+            "X-OntoTwin-UE-Project-Id": "ue-project-a",
+            "X-OntoTwin-UE-Project-Name": "UE Project A",
+            "X-OntoTwin-UE-Context": "packaged",
+        }
+        heartbeat = client.post("/api/v2/scene-interactions/runtime", headers=headers, json={
+            "applied_revision": 0,
+            "pending_revision": None,
+            "catalog_version": "test",
+            "runtime_state": "manual",
+            "camera_mode": "god",
+            "route_state": "idle",
+            "active_skin_id": "",
+            "minimap_state": "disabled",
+            "degraded_features": [],
+            "error": None,
+            "realtime_channel": {
+                "enabled": True,
+                "stream_id": "metaverse.targets.primary",
+                "owner": "MetaverseClient",
+                "url": "ws://example/ws/targets",
+                "connection_state": "connected",
+                "active_source": "websocket",
+                "last_frame_age_ms": 100,
+                "frame_count": 1,
+                "target_count": 3,
+                "applied_target_count": 2,
+                "categories": [{
+                    "category_id": "agv",
+                    "label": "AGV",
+                    "target_count": 1,
+                    "applied_count": 0,
+                    "reasons": [{
+                        "code": "instance_missing",
+                        "count": 1,
+                        "message": "尚未找到对应的正式实例",
+                    }],
+                }],
+                "unapplied_reasons": [{
+                    "code": "instance_missing",
+                    "count": 1,
+                    "message": "尚未找到对应的正式实例",
+                }],
+                "diagnostics": {"provider": "test"},
+            },
+        })
+        self.assertEqual(200, heartbeat.status_code)
+
+        status = client.get("/api/v2/external-data/realtime")
+        self.assertEqual(200, status.status_code)
+        stream = status.get_json()["streams"][0]
+        self.assertEqual("agv", stream["categories"][0]["category_id"])
+        self.assertEqual("instance_missing", stream["unapplied_reasons"][0]["code"])
+        self.assertEqual("test", stream["diagnostics"]["provider"])
 
     def test_http_runtime_reads_ue_bound_project_instead_of_web_active_project(self):
         project_a_id = self.store.get_active()["id"]

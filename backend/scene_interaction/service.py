@@ -95,11 +95,15 @@ class SceneInteractionService:
         )
 
     def _project(self, project_id=None):
-        project = (
-            self.store.read_project(project_id)
-            if project_id
-            else self.store.get_active_copy()
-        )
+        if project_id:
+            # The active project is the in-process write snapshot.  When a UE
+            # identity resolves to that same project, prefer it over a stale
+            # PG reconstruction so browser review and UE projection evaluate
+            # the same frames/spatial profile/scene revision.
+            active = self.store.get_active_copy(with_render_parts=True)
+            project = active if active and active.get("id") == project_id else self.store.read_project(project_id)
+        else:
+            project = self.store.get_active_copy()
         if not project:
             if project_id:
                 raise SceneInteractionNotFoundError(f"项目不存在: {project_id}")

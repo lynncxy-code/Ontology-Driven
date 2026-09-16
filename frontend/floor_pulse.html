@@ -3,415 +3,396 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>外部数据监控台 | OntoTwin Nexus</title>
+    <title>外部实时数据流监控台 | OntoTwin Nexus</title>
     <link rel="stylesheet" href="/nexus_titlebar.css" />
     <style>
         :root {
-            --bg: #f7f7f7;
-            --surface: #fff;
-            --border: #e7e7e7;
-            --text: #111;
-            --secondary: #666;
-            --muted: #999;
-            --green: #16803c;
-            --green-bg: #edf8f0;
-            --red: #c83232;
-            --red-bg: #fff1f1;
-            --amber: #b96808;
-            --amber-bg: #fff7e8;
-            --blue: #2563eb;
-            --blue-bg: #eff6ff;
+            --ink: #1a1a1a;
+            --ink-2: #5c5c5c;
+            --ink-3: #8a8a8a;
+            --line: #e8e8e8;
+            --line-2: #d4d4d4;
+            --bg: #ffffff;
+            --bg-2: #fafafa;
+            --bg-3: #f3f3f3;
+            --on-ink: #ffffff;
+            --danger: #b42318;
+            --danger-bg: #fef3f2;
+            --danger-line: #fda29b;
+            --warn: #b54708;
+            --warn-bg: #fffaeb;
+            --warn-line: #fec84b;
+            --ok: #067647;
+            --ok-bg: #ecfdf3;
+            --ok-line: #a6f4c5;
+            --info: #363f72;
+            --info-bg: #f8f9fc;
+            --info-line: #b3b8db;
+            --r-sm: 6px;
+            --r-md: 8px;
+            --r-lg: 12px;
+            --s1: 4px;
+            --s2: 8px;
+            --s3: 12px;
+            --s4: 16px;
+            --s5: 20px;
+            --s6: 24px;
+            --s8: 32px;
+            --t-xs: 11px;
+            --t-sm: 12px;
+            --t-base: 13px;
+            --t-md: 14px;
+            --t-lg: 16px;
+            --t-xl: 20px;
+            --shadow-pop: 0 4px 16px rgba(20, 20, 20, .08);
+            --shadow-modal: 0 16px 48px rgba(20, 20, 20, .18);
+            --font: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-            --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
 
         * { box-sizing: border-box; }
         html, body { margin: 0; min-height: 100%; }
-        body { background: var(--bg); color: var(--text); font-family: var(--sans); }
+        body { background: var(--bg-2); color: var(--ink); font-family: var(--font); }
+        button { font: inherit; }
 
         .toolbar {
             min-height: 52px;
             padding: 10px 24px;
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
+            background: var(--bg);
+            border-bottom: 1px solid var(--line);
             display: flex;
             align-items: center;
-            gap: 18px;
+            gap: var(--s4);
             flex-wrap: wrap;
         }
+        .toolbar-status, .toolbar-meta { display: flex; align-items: center; gap: var(--s2); font-size: var(--t-sm); }
+        .toolbar-meta { color: var(--ink-3); }
+        .toolbar-meta strong { color: var(--ink-2); font-weight: 500; }
+        .toolbar-actions { margin-left: auto; display: flex; gap: var(--s2); }
 
-        .toolbar-status, .toolbar-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-        .toolbar-meta { color: var(--muted); }
-        .toolbar-meta strong { color: var(--secondary); font-weight: 500; }
-        .toolbar-actions { margin-left: auto; display: flex; gap: 8px; }
-
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
-        .dot.connected { background: var(--green); box-shadow: 0 0 0 3px var(--green-bg); }
-        .dot.error, .dot.disconnected { background: var(--red); box-shadow: 0 0 0 3px var(--red-bg); }
-        .dot.connecting, .dot.reconnecting { background: var(--amber); box-shadow: 0 0 0 3px var(--amber-bg); }
+        .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); flex: 0 0 auto; }
+        .dot-ok { background: var(--ok); }
+        .dot-warn { background: var(--warn); }
+        .dot-err { background: var(--danger); }
+        .dot-info { background: var(--info); }
+        .dot-muted { background: var(--ink-3); }
 
         .button {
-            height: 32px;
-            padding: 0 12px;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            background: var(--surface);
-            color: var(--secondary);
-            font: 500 12px var(--sans);
+            min-height: 32px;
+            padding: 7px 12px;
+            border: 1px solid var(--line-2);
+            border-radius: var(--r-md);
+            background: var(--bg);
+            color: var(--ink-2);
             cursor: pointer;
+            transition: background .15s, border-color .15s, color .15s;
         }
-        .button:hover { border-color: #cfcfcf; color: var(--text); background: #fafafa; }
-        .button.active { background: var(--text); border-color: var(--text); color: white; }
-        .button:disabled { cursor: wait; opacity: .55; }
+        .button:hover { background: var(--bg-3); color: var(--ink); }
+        .button.active, .button-primary { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
+        .button:disabled { cursor: not-allowed; opacity: .45; }
 
         main {
             max-width: 1320px;
             margin: 0 auto;
-            padding: 24px;
+            padding: var(--s6);
             display: grid;
-            grid-template-columns: minmax(440px, .95fr) minmax(420px, 1.05fr);
-            gap: 18px;
+            grid-template-columns: minmax(0, 1.35fr) minmax(360px, .65fr);
+            gap: var(--s4);
+            align-items: start;
         }
+        .stack { display: flex; flex-direction: column; gap: var(--s4); min-width: 0; }
+        .card { background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+        .card-head { padding: var(--s4) var(--s5); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: var(--s4); }
+        .card-body { padding: var(--s5); }
+        .eyebrow { margin: 0 0 var(--s1); color: var(--ink-3); font-size: var(--t-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+        .card-title { margin: 0; font-size: var(--t-lg); font-weight: 650; }
+        .card-subtitle { margin: var(--s1) 0 0; color: var(--ink-2); font-size: var(--t-sm); line-height: 1.5; }
 
-        .stack { display: flex; flex-direction: column; gap: 14px; }
-        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-        .card-head { padding: 16px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-        .eyebrow { margin: 0 0 4px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-        .card-title { margin: 0; font-size: 16px; font-weight: 650; }
-        .card-body { padding: 18px; }
-
-        .identity { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .identity { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s4); }
         .field { min-width: 0; }
-        .field-label { margin-bottom: 6px; color: var(--muted); font-size: 11px; }
-        .field-value { color: var(--text); font-size: 13px; font-weight: 550; overflow-wrap: anywhere; }
-        .field-value.mono { font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--secondary); }
+        .field-label { margin-bottom: var(--s1); color: var(--ink-3); font-size: var(--t-xs); }
+        .field-value { color: var(--ink); font-size: var(--t-base); font-weight: 550; overflow-wrap: anywhere; }
+        .field-value.mono { color: var(--ink-2); font: 400 var(--t-xs)/1.5 var(--mono); }
 
-        .stream-summary { display: flex; align-items: center; gap: 12px; min-width: 0; }
-        .stream-state { min-width: 0; }
-        .stream-state strong { display: block; font-size: 14px; }
-        .stream-state span { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; font-family: var(--mono); overflow-wrap: anywhere; }
+        .summary-strip { display: flex; align-items: center; gap: var(--s3); padding: var(--s3) var(--s4); background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--r-md); }
+        .summary-strip strong { font-size: var(--t-md); }
+        .summary-strip span { color: var(--ink-2); font-size: var(--t-sm); }
 
-        .switch-wrap { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
-        .switch-label { font-size: 12px; color: var(--secondary); min-width: 36px; text-align: right; }
+        .stream-list { display: flex; flex-direction: column; gap: var(--s4); }
+        .stream-card { border: 1px solid var(--line-2); border-radius: var(--r-lg); background: var(--bg); overflow: hidden; }
+        .stream-head { padding: var(--s4) var(--s5); display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s4); border-bottom: 1px solid var(--line); }
+        .stream-heading { display: flex; gap: var(--s3); min-width: 0; align-items: flex-start; }
+        .stream-heading .dot { margin-top: 7px; }
+        .stream-name { margin: 0; font-size: var(--t-lg); font-weight: 650; overflow-wrap: anywhere; }
+        .stream-meta { margin-top: var(--s1); color: var(--ink-3); font: 400 var(--t-xs)/1.5 var(--mono); overflow-wrap: anywhere; }
+        .stream-owner { margin-top: var(--s1); color: var(--ink-2); font-size: var(--t-sm); }
+        .switch-wrap { display: flex; align-items: center; gap: var(--s2); flex: 0 0 auto; }
+        .switch-label { color: var(--ink-2); font-size: var(--t-sm); }
         .switch {
-            position: relative;
-            width: 44px;
-            height: 24px;
-            padding: 0;
-            border: 0;
-            border-radius: 999px;
-            background: #d6d6d6;
-            cursor: pointer;
-            transition: background .18s ease;
+            position: relative; width: 44px; height: 24px; padding: 0; border: 0; border-radius: 999px;
+            background: var(--line-2); cursor: pointer; transition: background .15s;
         }
-        .switch::after {
-            content: "";
-            position: absolute;
-            top: 3px;
-            left: 3px;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: white;
-            box-shadow: 0 1px 3px rgba(0,0,0,.2);
-            transition: transform .18s ease;
-        }
-        .switch.on { background: var(--green); }
+        .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--bg); box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .15s; }
+        .switch.on { background: var(--ink); }
         .switch.on::after { transform: translateX(20px); }
-        .switch:disabled { cursor: not-allowed; opacity: .5; }
+        .switch:focus-visible, .button:focus-visible, summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+        .switch:disabled { cursor: not-allowed; opacity: .45; }
 
-        .sync-banner { margin-top: 16px; padding: 10px 12px; border-radius: 7px; background: var(--blue-bg); color: var(--blue); font-size: 12px; line-height: 1.45; }
-        .sync-banner.ok { background: var(--green-bg); color: var(--green); }
-        .sync-banner.warn { background: var(--amber-bg); color: var(--amber); }
-        .sync-banner.error { background: var(--red-bg); color: var(--red); }
+        .status-banner { margin: var(--s4) var(--s5) 0; padding: var(--s3) var(--s4); border-left: 2px solid var(--line-2); background: var(--bg-2); color: var(--ink-2); font-size: var(--t-sm); line-height: 1.5; }
+        .status-banner.ok { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
+        .status-banner.warn { border-color: var(--warn); background: var(--warn-bg); color: var(--warn); }
+        .status-banner.error { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
+        .status-banner.info { border-color: var(--info); background: var(--info-bg); color: var(--info); }
+        .status-banner strong { display: block; margin-bottom: var(--s1); color: inherit; font-size: var(--t-md); }
 
-        .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-        .metric { padding: 13px 12px; border: 1px solid var(--border); border-radius: 8px; background: #fcfcfc; min-width: 0; }
-        .metric strong { display: block; margin-bottom: 5px; font-size: 17px; overflow-wrap: anywhere; }
-        .metric span { color: var(--muted); font-size: 10px; }
+        .dimension-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s2); margin: var(--s4) var(--s5) 0; }
+        .dimension { padding: var(--s3); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-2); min-width: 0; }
+        .dimension-label { display: block; margin-bottom: var(--s1); color: var(--ink-3); font-size: var(--t-xs); }
+        .dimension-value { display: flex; align-items: center; gap: var(--s2); color: var(--ink); font-size: var(--t-sm); font-weight: 600; overflow-wrap: anywhere; }
 
-        .safe-note { display: flex; gap: 10px; align-items: flex-start; padding: 14px 16px; background: var(--green-bg); border: 1px solid #cce9d5; border-radius: 9px; color: #24613a; font-size: 12px; line-height: 1.6; }
-        .safe-note strong { color: var(--green); }
+        .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s2); padding: var(--s4) var(--s5) 0; }
+        .metric { padding: var(--s3); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-2); min-width: 0; }
+        .metric strong { display: block; margin-bottom: var(--s1); font-size: var(--t-lg); overflow-wrap: anywhere; }
+        .metric span { color: var(--ink-3); font-size: var(--t-xs); }
 
-        .raw-card { min-height: 604px; display: flex; flex-direction: column; }
-        .raw-tag { padding: 4px 8px; border-radius: 4px; background: var(--blue-bg); color: var(--blue); font: 10px var(--mono); }
-        pre { flex: 1; margin: 0; padding: 18px; background: #fbfbfb; color: #333; font: 12px/1.7 var(--mono); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .section-block { margin: var(--s4) var(--s5) 0; padding-top: var(--s4); border-top: 1px solid var(--line); }
+        .section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); margin-bottom: var(--s2); }
+        .section-heading h3 { margin: 0; font-size: var(--t-md); font-weight: 650; }
+        .section-heading span { color: var(--ink-3); font-size: var(--t-xs); }
+        .category-list { display: flex; flex-direction: column; gap: var(--s2); }
+        .category-row { display: grid; grid-template-columns: minmax(100px, 1fr) repeat(3, auto) minmax(160px, 1.5fr); gap: var(--s3); align-items: center; padding: var(--s3); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-2); font-size: var(--t-sm); }
+        .category-name { min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+        .category-count { color: var(--ink-2); white-space: nowrap; }
+        .category-reason { color: var(--ink-3); font-size: var(--t-xs); overflow-wrap: anywhere; }
+        .reason-list { margin: var(--s2) 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--s1); }
+        .reason-list li { color: var(--warn); font-size: var(--t-xs); }
 
-        .empty { padding: 42px 20px; text-align: center; color: var(--muted); font-size: 13px; }
-        .error-text { margin-top: 14px; color: var(--red); font-size: 12px; overflow-wrap: anywhere; }
+        .technical-details { margin: var(--s4) var(--s5) var(--s5); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-2); }
+        .technical-details summary { padding: var(--s3) var(--s4); cursor: pointer; color: var(--ink-2); font-size: var(--t-sm); font-weight: 600; }
+        .technical-body { padding: 0 var(--s4) var(--s4); }
+        .technical-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); padding: var(--s3) 0; border-top: 1px solid var(--line); }
+        .technical-grid .field-value { font-size: var(--t-xs); }
+        .copy-row { display: flex; justify-content: flex-end; margin: var(--s2) 0; }
+        pre { margin: 0; padding: var(--s3); max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); border: 1px solid var(--line); color: var(--ink-2); font: 400 var(--t-xs)/1.6 var(--mono); }
 
-        @media (max-width: 920px) {
-            main { grid-template-columns: 1fr; }
-            .raw-card { min-height: 420px; }
-        }
-        @media (max-width: 560px) {
-            main { padding: 14px; }
-            .identity, .metrics { grid-template-columns: 1fr; }
-            .toolbar { padding: 10px 14px; }
+        .http-note { padding: var(--s4) var(--s5); border-left: 2px solid var(--info); background: var(--info-bg); color: var(--ink-2); font-size: var(--t-sm); line-height: 1.6; }
+        .http-note strong { color: var(--ink); }
+        .empty { padding: var(--s8) var(--s5); text-align: center; color: var(--ink-3); font-size: var(--t-sm); line-height: 1.6; }
+        .error-text { margin-top: var(--s3); color: var(--danger); font-size: var(--t-sm); overflow-wrap: anywhere; }
+        .toast-region { position: fixed; top: var(--s4); right: var(--s4); z-index: 1100; display: flex; flex-direction: column; gap: var(--s2); max-width: min(360px, calc(100vw - 32px)); }
+        .toast { padding: 10px 14px; border-radius: var(--r-md); background: var(--bg); color: var(--ink); border-left: 2px solid var(--ink); box-shadow: var(--shadow-pop); font-size: var(--t-sm); }
+        .toast.ok { border-color: var(--ok); }
+        .toast.err { border-color: var(--danger); }
+
+        @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+        @media (max-width: 700px) {
+            main { padding: var(--s4); }
+            .identity, .dimension-grid, .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .category-row { grid-template-columns: 1fr repeat(3, auto); }
+            .category-reason { grid-column: 1 / -1; }
+            .toolbar { padding: 10px var(--s4); }
             .toolbar-actions { margin-left: 0; width: 100%; }
+            .toolbar-actions .button { flex: 1; }
+        }
+        @media (max-width: 460px) {
+            .identity, .dimension-grid, .metrics, .technical-grid { grid-template-columns: 1fr; }
+            .stream-head { flex-direction: column; }
+            .switch-wrap { align-self: flex-end; }
         }
     </style>
 </head>
 <body>
     <header class="nexus-titlebar">
         <div class="nexus-titlebar__main">
-            <h1 class="nexus-titlebar__title">外部数据监控台</h1>
-            <p class="nexus-titlebar__subtitle">监控当前激活 Database 的 WebSocket 实时流</p>
+            <h1 class="nexus-titlebar__title">外部实时数据流监控台</h1>
+            <p class="nexus-titlebar__subtitle">查看当前激活项目的实时数据流、帧新鲜度与场景执行结果</p>
         </div>
     </header>
 
     <div class="toolbar">
-        <div class="toolbar-status">
-            <span class="dot" id="toolbar-dot"></span>
-            <strong id="toolbar-state">读取状态中...</strong>
-        </div>
+        <div class="toolbar-status"><span class="dot dot-muted" id="toolbar-dot"></span><strong id="toolbar-state">读取状态中...</strong></div>
         <div class="toolbar-meta">最后更新 <strong id="last-updated">—</strong></div>
-        <div class="toolbar-actions">
-            <button class="button active" id="auto-button" type="button">自动 2s</button>
-            <button class="button" id="refresh-button" type="button">立即刷新</button>
-        </div>
+        <div class="toolbar-actions"><button class="button active" id="auto-button" type="button">自动 2s</button><button class="button" id="refresh-button" type="button">立即刷新</button></div>
     </div>
 
     <main>
         <section class="stack">
             <article class="card">
-                <div class="card-head">
-                    <div>
-                        <p class="eyebrow">Active Database</p>
-                        <h2 class="card-title" id="database-name">读取中...</h2>
-                    </div>
-                </div>
+                <div class="card-head"><div><p class="eyebrow">Active Project</p><h2 class="card-title" id="database-name">读取中...</h2><p class="card-subtitle">页面只展示当前激活项目；实时流与 HTTP 正式实例同步分别统计。</p></div></div>
                 <div class="card-body identity">
-                    <div class="field">
-                        <div class="field-label">Database ID</div>
-                        <div class="field-value mono" id="database-id">—</div>
-                    </div>
-                    <div class="field">
-                        <div class="field-label">绑定 UE 工程</div>
-                        <div class="field-value" id="ue-name">—</div>
-                        <div class="field-value mono" id="ue-id">—</div>
-                    </div>
+                    <div class="field"><div class="field-label">Database ID</div><div class="field-value mono" id="database-id">—</div></div>
+                    <div class="field"><div class="field-label">绑定 UE 工程</div><div class="field-value" id="ue-name">—</div><div class="field-value mono" id="ue-id">—</div></div>
+                    <div class="field"><div class="field-label">最近心跳</div><div class="field-value" id="ue-heartbeat">—</div></div>
                 </div>
             </article>
+
+            <div class="summary-strip" id="summary-strip"><span class="dot dot-muted"></span><strong id="summary-title">正在读取数据流</strong><span id="summary-text">请稍候</span></div>
+            <section class="stream-list" id="streams-list" aria-live="polite"></section>
 
             <article class="card">
-                <div class="card-head">
-                    <div class="stream-summary">
-                        <span class="dot" id="stream-dot"></span>
-                        <div class="stream-state">
-                            <strong id="stream-state">状态未知</strong>
-                            <span id="stream-url">—</span>
-                            <span id="stream-identity">—</span>
-                        </div>
-                    </div>
-                    <div class="switch-wrap">
-                        <span class="switch-label" id="switch-label">—</span>
-                        <button class="switch" id="stream-switch" type="button" role="switch" aria-checked="false" aria-label="WebSocket 实时流开关" disabled></button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="metrics">
-                        <div class="metric"><strong id="metric-ue">—</strong><span>UE 心跳</span></div>
-                        <div class="metric"><strong id="metric-frame-age">—</strong><span>最新帧延迟</span></div>
-                        <div class="metric"><strong id="metric-frames">—</strong><span>累计实时帧</span></div>
-                        <div class="metric"><strong id="metric-targets">—</strong><span>本帧目标</span></div>
-                        <div class="metric"><strong id="metric-applied">—</strong><span>已应用目标</span></div>
-                        <div class="metric"><strong id="metric-source">—</strong><span>当前空间数据源</span></div>
-                    </div>
-                    <div class="sync-banner" id="sync-banner">等待 UE 心跳...</div>
-                    <div class="error-text" id="stream-error" hidden></div>
-                </div>
+                <div class="card-head"><div><p class="eyebrow">HTTP Synchronization</p><h2 class="card-title">系统同步（HTTP）</h2></div><span class="dot dot-info" id="http-dot"></span></div>
+                <div class="http-note" id="http-note">正在读取 HTTP 同步状态...</div>
             </article>
-
-            <div class="safe-note">
-                <span>✓</span>
-                <div><strong>HTTP 快照始终继续运行。</strong><br />上面的开关只断开或恢复 WebSocket 实时流，不影响实例建档、模型绑定和非空间属性同步。</div>
-            </div>
         </section>
 
-        <article class="card raw-card">
-            <div class="card-head">
-                <div>
-                    <p class="eyebrow">Runtime Status</p>
-                    <h2 class="card-title">连接状态原始数据</h2>
+        <section class="stack">
+            <article class="card">
+                <div class="card-head"><div><p class="eyebrow">Technical Diagnostics</p><h2 class="card-title">技术诊断</h2></div><span class="field-value mono" id="schema-version">—</span></div>
+                <div class="card-body"><p class="card-subtitle">连接地址、拥有者、帧序号和原始 JSON 默认折叠，不影响操作人员先看结论。</p>
+                    <details class="technical-details"><summary>查看页面状态原始 JSON</summary><div class="technical-body"><div class="copy-row"><button class="button" id="copy-json" type="button">复制 JSON</button></div><pre id="raw-json">正在读取...</pre></div></details>
                 </div>
-                <span class="raw-tag">GET /api/v2/external-data/realtime</span>
-            </div>
-            <pre id="raw-json">正在读取...</pre>
-        </article>
+            </article>
+            <article class="card"><div class="card-head"><div><p class="eyebrow">About Status</p><h2 class="card-title">状态口径</h2></div></div><div class="card-body"><p class="card-subtitle">连接、数据新鲜度和执行结果互相独立。已收到目标不代表目标已经进入场景。</p><div class="empty" style="padding: var(--s4) 0 0; text-align: left;">关闭实时流只影响对应数据流及其临时目标；HTTP 正式实例、模型绑定和非空间属性同步继续运行。</div></div></article>
+        </section>
     </main>
+    <div class="toast-region" id="toast-region" aria-live="polite"></div>
 
     <script>
-        const STATUS_LABELS = {
-            connected: 'WebSocket 已连接',
-            connecting: 'WebSocket 连接中',
-            reconnecting: 'WebSocket 重连中',
-            disconnected: 'WebSocket 已断开',
-            disabled: 'WebSocket 已关闭',
-            error: 'WebSocket 连接错误',
-            unknown: 'WebSocket 状态未知'
-        };
+        (() => {
+            const FRAME_STALE_MS = 5000;
+            const STATUS_LABELS = { connected: '已连接', connecting: '连接中', reconnecting: '重连中', disconnected: '已断开', disabled: '已关闭', error: '连接出错', unknown: '状态未知' };
+            const CONTROL_LABELS = { not_configured: '未配置', syncing: '同步中', in_sync: '已同步', stale_database: '项目已切换', unknown: '待确认' };
+            const FRAME_LABELS = { no_frame: '未收到帧', fresh: '数据新鲜', stale: '数据已过期', unknown: '新鲜度未知' };
+            const EXECUTION_LABELS = { not_registered: '未注册处理器', waiting: '等待执行结果', ready: '全部加载', partial: '部分加载', none_applied: '一个也未加载', failed: '执行失败', empty: '当前无活动目标', unknown: '结果待上报' };
+            let currentStatus = null;
+            let currentModel = null;
+            let autoRefresh = true;
+            let refreshTimer = null;
+            let requestInFlight = false;
+            const pendingToggles = new Set();
+            const byId = id => document.getElementById(id);
+            const text = (node, value, fallback = '—') => { if (node) node.textContent = value === null || value === undefined || value === '' ? fallback : String(value); };
+            const first = (...values) => values.find(value => value !== null && value !== undefined && value !== '');
+            const object = value => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+            const finiteNumber = value => { if (value === null || value === undefined || value === '') return null; const number = Number(value); return Number.isFinite(number) ? number : null; };
+            const boolValue = value => typeof value === 'boolean' ? value : null;
+            const safe = value => String(value === null || value === undefined ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+            const formatAge = value => { const age = finiteNumber(value); if (age === null || age < 0) return '—'; if (age < 1000) return `${Math.round(age)} ms`; return `${(age / 1000).toFixed(1)} s`; };
+            const formatTime = value => { if (!value) return '—'; const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-CN', { hour12: false }); };
+            const formatCount = value => value === null || value === undefined ? '—' : String(value);
 
-        let currentStatus = null;
-        let autoRefresh = true;
-        let refreshTimer = null;
-        let requestInFlight = false;
-
-        const byId = id => document.getElementById(id);
-        const text = (id, value, fallback = '—') => {
-            byId(id).textContent = value === null || value === undefined || value === '' ? fallback : String(value);
-        };
-
-        function formatFrameAge(value) {
-            if (value === null || value === undefined) return '—';
-            if (value < 1000) return `${Math.round(value)} ms`;
-            return `${(value / 1000).toFixed(1)} s`;
-        }
-
-        function setDot(id, state) {
-            byId(id).className = `dot ${state || ''}`;
-        }
-
-        function render(status) {
-            currentStatus = status;
-            const database = status.database || {};
-            const ue = status.ue || {};
-            const websocket = status.websocket || {};
-            const state = websocket.connection_state || 'unknown';
-
-            text('database-name', database.name, '未命名 Database');
-            text('database-id', database.id);
-            text('ue-name', ue.project_name, ue.online ? '未上报名称' : 'UE 离线');
-            text('ue-id', ue.project_id);
-            text('stream-state', STATUS_LABELS[state] || state);
-            text('stream-url', websocket.url, '尚未收到 WebSocket URL');
-            text(
-                'stream-identity',
-                [websocket.stream_id, websocket.owner].filter(Boolean).join(' · '),
-                '尚未识别实际连接驱动'
-            );
-
-            setDot('stream-dot', state);
-            setDot('toolbar-dot', state);
-            text('toolbar-state', STATUS_LABELS[state] || state);
-
-            const desired = websocket.desired_enabled;
-            const streamSwitch = byId('stream-switch');
-            streamSwitch.disabled = requestInFlight || !database.id;
-            streamSwitch.classList.toggle('on', desired === true);
-            streamSwitch.setAttribute('aria-checked', desired === true ? 'true' : 'false');
-            text('switch-label', desired === null || desired === undefined ? '未设置' : (desired ? '开启' : '关闭'));
-
-            text('metric-ue', ue.online ? '在线' : '离线');
-            text('metric-frame-age', formatFrameAge(websocket.last_frame_age_ms));
-            text('metric-frames', websocket.frame_count ?? 0);
-            text('metric-targets', websocket.target_count ?? 0);
-            text('metric-applied', websocket.applied_target_count ?? 0);
-            text('metric-source', websocket.active_source === 'websocket' ? 'WebSocket' : (websocket.active_source === 'http_snapshot' ? 'HTTP 快照' : '—'));
-
-            const banner = byId('sync-banner');
-            if (!ue.online) {
-                banner.className = 'sync-banner warn';
-                banner.textContent = websocket.command_configured
-                    ? '期望状态已保存，等待 UE 恢复心跳后执行。'
-                    : 'UE 当前离线，尚无可确认的实时连接状态。';
-            } else if (desired === false && websocket.in_sync && state === 'disabled') {
-                banner.className = 'sync-banner ok';
-                banner.textContent = '开关已同步，WebSocket 已关闭；HTTP 快照继续运行。';
-            } else if (desired === true && websocket.in_sync && state === 'connected') {
-                banner.className = 'sync-banner ok';
-                banner.textContent = '开关已同步，WebSocket 已连接。';
-            } else if (desired === true && ['connecting', 'reconnecting'].includes(state)) {
-                banner.className = 'sync-banner warn';
-                banner.textContent = '开关已同步，正在建立 WebSocket 连接。';
-            } else if (desired === true && ['error', 'disconnected'].includes(state)) {
-                banner.className = 'sync-banner error';
-                banner.textContent = '开关已开启，但 WebSocket 尚未连接，请检查 URL、网络和服务端。';
-            } else {
-                banner.className = 'sync-banner';
-                banner.textContent = '控制命令已送达后端，等待 UE 下一次心跳完成同步。';
+            function normalizeReasons(value) {
+                if (!Array.isArray(value)) return [];
+                return value.map(item => { if (typeof item === 'string') return { code: '', count: null, message: item }; const row = object(item); return { code: first(row.code, row.reason_code, ''), count: finiteNumber(first(row.count, row.target_count)), message: first(row.message, row.label, row.reason, row.code, '未提供原因') }; });
             }
-
-            const errorNode = byId('stream-error');
-            errorNode.hidden = !websocket.error;
-            errorNode.textContent = websocket.error ? `最近错误：${websocket.error}` : '';
-            byId('raw-json').textContent = JSON.stringify(status, null, 2);
-            text('last-updated', new Date().toLocaleTimeString('zh-CN', { hour12: false }));
-        }
-
-        function renderFetchError(error) {
-            currentStatus = null;
-            setDot('toolbar-dot', 'error');
-            setDot('stream-dot', 'error');
-            text('toolbar-state', '监控接口不可用');
-            text('stream-state', error.message || '读取失败');
-            text('database-name', '无法读取当前 Database');
-            byId('stream-switch').disabled = true;
-            byId('sync-banner').className = 'sync-banner error';
-            byId('sync-banner').textContent = error.message || '无法读取连接状态';
-            byId('raw-json').textContent = JSON.stringify(error, null, 2);
-        }
-
-        async function fetchStatus() {
-            if (requestInFlight) return;
-            requestInFlight = true;
-            byId('refresh-button').disabled = true;
-            try {
-                const response = await fetch('/api/v2/external-data/realtime', { cache: 'no-store' });
-                const payload = await response.json();
-                if (!response.ok) throw payload;
-                render(payload);
-            } catch (error) {
-                renderFetchError(error && typeof error === 'object' ? error : { message: String(error) });
-            } finally {
-                requestInFlight = false;
-                byId('refresh-button').disabled = false;
-                if (currentStatus) byId('stream-switch').disabled = false;
+            function normalizeCategories(value) {
+                if (Array.isArray(value)) return value;
+                if (value && typeof value === 'object') return Object.entries(value).map(([categoryId, row]) => ({ category_id: categoryId, ...object(row) }));
+                return [];
             }
-        }
-
-        async function toggleStream() {
-            if (!currentStatus || requestInFlight) return;
-            const databaseId = currentStatus.database && currentStatus.database.id;
-            if (!databaseId) return;
-            const desired = currentStatus.websocket && currentStatus.websocket.desired_enabled;
-            requestInFlight = true;
-            byId('stream-switch').disabled = true;
-            byId('sync-banner').className = 'sync-banner';
-            byId('sync-banner').textContent = '正在保存控制命令...';
-            try {
-                const response = await fetch('/api/v2/external-data/realtime', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        enabled: desired !== true,
-                        expected_database_id: databaseId
-                    })
-                });
-                const payload = await response.json();
-                if (!response.ok) throw payload;
-                render(payload);
-            } catch (error) {
-                renderFetchError(error && typeof error === 'object' ? error : { message: String(error) });
-            } finally {
-                requestInFlight = false;
-                byId('stream-switch').disabled = !currentStatus;
+            function normalizeCategory(raw, index) {
+                const row = object(raw);
+                const targetCount = finiteNumber(first(row.target_count, row.received_count, row.count, row.total));
+                const appliedCount = finiteNumber(first(row.applied_count, row.applied_target_count, row.loaded_count, row.applied));
+                const explicitUnapplied = finiteNumber(first(row.unapplied_count, row.unloaded_count));
+                return { category_id: String(first(row.category_id, row.category, row.clazz, row.id, `category-${index + 1}`)), label: String(first(row.label, row.display_name, row.name, row.category_id, row.category, row.clazz, `类别 ${index + 1}`)), lifecycle: first(row.lifecycle, ''), handler_id: first(row.handler_id, row.handler, ''), target_count: targetCount, applied_count: appliedCount, unapplied_count: explicitUnapplied !== null ? explicitUnapplied : (targetCount !== null && appliedCount !== null ? Math.max(0, targetCount - appliedCount) : null), reasons: normalizeReasons(first(row.reasons, row.unapplied_reasons, [])) };
             }
-        }
-
-        function toggleAutoRefresh() {
-            autoRefresh = !autoRefresh;
-            byId('auto-button').classList.toggle('active', autoRefresh);
-            byId('auto-button').textContent = autoRefresh ? '自动 2s' : '已暂停';
-            clearInterval(refreshTimer);
-            if (autoRefresh) refreshTimer = setInterval(fetchStatus, 2000);
-        }
-
-        byId('stream-switch').addEventListener('click', toggleStream);
-        byId('refresh-button').addEventListener('click', fetchStatus);
-        byId('auto-button').addEventListener('click', toggleAutoRefresh);
-        refreshTimer = setInterval(fetchStatus, 2000);
-        fetchStatus();
+            function normalizeStream(raw, index) {
+                const source = object(raw); const control = object(source.control); const connection = object(source.connection); const frame = object(source.frame); const execution = object(source.execution);
+                const streamId = String(first(source.stream_id, source.id, source.streamId, `stream-${index + 1}`));
+                const targetCount = finiteNumber(first(source.target_count, frame.target_count, source.received_target_count));
+                const appliedCount = finiteNumber(first(source.applied_target_count, execution.applied_target_count, source.applied_count));
+                const explicitUnapplied = finiteNumber(first(source.unapplied_target_count, execution.unapplied_target_count));
+                const inSync = boolValue(first(source.in_sync, control.in_sync));
+                return { raw: source, stream_id: streamId, display_name: String(first(source.display_name, source.name, streamId)), owner: String(first(source.owner, source.owner_name, '未识别')), owner_state: first(source.owner_state, source.ownerStatus, ''), url: String(first(source.url, connection.url, '')), desired_enabled: boolValue(first(source.desired_enabled, control.desired_enabled, source.expected_enabled)), reported_enabled: boolValue(first(source.reported_enabled, control.reported_enabled, source.enabled)), command_configured: boolValue(first(source.command_configured, control.command_configured)), control_supported: first(source.control_supported, control.control_supported, true) !== false, control_scope: String(first(source.control_scope, control.scope, 'database_primary')), command_updated_at: first(source.command_updated_at, control.command_updated_at, source.updated_at, null), control_state: String(first(source.control_state, control.state, inSync === true ? 'in_sync' : (inSync === false ? 'syncing' : 'unknown'))).toLowerCase(), in_sync: inSync, connection_state: String(first(source.connection_state, connection.state, connection.connection_state, 'unknown')).toLowerCase(), active_source: String(first(source.active_source, connection.active_source, 'none')), last_frame_at: first(source.last_frame_at, frame.last_frame_at, source.source_timestamp, null), last_frame_age_ms: finiteNumber(first(source.last_frame_age_ms, frame.last_frame_age_ms)), frame_state: String(first(source.frame_state, frame.frame_state, '')).toLowerCase(), frame_fresh: boolValue(first(source.frame_fresh, frame.fresh)), freshness_threshold_ms: finiteNumber(first(source.freshness_threshold_ms, frame.freshness_threshold_ms, FRAME_STALE_MS)), frame_count: finiteNumber(first(source.frame_count, frame.count)), target_count: targetCount, applied_target_count: appliedCount, applied_target_count_known: boolValue(first(source.applied_target_count_known, execution.applied_target_count_known)), unapplied_target_count: explicitUnapplied !== null ? explicitUnapplied : (targetCount !== null && appliedCount !== null ? Math.max(0, targetCount - appliedCount) : null), execution_state: String(first(source.execution_state, execution.state, '')).toLowerCase(), execution_known: boolValue(first(source.execution_known, execution.known)), categories_known: boolValue(first(source.categories_known, execution.categories_known)), health_state: String(first(source.health_state, source.health, '')).toLowerCase(), categories: normalizeCategories(first(source.categories, execution.categories, frame.categories, [])).map(normalizeCategory), unapplied_reasons: normalizeReasons(first(source.unapplied_reasons, execution.unapplied_reasons, [])), diagnostics: object(source.diagnostics), error: String(first(source.error, connection.error, execution.error, '')) };
+            }
+            function normalizeStatus(status) {
+                const payload = object(status); const legacy = object(payload.websocket); const rawStreams = Array.isArray(payload.streams) ? payload.streams : []; const streams = (rawStreams.length ? rawStreams : (Object.keys(legacy).length ? [legacy] : [])).map(normalizeStream); const ue = object(payload.ue);
+                return { raw: payload, schema_version: first(payload.schema_version, 'legacy'), database: object(payload.database), ue: { ...ue, online: boolValue(ue.online) === true, last_heartbeat_at: first(ue.last_heartbeat_at, ue.last_seen_at, null) }, summary: object(payload.summary), streams, http_snapshot: object(payload.http_snapshot) };
+            }
+            function deriveFrameState(stream) {
+                if (['no_frame', 'fresh', 'stale', 'unknown'].includes(stream.frame_state)) return stream.frame_state; if (stream.frame_fresh === true) return 'fresh'; if (stream.frame_fresh === false) return 'stale'; if (stream.last_frame_age_ms !== null) return stream.last_frame_age_ms <= (stream.freshness_threshold_ms || FRAME_STALE_MS) ? 'fresh' : 'stale';
+                if (stream.last_frame_at) { const timestamp = new Date(stream.last_frame_at).getTime(); if (Number.isFinite(timestamp)) return Date.now() - timestamp <= FRAME_STALE_MS ? 'fresh' : 'stale'; }
+                return stream.frame_count > 0 ? 'unknown' : 'no_frame';
+            }
+            function deriveExecutionState(stream) {
+                const explicit = stream.execution_state;
+                // Counts are authoritative whenever both sides are reported. This prevents an
+                // old/stale execution enum from masking a partial or zero-application frame.
+                if (stream.target_count === null) return explicit === 'not_registered' ? explicit : 'unknown';
+                if (stream.target_count > 0 && stream.applied_target_count === 0) return 'none_applied';
+                if (stream.target_count > 0 && stream.applied_target_count !== null && stream.applied_target_count < stream.target_count) return 'partial';
+                if (stream.target_count > 0 && stream.applied_target_count !== null && stream.applied_target_count >= stream.target_count) return 'ready';
+                if (stream.target_count > 0 && stream.applied_target_count === null) return explicit === 'not_registered' ? explicit : 'waiting';
+                if (stream.target_count === 0 && stream.applied_target_count === 0) return 'empty';
+                return ['not_registered', 'waiting', 'failed'].includes(explicit) ? explicit : 'waiting';
+            }
+            function deriveControlState(stream, ueOnline) {
+                if (stream.control_state && CONTROL_LABELS[stream.control_state]) return stream.control_state; if (!ueOnline) return stream.desired_enabled === null ? 'unknown' : 'syncing'; if (stream.in_sync === true || (stream.desired_enabled !== null && stream.desired_enabled === stream.reported_enabled)) return 'in_sync'; if (stream.desired_enabled !== null || stream.reported_enabled !== null) return 'syncing'; return 'not_configured';
+            }
+            function presentation(stream, ueOnline) {
+                const frameState = deriveFrameState(stream); const executionState = deriveExecutionState(stream); const controlState = deriveControlState(stream, ueOnline); const state = stream.connection_state; let tone = 'info'; let title = '状态待确认'; let detail = '等待 UE 回报完整的连接、帧和执行信息。';
+                if (!ueOnline) { tone = 'warn'; title = '等待 UE 心跳'; detail = '期望设置已保留，收到 UE 心跳后才会确认实时流实际状态。'; }
+                else if (stream.target_count > 0 && stream.applied_target_count === 0) { tone = 'error'; title = '已收到，但未加载'; detail = `本帧收到 ${stream.target_count} 个目标，当前没有目标进入场景。`; }
+                else if (stream.target_count > 0 && stream.applied_target_count === null) { tone = 'warn'; title = '已收到，应用数量待上报'; detail = `本帧收到 ${stream.target_count} 个目标，执行器尚未回报已加载数量。`; }
+                else if (executionState === 'partial') { tone = 'warn'; title = '部分加载'; detail = `已收到 ${formatCount(stream.target_count)} 个目标，已加载 ${formatCount(stream.applied_target_count)} 个。`; }
+                else if (stream.health_state === 'attention') { tone = 'warn'; title = '数据流需要处理'; detail = 'UE 已回报该流存在连接、帧或执行问题，请查看类别原因和技术诊断。'; }
+                else if (stream.health_state === 'waiting') { tone = 'warn'; title = '等待数据流执行'; detail = '控制命令已记录，等待对应处理器或新帧回报。'; }
+                else if (stream.health_state === 'disabled') { tone = 'info'; title = '数据流已关闭'; detail = '该流目标已回收；HTTP 正式实例同步继续运行。'; }
+                else if (stream.desired_enabled === false && (state === 'disabled' || stream.reported_enabled === false)) { tone = 'info'; title = '数据流已关闭'; detail = '该流的临时目标应已回收；HTTP 正式实例同步继续运行。'; }
+                else if (['error', 'disconnected'].includes(state)) { tone = 'error'; title = '连接出错'; detail = '期望开启，但当前实时连接不可用，请检查 UE、地址和网络。'; }
+                else if (state === 'connected' && frameState === 'stale') { tone = 'error'; title = '数据已过期'; detail = `超过 ${FRAME_STALE_MS / 1000} 秒未收到新帧，不能按实时状态使用旧数据。`; }
+                else if (state === 'connected' && frameState === 'no_frame') { tone = 'warn'; title = '已连接，等待数据'; detail = '连接已建立，尚未收到有效数据帧。'; }
+                else if (state === 'connected' && frameState === 'fresh' && executionState === 'empty') { tone = 'info'; title = '已连接，当前无活动目标'; detail = '最近一帧有效，但当前没有需要进入场景的目标。'; }
+                else if (state === 'connected' && frameState === 'fresh' && executionState === 'ready' && controlState === 'in_sync') { tone = 'ok'; title = '运行正常'; detail = `已连接 · 数据新鲜 · ${formatCount(stream.applied_target_count)} 个目标已加载。`; }
+                else if (['connecting', 'reconnecting'].includes(state)) { tone = 'warn'; title = STATUS_LABELS[state]; detail = '期望已开启，等待 UE 回报实际连接。'; }
+                else if (state === 'disabled') { tone = 'info'; title = '数据流已关闭'; detail = 'HTTP 正式实例同步不受此开关影响。'; }
+                return { tone, title, detail, frameState, executionState, controlState };
+            }
+            function dotClass(tone) { return tone === 'ok' ? 'dot-ok' : tone === 'error' ? 'dot-err' : tone === 'warn' ? 'dot-warn' : 'dot-info'; }
+            function connectionDotClass(state) { return state === 'connected' ? 'dot-ok' : ['connecting', 'reconnecting'].includes(state) ? 'dot-warn' : ['error', 'disconnected'].includes(state) ? 'dot-err' : 'dot-muted'; }
+            function executionDotClass(state) { return state === 'ready' ? 'dot-ok' : ['partial', 'waiting'].includes(state) ? 'dot-warn' : ['empty', 'disabled'].includes(state) ? 'dot-info' : 'dot-err'; }
+            function sourceLabel(source) { return source === 'websocket' ? 'WebSocket' : source === 'http_snapshot' ? 'HTTP 快照' : (source || '—'); }
+            function countSummary(stream) { return `收到 ${formatCount(stream.target_count)} · 已加载 ${formatCount(stream.applied_target_count)} · 未加载 ${formatCount(stream.unapplied_target_count)}`; }
+            function categoryReason(category) { if (!category.reasons.length) return category.unapplied_count > 0 ? '未提供具体原因' : '—'; const reason = category.reasons[0]; return reason.count !== null && reason.count > 1 ? `${reason.message}（${reason.count}）` : reason.message; }
+            function renderCategories(stream) {
+                if (!stream.categories.length) return '<div class="empty" style="padding: var(--s3) 0 0; text-align: left;">当前版本未上报类别统计；请展开技术诊断查看原始回报。</div>';
+                return stream.categories.map(category => `<div class="category-row"><div class="category-name">${safe(category.label)}</div><div class="category-count">收到 ${formatCount(category.target_count)}</div><div class="category-count">已加载 ${formatCount(category.applied_count)}</div><div class="category-count">未加载 ${formatCount(category.unapplied_count)}</div><div class="category-reason">${safe(categoryReason(category))}</div></div>`).join('');
+            }
+            function renderReasons(stream) { if (!stream.unapplied_reasons.length) return ''; return `<ul class="reason-list">${stream.unapplied_reasons.map(reason => `<li>${safe(reason.message)}${reason.count !== null ? `（${reason.count}）` : ''}</li>`).join('')}</ul>`; }
+            function renderStreamCard(stream, ueOnline) {
+                const view = presentation(stream, ueOnline); const desired = stream.desired_enabled === true; const disabled = stream.control_supported === false || pendingToggles.has(stream.stream_id) || !currentStatus || !currentStatus.database.id; const raw = JSON.stringify(stream.raw, null, 2);
+                const controlLabel = stream.control_supported === false ? '仅观察' : `期望${desired ? '开启' : stream.desired_enabled === false ? '关闭' : '未设置'}`;
+                return `<article class="stream-card" data-stream-id="${safe(stream.stream_id)}"><div class="stream-head"><div class="stream-heading"><span class="dot ${dotClass(view.tone)}"></span><div><h2 class="stream-name">${safe(stream.display_name)}</h2><div class="stream-meta">${safe(stream.stream_id)}${stream.url ? ` · ${safe(stream.url)}` : ''}</div><div class="stream-owner">拥有者：${safe(stream.owner)}${stream.owner_state ? ` · ${safe(stream.owner_state)}` : ''}</div></div></div><div class="switch-wrap"><span class="switch-label">${controlLabel}</span><button class="switch ${desired ? 'on' : ''}" type="button" role="switch" aria-checked="${desired ? 'true' : 'false'}" aria-label="启用数据流 ${safe(stream.display_name)}" data-action="toggle-stream" ${disabled ? 'disabled' : ''}></button></div></div><div class="status-banner ${view.tone}"><strong><span class="dot ${dotClass(view.tone)}"></span> ${safe(view.title)}</strong>${safe(view.detail)}${stream.error ? `<div class="error-text">最近错误：${safe(stream.error)}</div>` : ''}${renderReasons(stream)}</div><div class="dimension-grid"><div class="dimension"><span class="dimension-label">控制同步</span><span class="dimension-value"><span class="dot ${view.controlState === 'in_sync' ? 'dot-ok' : view.controlState === 'syncing' ? 'dot-warn' : 'dot-muted'}"></span>${safe(CONTROL_LABELS[view.controlState] || view.controlState)}</span></div><div class="dimension"><span class="dimension-label">传输连接</span><span class="dimension-value"><span class="dot ${connectionDotClass(stream.connection_state)}"></span>${safe(STATUS_LABELS[stream.connection_state] || stream.connection_state)}</span></div><div class="dimension"><span class="dimension-label">帧新鲜度</span><span class="dimension-value"><span class="dot ${view.frameState === 'fresh' ? 'dot-ok' : view.frameState === 'stale' ? 'dot-err' : 'dot-warn'}"></span>${safe(FRAME_LABELS[view.frameState] || view.frameState)}</span></div><div class="dimension"><span class="dimension-label">执行结果</span><span class="dimension-value"><span class="dot ${executionDotClass(view.executionState)}"></span>${safe(EXECUTION_LABELS[view.executionState] || view.executionState)}</span></div></div><div class="metrics"><div class="metric"><strong>${safe(formatTime(stream.last_frame_at))}</strong><span>最新帧时间</span></div><div class="metric"><strong>${safe(formatAge(stream.last_frame_age_ms))}</strong><span>帧延迟</span></div><div class="metric"><strong>${safe(formatCount(stream.frame_count))}</strong><span>累计实时帧</span></div><div class="metric"><strong>${safe(sourceLabel(stream.active_source))}</strong><span>当前数据源</span></div><div class="metric"><strong>${safe(formatCount(stream.target_count))}</strong><span>收到目标</span></div><div class="metric"><strong>${safe(formatCount(stream.applied_target_count))}</strong><span>已加载目标</span></div><div class="metric"><strong>${safe(formatCount(stream.unapplied_target_count))}</strong><span>未加载目标</span></div><div class="metric"><strong>${safe(stream.command_configured === true ? '已配置' : '未确认')}</strong><span>控制命令</span></div></div><div class="section-block"><div class="section-heading"><h3>按类别查看</h3><span>${safe(countSummary(stream))}</span></div><div class="category-list">${renderCategories(stream)}</div></div><details class="technical-details"><summary>连接详情与原始流数据</summary><div class="technical-body"><div class="technical-grid"><div class="field"><div class="field-label">stream_id</div><div class="field-value mono">${safe(stream.stream_id)}</div></div><div class="field"><div class="field-label">owner</div><div class="field-value mono">${safe(stream.owner)}</div></div><div class="field"><div class="field-label">URL</div><div class="field-value mono">${safe(stream.url || '—')}</div></div><div class="field"><div class="field-label">命令更新时间</div><div class="field-value mono">${safe(formatTime(stream.command_updated_at))}</div></div></div><div class="copy-row"><button class="button" type="button" data-action="copy-stream" data-stream-json="${safe(raw)}">复制此流 JSON</button></div><pre>${safe(raw)}</pre></div></details></article>`;
+            }
+            function deriveOverall(model) {
+                if (!model.ue.online) return { tone: 'warn', title: '等待 UE 心跳', detail: '页面已绑定项目，但尚未收到可确认实时执行状态的心跳。' };
+                if (!model.streams.length) return { tone: 'warn', title: '尚未注册数据流', detail: '当前 UE 尚未注册可监控的数据流，请确认对应插件已启动。' };
+                const views = model.streams.map(stream => presentation(stream, model.ue.online));
+                if (views.some(view => view.tone === 'error')) return { tone: 'error', title: '有数据流需要处理', detail: `${model.streams.length} 条数据流中存在连接、帧或执行异常。` };
+                if (views.some(view => view.tone === 'warn')) return { tone: 'warn', title: '数据流部分可用', detail: '请分别查看每条流的控制同步、数据新鲜度和执行结果。' };
+                if (views.every(view => view.tone === 'info')) return { tone: 'info', title: '数据流未处于运行态', detail: '当前数据流已关闭或暂无活动目标；这不是实时执行成功。' };
+                if (views.some(view => view.tone === 'info')) return { tone: 'warn', title: '数据流部分启用', detail: '仍有数据流处于关闭或空目标状态，请分别查看流内口径。' };
+                return { tone: 'ok', title: '数据流运行正常', detail: `${model.streams.length} 条数据流均已连接并持续上报。` };
+            }
+            function render(status) {
+                currentStatus = status; currentModel = normalizeStatus(status); const model = currentModel; const overall = deriveOverall(model);
+                text(byId('database-name'), first(model.database.name, '未命名项目')); text(byId('database-id'), model.database.id); text(byId('ue-name'), model.ue.online ? first(model.ue.project_name, '未上报名称') : 'UE 离线'); text(byId('ue-id'), model.ue.project_id); text(byId('ue-heartbeat'), formatTime(model.ue.last_heartbeat_at)); text(byId('schema-version'), model.schema_version); byId('toolbar-dot').className = `dot ${dotClass(overall.tone)}`; text(byId('toolbar-state'), overall.title); text(byId('summary-title'), overall.title); text(byId('summary-text'), overall.detail);
+                const summary = byId('summary-strip'); const summaryDot = summary.querySelector('.dot'); if (summaryDot) summaryDot.className = `dot ${dotClass(overall.tone)}`; summary.style.borderLeft = `2px solid ${overall.tone === 'ok' ? 'var(--ok)' : overall.tone === 'error' ? 'var(--danger)' : overall.tone === 'warn' ? 'var(--warn)' : 'var(--info)'}`; summary.style.background = overall.tone === 'ok' ? 'var(--ok-bg)' : overall.tone === 'error' ? 'var(--danger-bg)' : overall.tone === 'warn' ? 'var(--warn-bg)' : 'var(--info-bg)';
+                byId('streams-list').innerHTML = model.streams.length ? model.streams.map(stream => renderStreamCard(stream, model.ue.online)).join('') : '<article class="card"><div class="empty">当前 UE 尚未注册可监控的数据流。请确认对应插件已启动，并等待下一次心跳。</div></article>';
+                const httpEnabled = model.http_snapshot.enabled !== false; byId('http-dot').className = `dot ${httpEnabled ? 'dot-ok' : 'dot-muted'}`; byId('http-note').innerHTML = `<strong>${httpEnabled ? 'HTTP 正式实例同步运行中。' : 'HTTP 同步状态待确认。'}</strong><br />实时数据流开关只影响对应流及其临时目标，不影响实例建档、模型绑定和非空间属性同步。`; byId('raw-json').textContent = JSON.stringify(status, null, 2); text(byId('last-updated'), new Date().toLocaleTimeString('zh-CN', { hour12: false }));
+            }
+            function renderFetchError(error) {
+                currentStatus = null; currentModel = null; byId('toolbar-dot').className = 'dot dot-err'; text(byId('toolbar-state'), '监控接口不可用'); text(byId('database-name'), '无法读取当前项目'); text(byId('ue-name'), '—'); text(byId('ue-id'), '—'); text(byId('ue-heartbeat'), '—'); byId('streams-list').innerHTML = `<article class="card"><div class="empty">无法读取数据流状态，请检查服务是否运行。<div class="error-text">${safe(error.message || '读取失败')}</div></div></article>`; text(byId('summary-title'), '读取失败'); text(byId('summary-text'), error.message || '无法读取连接状态'); byId('summary-strip').style.borderLeft = '2px solid var(--danger)'; byId('summary-strip').style.background = 'var(--danger-bg)'; byId('http-note').textContent = '暂时无法读取 HTTP 同步状态。'; byId('raw-json').textContent = JSON.stringify(error, null, 2); byId('copy-json').disabled = true;
+            }
+            async function fetchStatus() {
+                if (requestInFlight) return; requestInFlight = true; byId('refresh-button').disabled = true;
+                try { const response = await fetch('/api/v2/external-data/realtime', { cache: 'no-store' }); const payload = await response.json(); if (!response.ok) throw payload; render(payload); byId('copy-json').disabled = false; }
+                catch (error) { renderFetchError(error && typeof error === 'object' ? error : { message: String(error) }); }
+                finally { requestInFlight = false; byId('refresh-button').disabled = false; }
+            }
+            async function toggleStream(streamId) {
+                if (!currentStatus || !currentModel || pendingToggles.has(streamId)) return; const databaseId = currentModel.database.id; const stream = currentModel.streams.find(item => item.stream_id === streamId); if (!databaseId || !stream || stream.control_supported === false) return; const previousPayload = currentStatus; pendingToggles.add(streamId); render(previousPayload);
+                try { const body = { enabled: stream.desired_enabled !== true, expected_database_id: databaseId }; if (stream.stream_id && !stream.stream_id.startsWith('stream-')) body.stream_id = stream.stream_id; const response = await fetch('/api/v2/external-data/realtime', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const payload = await response.json(); if (!response.ok) throw payload; render(payload); }
+                catch (error) { renderFetchError(error && typeof error === 'object' ? error : { message: String(error) }); }
+                finally { pendingToggles.delete(streamId); if (currentStatus && currentModel) render(currentStatus); }
+            }
+            function toast(message, type) { const node = document.createElement('div'); node.className = `toast ${type || ''}`; node.textContent = message; byId('toast-region').appendChild(node); window.setTimeout(() => node.remove(), 2800); }
+            async function copyText(value, message) { try { if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(value); else { const area = document.createElement('textarea'); area.value = value; area.setAttribute('readonly', ''); area.style.position = 'fixed'; area.style.opacity = '0'; document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove(); } toast(message || '已复制', 'ok'); } catch (error) { toast('复制失败，请手动选择文本', 'err'); } }
+            byId('streams-list').addEventListener('click', event => { const action = event.target.closest('[data-action]'); if (!action) return; if (action.dataset.action === 'toggle-stream') { const card = action.closest('[data-stream-id]'); if (card) toggleStream(card.dataset.streamId); } else if (action.dataset.action === 'copy-stream') copyText(action.dataset.streamJson || '', '已复制此流 JSON'); });
+            byId('copy-json').addEventListener('click', () => copyText(byId('raw-json').textContent, '已复制页面状态 JSON')); byId('refresh-button').addEventListener('click', fetchStatus); byId('auto-button').addEventListener('click', () => { autoRefresh = !autoRefresh; byId('auto-button').classList.toggle('active', autoRefresh); byId('auto-button').textContent = autoRefresh ? '自动 2s' : '已暂停'; window.clearInterval(refreshTimer); if (autoRefresh) refreshTimer = window.setInterval(fetchStatus, 2000); }); refreshTimer = window.setInterval(fetchStatus, 2000); fetchStatus();
+            window.__externalRealtimeMonitor = { normalizeStatus, deriveFrameState, deriveExecutionState, presentation };
+        })();
     </script>
 </body>
 </html>

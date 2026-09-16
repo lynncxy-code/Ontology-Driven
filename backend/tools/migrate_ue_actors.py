@@ -67,7 +67,9 @@ def _sanitize_id(guid):
     return "ue_" + re.sub(r"[^0-9A-Za-z_-]", "", str(guid))
 
 
-def _raw_from_transform(rid, name, mesh_asset, tf):
+def _raw_from_transform(rid, name, mesh_asset, tf, initial_loaded=True):
+    if not isinstance(initial_loaded, bool):
+        raise ValueError("initial_loaded must be a boolean")
     raw = _default_raw_state(rid, name, {"x": tf.get("tx", 0), "y": tf.get("ty", 0), "z": tf.get("tz", 0)})
     raw["rotation_x"] = float(tf.get("rx", 0))
     raw["rotation_y"] = float(tf.get("ry", 0))
@@ -78,6 +80,8 @@ def _raw_from_transform(rid, name, mesh_asset, tf):
     # 每 actor 自带资产：Legacy 类型无 type 级资产时，靠 raw.asset_id 让快照下发本 actor 的 mesh
     if mesh_asset:
         raw["asset_id"] = mesh_asset
+    if not initial_loaded:
+        raw["is_loaded"] = False
     return raw
 
 
@@ -450,7 +454,7 @@ def migrate(
                 ots.get(rid, LEGACY_TYPE).get("injected_interfaces", []),
                 mesh,
             ),
-            "raw_state": _raw_from_transform(rid, a.get("name"), mesh, tf),
+            "raw_state": _raw_from_transform(rid, a.get("name"), mesh, tf, a.get("initial_loaded", True)),
         }
         apply_instance_metadata(rec, _metadata_from_actor(a, rule, rid, source_asset))
         if iid in insts:

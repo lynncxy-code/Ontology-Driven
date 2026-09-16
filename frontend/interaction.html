@@ -565,7 +565,6 @@
                             <div class="overlay-gauge-copy"><div class="overlay-metric-label">{{ previewGauge.metric.label }}</div><div class="overlay-gauge-value">{{ previewGauge.metric.display_value }}</div><div class="overlay-gauge-range">{{ previewGauge.min }} — {{ previewGauge.max }}</div></div>
                         </div>
                         <template v-else-if="preview.resolved_slots.metrics?.length"><div class="overlay-metrics"><div v-for="metric in preview.resolved_slots.metrics" :key="metric.id" class="overlay-metric"><div class="overlay-metric-label">{{ metric.label }}</div><div class="overlay-metric-value" :class="{emphasized:metric.emphasized}">{{ metric.display_value }}</div></div></div><div v-if="previewGauge?.fallback" class="overlay-gauge-fallback">仪表数据不可用，已按数值显示</div></template>
-                        <div v-if="!preview.online" class="overlay-status"><span class="dot dot-muted"></span>数据离线，显示最后状态</div>
                     </div>
                     <div v-else class="preview-empty">面板当前未启用。<br>启用后这里显示实际数据效果。</div>
                 </div>
@@ -731,7 +730,7 @@
             <div v-if="roaming.validation.length" class="validation">{{ roaming.validation.join('；') }}</div>
             <div class="roaming-save">
                 <span class="hint">Catalog：{{ roaming.context.catalog_version || '--' }}</span>
-                <button class="btn btn-primary" :disabled="roaming.saving || roaming.validation.length" @click="saveRoaming">{{ roaming.saving?'正在保存...':'保存并应用' }}</button>
+                <button class="btn btn-primary" :disabled="roaming.saving" @click="saveRoaming">{{ roaming.saving?'正在保存...':'保存并应用' }}</button>
             </div>
         </aside>
     </main>
@@ -798,7 +797,7 @@
                     <span>规范高度：{{ routeFloorZLabel }}</span>
                     <span>UE 地面：{{ routeGroundZLabel }}</span>
                     <span>运行关卡：{{ routeLevelLabel }}</span>
-                    <span>视图方向：继承已发布空间配置</span>
+                    <span>视图方向：跟随当前空间底图</span>
                 </div>
                 <div v-if="routeEditor.draft.review_state==='needs_review'" class="notice warn">空间底图标定已经变化。请检查路线点并重新保存；保存后路线会绑定当前标定版本。</div>
             </div>
@@ -1643,9 +1642,9 @@ createApp({
                 calibration_fingerprint:frame.calibration_fingerprint||'',
             };
         }
-        function clearRoamingImage(){roamingImageRequest+=1;roamingImage=null;roaming.imageReady=false;roaming.imageName='';roaming.pointerPx=null;roamingViewport.initialized=false;drawRoamingCanvas()}
+        function clearRoamingImage(){roamingImageRequest+=1;roamingImage=null;roaming.imageReady=false;roaming.imageName='';roaming.pointerPx=null;setRoamingDisplay({});drawRoamingCanvas()}
         function loadRoamingFrameImage(frame){
-            const request=++roamingImageRequest;roamingImage=null;roaming.imageReady=false;roaming.imageName='';roaming.pointerPx=null;roamingViewport.initialized=false;drawRoamingCanvas();
+            const request=++roamingImageRequest;roamingImage=null;roaming.imageReady=false;roaming.imageName='';roaming.pointerPx=null;setRoamingDisplay(frame?.display||{});drawRoamingCanvas();
             if(!frame?.image_url)return;const image=new Image();
             image.onload=()=>{if(request!==roamingImageRequest)return;roamingImage=image;roaming.imageReady=true;roaming.imageName=frame.name||'空间底图';nextTick(()=>{ensureRoamingCanvasObserver();roamingFitView()})};
             image.onerror=()=>{if(request!==roamingImageRequest)return;roaming.imageReady=false;toast('空间底图读取失败','err');drawRoamingCanvas()};image.src=frame.image_url;
@@ -1693,7 +1692,7 @@ createApp({
         async function loadRoaming(){
             const [catalogRes,contextRes]=await Promise.all([axios.get('/api/v2/scene-interactions/catalog'),axios.get('/api/v2/scene-interactions/roaming')]);
             roaming.catalog={catalog_version:catalogRes.data.catalog_version,characters:catalogRes.data.characters||[],skins:catalogRes.data.skins||[],spawn_anchors:catalogRes.data.spawn_anchors||[],routes:catalogRes.data.routes||[],god_cameras:catalogRes.data.god_cameras||[]};
-            roaming.context=contextRes.data;roaming.revision=Number(contextRes.data.revision||0);setRoamingDisplay(contextRes.data.calibration_context?.spatial_profile?.ue_transform?.display||{});
+            roaming.context=contextRes.data;roaming.revision=Number(contextRes.data.revision||0);setRoamingDisplay({});
             roaming.draft=makeRoamingDraft(contextRes.data.config||{});
             const savedFrameId=roaming.draft.spawn?.mode==='image'?roaming.draft.spawn.frame_id:'';
             roaming.manualFrameId=roamingFrames.value.some(item=>item.id===savedFrameId)?savedFrameId:(contextRes.data.calibration_context?.selected_frame_id||roamingFrames.value[0]?.id||'');
@@ -1717,7 +1716,16 @@ createApp({
             try{
                 await axios.put('/api/v2/scene-interactions/roaming',{expected_revision:roaming.revision,config:roamingPayload()});
                 await loadRoaming();toast('人物漫游配置已保存，等待 UE 应用','ok');
-            }catch(error){const data=error.response?.data;roaming.validation=(data?.fields||[]).map(item=>`${item.path||'配置'}：${item.message}`);toast(roaming.validation.join('；')||data?.message||'人物漫游配置保存失败','err')}
+            }catch(error){
+                const data=error.response?.data;
+                const conflict=error.response?.status===409||String(data?.message||'').includes('revision conflict');
+                if(conflict){
+                    // 路线、语音默认值和人物漫游共享同一个 scene revision。
+                    // 发生并发保存时只刷新基线 revision，保留当前编辑草稿，避免用户丢失修改。
+                    try{const latest=await axios.get('/api/v2/scene-interactions/roaming');roaming.revision=Number(latest.data.revision||0);roaming.context.runtime_status=latest.data.runtime_status;toast(`配置已被其他页面更新，已刷新版本 ${roaming.revision}，请再次点击保存并应用`,'err')}
+                    catch(refreshError){toast('保存版本冲突，且无法刷新最新版本，请刷新页面后重试','err')}
+                }else{roaming.validation=(data?.fields||[]).map(item=>`${item.path||'配置'}：${item.message}`);toast(roaming.validation.join('；')||data?.message||'人物漫游配置保存失败','err')}
+            }
             finally{roaming.saving=false}
         }
 
@@ -1821,7 +1829,7 @@ createApp({
             routeViewport.initialized=false;
         }
         function loadRouteImage(frame){
-            routeEditor.imageReady=false;routeImage=null;routeViewport.initialized=false;routeEditor.pointerPx=null;drawRouteCanvas();
+            setRouteDisplay(frame?.display||{});routeEditor.imageReady=false;routeImage=null;routeEditor.pointerPx=null;drawRouteCanvas();
             if(!frame?.image_url)return;
             const image=new Image();
             image.onload=()=>{routeImage=image;routeEditor.imageReady=true;nextTick(()=>{ensureRouteCanvasObserver();routeFitView()})};
@@ -1840,7 +1848,7 @@ createApp({
                 axios.get('/api/v2/scene-interactions/routes'),
                 axios.get('/api/v2/spatial/profile'),
             ]);
-            setRouteDisplay(profileRes.data?.ue_transform?.display||{});
+            setRouteDisplay({});
             const liveFloors=profileRes.data?.floor_table||[];
             routeEditor.frames=(frameRes.data.frames||[]).filter(item=>item.status==='published').map(frame=>{
                 const floor=liveFloors.find(item=>item.floor_id===frame.floor_id||Number(item.floor)===Number(frame.floor));

@@ -318,31 +318,149 @@ ALLOWED_REALTIME_CONNECTION_STATES = {
     "disabled", "connecting", "connected", "reconnecting", "disconnected", "error",
 }
 ALLOWED_REALTIME_ACTIVE_SOURCES = {"none", "http_snapshot", "websocket"}
+ALLOWED_REALTIME_EXECUTION_STATES = {
+    "not_registered", "waiting", "ready", "partial", "none_applied", "failed", "unknown",
+}
 ALLOWED_MINIMAP_STATES = {
     "disabled", "waiting", "capturing", "ready",
     "anchor_missing", "anchor_ambiguous", "capture_failed",
 }
 
 
-def _validate_realtime_channel(value, errors):
+def _validate_optional_realtime_text(value, path, errors, maximum):
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        _error(errors, path, "必须是字符串或 null")
+        return None
+    return value[:maximum]
+
+
+def _validate_realtime_reasons(value, path, errors):
+    """Validate provider reason metadata without restricting future codes."""
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        for code, count in value.items():
+            if not isinstance(code, str) or not code.strip():
+                _error(errors, f"{path}.{code}", "原因代码必须是非空字符串")
+            if count is not None and (
+                isinstance(count, bool)
+                or not isinstance(count, (int, float))
+                or not math.isfinite(float(count))
+                or count < 0
+                or int(count) != count
+            ):
+                _error(errors, f"{path}.{code}", "原因数量必须是非负整数或 null")
+        return copy.deepcopy(value)
+    if not isinstance(value, list):
+        _error(errors, path, "必须是数组、对象或 null")
+        return []
+    result = []
+    for index, reason in enumerate(value):
+        reason_path = f"{path}[{index}]"
+        if isinstance(reason, str):
+            result.append(reason[:500])
+            continue
+        if not isinstance(reason, dict):
+            _error(errors, reason_path, "必须是对象或字符串")
+            continue
+        normalized = copy.deepcopy(reason)
+        for field in ("code", "message"):
+            if field in reason and not isinstance(reason[field], str):
+                _error(errors, f"{reason_path}.{field}", "必须是字符串")
+                normalized[field] = ""
+            elif isinstance(reason.get(field), str):
+                normalized[field] = reason[field][:500]
+        if "count" in reason:
+            count = reason.get("count")
+            if count is not None and (
+                isinstance(count, bool)
+                or not isinstance(count, (int, float))
+                or not math.isfinite(float(count))
+                or count < 0
+                or int(count) != count
+            ):
+                _error(errors, f"{reason_path}.count", "必须是非负整数或 null")
+                normalized["count"] = None
+            elif isinstance(count, float):
+                normalized["count"] = int(count)
+        result.append(normalized)
+    return result
+
+
+def _validate_realtime_categories(value, path, errors):
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        _error(errors, path, "必须是数组或 null")
+        return []
+    result = []
+    for index, category in enumerate(value):
+        category_path = f"{path}[{index}]"
+        if not isinstance(category, dict):
+            _error(errors, category_path, "必须是对象")
+            continue
+        normalized = copy.deepcopy(category)
+        for field in ("category_id", "id", "clazz", "label", "lifecycle", "handler_id"):
+            if field in category and not isinstance(category[field], str):
+                _error(errors, f"{category_path}.{field}", "必须是字符串")
+                normalized[field] = ""
+            elif isinstance(category.get(field), str):
+                normalized[field] = category[field][:256]
+        for field in ("target_count", "count", "applied_count", "applied_target_count", "unapplied_count"):
+            if field not in category:
+                continue
+            count = category.get(field)
+            if (
+                isinstance(count, bool)
+                or not isinstance(count, (int, float))
+                or not math.isfinite(float(count))
+                or count < 0
+                or int(count) != count
+            ):
+                _error(errors, f"{category_path}.{field}", "必须是非负整数")
+                normalized[field] = None
+            elif isinstance(count, float):
+                normalized[field] = int(count)
+        if "reasons" in category:
+            normalized["reasons"] = _validate_realtime_reasons(
+                category.get("reasons"), f"{category_path}.reasons", errors
+            )
+        result.append(normalized)
+    return result
+
+
+def _validate_realtime_diagnostics(value, path, errors):
+    if value is None:
+        return None
+    if not isinstance(value, (dict, list)):
+        _error(errors, path, "必须是对象、数组或 null")
+        return None
+    # Request JSON is already JSON-safe; deepcopy preserves provider extension
+    # fields for the external-data projection without inventing a schema.
+    return copy.deepcopy(value)
+
+
+def _validate_realtime_channel(value, errors, path_prefix="realtime_channel"):
     if value is None:
         return None
     if not isinstance(value, dict):
-        _error(errors, "realtime_channel", "必须是对象或 null")
+        _error(errors, path_prefix, "必须是对象或 null")
         return None
 
     enabled = value.get("enabled")
     if not isinstance(enabled, bool):
-        _error(errors, "realtime_channel.enabled", "必须是布尔值")
+        _error(errors, f"{path_prefix}.enabled", "必须是布尔值")
         enabled = False
 
     connection_state = str(value.get("connection_state") or "").strip().lower()
     if connection_state not in ALLOWED_REALTIME_CONNECTION_STATES:
-        _error(errors, "realtime_channel.connection_state", "未知连接状态")
+        _error(errors, f"{path_prefix}.connection_state", "未知连接状态")
 
     active_source = str(value.get("active_source") or "").strip().lower()
     if active_source not in ALLOWED_REALTIME_ACTIVE_SOURCES:
-        _error(errors, "realtime_channel.active_source", "未知活动数据源")
+        _error(errors, f"{path_prefix}.active_source", "未知活动数据源")
 
     last_frame_age_ms = value.get("last_frame_age_ms")
     if (
@@ -353,7 +471,7 @@ def _validate_realtime_channel(value, errors):
             or last_frame_age_ms < 0
         )
     ):
-        _error(errors, "realtime_channel.last_frame_age_ms", "必须是非负数或 null")
+        _error(errors, f"{path_prefix}.last_frame_age_ms", "必须是非负数或 null")
         last_frame_age_ms = None
 
     integer_fields = {}
@@ -365,17 +483,17 @@ def _validate_realtime_channel(value, errors):
             or field_value < 0
             or int(field_value) != field_value
         ):
-            _error(errors, f"realtime_channel.{field}", "必须是非负整数")
+            _error(errors, f"{path_prefix}.{field}", "必须是非负整数")
             field_value = 0
         integer_fields[field] = int(field_value)
 
     raw_targets = value.get("targets") or []
     targets = []
     if not isinstance(raw_targets, list):
-        _error(errors, "realtime_channel.targets", "必须是数组")
+        _error(errors, f"{path_prefix}.targets", "必须是数组")
         raw_targets = []
     for index, target in enumerate(raw_targets):
-        path = f"realtime_channel.targets[{index}]"
+        path = f"{path_prefix}.targets[{index}]"
         if not isinstance(target, dict):
             _error(errors, path, "必须是对象")
             continue
@@ -398,25 +516,71 @@ def _validate_realtime_channel(value, errors):
 
     error = value.get("error") or ""
     if not isinstance(error, str):
-        _error(errors, "realtime_channel.error", "必须是字符串")
+        _error(errors, f"{path_prefix}.error", "必须是字符串")
         error = ""
 
     url = value.get("url") or ""
     if not isinstance(url, str):
-        _error(errors, "realtime_channel.url", "必须是字符串")
+        _error(errors, f"{path_prefix}.url", "必须是字符串")
         url = ""
 
     stream_id = value.get("stream_id") or ""
     if not isinstance(stream_id, str):
-        _error(errors, "realtime_channel.stream_id", "必须是字符串")
+        _error(errors, f"{path_prefix}.stream_id", "必须是字符串")
         stream_id = ""
 
     owner = value.get("owner") or ""
     if not isinstance(owner, str):
-        _error(errors, "realtime_channel.owner", "必须是字符串")
+        _error(errors, f"{path_prefix}.owner", "必须是字符串")
         owner = ""
 
-    return {
+    last_frame_at = _validate_optional_realtime_text(
+        value.get("last_frame_at"), f"{path_prefix}.last_frame_at", errors, 128
+    )
+    execution_state = _validate_optional_realtime_text(
+        value.get("execution_state"), f"{path_prefix}.execution_state", errors, 64
+    )
+    if execution_state is not None:
+        execution_state = execution_state.strip().lower()
+        if execution_state not in ALLOWED_REALTIME_EXECUTION_STATES:
+            _error(errors, f"{path_prefix}.execution_state", "未知执行状态")
+            execution_state = None
+    owner_state = _validate_optional_realtime_text(
+        value.get("owner_state"), f"{path_prefix}.owner_state", errors, 64
+    )
+    display_name = _validate_optional_realtime_text(
+        value.get("display_name"), f"{path_prefix}.display_name", errors, 256
+    )
+    categories = _validate_realtime_categories(
+        value.get("categories"), f"{path_prefix}.categories", errors
+    )
+    unapplied_reasons = _validate_realtime_reasons(
+        value.get("unapplied_reasons"), f"{path_prefix}.unapplied_reasons", errors
+    )
+    reasons = _validate_realtime_reasons(
+        value.get("reasons"), f"{path_prefix}.reasons", errors
+    )
+    diagnostics = _validate_realtime_diagnostics(
+        value.get("diagnostics"), f"{path_prefix}.diagnostics", errors
+    )
+    frame_fresh = value.get("frame_fresh")
+    if frame_fresh is not None and not isinstance(frame_fresh, bool):
+        _error(errors, f"{path_prefix}.frame_fresh", "必须是布尔值或 null")
+        frame_fresh = None
+    freshness_threshold_ms = value.get("freshness_threshold_ms")
+    if freshness_threshold_ms is not None and (
+        isinstance(freshness_threshold_ms, bool)
+        or not isinstance(freshness_threshold_ms, (int, float))
+        or not math.isfinite(float(freshness_threshold_ms))
+        or freshness_threshold_ms < 0
+        or int(freshness_threshold_ms) != freshness_threshold_ms
+    ):
+        _error(errors, f"{path_prefix}.freshness_threshold_ms", "必须是非负整数或 null")
+        freshness_threshold_ms = None
+    elif isinstance(freshness_threshold_ms, float):
+        freshness_threshold_ms = int(freshness_threshold_ms)
+
+    result = {
         "enabled": enabled,
         "url": url[:2048],
         "stream_id": stream_id[:256],
@@ -428,6 +592,24 @@ def _validate_realtime_channel(value, errors):
         "targets": targets,
         "error": error[:500],
     }
+    # Additive provider fields are returned only when present, preserving old
+    # heartbeat payload shape for callers that compare the legacy object.
+    optional = {
+        "last_frame_at": last_frame_at,
+        "execution_state": execution_state,
+        "owner_state": owner_state,
+        "display_name": display_name,
+        "categories": categories,
+        "unapplied_reasons": unapplied_reasons,
+        "reasons": reasons,
+        "diagnostics": diagnostics,
+        "frame_fresh": frame_fresh,
+        "freshness_threshold_ms": freshness_threshold_ms,
+    }
+    for key, normalized in optional.items():
+        if key in value:
+            result[key] = normalized
+    return result
 
 
 def validate_runtime_status(payload):
@@ -457,6 +639,21 @@ def validate_runtime_status(payload):
         _error(errors, "error", "必须是对象或 null")
         error = None
     realtime_channel = _validate_realtime_channel(payload.get("realtime_channel"), errors)
+    realtime_channels = None
+    if "realtime_channels" in payload:
+        raw_channels = payload.get("realtime_channels")
+        if raw_channels is None:
+            realtime_channels = None
+        elif not isinstance(raw_channels, list):
+            _error(errors, "realtime_channels", "必须是数组或 null")
+        else:
+            realtime_channels = []
+            for index, channel in enumerate(raw_channels):
+                normalized_channel = _validate_realtime_channel(
+                    channel, errors, f"realtime_channels[{index}]"
+                )
+                if normalized_channel is not None:
+                    realtime_channels.append(normalized_channel)
     minimap_state = str(payload.get("minimap_state") or "disabled").strip().lower()
     if minimap_state not in ALLOWED_MINIMAP_STATES:
         _error(errors, "minimap_state", "未知小地图运行状态")
@@ -473,5 +670,6 @@ def validate_runtime_status(payload):
         "degraded_features": list(dict.fromkeys(degraded)),
         "error": copy.deepcopy(error),
         "realtime_channel": realtime_channel,
+        "realtime_channels": realtime_channels,
         "minimap_state": minimap_state,
     }

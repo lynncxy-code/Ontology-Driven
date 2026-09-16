@@ -46,14 +46,19 @@ body.embedded-mode{background:#fafaf7}
 .step-tab.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--surface)}
 .step-tab.done{color:var(--success)}
 .step-tab.disabled{pointer-events:none;opacity:.5}
-.step-content{flex:1;overflow:hidden;padding:20px;display:flex;flex-direction:column}
+.step-content{flex:1;min-height:0;overflow:hidden;padding:20px;display:flex;flex-direction:column}
 .step-panel{display:none}
 .step-panel.active{display:flex;flex-direction:column;flex:1;min-height:0}
-/* 每个 step 内的"主滚动区"统一 flex 占满 */
-#step2 > .audit-list,
+/* 类型审核包含列表、写入策略和提交区：由整个步骤统一滚动，避免短列表时底部被父容器裁掉 */
+#step2{overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+#step2 > .audit-list{flex:0 0 auto;overflow:visible}
 #step4 > div[style*="overflow-y"]{flex:1;min-height:0;overflow-y:auto}
 #step3{overflow-y:auto;padding-right:2px}
 #step3 > #anchorList{flex:0 0 auto;max-height:220px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+/* 图片标定第一步内容较长，必须在面板内部滚动；父级 flex 默认的
+   min-height:auto 会把内容撑出可视区，导致滚动条无法接管。 */
+#imgStep1{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+#imgStep2,#imgStep3{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
 /* Upload */
 .upload-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;border:1.5px dashed var(--border-strong);border-radius:18px;background:linear-gradient(180deg,#fff 0%,#fbfbf8 100%);cursor:pointer;transition:all .18s;padding:30px;text-align:center}
 .upload-zone:hover{border-color:#111;background:#f5f5f0}
@@ -285,7 +290,7 @@ body.embedded-mode{background:#fafaf7}
 .floor-config-heading{min-width:0;display:flex;flex-direction:column;gap:2px}
 .floor-config-title{font-size:var(--t-sm);font-weight:600;color:var(--ink)}
 .floor-config-summary{font-size:var(--t-xs);color:var(--ink-3);line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.floor-config-toggle{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;border:0;background:transparent;color:var(--ink-2);font:500 var(--t-xs)/1 var(--font);padding:5px 6px;border-radius:var(--r-sm);cursor:pointer}
+.floor-config-toggle{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);background:var(--bg);color:var(--ink);font:500 var(--t-sm)/1 var(--font);padding:8px 10px;border-radius:var(--r-md);cursor:pointer;transition:background .15s,border-color .15s}
 .floor-config-toggle:hover{background:var(--bg-3);color:var(--ink)}
 .floor-config-toggle:focus-visible{outline:1px solid var(--ink);outline-offset:2px}
 .floor-config-toggle svg{transition:transform .15s}
@@ -888,6 +893,7 @@ function saveSession(){
       sourceKey: imgState.sourceKey || null,
       imgW:imgState.imgW, imgH:imgState.imgH,
       anchors:imgState.anchors, matrix:imgState.matrix, metrics:imgState.metrics,
+      display: imgState.display || {axis_map:{x:'+x',y:'+y'},flip:false,rotation_deg:0},
       markers:imgState.markers, currentStep:imgState.currentStep,
     }
   });
@@ -920,6 +926,7 @@ async function restoreSession(){
       imgState.sourceName=im.sourceName||'restored-image';
       imgState.sourceKey=im.sourceKey||imgState.sourceName;
       imgState.imgW=im.imgW; imgState.imgH=im.imgH;
+      imgState.display=im.display||{axis_map:{x:'+x',y:'+y'},flip:false,rotation_deg:0}; setDisplayOrient(imgState.display);
       imgState.anchors=(im.anchors||[]).map(imgNormalizeAnchor); imgState.matrix=im.matrix||null; imgState.metrics=im.metrics||null;
       imgState.markers=im.markers||[]; imgState.currentStep=im.currentStep||1;
     }
@@ -4269,6 +4276,8 @@ async function imgApplyFrame(frame) {
   imgState.ueLevel=frame.ue_level||'';
   imgState.sourceName=frame.image?.original_name||frame.name||frame.id;
   imgState.sourceKey=frame.image?.sha256||frame.id;
+  imgState.display={axis_map:{x:'+x',y:'+y'},flip:false,rotation_deg:0,...(frame.display||frame.to_ue?.display||{})};
+  setDisplayOrient(imgState.display);
   imgState.imgW=Number(frame.image?.width_px||image.naturalWidth);
   imgState.imgH=Number(frame.image?.height_px||image.naturalHeight);
   imgState.anchors=(frame.anchors||[]).map((anchor,index)=>imgNormalizeAnchor({

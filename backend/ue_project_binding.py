@@ -198,7 +198,7 @@ def check_request_matches_active(store, request):
 # 绑定：加互斥约束 + 联动索引
 # ═══════════════════════════════════════════════════════════════
 
-def bind_active_dataset(store, ue_project_id, ue_project_name, force=False):
+def bind_active_dataset(store, ue_project_id, ue_project_name, force=False, target_project_id=None):
     """把当前激活项目绑到指定 UE-ID。
     互斥：同一 UE-ID 只能绑一个项目；已绑他处需 force=True 才能迁移。
     锁序：_index_lock（外）→ store._lock（内），全流程原子；
@@ -218,7 +218,7 @@ def bind_active_dataset(store, ue_project_id, ue_project_name, force=False):
     with _index_lock:
         with store_lock:
             # 在锁内重读激活态：避免另一线程正好切换激活导致我们写错项目
-            active = store.get_active() if hasattr(store, "get_active") else None
+            active = store.read_project(target_project_id) if target_project_id else (store.get_active() if hasattr(store, "get_active") else None)
             if not active:
                 return False, {"error": "no active project"}
             active_pid = active.get("id")
@@ -251,7 +251,7 @@ def bind_active_dataset(store, ue_project_id, ue_project_name, force=False):
                         "bound_to": existing_pid,
                     }
 
-            ds = active_dataset(store)
+            ds = active.get('dataset') if target_project_id else active_dataset(store)
             if not ds:
                 ds = {
                     "id": active.get("id"),
@@ -265,7 +265,10 @@ def bind_active_dataset(store, ue_project_id, ue_project_name, force=False):
             ds["bound_ue_project_id"] = ue_project_id
             ds["bound_ue_project_name"] = ue_project_name or ue_project_id
             try:
-                if hasattr(store, "set_dataset"):
+                if target_project_id:
+                    active['dataset'] = ds
+                    store.write_project(target_project_id, active)
+                elif hasattr(store, "set_dataset"):
                     store.set_dataset(ds)
                 else:
                     active["dataset"] = ds
@@ -282,6 +285,8 @@ def bind_active_dataset(store, ue_project_id, ue_project_name, force=False):
             if existing_pid and existing_pid != active_pid and force:
                 for k in [k for k, v in _ue_index.items() if v == existing_pid]:
                     _ue_index.pop(k, None)
+            for k in [k for k, v in _ue_index.items() if v == str(active_pid) and k != str(ue_project_id)]:
+                _ue_index.pop(k, None)
             _ue_index[str(ue_project_id)] = str(active_pid)
 
     return True, {"project_id": active_pid, "dataset": ds}

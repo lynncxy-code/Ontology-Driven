@@ -109,8 +109,9 @@ class DatasetPackageTests(unittest.TestCase):
             }
 
         self.source.transact_active(seed)
-        self.exporter = DatasetPackageService(self.source)
-        self.package_bytes, _, self.manifest = self.exporter.export_package("source-a")
+        self.asset_root = os.path.join(self.temp.name, 'assets')
+        self.exporter = DatasetPackageService(self.source, asset_root=self.asset_root)
+        self.package_bytes, _, self.manifest = self.exporter.export_package("source-a", data_only=True)
 
         self.target = ProjectStore(
             os.path.join(self.temp.name, "target-projects"),
@@ -126,6 +127,7 @@ class DatasetPackageTests(unittest.TestCase):
             self.target,
             dataset_names=lambda: ["Factory A"] + [item["name"] for item in self.imported_catalog],
             on_import=lambda dataset: self.imported_catalog.append(dataset),
+            asset_root=os.path.join(self.temp.name, 'http-target-assets'),
         )
 
     def tearDown(self):
@@ -152,7 +154,7 @@ class DatasetPackageTests(unittest.TestCase):
             ).encode("utf-8")
             integrity = {
                 "kind": "ontotwin.dataset-package",
-                "format_version": 1,
+                "format_version": manifest['format_version'],
                 "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
                 "payload_sha256": hashlib.sha256(payload).hexdigest(),
             }
@@ -253,6 +255,7 @@ class DatasetPackageTests(unittest.TestCase):
         register_dataset_package_routes(
             app,
             self.target,
+            asset_root=os.path.join(self.temp.name, 'http-api-assets'),
             dataset_names=lambda: ["Factory A"] + [item["name"] for item in self.imported_catalog],
             on_import=lambda dataset: self.imported_catalog.append(dataset),
         )
@@ -279,12 +282,12 @@ class DatasetPackageTests(unittest.TestCase):
 
     def test_http_export_download_does_not_change_active_project(self):
         app = Flask(__name__)
-        register_dataset_package_routes(app, self.source)
+        register_dataset_package_routes(app, self.source, asset_root=self.asset_root)
         client = app.test_client()
         summary = client.get("/api/v2/ontology/datasets/source-a/package-summary")
         self.assertEqual(200, summary.status_code)
         self.assertEqual(1, summary.get_json()["summary"]["instances"])
-        download = client.get("/api/v2/ontology/datasets/source-a/package")
+        download = client.get("/api/v2/ontology/datasets/source-a/package?data_only=1")
         self.assertEqual(200, download.status_code)
         self.assertEqual("application/vnd.ontotwin.dataset-package", download.mimetype)
         self.assertIn("attachment", download.headers.get("Content-Disposition", ""))
@@ -332,7 +335,7 @@ class DatasetPackageTests(unittest.TestCase):
         self.assertEqual("status", pg_project["web_interactions"]["published"]["pages"][0]["page_id"])
 
         pg_exporter = DatasetPackageService(pg_store)
-        pg_package, _, _ = pg_exporter.export_package(first["project_id"])
+        pg_package, _, _ = pg_exporter.export_package(first["project_id"], data_only=True)
         json_target = ProjectStore(
             os.path.join(self.temp.name, "roundtrip-projects"),
             os.path.join(self.temp.name, "roundtrip-active.json"),

@@ -1148,6 +1148,9 @@
                                     <div id="dataset-package-status" class="dataset-package-status"></div>
                                     <div id="dataset-package-report" class="dataset-package-report"></div>
                                     <div id="dataset-package-import-fields" style="display:none; margin-top:12px;">
+                                        <label>导入方式</label>
+                                        <select id="dataset-package-mode" class="dataset-package-name" onchange="changePackageMode()"><option value="copy">新建副本</option><option value="update">更新已有项目</option></select>
+                                        <select id="dataset-package-target" class="dataset-package-name" style="display:none" onchange="preflightDatasetPackage(_selectedDatasetPackage)"></select>
                                         <label for="dataset-package-target-name" style="display:block; margin-bottom:6px; font-size:11px; color:#5c5c5c;">导入后的数据集名称</label>
                                         <input id="dataset-package-target-name" class="dataset-package-name" maxlength="128" />
                                     </div>
@@ -2433,6 +2436,7 @@
                             class="dataset-btn dataset-btn-primary">激活</button>` : ''}
                         <button onclick="previewDataset('${ds.id}')" class="dataset-btn">预览图谱</button>
                         ${ds.id !== 'demo' ? `<button onclick="exportDatasetPackage('${escapeAttr(ds.id)}', this)" class="dataset-btn">导出数据集包</button>` : ''}
+                        ${ds.id !== 'demo' ? `<button onclick="bindDeliveryDataset('${escapeAttr(ds.id)}')" class="dataset-btn">绑定 UE</button><button onclick="rollbackDatasetPackage('${escapeAttr(ds.id)}')" class="dataset-btn">回退更新</button>` : ''}
                         ${ds.id !== 'demo' ? `<button onclick="deleteDataset(this, '${ds.id}', '${escapeAttr(ds.name)}')" 
                             class="dataset-btn dataset-btn-danger">删除</button>` : ''}
                     </div>
@@ -2473,6 +2477,52 @@
         // ── OntoTwin 2.3.2：数据集包导入 / 导出 ─────────────
         let _selectedDatasetPackage = null;
         let _datasetPackagePreflight = null;
+        let _packagePreflightSequence = 0;
+
+        function changePackageMode() {
+            const target = document.getElementById('dataset-package-target');
+            const update = document.getElementById('dataset-package-mode').value === 'update';
+            target.style.display = update ? 'block' : 'none';
+            target.innerHTML = '<option value="">请选择目标项目</option>' + _datasetsCache.filter(d => d.id !== 'demo').map(d => `<option value="${escapeAttr(d.id)}">${escapeHtml(d.name)} · ${escapeHtml(d.bound_ue_project_name || '未绑定 UE')}</option>`).join('');
+            document.getElementById('dataset-package-target-name').disabled = update;
+            preflightDatasetPackage(_selectedDatasetPackage);
+        }
+
+        async function rollbackDatasetPackage(id) {
+            if (!await UI.confirm({title:'回退项目更新',bodyHTML:'确认 UE 已停止运行？将恢复更新前的数据和附件；更新后有新修改时会阻止回退。',confirmText:'已停止，回退',danger:true})) return;
+            try {
+                const res = await fetch(`/api/v2/ontology/datasets/${encodeURIComponent(id)}/package-rollback`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stopped:true})});
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error);
+                await loadDatasets(); UI.toast('已恢复更新前的项目与附件','ok');
+            } catch (e) { UI.toast(e.message,'err'); }
+        }
+
+        async function bindDeliveryDataset(id) {
+            let selected = '', entered = '';
+            const capture = event => {
+                if (event.target.id === 'delivery-binding-existing') selected = event.target.value;
+                if (event.target.id === 'delivery-binding-ue') entered = event.target.value.trim();
+            };
+            document.addEventListener('input', capture);
+            document.addEventListener('change', capture);
+            const options = _datasetsCache.filter(d => d.bound_ue_project_id).map(d => `<option value="${escapeAttr(d.id)}">${escapeHtml(d.bound_ue_project_name || d.bound_ue_project_id)}（当前：${escapeHtml(d.name)}）</option>`).join('');
+            const ok = await UI.confirm({title:'绑定到 UE 工程',bodyHTML:`激活状态不会改变，旧项目保留。请先停止 UE 运行。<br><select id="delivery-binding-existing" class="dataset-package-name"><option value="">新工程：手填 UE 项目编号</option>${options}</select><input id="delivery-binding-ue" class="dataset-package-name" placeholder="新工程的 UE 项目编号（不是数据集编号）">`,confirmText:'核对绑定目标'});
+            document.removeEventListener('input', capture);
+            document.removeEventListener('change', capture);
+            if (!ok) return;
+            const old = _datasetsCache.find(d => d.id === selected);
+            const ueId = old?.bound_ue_project_id || entered;
+            if (!ueId) { UI.toast('请选择已有 UE 或填写新工程编号','err'); return; }
+            const target = _datasetsCache.find(d => d.id === id);
+            if (!await UI.confirm({title:'确认切换 UE 绑定',bodyHTML:`UE：${escapeHtml(old?.bound_ue_project_name || ueId)}<br>原项目：${escapeHtml(old?.name || '未绑定')} → 新项目：${escapeHtml(target?.name || id)}<br>旧项目保留，不改变网页激活状态。请确认 UE 已停止运行。`,confirmText:'已停止，确认绑定'})) return;
+            try {
+                const res = await fetch(`/api/v2/ontology/datasets/${encodeURIComponent(id)}/package-bind`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ue_id:ueId,ue_name:old?.bound_ue_project_name || ueId,expected_previous:old?.id || '',replace:true,stopped:true})});
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error);
+                await loadDatasets(); UI.toast('UE 绑定已更新，旧项目保留','ok');
+            } catch(e) { UI.toast(e.message,'err'); }
+        }
 
         function chooseDatasetPackage() {
             const input = document.getElementById('dataset-package-file');
@@ -2481,6 +2531,10 @@
         }
 
         function resetDatasetPackageImport() {
+            ++_packagePreflightSequence;
+            document.getElementById('dataset-package-mode').value = 'copy';
+            document.getElementById('dataset-package-target').style.display = 'none';
+            document.getElementById('dataset-package-target-name').disabled = false;
             _selectedDatasetPackage = null;
             _datasetPackagePreflight = null;
             document.getElementById('dataset-package-file').value = '';
@@ -2514,7 +2568,7 @@
                 <div class="dataset-package-notice">
                     来源：<strong>${escapeHtml(source.dataset_name || '未命名数据集')}</strong>
                     · 数据结构 v${escapeHtml(compatibility.source_schema_version)} → v${escapeHtml(compatibility.target_schema_version)}
-                    ${ue.project_name || ue.project_id ? `<br>来源 UE 工程：${escapeHtml(ue.project_name || ue.project_id)}；导入后不会自动绑定。` : ''}
+                    ${ue.project_name || ue.project_id ? `<br>来源 UE 工程：${escapeHtml(ue.project_name || ue.project_id)}；${report.target ? '本次保留目标项目原有绑定。' : '副本不会自动绑定。'}` : ''}
                 </div>
                 <div class="dataset-package-summary-grid">
                     ${datasetPackageMetric(summary.types || 0, '设备类型')}
@@ -2528,12 +2582,13 @@
                 </div>
                 ${notices.join('')}
                 <div class="dataset-package-notice">
-                    导入会创建新的未激活、未绑定数据集，不覆盖本地数据。资源文件和平台级映射规则不包含在包内。
+                    附件：${escapeHtml(report.attachments?.count || 0)} 个。UE 工程及模型需单独交付；外部服务地址需在目标电脑核对。
+                    ${report.target ? `<br>更新目标：<strong>${escapeHtml(report.target.name)}</strong> · UE：${escapeHtml(report.target.ue || '未绑定')}<br>原有 ${escapeHtml(report.target.before.instances)} 个实例 → 导入后 ${escapeHtml(report.target.after.instances)} 个实例。<br>${Object.entries({instances:'实例',object_types:'类型',zones:'分区',frames:'底图',routes:'路线',pages:'网页'}).map(([key,label])=>`移除${label}：${escapeHtml((report.target.removed[key] || []).join('、') || '无')}`).join('<br>')}<br>整项目替换，保留目标名称、编号和 UE 绑定；先自动备份，可回退上一次。` : '<br>新建副本，不自动激活或绑定。'}
                 </div>
             `;
             const fields = document.getElementById('dataset-package-import-fields');
-            fields.style.display = report.can_import ? 'block' : 'none';
-            document.getElementById('dataset-package-target-name').value = report.suggested_name || source.dataset_name || '';
+            fields.style.display = 'block';
+            document.getElementById('dataset-package-target-name').value = report.target?.name || report.suggested_name || source.dataset_name || '';
             document.getElementById('btn-confirm-dataset-package').disabled = !report.can_import;
             requestAnimationFrame(() => {
                 document.getElementById('dataset-package-panel').scrollIntoView({ block: 'nearest' });
@@ -2542,6 +2597,7 @@
 
         async function preflightDatasetPackage(file) {
             if (!file) return;
+            const sequence = ++_packagePreflightSequence;
             _selectedDatasetPackage = file;
             _datasetPackagePreflight = null;
             const panel = document.getElementById('dataset-package-panel');
@@ -2557,12 +2613,22 @@
             document.getElementById('dataset-package-import-fields').style.display = 'none';
             const form = new FormData();
             form.append('file', file);
+            if (document.getElementById('dataset-package-mode').value === 'update') {
+                const target = document.getElementById('dataset-package-target').value;
+                if (!target) {
+                    status.textContent = '请选择更新目标';
+                    document.getElementById('dataset-package-import-fields').style.display = 'block';
+                    return;
+                }
+                form.append('target_id', target);
+            }
             try {
                 const res = await fetch('/api/v2/ontology/dataset-packages/preflight', { method: 'POST', body: form });
                 const data = await res.json();
+                if (sequence !== _packagePreflightSequence) return;
                 if (!res.ok) throw new Error(data.message || data.error || '数据集包预检失败');
                 _datasetPackagePreflight = data;
-                status.textContent = data.can_import ? '预检完成。请核对内容与导入后的名称。' : '预检未通过；请处理阻断项后重新选择数据集包。';
+                status.textContent = data.can_import ? (data.target ? '预检完成。请核对更新目标；名称和 UE 绑定保持不变。' : '预检完成。请核对内容与导入后的名称。') : '预检未通过；请处理阻断项后重新选择数据集包。';
                 renderDatasetPackagePreflight(data);
             } catch (error) {
                 status.textContent = '预检失败：' + error.message;
@@ -2583,9 +2649,17 @@
             const form = new FormData();
             form.append('file', _selectedDatasetPackage);
             form.append('target_name', name);
+            const target = _datasetPackagePreflight.target;
+            if (target) {
+                const ok = await UI.confirm({title: '更新已有项目', bodyHTML: `确认已经停止目标 UE 运行？将替换“${escapeHtml(target.name)}”的全部项目内容和附件，保留 UE 绑定，并自动备份。`, confirmText: '已停止 UE，备份并更新', danger: true});
+                if (!ok) return;
+                form.append('target_id', target.id);
+                form.append('expected', target.fingerprint);
+                form.append('stopped', 'true');
+            }
             button.disabled = true;
             button.textContent = '正在导入...';
-            status.textContent = '正在创建新的未激活数据集。';
+            status.textContent = target ? '正在备份并更新目标项目…' : '正在创建新的未激活数据集及恢复附件…';
             try {
                 const res = await fetch('/api/v2/ontology/dataset-packages/import', { method: 'POST', body: form });
                 const data = await res.json();
@@ -2596,17 +2670,19 @@
                 document.getElementById('dataset-package-import-fields').style.display = 'none';
                 document.getElementById('dataset-package-report').innerHTML = `
                     <div class="dataset-package-notice">
-                        已导入为 <strong>${escapeHtml(data.dataset_name)}</strong>。当前数据集未切换，导入结果未绑定 UE 工程。
-                        <br>下一步可先预览图谱；需要运行时，请手动激活后由目标 UE 工程发起绑定。
+                        ${data.updated ? '已更新' : '已导入为'} <strong>${escapeHtml(data.dataset_name)}</strong>。恢复 ${escapeHtml(data.attachments_restored || 0)} 个附件。
+                        <br>${data.updated ? '目标 UE 绑定保留。请重新启动运行并验收。' : '未自动激活或绑定。激活用于网页编辑，绑定用于 UE 读取项目。'}
                     </div>
                     <div class="dataset-package-actions">
                         <button class="dataset-btn" onclick="resetDatasetPackageImport()">关闭</button>
                         <button class="dataset-btn dataset-btn-primary" onclick="previewDataset('${escapeAttr(data.dataset_id)}')">预览图谱</button>
+                        <button class="dataset-btn" onclick="activateDataset('${escapeAttr(data.dataset_id)}')">激活</button>
+                        ${data.updated ? `<button class="dataset-btn" onclick="rollbackDatasetPackage('${escapeAttr(data.dataset_id)}')">回退上一次更新</button>` : ''}
                     </div>`;
                 status.textContent = '导入成功；原激活数据集保持不变。';
-                UI.toast('数据集包已导入，尚未激活或绑定', 'ok');
+                UI.toast(data.updated ? '项目已更新，原 UE 绑定保留' : '数据集包已导入，尚未激活或绑定', 'ok');
             } catch (error) {
-                status.textContent = '导入失败：' + error.message + '。未留下可见的半成品。';
+                status.textContent = '导入失败：' + error.message;
                 UI.toast('数据集包导入失败', 'err');
                 button.disabled = false;
             } finally {
@@ -2626,6 +2702,7 @@
                 if (!res.ok) throw new Error(data.message || data.error || '无法生成导出摘要');
                 const summary = data.summary || {};
                 const resources = data.resource_summary || {};
+                const missing = data.attachments?.missing || [];
                 const ok = await UI.confirm({
                     title: '导出数据集包',
                     bodyHTML: `
@@ -2633,17 +2710,26 @@
                         ${escapeHtml(summary.types || 0)} 个类型、${escapeHtml(summary.instances || 0)} 个实例、
                         ${escapeHtml(summary.frames || 0)} 个空间帧、${escapeHtml(summary.zones || 0)} 个分区、
                         ${escapeHtml(summary.routes || 0)} 条路线和 ${escapeHtml(summary.web_pages || 0)} 个 Web 页面。<br><br>
-                        外部资源只保留引用，其中 ${escapeHtml(resources.needs_verification || 0)} 项需要在目标环境核对。
+                        项目附件 ${escapeHtml(data.attachments?.count || 0)} 个；外部资源 ${escapeHtml(resources.needs_verification || 0)} 项需要在目标环境核对。
+                        ${missing.length ? `<br>附件缺失：${escapeHtml(missing.join('、'))}。本次只能导出仅数据包，不能用于更新已有项目。<br>` : ''}
                         当前激活状态、有效 UE 绑定、在线状态、凭证和平台级映射规则不会导出。`,
-                    confirmText: '下载数据集包'
+                    confirmText: missing.length ? '明确导出仅数据包' : '下载项目交付包'
                 });
                 if (!ok) return;
+                if (button) button.textContent = '正在打包附件…';
+                const download = await fetch(`/api/v2/ontology/datasets/${encodeURIComponent(datasetId)}/package${missing.length ? '?data_only=1' : ''}`);
+                if (!download.ok) {
+                    const error = await download.json();
+                    throw new Error(error.message || '打包失败');
+                }
+                const blobUrl = URL.createObjectURL(await download.blob());
                 const link = document.createElement('a');
-                link.href = `/api/v2/ontology/datasets/${encodeURIComponent(datasetId)}/package`;
-                link.download = '';
+                link.href = blobUrl;
+                link.download = `${data.dataset_name}.otdataset`;
                 document.body.appendChild(link);
                 link.click();
                 link.remove();
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
                 UI.toast('数据集包下载已开始', 'ok');
             } catch (error) {
                 UI.toast('导出失败：' + error.message, 'err');

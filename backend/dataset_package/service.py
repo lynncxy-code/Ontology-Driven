@@ -16,6 +16,7 @@ import re
 import time
 import uuid
 import zipfile
+from . import attachments
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from dataset_activation import project_dataset_to_object_types
@@ -31,7 +32,7 @@ from project_store import (
 
 
 PACKAGE_KIND = "ontotwin.dataset-package"
-PACKAGE_FORMAT_VERSION = 1
+PACKAGE_FORMAT_VERSION = 2
 PRODUCT_VERSION = "2.3.2"
 PACKAGE_EXTENSION = ".otdataset"
 PACKAGE_MIMETYPE = "application/vnd.ontotwin.dataset-package"
@@ -352,11 +353,23 @@ class DatasetPackageService:
         dataset_lookup=None,
         dataset_names=None,
         on_import=None,
+        asset_root=None,
+        frontend_root=None,
     ):
         self.store = store
         self.dataset_lookup = dataset_lookup or (lambda _dataset_id: None)
         self.dataset_names = dataset_names or self._store_dataset_names
         self.on_import = on_import
+        self.asset_root = asset_root or attachments.DEFAULT_ASSET_ROOT
+        self.frontend_root = frontend_root or os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend'))
+        if not os.path.isdir(self.frontend_root) and os.path.isdir('/frontend'):
+            self.frontend_root = '/frontend'
+
+    def _collect_delivery(self, project):
+        files, missing = attachments.collect(project, self.asset_root)
+        web, web_missing, urls = attachments.collect_web(project, self.frontend_root)
+        files.update(web)
+        return files, missing + web_missing, urls
 
     def _store_dataset_names(self):
         return [item.get("name") for item in self.store.all_datasets() if item.get("name")]
@@ -469,6 +482,7 @@ class DatasetPackageService:
     def export_summary(self, dataset_id):
         project, source_ue, removed = self._sanitized_export(dataset_id)
         manifest = self._manifest(project, source_ue, removed)
+        files, missing, _ = self._collect_delivery(project)
         return {
             "dataset_id": dataset_id,
             "dataset_name": manifest["source"]["dataset_name"],
@@ -478,12 +492,24 @@ class DatasetPackageService:
             "capability_dependencies": manifest["capability_dependencies"],
             "source_ue_project": source_ue,
             "excluded": manifest["excluded"],
+            "attachments": {"count": len(files), "size_bytes": sum(map(len, files.values())), "missing": missing},
         }
 
-    def export_package(self, dataset_id):
+    def export_package(self, dataset_id, data_only=False):
         project, source_ue, removed = self._sanitized_export(dataset_id)
         payload = _canonical_json(project)
         manifest = self._manifest(project, source_ue, removed, payload)
+        files, missing, urls = self._collect_delivery(project)
+        if missing and not data_only:
+            raise DatasetPackageError("attachments_missing", "项目附件缺失，请补齐或明确选择仅数据包", 422, {"missing": missing})
+        if data_only:
+            files = {}
+        manifest['delivery_mode'] = 'data_only' if data_only else 'project_assets'
+        manifest['attachments'] = attachments.manifest_for(files)
+        manifest['local_web_urls'] = urls if not data_only else []
+        manifest['missing_attachments'] = missing
+        if len(payload) + sum(map(len, files.values())) > MAX_UNCOMPRESSED_BYTES - 1024 * 1024:
+            raise DatasetPackageError('package_too_large', '数据与附件超过 64 MB 限制', 413)
         target = io.BytesIO()
         with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             manifest_bytes = _canonical_json(manifest)
@@ -496,6 +522,8 @@ class DatasetPackageService:
             archive.writestr(INTEGRITY_NAME, _canonical_json(integrity))
             archive.writestr(MANIFEST_NAME, manifest_bytes)
             archive.writestr(PAYLOAD_NAME, payload)
+            for path, data in files.items():
+                archive.writestr(path, data)
         name = _safe_download_stem(manifest["source"]["dataset_name"]) + PACKAGE_EXTENSION
         return target.getvalue(), name, manifest
 
@@ -513,9 +541,9 @@ class DatasetPackageService:
         with archive:
             infos = archive.infolist()
             names = [item.filename for item in infos]
-            if len(names) != len(set(names)) or set(names) != {
+            if len(names) != len(set(names)) or not {
                 INTEGRITY_NAME, MANIFEST_NAME, PAYLOAD_NAME
-            }:
+            }.issubset(set(names)):
                 raise DatasetPackageError("package_layout_invalid", "数据集包内部结构无效")
             total = 0
             for info in infos:
@@ -538,7 +566,7 @@ class DatasetPackageService:
             raise DatasetPackageError("package_integrity_failed", "数据集包完整性信息无效")
         if (
             integrity.get("kind") != PACKAGE_KIND
-            or integrity.get("format_version") != PACKAGE_FORMAT_VERSION
+            or integrity.get("format_version") not in (1, PACKAGE_FORMAT_VERSION)
             or integrity.get("manifest_sha256") != hashlib.sha256(manifest_bytes).hexdigest()
             or integrity.get("payload_sha256") != hashlib.sha256(payload_bytes).hexdigest()
         ):
@@ -558,6 +586,15 @@ class DatasetPackageService:
         ):
             raise DatasetPackageError("package_integrity_failed", "数据集包完整性校验失败")
         project = _json_with_unique_keys(payload_bytes, "项目数据")
+        try:
+            with zipfile.ZipFile(io.BytesIO(package_bytes)) as archive:
+                attachments.validate(archive, manifest)
+                if manifest.get('delivery_mode') == 'project_assets':
+                    required = {'attachments/' + path for path in attachments.referenced_files(project)}
+                    if not required.issubset(set(archive.namelist())):
+                        raise ValueError('完整交付包缺少项目引用的附件')
+        except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile) as exc:
+            raise DatasetPackageError('attachment_integrity_failed', str(exc), 422) from exc
         return manifest, project
 
     def _existing_names(self):
@@ -586,6 +623,8 @@ class DatasetPackageService:
             raise DatasetPackageError("package_project_invalid", "数据集包中的项目数据格式无效")
         blockers = []
         warnings = []
+        if manifest.get('delivery_mode') != 'project_assets':
+            warnings.append({'code': 'data_only_package', 'message': '此包不含完整附件；旧包和仅数据包需另外核对资源。'})
 
         if manifest.get("kind") != PACKAGE_KIND:
             blockers.append({"code": "package_kind_unsupported", "message": "不是受支持的 OntoTwin 数据集包"})
@@ -593,7 +632,7 @@ class DatasetPackageService:
             format_version = int(manifest.get("format_version"))
         except (TypeError, ValueError):
             format_version = -1
-        if format_version != PACKAGE_FORMAT_VERSION:
+        if format_version not in (1, PACKAGE_FORMAT_VERSION):
             blockers.append({
                 "code": "package_format_unsupported",
                 "message": f"数据集包格式 v{format_version} 不受支持",
@@ -693,6 +732,7 @@ class DatasetPackageService:
             "resource_references": refs[:100],
             "capability_dependencies": _capability_dependencies(project),
             "excluded": manifest.get("excluded") or {},
+            "attachments": {"count": len(manifest.get('attachments') or []), "mode": manifest.get('delivery_mode', 'legacy')},
             "blockers": blockers,
             "warnings": warnings,
         }

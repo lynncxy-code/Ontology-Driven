@@ -5289,9 +5289,11 @@ def _dataset_package_names():
 
 
 def _dataset_package_imported(dataset):
-    """Refresh the Web catalog only; ProjectStore already committed the inactive project."""
-    if any(item.get("id") == dataset.get("id") for item in _datasets):
-        raise ValueError(f"dataset already exists: {dataset.get('id')}")
+    """Refresh the Web catalog after a committed import, update or binding change."""
+    for index, item in enumerate(_datasets):
+        if item.get('id') == dataset.get('id'):
+            _datasets[index] = dataset
+            return
     _datasets.append(dataset)
 
 

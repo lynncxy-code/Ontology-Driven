@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/Button.h"
+#include "Components/ComboBoxString.h"
 #include "Types/SlateEnums.h"
 #include "OntoTwinRuntimeDockWidget.generated.h"
 
@@ -11,6 +12,7 @@ class UBorder;
 class UCanvasPanelSlot;
 class UComboBoxString;
 class UHorizontalBox;
+class UOverlay;
 class UOntoTwinRuntimeDockWidget;
 class UScrollBox;
 class USizeBox;
@@ -62,6 +64,7 @@ enum class EOntoTwinRuntimeDockAction : uint8
     ToggleDock,
     Home,
     ToggleRuntimeEditor,
+    EnterRoaming,
     TabSpace,
     TabBusiness,
     TabRoaming,
@@ -95,6 +98,8 @@ public:
     void SetAccessibleLabel(const FText& InLabel);
 
 private:
+    friend class UOntoTwinRuntimeDockWidget;
+
     UPROPERTY()
     UOntoTwinRuntimeDockWidget* DockOwner = nullptr;
 
@@ -104,6 +109,25 @@ private:
 
     UFUNCTION()
     void HandleClicked();
+};
+
+/** A Dock-anchored upward selector with a stable ID per displayed option. */
+UCLASS()
+class ONTOTWINSYNC_API UOntoTwinSpaceComboBox : public UComboBoxString
+{
+    GENERATED_BODY()
+public:
+    void Configure(UOntoTwinRuntimeDockWidget* InOwner, int32 InDepth);
+    void CloseMenu();
+    TArray<FString> ZoneOptionIds;
+protected:
+    virtual TSharedRef<SWidget> RebuildWidget() override;
+    virtual TSharedRef<SWidget> HandleGenerateWidget(TSharedPtr<FString> Item) const override;
+    virtual void HandleSelectionChanged(TSharedPtr<FString> Item, ESelectInfo::Type SelectionType) override;
+private:
+    UPROPERTY()
+    UOntoTwinRuntimeDockWidget* DockOwner = nullptr;
+    int32 Depth = 0;
 };
 
 /**
@@ -172,7 +196,10 @@ private:
     UTextBlock* SpaceBreadcrumb = nullptr;
 
     UPROPERTY()
-    UScrollBox* SpaceColumnHost = nullptr;
+    UHorizontalBox* SpaceSelectorsHost = nullptr;
+
+    UPROPERTY(Transient)
+    TArray<TObjectPtr<UOntoTwinSpaceComboBox>> SpaceSelectors;
 
     UPROPERTY()
     UOntoTwinRuntimeDockButton* EnterSpaceButton = nullptr;
@@ -222,12 +249,16 @@ private:
     UVerticalBox* RoamingUnavailable = nullptr;
 
     UPROPERTY()
+    UOntoTwinRuntimeDockButton* EnterRoamingButton = nullptr;
+
+    UPROPERTY()
     UHorizontalBox* RoamingControls = nullptr;
 
     TArray<FString> ZoneIds;
     TArray<FString> ZoneNames;
     TArray<FString> ZoneParentIds;
     TArray<FString> SelectedZonePath;
+    TArray<FString> CurrentZonePath;
     TArray<FString> BusinessIds;
     TArray<FString> BusinessNames;
     TArray<int32> BusinessMemberCounts;
@@ -246,6 +277,8 @@ private:
     bool bDockOpen = false;
     bool bDockAnimationActive = false;
     bool bDrawerFocusVisible = false;
+    bool bSpaceSelectorsDirty = false;
+    float SpaceRefreshElapsed = 0.0f;
     float DockAnimationProgress = 0.0f;
     float DockAnimationStartProgress = 0.0f;
     float DockAnimationTargetProgress = 0.0f;
@@ -254,9 +287,12 @@ private:
 
     void BuildDefaultLayout();
     void BuildSpacePanel();
+    UOverlay* MakeGlassLayers(const FName Name);
+    USizeBox* WrapSpaceControl(UWidget* Control);
+    void UpdateSpaceSummary();
+    void RefreshSpaceSelector();
     void BuildBusinessPanel();
     void BuildRoamingPanel();
-    void BuildSpaceColumns();
     void BuildBusinessRows();
     void RefreshSpaceCatalog();
     void RefreshBusinessCatalog();
@@ -292,4 +328,5 @@ private:
 
     UFUNCTION()
     void OnRouteSelected(FString SelectedItem, ESelectInfo::Type SelectionType);
+
 };

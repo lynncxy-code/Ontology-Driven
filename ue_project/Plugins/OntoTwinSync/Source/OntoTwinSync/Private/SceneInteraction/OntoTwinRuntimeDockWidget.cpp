@@ -5,6 +5,9 @@
 #include "UI/OntoTwinGlassTheme.h"
 
 #include "Blueprint/WidgetTree.h"
+#include "Widgets/Input/SComboBox.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Text/STextBlock.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/BackgroundBlur.h"
 #include "Components/Border.h"
@@ -20,6 +23,7 @@
 #include "Components/ScrollBox.h"
 #include "Components/ScrollBoxSlot.h"
 #include "Components/SizeBox.h"
+#include "Components/SizeBoxSlot.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -46,6 +50,9 @@ constexpr float DrawerHandleTopOverlap = 8.0f;
 constexpr float DrawerOpenDuration = 0.22f;
 constexpr float DrawerCloseDuration = 0.16f;
 constexpr float DrawerReduceMotionDuration = 0.12f;
+// Space controls use the same typeface, size, radii and motion as the Dock.
+constexpr float DockBodyFontSize = 10.0f;
+constexpr float SpaceControlHeight = 44.0f;
 
 FLinearColor InnerFill()
 {
@@ -249,7 +256,8 @@ FString JoinPathNames(
     for (const FString& Id : Path)
     {
         const int32 Index = Ids.IndexOfByKey(Id);
-        Parts.Add(Names.IsValidIndex(Index) ? Names[Index] : Id);
+        Parts.Add(Names.IsValidIndex(Index) && !Names[Index].IsEmpty()
+            ? Names[Index] : TEXT("未命名空间"));
     }
     return Parts.Num() > 0 ? FString::Join(Parts, TEXT("  /  ")) : TEXT("全部空间");
 }
@@ -499,11 +507,12 @@ UOntoTwinRuntimeDockButton* UOntoTwinRuntimeDockWidget::MakeButton(
         WidgetTree->ConstructWidget<UOntoTwinRuntimeDockButton>(
             UOntoTwinRuntimeDockButton::StaticClass(), Name);
     Button->Configure(this, Action, Payload, Depth);
+    Button->SetAccessibleLabel(FText::FromString(Label));
     Button->SetStyle(BuildButtonStyle(bCompact ? 7.0f : 9.0f));
     UTextBlock* Text = MakeText(
         NAME_None,
         Label,
-        bCompact ? 10.0f : 11.0f,
+        bCompact ? DockBodyFontSize : 11.0f,
         false,
         FOntoTwinGlassTheme::PrimaryText());
     Text->SetJustification(ETextJustify::Center);
@@ -514,6 +523,97 @@ UOntoTwinRuntimeDockButton* UOntoTwinRuntimeDockWidget::MakeButton(
             bCompact ? FMargin(8.0f, 4.0f) : FMargin(11.0f, 7.0f));
     }
     return Button;
+}
+
+UOverlay* UOntoTwinRuntimeDockWidget::MakeGlassLayers(const FName Name)
+{
+    UOverlay* GlassLayers = WidgetTree->ConstructWidget<UOverlay>(
+        UOverlay::StaticClass(), Name);
+    GlassLayers->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
+    const FVector4 Corners(
+        SurfaceRadius, SurfaceRadius, SurfaceRadius, SurfaceRadius);
+    const FOntoTwinGlassDecision GlassDecision = FOntoTwinGlassRenderer::Resolve(false);
+    const bool bUseHigh =
+        GlassDecision.EffectiveQuality == EOntoTwinGlassQuality::High
+        && GlassDecision.HighMaterial != nullptr;
+    const bool bUseBalanced =
+        GlassDecision.EffectiveQuality == EOntoTwinGlassQuality::Balanced;
+
+    UImage* HighGlass = WidgetTree->ConstructWidget<UImage>(
+        UImage::StaticClass(), NAME_None);
+    if (bUseHigh)
+    {
+        FSlateRoundedBoxBrush HighBrush(FLinearColor::White, Corners);
+        HighBrush.ImageType = ESlateBrushImageType::FullColor;
+        HighBrush.SetResourceObject(GlassDecision.HighMaterial);
+        HighGlass->SetBrush(HighBrush);
+    }
+    HighGlass->SetVisibility(bUseHigh
+        ? ESlateVisibility::SelfHitTestInvisible
+        : ESlateVisibility::Collapsed);
+    UOverlaySlot* HighSlot = GlassLayers->AddChildToOverlay(HighGlass);
+    HighSlot->SetHorizontalAlignment(HAlign_Fill);
+    HighSlot->SetVerticalAlignment(VAlign_Fill);
+
+    UBackgroundBlur* BalancedBlur = WidgetTree->ConstructWidget<UBackgroundBlur>(
+        UBackgroundBlur::StaticClass(), NAME_None);
+    BalancedBlur->SetBlurStrength(16.0f);
+    BalancedBlur->SetApplyAlphaToBlur(true);
+    BalancedBlur->SetCornerRadius(Corners);
+    BalancedBlur->SetLowQualityFallbackBrush(FSlateRoundedBoxBrush(
+        FOntoTwinGlassTheme::ScreenTint(EOntoTwinGlassQuality::Performance),
+        SurfaceRadius,
+        FOntoTwinGlassTheme::Rim(),
+        1.0f));
+    BalancedBlur->SetVisibility(bUseBalanced
+        ? ESlateVisibility::SelfHitTestInvisible
+        : ESlateVisibility::Collapsed);
+    UOverlaySlot* BlurSlot = GlassLayers->AddChildToOverlay(BalancedBlur);
+    BlurSlot->SetHorizontalAlignment(HAlign_Fill);
+    BlurSlot->SetVerticalAlignment(VAlign_Fill);
+
+    FLinearColor SurfaceTint =
+        FOntoTwinGlassTheme::ScreenTint(GlassDecision.EffectiveQuality);
+    FLinearColor SurfaceRim = FOntoTwinGlassTheme::Rim();
+    if (FOntoTwinGlassRenderer::ShouldUseHighContrast())
+    {
+        SurfaceTint.A = FMath::Clamp(SurfaceTint.A + 0.12f, 0.0f, 0.96f);
+        SurfaceRim.A = 0.38f;
+    }
+    UBorder* TintLayer = WidgetTree->ConstructWidget<UBorder>(
+        UBorder::StaticClass(), NAME_None);
+    TintLayer->SetBrush(FSlateRoundedBoxBrush(
+        SurfaceTint, SurfaceRadius, SurfaceRim, 1.0f));
+    TintLayer->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    UOverlaySlot* TintSlot = GlassLayers->AddChildToOverlay(TintLayer);
+    TintSlot->SetHorizontalAlignment(HAlign_Fill);
+    TintSlot->SetVerticalAlignment(VAlign_Fill);
+
+    UImage* NoiseLayer = WidgetTree->ConstructWidget<UImage>(
+        UImage::StaticClass(), NAME_None);
+    if (UTexture2D* Noise = FOntoTwinGlassTheme::FineNoiseTexture())
+    {
+        FSlateBrush NoiseBrush;
+        NoiseBrush.DrawAs = ESlateBrushDrawType::Image;
+        NoiseBrush.ImageSize = FVector2D(32.0f, 32.0f);
+        NoiseBrush.Tiling = ESlateBrushTileType::Both;
+        NoiseBrush.SetResourceObject(Noise);
+        NoiseLayer->SetBrush(NoiseBrush);
+    }
+    const float NoiseOpacity =
+        GlassDecision.EffectiveQuality == EOntoTwinGlassQuality::High ? 0.018f
+        : GlassDecision.EffectiveQuality == EOntoTwinGlassQuality::Balanced ? 0.012f
+        : 0.0f;
+    NoiseLayer->SetRenderOpacity(NoiseOpacity);
+    NoiseLayer->SetVisibility(NoiseOpacity > 0.0f
+        ? ESlateVisibility::SelfHitTestInvisible
+        : ESlateVisibility::Collapsed);
+    UOverlaySlot* NoiseSlot = GlassLayers->AddChildToOverlay(NoiseLayer);
+    NoiseSlot->SetHorizontalAlignment(HAlign_Fill);
+    NoiseSlot->SetVerticalAlignment(VAlign_Fill);
+
+    return GlassLayers;
 }
 
 void UOntoTwinRuntimeDockWidget::BuildDefaultLayout()
@@ -597,94 +697,11 @@ void UOntoTwinRuntimeDockWidget::BuildDefaultLayout()
     DockShellSlot->SetAlignment(FVector2D(0.5f, 1.0f));
     DockShellSlot->SetPosition(FVector2D::ZeroVector);
     DockShellSlot->SetAutoSize(true);
-    DockShellSlot->SetZOrder(1);
+    DockShellSlot->SetZOrder(4);
+    DockTriggerSlot->SetZOrder(5);
 
-    UOverlay* GlassLayers = WidgetTree->ConstructWidget<UOverlay>(
-        UOverlay::StaticClass(), TEXT("RuntimeDockGlassLayers"));
-    GlassLayers->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    UOverlay* GlassLayers = MakeGlassLayers(TEXT("RuntimeDockGlassLayers"));
     DockShell->AddChild(GlassLayers);
-
-    const FVector4 Corners(
-        SurfaceRadius, SurfaceRadius, SurfaceRadius, SurfaceRadius);
-    const FOntoTwinGlassDecision GlassDecision = FOntoTwinGlassRenderer::Resolve(false);
-    const bool bUseHigh =
-        GlassDecision.EffectiveQuality == EOntoTwinGlassQuality::High
-        && GlassDecision.HighMaterial != nullptr;
-    const bool bUseBalanced =
-        GlassDecision.EffectiveQuality == EOntoTwinGlassQuality::Balanced;
-
-    UImage* HighGlass = WidgetTree->ConstructWidget<UImage>(
-        UImage::StaticClass(), TEXT("RuntimeDockHighGlass"));
-    if (bUseHigh)
-    {
-        FSlateRoundedBoxBrush HighBrush(FLinearColor::White, Corners);
-        HighBrush.ImageType = ESlateBrushImageType::FullColor;
-        HighBrush.SetResourceObject(GlassDecision.HighMaterial);
-        HighGlass->SetBrush(HighBrush);
-    }
-    HighGlass->SetVisibility(bUseHigh
-        ? ESlateVisibility::SelfHitTestInvisible
-        : ESlateVisibility::Collapsed);
-    UOverlaySlot* HighSlot = GlassLayers->AddChildToOverlay(HighGlass);
-    HighSlot->SetHorizontalAlignment(HAlign_Fill);
-    HighSlot->SetVerticalAlignment(VAlign_Fill);
-
-    UBackgroundBlur* BalancedBlur = WidgetTree->ConstructWidget<UBackgroundBlur>(
-        UBackgroundBlur::StaticClass(), TEXT("RuntimeDockBalancedBlur"));
-    BalancedBlur->SetBlurStrength(16.0f);
-    BalancedBlur->SetApplyAlphaToBlur(true);
-    BalancedBlur->SetCornerRadius(Corners);
-    BalancedBlur->SetLowQualityFallbackBrush(FSlateRoundedBoxBrush(
-        FOntoTwinGlassTheme::ScreenTint(EOntoTwinGlassQuality::Performance),
-        SurfaceRadius,
-        FOntoTwinGlassTheme::Rim(),
-        1.0f));
-    BalancedBlur->SetVisibility(bUseBalanced
-        ? ESlateVisibility::SelfHitTestInvisible
-        : ESlateVisibility::Collapsed);
-    UOverlaySlot* BlurSlot = GlassLayers->AddChildToOverlay(BalancedBlur);
-    BlurSlot->SetHorizontalAlignment(HAlign_Fill);
-    BlurSlot->SetVerticalAlignment(VAlign_Fill);
-
-    FLinearColor SurfaceTint =
-        FOntoTwinGlassTheme::ScreenTint(GlassDecision.EffectiveQuality);
-    FLinearColor SurfaceRim = FOntoTwinGlassTheme::Rim();
-    if (FOntoTwinGlassRenderer::ShouldUseHighContrast())
-    {
-        SurfaceTint.A = FMath::Clamp(SurfaceTint.A + 0.12f, 0.0f, 0.96f);
-        SurfaceRim.A = 0.38f;
-    }
-    UBorder* TintLayer = WidgetTree->ConstructWidget<UBorder>(
-        UBorder::StaticClass(), TEXT("RuntimeDockSurfaceTint"));
-    TintLayer->SetBrush(FSlateRoundedBoxBrush(
-        SurfaceTint, SurfaceRadius, SurfaceRim, 1.0f));
-    TintLayer->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-    UOverlaySlot* TintSlot = GlassLayers->AddChildToOverlay(TintLayer);
-    TintSlot->SetHorizontalAlignment(HAlign_Fill);
-    TintSlot->SetVerticalAlignment(VAlign_Fill);
-
-    UImage* NoiseLayer = WidgetTree->ConstructWidget<UImage>(
-        UImage::StaticClass(), TEXT("RuntimeDockFineNoise"));
-    if (UTexture2D* Noise = FOntoTwinGlassTheme::FineNoiseTexture())
-    {
-        FSlateBrush NoiseBrush;
-        NoiseBrush.DrawAs = ESlateBrushDrawType::Image;
-        NoiseBrush.ImageSize = FVector2D(32.0f, 32.0f);
-        NoiseBrush.Tiling = ESlateBrushTileType::Both;
-        NoiseBrush.SetResourceObject(Noise);
-        NoiseLayer->SetBrush(NoiseBrush);
-    }
-    const float NoiseOpacity =
-        GlassDecision.EffectiveQuality == EOntoTwinGlassQuality::High ? 0.018f
-        : GlassDecision.EffectiveQuality == EOntoTwinGlassQuality::Balanced ? 0.012f
-        : 0.0f;
-    NoiseLayer->SetRenderOpacity(NoiseOpacity);
-    NoiseLayer->SetVisibility(NoiseOpacity > 0.0f
-        ? ESlateVisibility::SelfHitTestInvisible
-        : ESlateVisibility::Collapsed);
-    UOverlaySlot* NoiseSlot = GlassLayers->AddChildToOverlay(NoiseLayer);
-    NoiseSlot->SetHorizontalAlignment(HAlign_Fill);
-    NoiseSlot->SetVerticalAlignment(VAlign_Fill);
 
     UVerticalBox* Stack = WidgetTree->ConstructWidget<UVerticalBox>(
         UVerticalBox::StaticClass(), TEXT("RuntimeDockContentStack"));
@@ -835,6 +852,55 @@ void UOntoTwinRuntimeDockWidget::BuildDefaultLayout()
     DockTrigger->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 }
 
+USizeBox* UOntoTwinRuntimeDockWidget::WrapSpaceControl(UWidget* Control)
+{
+    USizeBox* Bounds = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), NAME_None);
+    Bounds->SetHeightOverride(SpaceControlHeight);
+    Bounds->SetMinDesiredWidth(SpaceControlHeight);
+    Bounds->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    Bounds->AddChild(Control);
+    return Bounds;
+}
+
+void UOntoTwinSpaceComboBox::Configure(UOntoTwinRuntimeDockWidget* InOwner, const int32 InDepth)
+{
+    DockOwner = InOwner;
+    Depth = InDepth;
+}
+
+TSharedRef<SWidget> UOntoTwinSpaceComboBox::RebuildWidget()
+{
+    TSharedRef<SWidget> Widget = Super::RebuildWidget();
+    MyComboBox->SetMenuPlacement(MenuPlacement_AboveAnchor);
+    return Widget;
+}
+
+void UOntoTwinSpaceComboBox::CloseMenu()
+{
+    if (MyComboBox.IsValid()) MyComboBox->SetIsOpen(false);
+}
+
+TSharedRef<SWidget> UOntoTwinSpaceComboBox::HandleGenerateWidget(TSharedPtr<FString> Item) const
+{
+    return SNew(SBox).MinDesiredHeight(32.0f).VAlign(VAlign_Center)
+    [
+        SNew(STextBlock)
+        .Text(FText::FromString(Item.IsValid() ? *Item : TEXT("请选择")))
+        .Font(FOntoTwinGlassTheme::Font(DockBodyFontSize, false))
+        .ColorAndOpacity(FOntoTwinGlassTheme::PrimaryText())
+        .OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+    ];
+}
+
+void UOntoTwinSpaceComboBox::HandleSelectionChanged(TSharedPtr<FString> Item, ESelectInfo::Type SelectionType)
+{
+    Super::HandleSelectionChanged(Item, SelectionType);
+    if (SelectionType == ESelectInfo::Direct || !DockOwner || !Item.IsValid()) return;
+    const int32 Index = FindOptionIndex(*Item);
+    if (ZoneOptionIds.IsValidIndex(Index))
+        DockOwner->HandleDockAction(EOntoTwinRuntimeDockAction::SelectZone, ZoneOptionIds[Index], Depth);
+}
+
 void UOntoTwinRuntimeDockWidget::BuildSpacePanel()
 {
     UVerticalBox* Panel = WidgetTree->ConstructWidget<UVerticalBox>(
@@ -842,42 +908,33 @@ void UOntoTwinRuntimeDockWidget::BuildSpacePanel()
     Panel->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     ContentSwitcher->AddChild(Panel);
 
-    UBorder* BreadcrumbCard = MakeInnerCard(
-        WidgetTree, TEXT("RuntimeDockSpaceBreadcrumbCard"), FMargin(10.0f, 5.0f), 9.0f);
-    SpaceBreadcrumb = MakeText(
-        TEXT("RuntimeDockSpaceBreadcrumb"), TEXT("全部空间"), 10.0f, false,
-        FOntoTwinGlassTheme::SecondaryText());
-    BreadcrumbCard->SetContent(SpaceBreadcrumb);
-    UVerticalBoxSlot* BreadcrumbSlot = Panel->AddChildToVerticalBox(BreadcrumbCard);
-    BreadcrumbSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 5.0f));
+    SpaceBreadcrumb = MakeText(TEXT("RuntimeDockSpaceBreadcrumb"),
+        TEXT("当前位置：全部空间"), DockBodyFontSize, false, FOntoTwinGlassTheme::PrimaryText());
+    SpaceBreadcrumb->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+    USizeBox* Location = WrapSpaceControl(SpaceBreadcrumb);
+    CastChecked<USizeBoxSlot>(SpaceBreadcrumb->Slot)->SetVerticalAlignment(VAlign_Center);
+    Panel->AddChildToVerticalBox(Location);
 
-    USizeBox* TreeBounds = WidgetTree->ConstructWidget<USizeBox>(
-        USizeBox::StaticClass(), TEXT("RuntimeDockSpaceTreeBounds"));
-    TreeBounds->SetHeightOverride(52.0f);
-    SpaceColumnHost = WidgetTree->ConstructWidget<UScrollBox>(
-        UScrollBox::StaticClass(), TEXT("RuntimeDockSpaceColumns"));
-    SpaceColumnHost->SetOrientation(Orient_Horizontal);
-    SpaceColumnHost->SetScrollBarVisibility(ESlateVisibility::Collapsed);
-    TreeBounds->AddChild(SpaceColumnHost);
-    UVerticalBoxSlot* TreeSlot = Panel->AddChildToVerticalBox(TreeBounds);
-    TreeSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    UHorizontalBox* TargetRow = WidgetTree->ConstructWidget<UHorizontalBox>(
+        UHorizontalBox::StaticClass(), TEXT("RuntimeDockSpaceTargetRow"));
+    TargetRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    UTextBlock* TargetLabel = MakeText(NAME_None, TEXT("目标位置："),
+        DockBodyFontSize, false, FOntoTwinGlassTheme::SecondaryText());
+    TargetRow->AddChildToHorizontalBox(TargetLabel)->SetVerticalAlignment(VAlign_Center);
 
-    UHorizontalBox* Footer = WidgetTree->ConstructWidget<UHorizontalBox>(
-        UHorizontalBox::StaticClass(), TEXT("RuntimeDockSpaceFooter"));
-    Footer->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-    UTextBlock* Hint = MakeText(
-        TEXT("RuntimeDockSpaceHint"), TEXT("选择节点展开下一级"),
-        9.0f, false, FOntoTwinGlassTheme::MutedText());
-    UHorizontalBoxSlot* HintSlot = Footer->AddChildToHorizontalBox(Hint);
-    HintSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-    HintSlot->SetVerticalAlignment(VAlign_Center);
-    EnterSpaceButton = MakeButton(
-        TEXT("RuntimeDockEnterSpace"), TEXT("进入空间"),
+    SpaceSelectorsHost = WidgetTree->ConstructWidget<UHorizontalBox>(
+        UHorizontalBox::StaticClass(), TEXT("RuntimeDockSpaceSelectors"));
+    SpaceSelectorsHost->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    UHorizontalBoxSlot* SelectorsSlot = TargetRow->AddChildToHorizontalBox(SpaceSelectorsHost);
+    SelectorsSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    SelectorsSlot->SetPadding(FMargin(8.0f, 0.0f));
+
+    EnterSpaceButton = MakeButton(TEXT("RuntimeDockEnterSpace"), TEXT("前往位置"),
         EOntoTwinRuntimeDockAction::EnterZone, FString(), INDEX_NONE, true);
-    UHorizontalBoxSlot* EnterSlot = Footer->AddChildToHorizontalBox(EnterSpaceButton);
-    EnterSlot->SetVerticalAlignment(VAlign_Center);
-    UVerticalBoxSlot* PanelFooterSlot = Panel->AddChildToVerticalBox(Footer);
-    PanelFooterSlot->SetPadding(FMargin(0.0f, 5.0f, 0.0f, 0.0f));
+    TargetRow->AddChildToHorizontalBox(WrapSpaceControl(EnterSpaceButton));
+    UVerticalBoxSlot* TargetSlot = Panel->AddChildToVerticalBox(WrapSpaceControl(TargetRow));
+    TargetSlot->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 0.0f));
+    RefreshSpaceSelector();
 }
 
 void UOntoTwinRuntimeDockWidget::BuildBusinessPanel()
@@ -1241,11 +1298,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
     RoamingUnavailable = WidgetTree->ConstructWidget<UVerticalBox>(
         UVerticalBox::StaticClass(), TEXT("RuntimeDockRoamingUnavailable"));
     RoamingUnavailable->SetVisibility(ESlateVisibility::Collapsed);
-    UTextBlock* UnavailableTitle = MakeText(
-        TEXT("RuntimeDockRoamingUnavailableTitle"), TEXT("F7  开启漫游"),
-        13.0f, true, FOntoTwinGlassTheme::PrimaryText());
-    UnavailableTitle->SetJustification(ETextJustify::Center);
-    RoamingUnavailable->AddChildToVerticalBox(UnavailableTitle);
+    RoamingUnavailable->AddChildToVerticalBox(MakeText(
+        TEXT("RuntimeDockRoamingUnavailableTitle"), TEXT("尚未进入漫游模式"),
+        12.0f, true, FOntoTwinGlassTheme::PrimaryText()));
+    EnterRoamingButton = MakeButton(
+        TEXT("RuntimeDockEnterRoaming"), TEXT("F7 进入漫游"),
+        EOntoTwinRuntimeDockAction::EnterRoaming, FString(), INDEX_NONE, false);
+    EnterRoamingButton->SetToolTipText(FText::FromString(TEXT("进入漫游模式（快捷键 F7）")));
+    UVerticalBoxSlot* EnterRoamingSlot = RoamingUnavailable->AddChildToVerticalBox(EnterRoamingButton);
+    EnterRoamingSlot->SetHorizontalAlignment(HAlign_Center);
+    EnterRoamingSlot->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 0.0f));
     UOverlaySlot* UnavailableSlot = Panel->AddChildToOverlay(RoamingUnavailable);
     UnavailableSlot->SetHorizontalAlignment(HAlign_Center);
     UnavailableSlot->SetVerticalAlignment(VAlign_Center);
@@ -1262,11 +1324,24 @@ void UOntoTwinRuntimeDockWidget::RefreshFromManager()
     UpdateRoamingState();
 }
 
+
+
 void UOntoTwinRuntimeDockWidget::NativeTick(
     const FGeometry& MyGeometry,
     const float InDeltaTime)
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
+    SpaceRefreshElapsed += FMath::Max(0.0f, InDeltaTime);
+    if (bDockOpen && SpaceRefreshElapsed >= 0.5f)
+    {
+        SpaceRefreshElapsed = 0.0f;
+        RefreshSpaceCatalog();
+    }
+    if (bSpaceSelectorsDirty)
+    {
+        bSpaceSelectorsDirty = false;
+        RefreshSpaceSelector();
+    }
 
     if (bDockAnimationActive)
     {
@@ -1379,6 +1454,10 @@ void UOntoTwinRuntimeDockWidget::SetDockOpen(bool bOpen)
         DockAnimationTargetProgress,
         TargetProgress);
     bDockOpen = bOpen;
+    if (!bOpen)
+    {
+        for (UOntoTwinSpaceComboBox* Selector : SpaceSelectors) Selector->CloseMenu();
+    }
     if (bOpen)
     {
         RefreshFromManager();
@@ -1440,6 +1519,7 @@ void UOntoTwinRuntimeDockWidget::SetDockOpen(bool bOpen)
 
 void UOntoTwinRuntimeDockWidget::SetActiveTab(int32 TabIndex)
 {
+    for (UOntoTwinSpaceComboBox* Selector : SpaceSelectors) Selector->CloseMenu();
     ActiveTabIndex = FMath::Clamp(TabIndex, 0, 2);
     if (ContentSwitcher)
     {
@@ -1467,7 +1547,7 @@ void UOntoTwinRuntimeDockWidget::UpdateTabStyles()
 
 void UOntoTwinRuntimeDockWidget::RefreshSpaceCatalog()
 {
-    if (!Manager || !SpaceColumnHost) return;
+    if (!Manager || !SpaceSelectorsHost) return;
     TArray<FString> NextIds;
     TArray<FString> NextNames;
     TArray<FString> NextParents;
@@ -1500,124 +1580,76 @@ void UOntoTwinRuntimeDockWidget::RefreshSpaceCatalog()
         }
         ExpectedParent = SelectedZonePath[Depth];
     }
-    BuildSpaceColumns();
+    bSpaceSelectorsDirty = true;
 }
 
-void UOntoTwinRuntimeDockWidget::BuildSpaceColumns()
+void UOntoTwinRuntimeDockWidget::RefreshSpaceSelector()
 {
-    if (!SpaceColumnHost) return;
-    SpaceColumnHost->ClearChildren();
-
-    const auto IsKnownZone = [this](const FString& Id)
-    {
-        return ZoneIds.Contains(Id);
-    };
-    FString ParentId;
-    const int32 MaxDepth = FMath::Max(1, ZoneIds.Num() + 1);
-    for (int32 Depth = 0; Depth < MaxDepth; ++Depth)
+    if (!SpaceSelectorsHost) return;
+    // Rebuild after the selecting Slate callback has returned.
+    for (UOntoTwinSpaceComboBox* Selector : SpaceSelectors) Selector->CloseMenu();
+    SpaceSelectorsHost->ClearChildren();
+    SpaceSelectors.Reset();
+    const int32 Count = FMath::Max(3, SelectedZonePath.Num() + 1);
+    FString Parent;
+    for (int32 Depth = 0; Depth < Count; ++Depth)
     {
         TArray<int32> Children;
         for (int32 Index = 0; Index < ZoneIds.Num(); ++Index)
         {
-            const FString CandidateParent = ZoneParentIds.IsValidIndex(Index)
-                ? ZoneParentIds[Index] : FString();
-            const bool bRoot = CandidateParent.IsEmpty() || !IsKnownZone(CandidateParent);
-            if ((Depth == 0 && bRoot)
-                || (Depth > 0 && CandidateParent == ParentId))
-            {
+            const FString CandidateParent = ZoneParentIds.IsValidIndex(Index) ? ZoneParentIds[Index] : FString();
+            const bool bRoot = CandidateParent.IsEmpty() || !ZoneIds.Contains(CandidateParent);
+            if ((Depth == 0 && bRoot) || (Depth > 0 && SelectedZonePath.IsValidIndex(Depth - 1)
+                && CandidateParent == Parent))
                 Children.Add(Index);
-            }
         }
-        if (Children.Num() == 0 && Depth > 0) break;
-
-        USizeBox* ColumnBounds = WidgetTree->ConstructWidget<USizeBox>(
-            USizeBox::StaticClass(), NAME_None);
-        ColumnBounds->SetWidthOverride(192.0f);
-        UBorder* ColumnCard = MakeInnerCard(
-            WidgetTree, NAME_None, FMargin(9.0f), 10.0f);
-        ColumnBounds->AddChild(ColumnCard);
-        UVerticalBox* ColumnStack = WidgetTree->ConstructWidget<UVerticalBox>(
-            UVerticalBox::StaticClass(), NAME_None);
-        ColumnStack->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-        ColumnCard->SetContent(ColumnStack);
-
-        FString ColumnTitle = Depth == 0 ? TEXT("空间") : TEXT("下一级");
-        if (Depth > 0)
-        {
-            const int32 ParentIndex = ZoneIds.IndexOfByKey(ParentId);
-            ColumnTitle = ZoneNames.IsValidIndex(ParentIndex)
-                ? ZoneNames[ParentIndex] : ParentId;
-        }
-        UTextBlock* ColumnHeading = MakeText(
-            NAME_None, ColumnTitle, 9.0f, true, FOntoTwinGlassTheme::MutedText());
-        UVerticalBoxSlot* HeadingSlot = ColumnStack->AddChildToVerticalBox(ColumnHeading);
-        HeadingSlot->SetPadding(FMargin(2.0f, 0.0f, 2.0f, 7.0f));
-
-        UScrollBox* ColumnScroll = WidgetTree->ConstructWidget<UScrollBox>(
-            UScrollBox::StaticClass(), NAME_None);
-        ColumnScroll->SetScrollBarVisibility(ESlateVisibility::Collapsed);
-        UVerticalBoxSlot* ColumnScrollSlot = ColumnStack->AddChildToVerticalBox(ColumnScroll);
-        ColumnScrollSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-        UVerticalBox* Rows = WidgetTree->ConstructWidget<UVerticalBox>(
-            UVerticalBox::StaticClass(), NAME_None);
-        Rows->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-        ColumnScroll->AddChild(Rows);
-
-        if (Children.Num() == 0)
-        {
-            UTextBlock* Empty = MakeText(
-                NAME_None, TEXT("暂无空间"), 10.0f, false,
-                FOntoTwinGlassTheme::MutedText());
-            Rows->AddChildToVerticalBox(Empty);
-        }
+        if (Depth >= 3 && Children.IsEmpty()) break;
+        auto* Selector = WidgetTree->ConstructWidget<UOntoTwinSpaceComboBox>(
+            UOntoTwinSpaceComboBox::StaticClass(), NAME_None);
+        Selector->Configure(this, Depth);
+        Selector->SetWidgetStyle(BuildComboStyle());
+        Selector->SetItemStyle(BuildComboRowStyle());
+        Selector->SetMaxListHeight(264.0f);
+        const FString Prompt = Depth == 0 ? (ZoneIds.IsEmpty() ? TEXT("暂无可用空间") : TEXT("选择公司"))
+            : Depth == 1 ? TEXT("选择楼层") : TEXT("选择区域");
+        Selector->AddOption(Prompt);
+        Selector->ZoneOptionIds.Add(FString());
+        int32 SelectedIndex = 0;
         for (const int32 Index : Children)
         {
-            bool bHasChildren = false;
-            for (int32 Candidate = 0; Candidate < ZoneIds.Num(); ++Candidate)
-            {
-                if (ZoneParentIds.IsValidIndex(Candidate)
-                    && ZoneParentIds[Candidate] == ZoneIds[Index])
-                {
-                    bHasChildren = true;
-                    break;
-                }
-            }
-            FString Label = ZoneNames.IsValidIndex(Index)
-                ? ZoneNames[Index] : ZoneIds[Index];
-            if (bHasChildren) Label += TEXT("  ›");
-            UOntoTwinRuntimeDockButton* Row = MakeButton(
-                NAME_None,
-                Label,
-                EOntoTwinRuntimeDockAction::SelectZone,
-                ZoneIds[Index],
-                Depth,
-                true);
-            Row->SetToolTipText(FText::FromString(ZoneIds[Index]));
-            const bool bSelected = SelectedZonePath.IsValidIndex(Depth)
-                && SelectedZonePath[Depth] == ZoneIds[Index];
-            Row->SetBackgroundColor(bSelected ? ActiveFill() : InactiveFill());
-            UVerticalBoxSlot* RowSlot = Rows->AddChildToVerticalBox(Row);
-            RowSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 5.0f));
+            FString Name = ZoneNames.IsValidIndex(Index) && !ZoneNames[Index].IsEmpty()
+                ? ZoneNames[Index] : TEXT("未命名空间");
+            const FString BaseName = Name;
+            int32 Suffix = 2;
+            while (Selector->FindOptionIndex(Name) != INDEX_NONE)
+                Name = FString::Printf(TEXT("%s (%d)"), *BaseName, Suffix++);
+            Selector->AddOption(Name);
+            Selector->ZoneOptionIds.Add(ZoneIds[Index]);
+            if (SelectedZonePath.IsValidIndex(Depth) && SelectedZonePath[Depth] == ZoneIds[Index])
+                SelectedIndex = Selector->ZoneOptionIds.Num() - 1;
         }
-
-        SpaceColumnHost->AddChild(ColumnBounds);
-        if (UScrollBoxSlot* ColumnSlot = Cast<UScrollBoxSlot>(ColumnBounds->Slot))
-        {
-            ColumnSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
-        }
-
-        if (!SelectedZonePath.IsValidIndex(Depth)) break;
-        ParentId = SelectedZonePath[Depth];
+        Selector->SetSelectedIndex(SelectedIndex);
+        Selector->SetIsEnabled(!Children.IsEmpty());
+        UHorizontalBoxSlot* SelectorSlot = SpaceSelectorsHost->AddChildToHorizontalBox(WrapSpaceControl(Selector));
+        SelectorSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        SelectorSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
+        SpaceSelectors.Add(Selector);
+        Parent = SelectedZonePath.IsValidIndex(Depth) ? SelectedZonePath[Depth] : FString();
     }
+    UpdateSpaceSummary();
+}
 
-    if (SpaceBreadcrumb)
-    {
-        SpaceBreadcrumb->SetText(FText::FromString(
-            JoinPathNames(SelectedZonePath, ZoneIds, ZoneNames)));
-    }
+void UOntoTwinRuntimeDockWidget::UpdateSpaceSummary()
+{
+    // Browsing a target never changes the committed current location.
+    const FString Current = TEXT("当前位置：") + JoinPathNames(CurrentZonePath, ZoneIds, ZoneNames);
+    if (SpaceBreadcrumb) SpaceBreadcrumb->SetText(FText::FromString(Current));
     if (EnterSpaceButton)
     {
-        EnterSpaceButton->SetIsEnabled(SelectedZonePath.Num() > 0);
+        EnterSpaceButton->SetIsEnabled(!SelectedZonePath.IsEmpty());
+        EnterSpaceButton->SetAccessibleLabel(FText::FromString(
+            SelectedZonePath.IsEmpty() ? TEXT("请先选择目标位置")
+            : TEXT("前往位置：") + JoinPathNames(SelectedZonePath, ZoneIds, ZoneNames)));
     }
     UpdateBusinessScope();
 }
@@ -1698,9 +1730,9 @@ void UOntoTwinRuntimeDockWidget::BuildBusinessRows()
 
 void UOntoTwinRuntimeDockWidget::UpdateBusinessScope()
 {
-    if (bBusinessScopeUsesCurrent && SelectedZonePath.Num() > 0)
+    if (bBusinessScopeUsesCurrent && CurrentZonePath.Num() > 0)
     {
-        SelectedBusinessZoneId = SelectedZonePath.Last();
+        SelectedBusinessZoneId = CurrentZonePath.Last();
     }
     else
     {
@@ -1708,7 +1740,7 @@ void UOntoTwinRuntimeDockWidget::UpdateBusinessScope()
     }
     if (ScopeCurrentButton)
     {
-        ScopeCurrentButton->SetIsEnabled(SelectedZonePath.Num() > 0);
+        ScopeCurrentButton->SetIsEnabled(CurrentZonePath.Num() > 0);
         ScopeCurrentButton->SetBackgroundColor(
             bBusinessScopeUsesCurrent ? ActiveFill() : InactiveFill());
     }
@@ -1720,7 +1752,7 @@ void UOntoTwinRuntimeDockWidget::UpdateBusinessScope()
     if (BusinessScopeText)
     {
         const FString Scope = bBusinessScopeUsesCurrent
-            ? JoinPathNames(SelectedZonePath, ZoneIds, ZoneNames)
+            ? JoinPathNames(CurrentZonePath, ZoneIds, ZoneNames)
             : TEXT("全部空间");
         BusinessScopeText->SetText(FText::FromString(TEXT("当前：") + Scope));
     }
@@ -1830,6 +1862,10 @@ void UOntoTwinRuntimeDockWidget::UpdateRoamingState()
         RoamingUnavailable->SetVisibility(
             bActive ? ESlateVisibility::Collapsed : ESlateVisibility::SelfHitTestInvisible);
     }
+    if (EnterRoamingButton)
+    {
+        EnterRoamingButton->SetIsEnabled(!bActive);
+    }
     if (CharacterSelector)
     {
         CharacterSelector->SetIsEnabled(bActive && !Manager->IsCharacterSwitching());
@@ -1915,11 +1951,19 @@ void UOntoTwinRuntimeDockWidget::HandleDockAction(
         Manager->ToggleHudInteraction();
         return;
     case EOntoTwinRuntimeDockAction::Home:
+        CurrentZonePath.Reset();
+        UpdateSpaceSummary();
         Manager->ActivateRuntimeHome();
         return;
     case EOntoTwinRuntimeDockAction::ToggleRuntimeEditor:
         Manager->ToggleRuntimeEditor();
         return;
+    case EOntoTwinRuntimeDockAction::EnterRoaming:
+    {
+        if (!Manager->IsRoamingActive()) Manager->ToggleRoaming();
+        RefreshFromManager();
+        return;
+    }
     case EOntoTwinRuntimeDockAction::TabSpace:
         SetActiveTab(1);
         return;
@@ -1930,17 +1974,28 @@ void UOntoTwinRuntimeDockWidget::HandleDockAction(
         SetActiveTab(0);
         return;
     case EOntoTwinRuntimeDockAction::SelectZone:
-        if (Depth >= 0 && ZoneIds.Contains(Payload))
+        if (Depth >= 0 && Depth <= SelectedZonePath.Num())
         {
-            SelectedZonePath.SetNum(FMath::Min(Depth, SelectedZonePath.Num()));
-            SelectedZonePath.Add(Payload);
-            BuildSpaceColumns();
+            SelectedZonePath.SetNum(Depth);
+            if (!Payload.IsEmpty() && ZoneIds.Contains(Payload)) SelectedZonePath.Add(Payload);
+            bSpaceSelectorsDirty = true;
+            UpdateSpaceSummary();
         }
         return;
     case EOntoTwinRuntimeDockAction::EnterZone:
-        if (SelectedZonePath.Num() > 0)
+        if (!SelectedZonePath.IsEmpty())
         {
-            Manager->OpenWebZone(SelectedZonePath.Last());
+            const TArray<FString> TargetPath = SelectedZonePath;
+            if (Manager->OpenWebZone(TargetPath.Last()))
+            {
+                CurrentZonePath = TargetPath;
+                UpdateSpaceSummary();
+            }
+            else if (EnterSpaceButton)
+            {
+                EnterSpaceButton->SetToolTipText(FText::FromString(
+                    TEXT("前往失败：该空间没有可用页面绑定或配置已失效")));
+            }
         }
         return;
     case EOntoTwinRuntimeDockAction::OpenBusiness:
@@ -1951,7 +2006,7 @@ void UOntoTwinRuntimeDockWidget::HandleDockAction(
         UpdateBusinessScope();
         return;
     case EOntoTwinRuntimeDockAction::ScopeCurrent:
-        if (SelectedZonePath.Num() > 0)
+        if (CurrentZonePath.Num() > 0)
         {
             bBusinessScopeUsesCurrent = true;
             UpdateBusinessScope();

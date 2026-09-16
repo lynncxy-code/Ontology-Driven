@@ -6,6 +6,10 @@
 #include "WebInteraction/OntoTwinWebBridge.h"
 
 #include "Blueprint/UserWidget.h"
+#include "Components/MeshComponent.h"
+#include "Components/WidgetComponent.h"
+#include "Materials/MaterialInterface.h"
+#include "UObject/ConstructorHelpers.h"
 #include "Dom/JsonValue.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 #include "GameFramework/PlayerController.h"
@@ -120,6 +124,10 @@ void SetJsonStringArray(
 UOntoTwinWebInteractionComponent::UOntoTwinWebInteractionComponent()
 {
     PrimaryComponentTick.bCanEverTick = true;
+    // Hard reference makes the runtime overlay part of the cook, including Shipping.
+    static ConstructorHelpers::FObjectFinder<UMaterialInterface> Highlight(
+        TEXT("/OntoTwinSync/Materials/M_BusinessHighlightOutline.M_BusinessHighlightOutline"));
+    BusinessHighlightMaterial = Highlight.Object;
 }
 
 void UOntoTwinWebInteractionComponent::BeginPlay()
@@ -873,7 +881,8 @@ bool UOntoTwinWebInteractionComponent::ResolveAndOpen(
         CurrentFrame = Next;
         bHasCurrentFrame = true;
         ApplyVisibilityFrame(CurrentFrame);
-        if (SceneManager && CurrentFrame.FocusInstanceIds.Num() > 0)
+        if (SceneManager && CurrentFrame.FocusInstanceIds.Num() > 0
+            && !CurrentFrame.bKeepCamera)
         {
             SceneManager->FocusManagedInstances(CurrentFrame.FocusInstanceIds);
         }
@@ -920,6 +929,7 @@ bool UOntoTwinWebInteractionComponent::OpenPage(
     ApplyVisibilityFrame(CurrentFrame);
     const FString ScopeType = ScopeTypeForContext(Context);
     if (CurrentFrame.bSceneScopeActive
+        && !CurrentFrame.bKeepCamera
         && (ScopeType == TEXT("zone") || ScopeType == TEXT("business_view")))
     {
         SceneManager->FocusManagedInstances(CurrentFrame.FocusInstanceIds);
@@ -1112,7 +1122,8 @@ void UOntoTwinWebInteractionComponent::Back()
     {
         if (HostWidget) HostWidget->SetVisibility(ESlateVisibility::Collapsed);
         RestoreInput();
-        if (SceneManager && CurrentFrame.FocusInstanceIds.Num() > 0)
+        if (SceneManager && CurrentFrame.FocusInstanceIds.Num() > 0
+            && !CurrentFrame.bKeepCamera)
         {
             SceneManager->FocusManagedInstances(CurrentFrame.FocusInstanceIds);
         }
@@ -1176,6 +1187,7 @@ void UOntoTwinWebInteractionComponent::SetRuntimeEditorSuppressed(bool bSuppress
     bRuntimeEditorSuppressed = bSuppressed;
     if (bSuppressed)
     {
+        RestoreBusinessHighlight();
         bRestoreAfterRuntimeEditor = HostWidget
             && HostWidget->GetVisibility() == ESlateVisibility::Visible;
         if (HostWidget) HostWidget->SetVisibility(ESlateVisibility::Collapsed);
@@ -1234,7 +1246,22 @@ void UOntoTwinWebInteractionComponent::ApplySceneScope(
             }
         }
     }
-    if (SceneBehavior == TEXT("web_only")) return;
+    if (SceneBehavior == TEXT("web_only"))
+    {
+        // Opening a member's video is a detail drill-down, not leaving the business.
+        // Keep instance-only resolver context so its own page binding still wins.
+        if (ScopeType == TEXT("instance") && bHasCurrentFrame && CurrentFrame.bKeepCamera
+            && CurrentFrame.HighlightInstanceIds.Contains(StringField(Context, TEXT("instance_id"))))
+        {
+            Frame.bKeepCamera = true;
+            Frame.bSceneScopeActive = CurrentFrame.bSceneScopeActive;
+            Frame.HighlightInstanceIds = CurrentFrame.HighlightInstanceIds;
+            Frame.VisibleInstanceIds = CurrentFrame.VisibleInstanceIds;
+            Frame.FocusInstanceIds = CurrentFrame.FocusInstanceIds;
+        }
+        return;
+    }
+    Frame.bKeepCamera = SceneBehavior == TEXT("highlight");
     Frame.bSceneScopeActive = true;
     TSet<FString> Target;
     if (ScopeType == TEXT("instance"))
@@ -1268,6 +1295,7 @@ void UOntoTwinWebInteractionComponent::ApplySceneScope(
     Frame.FocusInstanceIds = Target;
     if (SceneBehavior == TEXT("highlight"))
     {
+        Frame.HighlightInstanceIds = Target;
         for (const TPair<FString, TSharedPtr<FJsonObject>>& Pair : InstancesById)
         {
             Target.Add(Pair.Key);
@@ -1282,7 +1310,13 @@ void UOntoTwinWebInteractionComponent::ApplySceneScope(
 
 void UOntoTwinWebInteractionComponent::ApplyVisibilityFrame(const FOntoTwinWebNavigationFrame& Frame)
 {
-    if (!Frame.bSceneScopeActive) return;
+    if (!SceneManager) return;
+    ApplyBusinessHighlight(Frame.HighlightInstanceIds);
+    if (!Frame.bSceneScopeActive)
+    {
+        RestoreSceneVisibility();
+        return;
+    }
     TArray<ATwinInstance*> Instances;
     SceneManager->GetManagedInstances(Instances);
     for (ATwinInstance* Instance : Instances)
@@ -1298,16 +1332,71 @@ void UOntoTwinWebInteractionComponent::ApplyVisibilityFrame(const FOntoTwinWebNa
 
 void UOntoTwinWebInteractionComponent::TickVisibilityScope()
 {
-    if (bHasCurrentFrame && CurrentFrame.bSceneScopeActive) ApplyVisibilityFrame(CurrentFrame);
+    if (!bRuntimeEditorSuppressed && bHasCurrentFrame && CurrentFrame.bSceneScopeActive)
+        ApplyVisibilityFrame(CurrentFrame);
 }
 
 void UOntoTwinWebInteractionComponent::RestoreSceneVisibility()
 {
+    RestoreBusinessHighlight();
     for (const TPair<TWeakObjectPtr<ATwinInstance>, bool>& Pair : OriginalHiddenStates)
     {
         if (Pair.Key.IsValid()) Pair.Key->SetActorHiddenInGame(Pair.Value);
     }
     OriginalHiddenStates.Reset();
+}
+
+void UOntoTwinWebInteractionComponent::ApplyBusinessHighlight(const TSet<FString>& InstanceIds)
+{
+    TSet<TWeakObjectPtr<UMeshComponent>> Desired;
+    if (!bRuntimeEditorSuppressed && SceneManager && BusinessHighlightMaterial)
+    {
+        for (const FString& Id : InstanceIds)
+        {
+            ATwinInstance* Instance = SceneManager->FindManagedInstance(Id);
+            if (!IsValid(Instance)) continue;
+            TArray<UMeshComponent*> Meshes;
+            Instance->GetComponents<UMeshComponent>(Meshes, true);
+            for (UMeshComponent* Mesh : Meshes)
+            {
+                // Includes animated skeletal meshes and assembled child actors.
+                // No mesh/material-slot/animation replacement or stencil dependency.
+                if (IsValid(Mesh) && !Mesh->IsA<UWidgetComponent>()
+                    && Mesh->IsRegistered() && Mesh->IsVisible()) Desired.Add(Mesh);
+            }
+        }
+    }
+    for (auto It = OriginalOverlayMaterials.CreateIterator(); It; ++It)
+    {
+        if (Desired.Contains(It.Key())) continue;
+        if (UMeshComponent* Mesh = It.Key().Get())
+        {
+            // Do not undo an overlay subsequently owned by another feature.
+            if (Mesh->GetOverlayMaterial() == BusinessHighlightMaterial)
+            {
+                Mesh->SetOverlayMaterial(It.Value());
+                Mesh->SetOverlayMaterialMaxDrawDistance(OriginalOverlayDistances.FindRef(It.Key()));
+            }
+        }
+        OriginalOverlayDistances.Remove(It.Key());
+        It.RemoveCurrent();
+    }
+    for (const TWeakObjectPtr<UMeshComponent>& Key : Desired)
+    {
+        UMeshComponent* Mesh = Key.Get();
+        if (!OriginalOverlayMaterials.Contains(Key))
+        {
+            OriginalOverlayMaterials.Add(Key, Mesh->GetOverlayMaterial());
+            OriginalOverlayDistances.Add(Key, Mesh->GetOverlayMaterialMaxDrawDistance());
+            Mesh->SetOverlayMaterial(BusinessHighlightMaterial);
+            Mesh->SetOverlayMaterialMaxDrawDistance(0.0f);
+        }
+    }
+}
+
+void UOntoTwinWebInteractionComponent::RestoreBusinessHighlight()
+{
+    ApplyBusinessHighlight(TSet<FString>());
 }
 
 TSet<FString> UOntoTwinWebInteractionComponent::DescendantZones(const FString& ZoneId) const
@@ -1352,7 +1441,7 @@ void UOntoTwinWebInteractionComponent::SelectAndFocusInstance(const FString& Ins
     if (ATwinInstance* Instance = SceneManager->FindManagedInstance(InstanceId))
     {
         SceneManager->SelectOverlayFromSceneInteraction(Instance);
-        SceneManager->FocusManagedInstance(Instance);
+        if (!CurrentFrame.bKeepCamera) SceneManager->FocusManagedInstance(Instance);
     }
 }
 

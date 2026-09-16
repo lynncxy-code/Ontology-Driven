@@ -58,6 +58,7 @@ protected:
         bool bParentEnabled) const override;
 
 private:
+    friend class FOntoTwinRecoveredUiTest;
     enum class EMinimapGrowthDirection : uint8
     {
         LeftDown,
@@ -80,6 +81,29 @@ private:
 
     UPROPERTY()
     UButton* ToggleButton = nullptr;
+
+    UPROPERTY()
+    UButton* DisplaySchemeButton = nullptr;
+    UPROPERTY()
+    UButton* DisplaySchemeButtonTwo = nullptr;
+    UPROPERTY()
+    UButton* DisplaySchemeButtonThree = nullptr;
+    UPROPERTY()
+    UTextBlock* DisplaySchemeText = nullptr;
+    UPROPERTY()
+    UTextBlock* DisplaySchemeTextTwo = nullptr;
+    UPROPERTY()
+    UTextBlock* DisplaySchemeTextThree = nullptr;
+    UOverlaySlot* DisplaySchemeSlot = nullptr;
+    UOverlaySlot* DisplaySchemeSlotTwo = nullptr;
+    UOverlaySlot* DisplaySchemeSlotThree = nullptr;
+    void RefreshDisplaySchemeControl();
+    UFUNCTION()
+    void OnSelectDisplaySchemeOne();
+    UFUNCTION()
+    void OnSelectDisplaySchemeTwo();
+    UFUNCTION()
+    void OnSelectDisplaySchemeThree();
 
     /** Non-interactive high-contrast focus ring kept separate from the button. */
     UPROPERTY()

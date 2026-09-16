@@ -60,12 +60,17 @@
 #include "Engine/SkeletalMesh.h"
 #include "Materials/MaterialInterface.h"
 #include "Serialization/JsonWriter.h"
+#include "Features/IModularFeatures.h"
 #if WITH_EDITOR
 #include "Editor.h"
 #endif
 
 namespace
 {
+/** Provider 在 World 初始化时注册；回退连接最多等待这一窗口。 */
+constexpr float RealtimeProviderStartupGraceSeconds = 0.35f;
+constexpr double RealtimeFrameFreshnessSeconds = 5.0;
+
 FString CleanFolderSegment(FString Segment)
 {
     Segment.TrimStartAndEndInline();
@@ -217,6 +222,14 @@ void ATwinSceneManager::BeginPlay()
     SetActorTickEnabled(true);
     EnsureModelLoadingWidget();
 
+    InitializeDisplaySchemes();
+
+    // The packaged runtime must establish the UE project -> active dataset
+    // binding before the first snapshot request.  This used to be editor-only
+    // and was never called from BeginPlay, so Shipping builds could start
+    // polling before the runtime identity was bound.
+    BindCurrentUEProjectToActiveDataset();
+
     FString RealtimeEnabledOverride;
     if (FParse::Value(
             FCommandLine::Get(),
@@ -262,17 +275,18 @@ void ATwinSceneManager::BeginPlay()
     bRealtimeClosing = false;
     if (bEnableRealtimeWebSocket)
     {
-        if (!FModuleManager::Get().IsModuleLoaded(TEXT("WebSockets")))
-        {
-            FModuleManager::Get().LoadModule(TEXT("WebSockets"));
-        }
-        if (!FHttpModule::Get().GetProxyAddress().IsEmpty())
-        {
-            UE_LOG(LogTemp, Warning,
-                TEXT("[OntoTwinWS] UE HTTP 代理仍处于启用状态，内网 WebSocket 可能被代理拦截: %s"),
-                *FHttpModule::Get().GetProxyAddress());
-        }
-        ConnectRealtimeWebSocket();
+        // MetaverseClient 在 World 初始化回调中创建 Provider，其 BeginPlay
+        // 可能晚于本 Actor。先给同 World Provider 一个短暂注册窗口，
+        // 避免 TwinSceneManager 抢先建立第二条兼容 socket。
+        bRealtimeProviderProbePending = true;
+        GetWorldTimerManager().SetTimer(
+            RealtimeProviderProbeTimerHandle,
+            FTimerDelegate::CreateWeakLambda(this, [this]()
+            {
+                ProbeRealtimeProviderAndConnect();
+            }),
+            RealtimeProviderStartupGraceSeconds,
+            false);
     }
     else
     {
@@ -343,6 +357,8 @@ void ATwinSceneManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
     GetWorldTimerManager().ClearTimer(PollTimerHandle);
     GetWorldTimerManager().ClearTimer(ModelLoadingDismissTimer);
     GetWorldTimerManager().ClearTimer(RealtimeReconnectTimerHandle);
+    GetWorldTimerManager().ClearTimer(RealtimeProviderProbeTimerHandle);
+    GetWorldTimerManager().ClearTimer(RuntimeProjectBindingRetryTimerHandle);
     GetWorldTimerManager().ClearTimer(OverlayMediaRetryTimer);
     bRealtimeClosing = true;
     RealtimeConnectionState = TEXT("disabled");
@@ -352,6 +368,8 @@ void ATwinSceneManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
         RealtimeSocket->Close();
     }
     RealtimeSocket.Reset();
+    bRealtimeProviderProbePending = false;
+    bRealtimeUsingExternalProvider = false;
     bRuntimeEditDirty = false;
     bRuntimeEnterRoamingAfterExit = false;
     ExitRuntimeEditMode();
@@ -385,6 +403,9 @@ void ATwinSceneManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void ATwinSceneManager::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
+    ReconcileRealtimeProviderOwnership();
+    TickDisplaySchemeTransition();
+    RunDisplaySchemeSelfTest();
     TickRuntimeEditor(DeltaTime);
     if (bRuntimeEditSelfTestRequested && !bRuntimeEditSelfTestComplete)
     {
@@ -1698,7 +1719,10 @@ void ATwinSceneManager::DismissModelLoadingWidget()
 
 void ATwinSceneManager::BindCurrentUEProjectToActiveDataset()
 {
-#if WITH_EDITOR
+    if (bRuntimeProjectBound)
+    {
+        return;
+    }
     TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
     Body->SetStringField(TEXT("ue_project_id"), UEProjectId);
     Body->SetStringField(TEXT("ue_project_name"), UEProjectName);
@@ -1716,19 +1740,30 @@ void ATwinSceneManager::BindCurrentUEProjectToActiveDataset()
     const TWeakObjectPtr<ATwinSceneManager> WeakThis(this);
     HttpRequest->OnProcessRequestComplete().BindLambda([WeakThis](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bOk)
     {
+        ATwinSceneManager* SceneManager = WeakThis.Get();
+        if (!SceneManager) return;
         const int32 Code = Resp.IsValid() ? Resp->GetResponseCode() : -1;
         const bool bSuccess = bOk && Resp.IsValid() && Code == 200;
         if (bSuccess)
         {
+            SceneManager->bRuntimeProjectBound = true;
             UE_LOG(LogTemp, Log, TEXT("[UE绑定] 绑定当前 UE 工程到激活数据集成功 (code=%d)"), Code);
-            if (ATwinSceneManager* SceneManager = WeakThis.Get())
-            {
-                SceneManager->SyncUEAssetCatalog();
-            }
+            SceneManager->SyncUEAssetCatalog();
         }
         else
         {
             UE_LOG(LogTemp, Error, TEXT("[UE绑定] 绑定当前 UE 工程到激活数据集失败 (code=%d)"), Code);
+            // The packaged app can reach BeginPlay before Docker/backend is
+            // ready. Keep retrying so the first snapshot request eventually
+            // runs against the bound active dataset.
+            SceneManager->GetWorldTimerManager().SetTimer(
+                SceneManager->RuntimeProjectBindingRetryTimerHandle,
+                FTimerDelegate::CreateWeakLambda(SceneManager, [SceneManager]()
+                {
+                    SceneManager->BindCurrentUEProjectToActiveDataset();
+                }),
+                1.0f,
+                false);
         }
         if (GEngine)
         {
@@ -1737,9 +1772,6 @@ void ATwinSceneManager::BindCurrentUEProjectToActiveDataset()
         }
     });
     HttpRequest->ProcessRequest();
-#else
-    UE_LOG(LogTemp, Warning, TEXT("[UE绑定] 仅在编辑器模式下可用"));
-#endif
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1866,6 +1898,7 @@ void ATwinSceneManager::OnPollResponse(
         UpdateInitialModelLoadingProgress(++Completed, SnapshotArray.Num());
     }
 
+    if (bAllApplied) PruneDisplaySchemeSnapshots(BackendInstanceIds);
     // ── 检测后端已删除的实例 → 在场景中销毁（FR-4：全部动态 spawn，一律销毁）─────
     TArray<FString> ToRemove;
     for (auto& Pair : InstanceRegistry)
@@ -2018,6 +2051,7 @@ void ATwinSceneManager::OnIncrementalPollResponse(
             DestroyTwinInstance(InstanceId);
         }
 
+        PruneDisplaySchemeSnapshots(BackendInstanceIds);
         IncrementalSnapshotCursor = NewCursor;
         UE_LOG(LogTemp, Log,
                TEXT("[孪生管理器] 增量基线已恢复 | revision=%lld | instances=%d | removed=%d | bytes=%d"),
@@ -2031,6 +2065,7 @@ void ATwinSceneManager::OnIncrementalPollResponse(
         FString InstanceId;
         if (Value.IsValid() && Value->TryGetString(InstanceId) && !InstanceId.IsEmpty())
         {
+            DisplaySchemeSnapshots.Remove(InstanceId);
             DestroyTwinInstance(InstanceId);
         }
     }
@@ -2067,9 +2102,11 @@ void ATwinSceneManager::OnIncrementalPollResponse(
     }
 }
 
-void ATwinSceneManager::ApplyRealtimeWebSocketEnabled(bool bEnabled)
+IOntoTwinRealtimeStreamProvider* ATwinSceneManager::FindRealtimeProviderForWorld(
+    bool bLogDuplicates) const
 {
-    bool bHandledByExternalProvider = false;
+    IOntoTwinRealtimeStreamProvider* FirstProvider = nullptr;
+    int32 ProviderCount = 0;
     const TArray<IOntoTwinRealtimeStreamProvider*> Providers =
         IModularFeatures::Get().GetModularFeatureImplementations<IOntoTwinRealtimeStreamProvider>(
             IOntoTwinRealtimeStreamProvider::GetModularFeatureName());
@@ -2077,27 +2114,146 @@ void ATwinSceneManager::ApplyRealtimeWebSocketEnabled(bool bEnabled)
     {
         if (Provider && Provider->GetRealtimeStreamWorld() == GetWorld())
         {
-            Provider->ApplyRealtimeStreamEnabled(bEnabled);
-            bHandledByExternalProvider = true;
+            if (FirstProvider == nullptr)
+            {
+                FirstProvider = Provider;
+            }
+            ++ProviderCount;
         }
     }
-    if (bHandledByExternalProvider)
+    if (bLogDuplicates && ProviderCount > 1)
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("[OntoTwinWS] 同一 World 注册了 %d 个外部 Provider；仅使用第一个，拒绝兼容回退抢占"),
+            ProviderCount);
+    }
+    return FirstProvider;
+}
+
+void ATwinSceneManager::StopLegacyRealtimeSocketForExternalProvider()
+{
+    GetWorldTimerManager().ClearTimer(RealtimeReconnectTimerHandle);
+    GetWorldTimerManager().ClearTimer(RealtimeProviderProbeTimerHandle);
+    bRealtimeReconnectScheduled = false;
+    bRealtimeProviderProbePending = false;
+    ++RealtimeConnectionGeneration;
+    if (RealtimeSocket.IsValid())
+    {
+        if (RealtimeSocket->IsConnected())
+        {
+            RealtimeSocket->Close();
+        }
+        RealtimeSocket.Reset();
+    }
+
+    // 兼容回退 socket 产生的状态不能泄漏到外部 Provider 的健康视图。
+    RealtimeTargetStates.Empty();
+    RealtimeAppliedInstanceIds.Empty();
+    RealtimeCategoryHealth.Empty();
+    RealtimeLastTargetCount = 0;
+    RealtimeLastAppliedCount = 0;
+    RealtimeLastFramePlatformSeconds = -1.0;
+    RealtimeLastSourceTimestampMs = 0;
+    RealtimeConnectionState = bEnableRealtimeWebSocket ? TEXT("provider") : TEXT("disabled");
+    RealtimeLastError.Empty();
+}
+
+void ATwinSceneManager::ProbeRealtimeProviderAndConnect()
+{
+    bRealtimeProviderProbePending = false;
+    if (bRealtimeClosing || !bEnableRealtimeWebSocket)
     {
         return;
     }
 
-    if (bRealtimeClosing || bEnableRealtimeWebSocket == bEnabled)
+    if (FindRealtimeProviderForWorld(true) != nullptr)
+    {
+        bRealtimeUsingExternalProvider = true;
+        StopLegacyRealtimeSocketForExternalProvider();
+        UE_LOG(LogTemp, Log,
+            TEXT("[OntoTwinWS] 检测到同 World 外部 Provider，跳过 OntoTwinSync 兼容 socket"));
+        return;
+    }
+
+    bRealtimeUsingExternalProvider = false;
+    if (!FModuleManager::Get().IsModuleLoaded(TEXT("WebSockets")))
+    {
+        FModuleManager::Get().LoadModule(TEXT("WebSockets"));
+    }
+    if (!FHttpModule::Get().GetProxyAddress().IsEmpty())
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("[OntoTwinWS] UE HTTP 代理仍处于启用状态，内网 WebSocket 可能被代理拦截: %s"),
+            *FHttpModule::Get().GetProxyAddress());
+    }
+    ConnectRealtimeWebSocket();
+}
+
+void ATwinSceneManager::ReconcileRealtimeProviderOwnership()
+{
+    if (bRealtimeClosing || !bEnableRealtimeWebSocket)
     {
         return;
     }
 
+    IOntoTwinRealtimeStreamProvider* Provider = FindRealtimeProviderForWorld(false);
+    if (Provider != nullptr)
+    {
+        if (!bRealtimeUsingExternalProvider || RealtimeSocket.IsValid()
+            || bRealtimeReconnectScheduled || bRealtimeProviderProbePending)
+        {
+            bRealtimeUsingExternalProvider = true;
+            StopLegacyRealtimeSocketForExternalProvider();
+        }
+        return;
+    }
+
+    if (bRealtimeUsingExternalProvider)
+    {
+        bRealtimeUsingExternalProvider = false;
+        if (!bRealtimeProviderProbePending)
+        {
+            bRealtimeProviderProbePending = true;
+            GetWorldTimerManager().SetTimer(
+                RealtimeProviderProbeTimerHandle,
+                FTimerDelegate::CreateWeakLambda(this, [this]()
+                {
+                    ProbeRealtimeProviderAndConnect();
+                }),
+                RealtimeProviderStartupGraceSeconds,
+                false);
+        }
+    }
+}
+
+void ATwinSceneManager::ApplyRealtimeWebSocketEnabled(bool bEnabled)
+{
+    if (bRealtimeClosing)
+    {
+        return;
+    }
+
+    // 期望开关由 Manager 记住，即使 Provider 负责实际 socket，后续 Provider
+    // 注销后仍能按同一意图进入兼容回退。
     bEnableRealtimeWebSocket = bEnabled;
+    IOntoTwinRealtimeStreamProvider* Provider = FindRealtimeProviderForWorld(true);
+    if (Provider != nullptr)
+    {
+        bRealtimeUsingExternalProvider = true;
+        StopLegacyRealtimeSocketForExternalProvider();
+        Provider->ApplyRealtimeStreamEnabled(bEnabled);
+        return;
+    }
+
     GetWorldTimerManager().ClearTimer(RealtimeReconnectTimerHandle);
     bRealtimeReconnectScheduled = false;
     ++RealtimeConnectionGeneration;
 
     if (!bEnabled)
     {
+        GetWorldTimerManager().ClearTimer(RealtimeProviderProbeTimerHandle);
+        bRealtimeProviderProbePending = false;
+        bRealtimeUsingExternalProvider = false;
         if (RealtimeSocket.IsValid())
         {
             if (RealtimeSocket->IsConnected())
@@ -2106,6 +2262,12 @@ void ATwinSceneManager::ApplyRealtimeWebSocketEnabled(bool bEnabled)
             }
             RealtimeSocket.Reset();
         }
+        RealtimeTargetStates.Empty();
+        RealtimeAppliedInstanceIds.Empty();
+        RealtimeCategoryHealth.Empty();
+        RealtimeLastTargetCount = 0;
+        RealtimeLastAppliedCount = 0;
+        RealtimeLastFramePlatformSeconds = -1.0;
         RealtimeConnectionState = TEXT("disabled");
         RealtimeLastError.Empty();
         UE_LOG(LogTemp, Log,
@@ -2113,12 +2275,21 @@ void ATwinSceneManager::ApplyRealtimeWebSocketEnabled(bool bEnabled)
         return;
     }
 
-    if (!FModuleManager::Get().IsModuleLoaded(TEXT("WebSockets")))
+    // 开启时同样走探测窗口；Provider 已在路上时不创建第二个 socket。
+    bRealtimeUsingExternalProvider = false;
+    if (!bRealtimeProviderProbePending)
     {
-        FModuleManager::Get().LoadModule(TEXT("WebSockets"));
+        bRealtimeProviderProbePending = true;
+        GetWorldTimerManager().SetTimer(
+            RealtimeProviderProbeTimerHandle,
+            FTimerDelegate::CreateWeakLambda(this, [this]()
+            {
+                ProbeRealtimeProviderAndConnect();
+            }),
+            RealtimeProviderStartupGraceSeconds,
+            false);
     }
-    UE_LOG(LogTemp, Log, TEXT("[OntoTwinWS] 外部数据监控台已开启实时流"));
-    ConnectRealtimeWebSocket();
+    UE_LOG(LogTemp, Log, TEXT("[OntoTwinWS] 外部数据监控台已开启实时流，等待 Provider 所有权确认"));
 }
 
 void ATwinSceneManager::ConnectRealtimeWebSocket()
@@ -2132,6 +2303,16 @@ void ATwinSceneManager::ConnectRealtimeWebSocket()
         RealtimeConnectionState = TEXT("disabled");
         return;
     }
+    if (IOntoTwinRealtimeStreamProvider* Provider = FindRealtimeProviderForWorld(true))
+    {
+        bRealtimeUsingExternalProvider = true;
+        StopLegacyRealtimeSocketForExternalProvider();
+        UE_LOG(LogTemp, Log,
+            TEXT("[OntoTwinWS] Provider 已拥有当前 World，拒绝创建兼容 socket (%s)"),
+            *Provider->GetRealtimeStreamId());
+        return;
+    }
+    bRealtimeUsingExternalProvider = false;
     if (RealtimeWebSocketUrl.IsEmpty())
     {
         RealtimeConnectionState = TEXT("error");
@@ -2200,7 +2381,8 @@ void ATwinSceneManager::ConnectRealtimeWebSocket()
 
 void ATwinSceneManager::ScheduleRealtimeReconnect()
 {
-    if (bRealtimeClosing || bRealtimeReconnectScheduled || !GetWorld())
+    if (bRealtimeClosing || bRealtimeReconnectScheduled || !GetWorld()
+        || FindRealtimeProviderForWorld(false) != nullptr)
     {
         return;
     }
@@ -2238,18 +2420,43 @@ void ATwinSceneManager::HandleRealtimeMessage(const FString& Message)
     int32 AppliedCount = 0;
     TMap<FString, FString> FrameTargetStates;
     TSet<FString> FrameAppliedInstanceIds;
+    TMap<FString, FRealtimeCategoryHealth> FrameCategoryHealth;
+
+    auto NormalizeCategory = [](FString Category)
+    {
+        Category.TrimStartAndEndInline();
+        Category.ToLowerInline();
+        return Category.IsEmpty() ? FString(TEXT("unknown")) : Category;
+    };
+    auto AddReason = [](FRealtimeCategoryHealth& Stats, const TCHAR* Reason)
+    {
+        Stats.UnappliedReasons.FindOrAdd(Reason)++;
+    };
+
     for (const TSharedPtr<FJsonValue>& Value : *Targets)
     {
         const TSharedPtr<FJsonObject>* Target = nullptr;
         if (!Value.IsValid() || !Value->TryGetObject(Target) || !Target || !Target->IsValid())
         {
+            FRealtimeCategoryHealth& Stats = FrameCategoryHealth.FindOrAdd(TEXT("unknown"));
+            ++Stats.TargetCount;
+            AddReason(Stats, TEXT("invalid"));
             continue;
         }
+
+        FString Category;
+        (*Target)->TryGetStringField(TEXT("clazz"), Category);
+        Category = NormalizeCategory(MoveTemp(Category));
+        FString ObjectTypeRid;
+        (*Target)->TryGetStringField(TEXT("objectTypeRid"), ObjectTypeRid);
+        FRealtimeCategoryHealth& CategoryStats = FrameCategoryHealth.FindOrAdd(Category);
+        ++CategoryStats.TargetCount;
 
         FString InstanceId;
         FString State;
         if (!(*Target)->TryGetStringField(TEXT("key"), InstanceId) || InstanceId.IsEmpty())
         {
+            AddReason(CategoryStats, TEXT("invalid"));
             continue;
         }
 
@@ -2261,6 +2468,7 @@ void ATwinSceneManager::HandleRealtimeMessage(const FString& Message)
         FrameTargetStates.Add(InstanceId, State.ToLower());
         if (State.Equals(TEXT("lost"), ESearchCase::IgnoreCase))
         {
+            AddReason(CategoryStats, TEXT("lost"));
             continue;
         }
 
@@ -2271,6 +2479,7 @@ void ATwinSceneManager::HandleRealtimeMessage(const FString& Message)
             || !(*Target)->TryGetNumberField(TEXT("y"), Y)
             || !(*Target)->TryGetNumberField(TEXT("heading"), Heading))
         {
+            AddReason(CategoryStats, TEXT("invalid"));
             continue;
         }
 
@@ -2280,14 +2489,22 @@ void ATwinSceneManager::HandleRealtimeMessage(const FString& Message)
             (*Found)->ApplyRealtimeSpatial(X, Y, Heading, RealtimeSpatialHoldSeconds);
             RealtimeMissingInstanceWarnings.Remove(InstanceId);
             FrameAppliedInstanceIds.Add(InstanceId);
+            ++CategoryStats.AppliedCount;
             ++AppliedCount;
         }
-        else if (!RealtimeMissingInstanceWarnings.Contains(InstanceId))
+        else
         {
-            RealtimeMissingInstanceWarnings.Add(InstanceId);
-            UE_LOG(LogTemp, Warning,
-                TEXT("[OntoTwinWS] 收到 %s，但 HTTP 档案尚未创建对应 TwinInstance"),
-                *InstanceId);
+            AddReason(CategoryStats,
+                (!ObjectTypeRid.IsEmpty() || Category != TEXT("unknown"))
+                    ? TEXT("instance_missing")
+                    : TEXT("unmapped"));
+            if (!RealtimeMissingInstanceWarnings.Contains(InstanceId))
+            {
+                RealtimeMissingInstanceWarnings.Add(InstanceId);
+                UE_LOG(LogTemp, Warning,
+                    TEXT("[OntoTwinWS] 收到 %s，但 HTTP 档案尚未创建对应 TwinInstance"),
+                    *InstanceId);
+            }
         }
     }
 
@@ -2299,6 +2516,9 @@ void ATwinSceneManager::HandleRealtimeMessage(const FString& Message)
     }
     RealtimeTargetStates = MoveTemp(FrameTargetStates);
     RealtimeAppliedInstanceIds = MoveTemp(FrameAppliedInstanceIds);
+    RealtimeCategoryHealth = MoveTemp(FrameCategoryHealth);
+    RealtimeLastTargetCount = Targets->Num();
+    RealtimeLastAppliedCount = AppliedCount;
     RealtimeLastFramePlatformSeconds = FPlatformTime::Seconds();
     ++RealtimeFrameCount;
     if (RealtimeFrameCount == 1 || RealtimeFrameCount % 300 == 0)
@@ -2311,21 +2531,20 @@ void ATwinSceneManager::HandleRealtimeMessage(const FString& Message)
 
 TSharedRef<FJsonObject> ATwinSceneManager::BuildRealtimeChannelHealth() const
 {
-    const TArray<IOntoTwinRealtimeStreamProvider*> Providers =
-        IModularFeatures::Get().GetModularFeatureImplementations<IOntoTwinRealtimeStreamProvider>(
-            IOntoTwinRealtimeStreamProvider::GetModularFeatureName());
-    for (IOntoTwinRealtimeStreamProvider* Provider : Providers)
+    if (IOntoTwinRealtimeStreamProvider* Provider = FindRealtimeProviderForWorld(false))
     {
-        if (Provider && Provider->GetRealtimeStreamWorld() == GetWorld())
-        {
-            return Provider->BuildRealtimeStreamHealth();
-        }
+        return Provider->BuildRealtimeStreamHealth();
     }
 
     const TSharedRef<FJsonObject> Health = MakeShared<FJsonObject>();
     Health->SetBoolField(TEXT("enabled"), bEnableRealtimeWebSocket);
+    Health->SetBoolField(TEXT("reported_enabled"), bEnableRealtimeWebSocket);
+    Health->SetBoolField(TEXT("command_configured"), true);
+    Health->SetBoolField(TEXT("in_sync"), true);
     Health->SetStringField(TEXT("stream_id"), TEXT("ontotwin.instances.primary"));
     Health->SetStringField(TEXT("owner"), TEXT("OntoTwinSync"));
+    Health->SetStringField(TEXT("owner_state"), TEXT("compatibility_fallback"));
+    Health->SetBoolField(TEXT("compatibility_fallback"), true);
     Health->SetStringField(TEXT("url"), RealtimeWebSocketUrl);
     Health->SetStringField(TEXT("connection_state"),
         bEnableRealtimeWebSocket ? RealtimeConnectionState : TEXT("disabled"));
@@ -2336,9 +2555,9 @@ TSharedRef<FJsonObject> ATwinSceneManager::BuildRealtimeChannelHealth() const
     const bool bFrameFresh = bEnableRealtimeWebSocket
         && RealtimeConnectionState == TEXT("connected")
         && LastFrameAgeMs >= 0.0
-        && LastFrameAgeMs <= FMath::Max(0.1f, RealtimeSpatialHoldSeconds) * 1000.0;
+        && LastFrameAgeMs <= RealtimeFrameFreshnessSeconds * 1000.0;
 
-    Health->SetStringField(TEXT("active_source"), bFrameFresh ? TEXT("websocket") : TEXT("http_snapshot"));
+    Health->SetStringField(TEXT("active_source"), bFrameFresh ? TEXT("websocket") : TEXT("none"));
     if (LastFrameAgeMs >= 0.0)
     {
         Health->SetNumberField(TEXT("last_frame_age_ms"), LastFrameAgeMs);
@@ -2349,8 +2568,117 @@ TSharedRef<FJsonObject> ATwinSceneManager::BuildRealtimeChannelHealth() const
     }
     Health->SetNumberField(TEXT("frame_count"), static_cast<double>(RealtimeFrameCount));
     Health->SetNumberField(TEXT("source_timestamp_ms"), static_cast<double>(RealtimeLastSourceTimestampMs));
-    Health->SetNumberField(TEXT("target_count"), RealtimeTargetStates.Num());
-    Health->SetNumberField(TEXT("applied_target_count"), RealtimeAppliedInstanceIds.Num());
+    Health->SetNumberField(TEXT("target_count"), RealtimeLastTargetCount);
+    Health->SetNumberField(TEXT("applied_target_count"), RealtimeLastAppliedCount);
+    Health->SetNumberField(
+        TEXT("unapplied_target_count"),
+        FMath::Max(0, RealtimeLastTargetCount - RealtimeLastAppliedCount));
+
+    FString ExecutionState = TEXT("waiting");
+    if (!bEnableRealtimeWebSocket)
+    {
+        ExecutionState = TEXT("waiting");
+    }
+    else if (RealtimeLastTargetCount > 0 && RealtimeLastAppliedCount == 0)
+    {
+        ExecutionState = TEXT("none_applied");
+    }
+    else if (RealtimeLastTargetCount > 0
+        && RealtimeLastAppliedCount < RealtimeLastTargetCount)
+    {
+        ExecutionState = TEXT("partial");
+    }
+    else if (RealtimeLastTargetCount > 0
+        && RealtimeLastAppliedCount == RealtimeLastTargetCount)
+    {
+        ExecutionState = TEXT("ready");
+    }
+    Health->SetStringField(TEXT("execution_state"), ExecutionState);
+
+    TArray<FString> CategoryIds;
+    RealtimeCategoryHealth.GetKeys(CategoryIds);
+    CategoryIds.Sort();
+    TArray<TSharedPtr<FJsonValue>> Categories;
+    TMap<FString, int32> AggregateReasons;
+    for (const FString& CategoryId : CategoryIds)
+    {
+        const FRealtimeCategoryHealth* Stats = RealtimeCategoryHealth.Find(CategoryId);
+        if (Stats == nullptr)
+        {
+            continue;
+        }
+        const TSharedRef<FJsonObject> Category = MakeShared<FJsonObject>();
+        Category->SetStringField(TEXT("category_id"), CategoryId);
+        if (CategoryId == TEXT("person"))
+        {
+            Category->SetStringField(TEXT("label"), TEXT("人员"));
+            Category->SetStringField(TEXT("lifecycle"), TEXT("transient_dynamic"));
+        }
+        else if (CategoryId == TEXT("agv"))
+        {
+            Category->SetStringField(TEXT("label"), TEXT("AGV"));
+            Category->SetStringField(TEXT("lifecycle"), TEXT("formal_instance"));
+        }
+        else if (CategoryId == TEXT("unknown"))
+        {
+            Category->SetStringField(TEXT("label"), TEXT("未识别"));
+        }
+        else
+        {
+            Category->SetStringField(TEXT("label"), CategoryId);
+        }
+        Category->SetNumberField(TEXT("target_count"), Stats->TargetCount);
+        Category->SetNumberField(TEXT("applied_count"), Stats->AppliedCount);
+        Category->SetNumberField(
+            TEXT("unapplied_count"),
+            FMath::Max(0, Stats->TargetCount - Stats->AppliedCount));
+
+        TArray<FString> ReasonIds;
+        Stats->UnappliedReasons.GetKeys(ReasonIds);
+        ReasonIds.Sort();
+        TArray<TSharedPtr<FJsonValue>> Reasons;
+        for (const FString& ReasonId : ReasonIds)
+        {
+            const int32 Count = Stats->UnappliedReasons.FindRef(ReasonId);
+            AggregateReasons.FindOrAdd(ReasonId) += Count;
+            const TSharedRef<FJsonObject> Reason = MakeShared<FJsonObject>();
+            Reason->SetStringField(TEXT("code"), ReasonId);
+            Reason->SetNumberField(TEXT("count"), Count);
+            if (ReasonId == TEXT("instance_missing"))
+            {
+                Reason->SetStringField(TEXT("message"), TEXT("尚未找到对应的正式实例"));
+            }
+            else if (ReasonId == TEXT("handler_unavailable"))
+            {
+                Reason->SetStringField(TEXT("message"), TEXT("没有可用的场景处理器"));
+            }
+            else if (ReasonId == TEXT("lost"))
+            {
+                Reason->SetStringField(TEXT("message"), TEXT("目标已标记为离场"));
+            }
+            else
+            {
+                Reason->SetStringField(TEXT("message"), TEXT("目标数据无效"));
+            }
+            Reasons.Add(MakeShared<FJsonValueObject>(Reason));
+        }
+        Category->SetArrayField(TEXT("reasons"), Reasons);
+        Categories.Add(MakeShared<FJsonValueObject>(Category));
+    }
+    Health->SetArrayField(TEXT("categories"), Categories);
+
+    TArray<FString> AggregateReasonIds;
+    AggregateReasons.GetKeys(AggregateReasonIds);
+    AggregateReasonIds.Sort();
+    TArray<TSharedPtr<FJsonValue>> UnappliedReasons;
+    for (const FString& ReasonId : AggregateReasonIds)
+    {
+        const TSharedRef<FJsonObject> Reason = MakeShared<FJsonObject>();
+        Reason->SetStringField(TEXT("code"), ReasonId);
+        Reason->SetNumberField(TEXT("count"), AggregateReasons.FindRef(ReasonId));
+        UnappliedReasons.Add(MakeShared<FJsonValueObject>(Reason));
+    }
+    Health->SetArrayField(TEXT("unapplied_reasons"), UnappliedReasons);
     Health->SetStringField(TEXT("error"), RealtimeLastError);
 
     TArray<FString> InstanceIds;
@@ -2388,19 +2716,24 @@ bool ATwinSceneManager::ProcessSnapshot(const TSharedPtr<FJsonObject>& Snapshot,
         return false;
     }
 
+    TSharedPtr<FJsonObject> EffectiveSnapshot;
+    if (!PrepareDisplaySchemeSnapshot(Snapshot, bIsDelta, EffectiveSnapshot)) return true;
+
     // ── 已存在：更新状态 ─────────────────────────────────────────────────
     ATwinInstance** Found = InstanceRegistry.Find(InstanceId);
     if (Found && *Found && IsValid(*Found))
     {
-        (*Found)->ApplySnapshot(Snapshot, bIsDelta);
+        (*Found)->ApplySnapshot(EffectiveSnapshot, bIsDelta);
+        ApplyDisplaySchemeTwoHiddenVisibility();
         return true;
     }
 
     // ── 不存在：创建新实例 ───────────────────────────────────────────────
-    ATwinInstance* NewInst = SpawnTwinInstance(InstanceId, Snapshot);
+    ATwinInstance* NewInst = SpawnTwinInstance(InstanceId, EffectiveSnapshot);
     if (NewInst)
     {
         InstanceRegistry.Add(InstanceId, NewInst);
+        ApplyDisplaySchemeTwoHiddenVisibility();
         UE_LOG(LogTemp, Log, TEXT("[孪生管理器] 新增实例: %s"), *InstanceId);
         return true;
     }
@@ -2454,6 +2787,7 @@ ATwinInstance* ATwinSceneManager::SpawnTwinInstance(
     // ── Spawn ATwinInstance ──────────────────────────────────────────────
     FActorSpawnParameters SpawnParams;
     SpawnParams.Name = FName(*FString::Printf(TEXT("Twin_%s"), *InstanceId));
+    SpawnParams.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
 
     UClass* SpawnClass = InstanceClass ? InstanceClass.Get() : ATwinInstance::StaticClass();
 
@@ -2560,7 +2894,6 @@ void ATwinSceneManager::RequestRuntimeEditToggle()
     {
         return;
     }
-
     UWorld* World = GetWorld();
     const float Now = World ? World->GetTimeSeconds() : 0.0f;
     if (Now - RuntimeLastToggleInputTime < 0.15f)
@@ -3836,6 +4169,61 @@ bool ATwinSceneManager::TraceRuntimeCursor(FHitResult& OutHit) const
         }
         FallbackParams.AddIgnoredActor(FallbackActor);
     }
+
+    // Datasmith/GLB meshes may have no usable visibility collision even while
+    // their render components are valid. In F10, use the projected actor
+    // bounds as a deliberate selection fallback so those display schemes are
+    // still editable. Exact collision hits above always win.
+    FVector2D MousePosition;
+    float MouseX = 0.0f;
+    float MouseY = 0.0f;
+    if (PC->GetMousePosition(MouseX, MouseY))
+    {
+        MousePosition = FVector2D(MouseX, MouseY);
+        ATwinInstance* BestInstance = nullptr;
+        float BestDistance = TNumericLimits<float>::Max();
+        for (const TPair<FString, ATwinInstance*>& Pair : InstanceRegistry)
+        {
+            ATwinInstance* Candidate = Pair.Value;
+            if (!Candidate || !IsValid(Candidate) || Candidate->IsHidden()) continue;
+            FBox Bounds = Candidate->GetComponentsBoundingBox(true, true);
+            if (!Bounds.IsValid) continue;
+            FVector2D Min(FLT_MAX, FLT_MAX), Max(-FLT_MAX, -FLT_MAX);
+            const FVector Extent = Bounds.GetExtent();
+            const FVector Center = Bounds.GetCenter();
+            bool bProjected = true;
+            for (int32 Corner = 0; Corner < 8; ++Corner)
+            {
+                const FVector WorldCorner = Center + FVector(
+                    (Corner & 1) ? Extent.X : -Extent.X,
+                    (Corner & 2) ? Extent.Y : -Extent.Y,
+                    (Corner & 4) ? Extent.Z : -Extent.Z);
+                FVector2D Screen;
+                if (!UGameplayStatics::ProjectWorldToScreen(PC, WorldCorner, Screen, true))
+                {
+                    bProjected = false;
+                    break;
+                }
+                Min.X = FMath::Min(Min.X, Screen.X); Min.Y = FMath::Min(Min.Y, Screen.Y);
+                Max.X = FMath::Max(Max.X, Screen.X); Max.Y = FMath::Max(Max.Y, Screen.Y);
+            }
+            if (!bProjected || MousePosition.X < Min.X || MousePosition.X > Max.X
+                || MousePosition.Y < Min.Y || MousePosition.Y > Max.Y) continue;
+            const float Distance = FVector::DistSquared(
+                Candidate->GetActorLocation(), PC->PlayerCameraManager->GetCameraLocation());
+            if (Distance < BestDistance)
+            {
+                BestDistance = Distance;
+                BestInstance = Candidate;
+            }
+        }
+        if (BestInstance)
+        {
+            UPrimitiveComponent* RootPrimitive = Cast<UPrimitiveComponent>(BestInstance->GetRootComponent());
+            OutHit = FHitResult(BestInstance, RootPrimitive, BestInstance->GetActorLocation(), FVector::UpVector);
+            return true;
+        }
+    }
     return true;
 }
 
@@ -4936,7 +5324,17 @@ void ATwinSceneManager::SaveRuntimeEdit()
         TSharedPtr<FJsonObject> Change = MakeShared<FJsonObject>();
         Change->SetStringField(TEXT("instance_id"), Pair.Key);
         Change->SetStringField(TEXT("expected_state_hash"), State.BaselineStateHash);
-        Change->SetBoolField(TEXT("is_loaded"), Instance->IsRuntimeLoaded());
+        bool bPersistLoaded = Instance->IsRuntimeLoaded();
+        // Scheme selection is session-local. A position save must not make an
+        // alternative exhibit part of the database's default scene.
+        if (!State.bLoadedDirty)
+        {
+            const auto* SchemeSnapshot = DisplaySchemeSnapshots.Find(Pair.Key);
+            const TSharedPtr<FJsonObject>* Raw = nullptr;
+            if (SchemeSnapshot && (*SchemeSnapshot)->TryGetObjectField(TEXT("raw_state"), Raw))
+                (*Raw)->TryGetBoolField(TEXT("is_loaded"), bPersistLoaded);
+        }
+        Change->SetBoolField(TEXT("is_loaded"), bPersistLoaded);
 
         TSharedPtr<FJsonObject> TF = MakeShared<FJsonObject>();
         TF->SetNumberField(TEXT("tx"), L.X);

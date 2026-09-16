@@ -44,6 +44,7 @@ class UOntoTwinModelLoadingWidget;
 class UTwinInteractionManagerComponent;
 class UOntoTwinWebInteractionComponent;
 class UOntoTwinUEAssetCatalogSyncComponent;
+class IOntoTwinRealtimeStreamProvider;
 enum class EOntoTwinOverlayMediaAction : uint8;
 
 UENUM(BlueprintType)
@@ -85,6 +86,15 @@ class ONTOTWINSYNC_API ATwinSceneManager : public AActor
 
 public:
     ATwinSceneManager();
+
+    /** Project-configured mutually exclusive exhibits. Definitions remain in the database. */
+    UFUNCTION(BlueprintCallable, Category="OntoTwin|DisplaySchemes")
+    bool SelectDisplayScheme(int32 SchemeIndex);
+    UFUNCTION(BlueprintPure, Category="OntoTwin|DisplaySchemes")
+    int32 GetDisplaySchemeIndex() const { return DisplaySchemeIndex; }
+    bool HasDisplaySchemes() const { return DisplaySchemeInstanceIds.Num() == 3; }
+    bool CanSwitchDisplayScheme() const;
+    const FString& GetDisplaySchemeStatus() const { return DisplaySchemeStatus; }
 
 protected:
     virtual void BeginPlay() override;
@@ -455,6 +465,7 @@ public:
     void RemoveMigratedActors();
 
 private:
+    friend class FOntoTwinRecoveredUiTest;
     // ── 内部状态 ─────────────────────────────────────────────────────────
 
     /** 轮询定时器句柄 */
@@ -482,9 +493,34 @@ private:
     UPROPERTY()
     TMap<FString, ATwinInstance*> InstanceRegistry;
 
+    TArray<FString> DisplaySchemeInstanceIds;
+    /** 独立武器/底座实例：方案二隐藏，切回其它方案恢复。 */
+    TArray<FString> DisplaySchemeTwoHiddenInstanceIds;
+    TMap<FString, TSharedPtr<FJsonObject>> DisplaySchemeSnapshots;
+    int32 DisplaySchemeIndex = 0;
+    FString DisplaySchemeStatus;
+    UPROPERTY(Transient)
+    ATwinInstance* PendingDisplayScheme = nullptr;
+    int32 PendingDisplaySchemeIndex = INDEX_NONE;
+    double DisplaySchemeLoadStarted = 0.0;
+    TSharedPtr<FJsonObject> PendingDisplaySchemeSnapshot;
+    void TickDisplaySchemeTransition();
+    void RunDisplaySchemeSelfTest();
+    void InitializeDisplaySchemes();
+    void ApplyDisplaySchemeTwoHiddenVisibility();
+    bool PrepareDisplaySchemeSnapshot(const TSharedPtr<FJsonObject>& Snapshot,
+        bool bIsDelta, TSharedPtr<FJsonObject>& OutSnapshot);
+    void PruneDisplaySchemeSnapshots(const TSet<FString>& BackendIds);
+
     /** AGV 实时状态流。它只更新 InstanceRegistry 中由 HTTP 已创建的 Actor。 */
     TSharedPtr<IWebSocket> RealtimeSocket;
     FTimerHandle RealtimeReconnectTimerHandle;
+    /**
+     * Provider 注册发生在 World 初始化/Actor BeginPlay 的另一条时序上。
+     * 先留出一个很短的探测窗口，再决定是否启用兼容回退 socket，避免
+     * MetaverseClient 已存在时 TwinSceneManager 抢先建立第二条连接。
+     */
+    FTimerHandle RealtimeProviderProbeTimerHandle;
     int32 RealtimeConnectionGeneration = 0;
     int64 RealtimeFrameCount = 0;
     int64 RealtimeLastSourceTimestampMs = 0;
@@ -493,8 +529,19 @@ private:
     FString RealtimeLastError;
     TMap<FString, FString> RealtimeTargetStates;
     TSet<FString> RealtimeAppliedInstanceIds;
+    int32 RealtimeLastTargetCount = 0;
+    int32 RealtimeLastAppliedCount = 0;
+    struct FRealtimeCategoryHealth
+    {
+        int32 TargetCount = 0;
+        int32 AppliedCount = 0;
+        TMap<FString, int32> UnappliedReasons;
+    };
+    TMap<FString, FRealtimeCategoryHealth> RealtimeCategoryHealth;
     bool bRealtimeReconnectScheduled = false;
     bool bRealtimeClosing = false;
+    bool bRealtimeProviderProbePending = false;
+    bool bRealtimeUsingExternalProvider = false;
     TSet<FString> RealtimeMissingInstanceWarnings;
 
     /** 编辑器预览 Actor（transient，不入 .umap；由 ClearPreview 清理） */
@@ -589,6 +636,9 @@ private:
     bool bRuntimeEditDirty = false;
     bool bRuntimeEditSaving = false;
     bool bRuntimeBindingRequestInFlight = false;
+    /** Shipping startup binding may race backend/container readiness. */
+    bool bRuntimeProjectBound = false;
+    FTimerHandle RuntimeProjectBindingRetryTimerHandle;
     bool bRuntimeCanSave = false;
     bool bRuntimeDragging = false;
     bool bRuntimeCameraLookSuppressed = false;
@@ -701,6 +751,14 @@ private:
 
     /** 连接、消费并自动重连 AGV 实时状态流。 */
     void ConnectRealtimeWebSocket();
+    /** 在启动竞态窗口结束后选择 Provider 或兼容回退 owner。 */
+    void ProbeRealtimeProviderAndConnect();
+    /** 每帧轻量校验：Provider 晚注册时立即收回兼容 socket。 */
+    void ReconcileRealtimeProviderOwnership();
+    /** 查找当前 World 的 Provider，并记录同 World 多 owner 诊断。 */
+    IOntoTwinRealtimeStreamProvider* FindRealtimeProviderForWorld(bool bLogDuplicates = false) const;
+    /** 停止兼容回退 socket并清空它持有的瞬时统计。 */
+    void StopLegacyRealtimeSocketForExternalProvider();
     void ScheduleRealtimeReconnect();
     void HandleRealtimeMessage(const FString& Message);
 

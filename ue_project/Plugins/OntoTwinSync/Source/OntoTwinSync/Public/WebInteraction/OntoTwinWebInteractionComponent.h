@@ -11,6 +11,8 @@ class APlayerController;
 class ATwinInstance;
 class ATwinSceneManager;
 class UOntoTwinWebBridge;
+class UMeshComponent;
+class UMaterialInterface;
 
 struct FOntoTwinWebNavigationFrame
 {
@@ -20,6 +22,8 @@ struct FOntoTwinWebNavigationFrame
     TSharedPtr<FJsonObject> Context;
     TSet<FString> VisibleInstanceIds;
     TSet<FString> FocusInstanceIds;
+    TSet<FString> HighlightInstanceIds;
+    bool bKeepCamera = false;
     bool bSceneScopeActive = false;
 };
 
@@ -140,6 +144,7 @@ public:
     bool HandleHostShortcut(const FKey& Key);
 
 private:
+    friend class FOntoTwinBusinessHighlightTest;
     UPROPERTY()
     ATwinSceneManager* SceneManager = nullptr;
 
@@ -163,6 +168,12 @@ private:
     TArray<FOntoTwinWebNavigationFrame> NavigationHistory;
     FOntoTwinWebNavigationFrame CurrentFrame;
     TMap<TWeakObjectPtr<ATwinInstance>, bool> OriginalHiddenStates;
+    UPROPERTY(Transient)
+    TObjectPtr<UMaterialInterface> BusinessHighlightMaterial;
+
+    UPROPERTY(Transient)
+    TMap<TWeakObjectPtr<UMeshComponent>, TObjectPtr<UMaterialInterface>> OriginalOverlayMaterials;
+    TMap<TWeakObjectPtr<UMeshComponent>, float> OriginalOverlayDistances;
     int32 AppliedRevision = -1;
     float PollAccumulator = 1000.0f;
     float VisibilityAccumulator = 0.0f;
@@ -200,6 +211,8 @@ private:
     void ApplyVisibilityFrame(const FOntoTwinWebNavigationFrame& Frame);
     void TickVisibilityScope();
     void RestoreSceneVisibility();
+    void ApplyBusinessHighlight(const TSet<FString>& InstanceIds);
+    void RestoreBusinessHighlight();
     bool IsInstanceKnown(const FString& InstanceId) const;
     bool IsZoneKnown(const FString& ZoneId) const;
     bool IsBusinessViewKnown(const FString& BusinessViewId) const;

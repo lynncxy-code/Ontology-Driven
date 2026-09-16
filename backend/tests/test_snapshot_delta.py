@@ -96,6 +96,30 @@ class SnapshotDeltaServiceTestCase(unittest.TestCase):
         patch = result["upserts"][0]
         self.assertEqual({"I3D_Overlay"}, set(patch["interfaces"]))
 
+    def test_presentation_change_is_interface_scoped_and_stable(self):
+        baseline_snapshot = full_snapshot("one")
+        baseline_snapshot["interfaces"]["I3D_Presentation"] = {
+            "schema_version": "1.0",
+            "presentation_revision": 1,
+            "decision_id": "pres-one-1",
+            "primary_state": {"id": "industrial.machine.idle"},
+            "modifiers": [],
+            "actions": [],
+            "resolution": {"channels": {"animation": {"source": "platform", "behavior_id": "industrial.machine.idle", "slot": "motion"}}},
+        }
+        self.snapshots["one"] = baseline_snapshot
+        baseline = self.poll()
+        unchanged = self.poll(baseline["cursor"])
+        self.assertEqual([], unchanged["upserts"])
+
+        changed = copy.deepcopy(baseline_snapshot)
+        changed["interfaces"]["I3D_Presentation"]["presentation_revision"] = 2
+        changed["interfaces"]["I3D_Presentation"]["decision_id"] = "pres-one-2"
+        self.snapshots["one"] = changed
+        self.tokens["one"] = (2, True)
+        result = self.poll(baseline["cursor"])
+        self.assertEqual({"I3D_Presentation"}, set(result["upserts"][0]["interfaces"]))
+
     def test_delete_is_explicit(self):
         baseline = self.poll()
         self.snapshots.pop("one")

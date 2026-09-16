@@ -179,9 +179,6 @@ private:
     UTextBlock* GaugeFallback = nullptr;
 
     UPROPERTY()
-    UTextBlock* OfflineText = nullptr;
-
-    UPROPERTY()
     USizeBox* MediaBounds = nullptr;
 
     UPROPERTY()
@@ -262,6 +259,7 @@ private:
     UTextBlock* CreateText(const FName Name, int32 FontSize, const FLinearColor& Color, bool bBold = false) const;
     void ApplyTemplateRecipe(const FString& TemplateId, bool bForce = false);
     float GetBasePanelWidth() const;
+    float GetMinimumPanelHeight() const;
     void ApplyPresentationStyle();
 	void ApplyPendingData();
 	void LoadPoster(const FString& Url);

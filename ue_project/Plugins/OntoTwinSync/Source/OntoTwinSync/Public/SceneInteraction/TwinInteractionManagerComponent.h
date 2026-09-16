@@ -201,6 +201,7 @@ public:
     }
     bool IsCharacterSwitching() const { return bCharacterSwitchInProgress; }
     FString GetMinimapState() const { return MinimapState; }
+    void RefreshMinimapForDisplayScheme() { ScheduleMinimapRefreshSeries(TEXT("display_scheme"), 3, 0.2f); }
     bool CanUseMinimapTeleport() const;
     void PreviewMinimapTeleport(const FVector2D& UV);
     void RequestMinimapTeleport(const FVector2D& UV);

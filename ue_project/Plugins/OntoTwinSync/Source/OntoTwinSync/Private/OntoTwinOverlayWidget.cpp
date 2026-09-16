@@ -655,10 +655,6 @@ void UOntoTwinOverlayWidget::BuildDefaultLayout()
         MetricEmphasis.Add(false);
     }
 
-    OfflineText = CreateText(TEXT("OverlayOffline"), 10, MutedText);
-    OfflineText->SetText(FText::FromString(TEXT("Offline - last known values")));
-    OfflineText->SetVisibility(ESlateVisibility::Collapsed);
-
     ApplyTemplateRecipe(TemplateTitleBody.ToString(), true);
     ApplyPresentationStyle();
 }
@@ -713,8 +709,6 @@ void UOntoTwinOverlayWidget::ApplyTemplateRecipe(const FString& TemplateId, bool
     {
         AddBlock(MediaControls, 8.0f);
     }
-    AddBlock(OfflineText, 8.0f);
-
     InvalidateLayoutAndVolatility();
 }
 
@@ -725,6 +719,13 @@ float UOntoTwinOverlayWidget::GetBasePanelWidth() const
     if (ActiveTemplateId == TemplateTitleStatusMetrics) return StatusMetricsPanelWidth;
     if (TemplateUsesMedia(ActiveTemplateId)) return MediaPanelWidth;
     return TextPanelWidth;
+}
+
+float UOntoTwinOverlayWidget::GetMinimumPanelHeight() const
+{
+    // Text-only cards fit the visible text instead of reserving a body row.
+    return ActiveTemplateId == TemplateTitleBody || ActiveTemplateId == TemplateTitleSubtitleBody
+        ? 0.0f : ScreenPanelMinHeight;
 }
 
 void UOntoTwinOverlayWidget::SetWorldSpacePresentation(bool bEnabled)
@@ -761,7 +762,7 @@ FVector2D UOntoTwinOverlayWidget::GetDesiredRenderSize()
     Desired.X = FMath::Max(Desired.X, PanelWidth * Density);
     Desired.Y = FMath::Clamp(
         Desired.Y,
-        ScreenPanelMinHeight * Density,
+        GetMinimumPanelHeight() * Density,
         (TemplateUsesMedia(ActiveTemplateId) ? 720.0f : 360.0f) * Density);
     return FVector2D(FMath::CeilToFloat(Desired.X), FMath::CeilToFloat(Desired.Y));
 }
@@ -788,7 +789,7 @@ void UOntoTwinOverlayWidget::ApplyPresentationStyle()
     const float PanelWidth = bMediaExpanded && !bWorldSpacePresentation
         ? ExpandedPanelWidth : GetBasePanelWidth();
     OverlayBounds->SetWidthOverride(PanelWidth * Density);
-    OverlayBounds->SetMinDesiredHeight(ScreenPanelMinHeight * Density);
+    OverlayBounds->SetMinDesiredHeight(GetMinimumPanelHeight() * Density);
     if (ContentContainer)
     {
         ContentContainer->SetPadding(FMargin(14.0f * Density, 12.0f * Density));
@@ -925,7 +926,6 @@ void UOntoTwinOverlayWidget::ApplyPresentationStyle()
     SetFont(BodyText, FontSize(12, 16));
     SetFont(StatusSemanticText, FontSize(10, 13), true);
     SetFont(StatusText, FontSize(12, 16));
-    SetFont(OfflineText, FontSize(10, 13));
 
     const float TextWrapWidth = (PanelWidth - 28.0f) * Density;
     TitleText->SetWrapTextAt(TextWrapWidth);
@@ -981,10 +981,6 @@ void UOntoTwinOverlayWidget::ApplyPresentationStyle()
     SetFont(GaugeValue, FontSize(22, 26), true);
     SetFont(GaugeRange, FontSize(9, 12));
     SetFont(GaugeFallback, FontSize(9, 12));
-    if (UVerticalBoxSlot* LayoutSlot = Cast<UVerticalBoxSlot>(OfflineText->Slot))
-    {
-        LayoutSlot->SetPadding(FMargin(0.0f, 8.0f * Density, 0.0f, 0.0f));
-    }
 
     if (StatusDotBounds)
     {
@@ -1024,6 +1020,19 @@ void UOntoTwinOverlayWidget::ApplyPresentationStyle()
         }
     }
 
+    // Style refresh must not restore padding for collapsed optional blocks.
+    bool bHasVisibleBlock = false;
+    for (UWidget* Block : ContentStack->GetAllChildren())
+    {
+        const bool bVisibleBlock = Block->GetVisibility() != ESlateVisibility::Collapsed;
+        if (UVerticalBoxSlot* LayoutSlot = Cast<UVerticalBoxSlot>(Block->Slot))
+        {
+            const float Gap = Block == SubtitleText ? 2.0f : 8.0f;
+            LayoutSlot->SetPadding(FMargin(0.0f,
+                bVisibleBlock && bHasVisibleBlock ? Gap * Density : 0.0f, 0.0f, 0.0f));
+        }
+        bHasVisibleBlock |= bVisibleBlock;
+    }
     ApplyTransientVisuals(GetRenderOpacity(), GetRenderTransform().Scale.X);
     InvalidateLayoutAndVolatility();
     ForceLayoutPrepass();
@@ -1062,8 +1071,6 @@ void UOntoTwinOverlayWidget::ApplyPendingData()
     bool bOnline = true;
     PendingData->TryGetBoolField(TEXT("online"), bOnline);
     bPanelOnline = bOnline;
-    OfflineText->SetVisibility(bOnline ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
-
     const TSharedPtr<FJsonObject>* SlotsPtr = nullptr;
     TSharedPtr<FJsonObject> Slots;
     if (PendingData->TryGetObjectField(TEXT("resolved_slots"), SlotsPtr) && SlotsPtr)
@@ -1075,7 +1082,7 @@ void UOntoTwinOverlayWidget::ApplyPendingData()
     TitleText->SetText(FText::FromString(Title.IsEmpty() ? TEXT("--") : Title));
 
     const FString Subtitle = TemplateUsesSubtitle(ActiveTemplateId)
-        ? SlotDisplayValue(Slots, TEXT("subtitle")) : FString();
+        ? SlotDisplayValue(Slots, TEXT("subtitle")).TrimStartAndEnd() : FString();
     SubtitleText->SetText(FText::FromString(Subtitle));
     SubtitleText->SetVisibility(Subtitle.IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
 
@@ -1168,9 +1175,15 @@ void UOntoTwinOverlayWidget::ApplyPendingData()
     ApplyMediaVisual();
 
     const FString Body = TemplateUsesBody(ActiveTemplateId)
-        ? SlotDisplayValue(Slots, TEXT("body")) : FString();
+        ? SlotDisplayValue(Slots, TEXT("body")).TrimStartAndEnd() : FString();
     BodyText->SetText(FText::FromString(Body));
     BodyText->SetVisibility(Body.IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+    if (UVerticalBoxSlot* BodySlot = Cast<UVerticalBoxSlot>(BodyText->Slot))
+    {
+        // A template can include a body slot while its value is intentionally
+        // empty. Remove the slot's spacing as well as hiding the text widget.
+        BodySlot->SetPadding(FMargin(0.0f, Body.IsEmpty() ? 0.0f : 8.0f, 0.0f, 0.0f));
+    }
 
     const TSharedPtr<FJsonObject>* StatusPtr = nullptr;
     FString StatusValue;

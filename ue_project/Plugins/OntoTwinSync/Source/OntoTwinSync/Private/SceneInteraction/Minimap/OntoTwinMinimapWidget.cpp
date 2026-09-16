@@ -1,5 +1,6 @@
 #include "SceneInteraction/Minimap/OntoTwinMinimapWidget.h"
 #include "SceneInteraction/TwinInteractionManagerComponent.h"
+#include "TwinSceneManager.h"
 #include "UI/OntoTwinGlassRenderer.h"
 #include "UI/OntoTwinGlassTheme.h"
 
@@ -78,6 +79,7 @@ void UOntoTwinMinimapWidget::NativeTick(
     float InDeltaTime)
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
+    RefreshDisplaySchemeControl();
 
     const FVector2D PreviousViewport = ViewportLogicalSize;
     const FVector2D PreviousPanelTopLeft = PanelTopLeft;
@@ -138,6 +140,48 @@ void UOntoTwinMinimapWidget::BuildDefaultLayout()
         UOverlay::StaticClass(), TEXT("MinimapRootOverlay"));
     RootOverlay->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     RootBounds->AddChild(RootOverlay);
+
+    FButtonStyle SchemeStyle;
+    SchemeStyle.SetNormal(FSlateRoundedBoxBrush(ToggleFill, 12.0f, ToggleStroke, 1.0f));
+    SchemeStyle.SetHovered(FSlateRoundedBoxBrush(ToggleHover, 12.0f, ToggleFocus, 1.0f));
+    SchemeStyle.SetPressed(FSlateRoundedBoxBrush(TogglePressed, 12.0f, ToggleFocus, 1.0f));
+    SchemeStyle.SetDisabled(FSlateRoundedBoxBrush(ToggleDisabled, 12.0f, ToggleDisabledStroke, 1.0f));
+    auto MakeSchemeButton = [this, &SchemeStyle](const TCHAR* Name, const TCHAR* Label,
+        UButton*& OutButton, UTextBlock*& OutText)
+    {
+        OutButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), Name);
+        OutButton->SetStyle(SchemeStyle);
+        OutText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),
+            *FString::Printf(TEXT("%sText"), Name));
+        OutText->SetText(FText::FromString(Label));
+        OutText->SetFont(FOntoTwinGlassTheme::Font(12.0f, true));
+        OutText->SetColorAndOpacity(FLinearColor::White);
+        OutText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+        OutButton->SetContent(OutText);
+        if (UButtonSlot* ContentSlot = Cast<UButtonSlot>(OutText->Slot))
+            ContentSlot->SetPadding(FMargin(16.0f, 10.0f));
+    };
+    DisplaySchemeButton = nullptr;
+    DisplaySchemeButtonTwo = nullptr;
+    DisplaySchemeButtonThree = nullptr;
+    MakeSchemeButton(TEXT("DisplaySchemeButton"), TEXT("方案一"), DisplaySchemeButton, DisplaySchemeText);
+    MakeSchemeButton(TEXT("DisplaySchemeButtonTwo"), TEXT("方案二"), DisplaySchemeButtonTwo, DisplaySchemeTextTwo);
+    MakeSchemeButton(TEXT("DisplaySchemeButtonThree"), TEXT("方案三"), DisplaySchemeButtonThree, DisplaySchemeTextThree);
+    DisplaySchemeButton->OnClicked.AddDynamic(this, &UOntoTwinMinimapWidget::OnSelectDisplaySchemeOne);
+    DisplaySchemeButtonTwo->OnClicked.AddDynamic(this, &UOntoTwinMinimapWidget::OnSelectDisplaySchemeTwo);
+    DisplaySchemeButtonThree->OnClicked.AddDynamic(this, &UOntoTwinMinimapWidget::OnSelectDisplaySchemeThree);
+    DisplaySchemeSlot = RootOverlay->AddChildToOverlay(DisplaySchemeButton);
+    DisplaySchemeSlotTwo = RootOverlay->AddChildToOverlay(DisplaySchemeButtonTwo);
+    DisplaySchemeSlotThree = RootOverlay->AddChildToOverlay(DisplaySchemeButtonThree);
+    DisplaySchemeSlot->SetHorizontalAlignment(HAlign_Left);
+    DisplaySchemeSlot->SetVerticalAlignment(VAlign_Bottom);
+    DisplaySchemeSlotTwo->SetHorizontalAlignment(HAlign_Left);
+    DisplaySchemeSlotTwo->SetVerticalAlignment(VAlign_Bottom);
+    DisplaySchemeSlotThree->SetHorizontalAlignment(HAlign_Left);
+    DisplaySchemeSlotThree->SetVerticalAlignment(VAlign_Bottom);
+    DisplaySchemeButton->SetVisibility(ESlateVisibility::Collapsed);
+    DisplaySchemeButtonTwo->SetVisibility(ESlateVisibility::Collapsed);
+    DisplaySchemeButtonThree->SetVisibility(ESlateVisibility::Collapsed);
 
     MapShell = WidgetTree->ConstructWidget<UBorder>(
         UBorder::StaticClass(), TEXT("MinimapShell"));
@@ -512,6 +556,11 @@ void UOntoTwinMinimapWidget::ResolveGrowthDirection()
 
 void UOntoTwinMinimapWidget::ApplyOverlayGeometry()
 {
+    const float TabLeft = 24.0f;
+    const float TabBottom = 24.0f;
+    if (DisplaySchemeSlot) DisplaySchemeSlot->SetPadding(FMargin(TabLeft, 0.0f, 0.0f, TabBottom));
+    if (DisplaySchemeSlotTwo) DisplaySchemeSlotTwo->SetPadding(FMargin(TabLeft + 108.0f, 0.0f, 0.0f, TabBottom));
+    if (DisplaySchemeSlotThree) DisplaySchemeSlotThree->SetPadding(FMargin(TabLeft + 216.0f, 0.0f, 0.0f, TabBottom));
     if (!bHasStableButtonAnchor || ViewportLogicalSize.X <= 1.0f
         || ViewportLogicalSize.Y <= 1.0f)
     {
@@ -606,6 +655,67 @@ void UOntoTwinMinimapWidget::UpdateToggleSemantics()
             EAccessibleBehavior::Custom,
             TAttribute<FText>(Label));
     }
+}
+
+void UOntoTwinMinimapWidget::RefreshDisplaySchemeControl()
+{
+    if (!DisplaySchemeButton || !DisplaySchemeButtonTwo || !DisplaySchemeButtonThree) return;
+    ATwinSceneManager* Scene = Manager ? Cast<ATwinSceneManager>(Manager->GetOwner()) : nullptr;
+    const ESlateVisibility SchemeVisibility = Scene && Scene->HasDisplaySchemes()
+        ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
+    DisplaySchemeButton->SetVisibility(SchemeVisibility);
+    DisplaySchemeButtonTwo->SetVisibility(SchemeVisibility);
+    DisplaySchemeButtonThree->SetVisibility(SchemeVisibility);
+    if (!Scene || !Scene->HasDisplaySchemes()) return;
+    const bool bEnabled = Scene->CanSwitchDisplayScheme();
+    UButton* Buttons[] = {DisplaySchemeButton, DisplaySchemeButtonTwo, DisplaySchemeButtonThree};
+    UTextBlock* Labels[] = {DisplaySchemeText, DisplaySchemeTextTwo, DisplaySchemeTextThree};
+    const int32 Active = FMath::Clamp(Scene->GetDisplaySchemeIndex(), 0, 2);
+    for (int32 Index = 0; Index < 3; ++Index)
+    {
+        const bool bSelected = Index == Active;
+        const FLinearColor Fill = bSelected ? ToggleFocus : ToggleFill;
+        // Refresh runs every tick: only invalidate Slate styling when selection changes.
+        if (Buttons[Index]->GetStyle().Normal.TintColor.GetSpecifiedColor() != Fill)
+        {
+            FButtonStyle Style = Buttons[Index]->GetStyle();
+            Style.SetNormal(FSlateRoundedBoxBrush(Fill, 12.0f, bSelected ? ToggleFocus : ToggleStroke, 1.0f));
+            Style.SetDisabled(FSlateRoundedBoxBrush(bSelected ? ToggleFocus : ToggleDisabled,
+                12.0f, bSelected ? ToggleFocus : ToggleDisabledStroke, 1.0f));
+            Buttons[Index]->SetStyle(Style);
+        }
+        Buttons[Index]->SetIsEnabled(!bSelected && bEnabled);
+        if (Labels[Index])
+        {
+            Labels[Index]->SetColorAndOpacity(bSelected ? ToggleFill : FLinearColor::White);
+        }
+    }
+    const FString Status = Scene->GetDisplaySchemeStatus();
+    const FString Tip = !Status.IsEmpty() ? Status : (bEnabled
+        ? TEXT("切换展示方案") : TEXT("加载完成，并保存或撤销 F10 修改后可切换"));
+    for (int32 Index = 0; Index < 3; ++Index)
+        Buttons[Index]->SetToolTipText(FText::FromString(Index == Active ? TEXT("当前展示方案；") + Tip : Tip));
+}
+
+void UOntoTwinMinimapWidget::OnSelectDisplaySchemeOne()
+{
+    ATwinSceneManager* Scene = Manager ? Cast<ATwinSceneManager>(Manager->GetOwner()) : nullptr;
+    if (Scene && Scene->SelectDisplayScheme(0) && Manager) Manager->RefreshMinimapForDisplayScheme();
+    RefreshDisplaySchemeControl();
+}
+
+void UOntoTwinMinimapWidget::OnSelectDisplaySchemeTwo()
+{
+    ATwinSceneManager* Scene = Manager ? Cast<ATwinSceneManager>(Manager->GetOwner()) : nullptr;
+    if (Scene && Scene->SelectDisplayScheme(1) && Manager) Manager->RefreshMinimapForDisplayScheme();
+    RefreshDisplaySchemeControl();
+}
+
+void UOntoTwinMinimapWidget::OnSelectDisplaySchemeThree()
+{
+    ATwinSceneManager* Scene = Manager ? Cast<ATwinSceneManager>(Manager->GetOwner()) : nullptr;
+    if (Scene && Scene->SelectDisplayScheme(2) && Manager) Manager->RefreshMinimapForDisplayScheme();
+    RefreshDisplaySchemeControl();
 }
 
 void UOntoTwinMinimapWidget::SetInteractionManager(

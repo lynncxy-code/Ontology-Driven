@@ -1596,16 +1596,31 @@ bool UTwinInteractionManagerComponent::InitializeMinimap(FString& OutError)
     ViewInfo.AspectRatio = static_cast<float>(MinimapCaptureSize.X)
         / static_cast<float>(MinimapCaptureSize.Y);
     ViewInfo.bConstrainAspectRatio = false;
-    MinimapCapture->bUseCustomProjectionMatrix = true;
-    MinimapCapture->CustomProjectionMatrix = ViewInfo.CalculateProjectionMatrix();
-    const FMatrix ProjectionMatrix = AdjustProjectionMatrixForRHI(
-        MinimapCapture->CustomProjectionMatrix);
     const FMatrix ViewRotationMatrix = FInverseRotationMatrix(ViewInfo.Rotation) * FMatrix(
         FPlane(0, 0, 1, 0),
         FPlane(1, 0, 0, 0),
         FPlane(0, 1, 0, 0),
         FPlane(0, 0, 0, 1));
-    const FMatrix ViewMatrix = FTranslationMatrix(-ViewInfo.Location) * ViewRotationMatrix;
+    // Follow the camera-preview path: CalculateProjectionMatrix() alone skips
+    // automatic orthographic clipping/origin correction (critical on upper floors).
+    FSceneViewProjectionData CaptureProjection;
+    const FIntRect CaptureRect(0, 0, MinimapCaptureSize.X, MinimapCaptureSize.Y);
+    CaptureProjection.SetViewRectangle(CaptureRect);
+    CaptureProjection.ViewOrigin = ViewInfo.Location;
+    CaptureProjection.ViewRotationMatrix = ViewRotationMatrix;
+    FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(
+        ViewInfo, AspectRatio_MaintainXFOV, CaptureRect, CaptureProjection);
+    MinimapCapture->SetWorldLocationAndRotation(CaptureProjection.ViewOrigin, ViewInfo.Rotation);
+    // The preview calculation has already resolved the planes and view origin.
+    // Do not let SceneCapture correct them a second time.
+    MinimapCapture->bUpdateOrthoPlanes = false;
+    MinimapCapture->bAutoCalculateOrthoPlanes = false;
+    MinimapCapture->bUseCustomProjectionMatrix = true;
+    MinimapCapture->CustomProjectionMatrix = CaptureProjection.ProjectionMatrix;
+    const FMatrix ProjectionMatrix = AdjustProjectionMatrixForRHI(
+        CaptureProjection.ProjectionMatrix);
+    const FMatrix ViewMatrix = FTranslationMatrix(-CaptureProjection.ViewOrigin)
+        * CaptureProjection.ViewRotationMatrix;
     MinimapViewProjection = ViewMatrix * ProjectionMatrix;
 
     MinimapCapture->RegisterComponent();

@@ -17,6 +17,22 @@ from presentation_routing import (
 
 
 class PresentationRoutingTestCase(unittest.TestCase):
+    def test_frontend_field_value_keys_reach_all_channels(self):
+        profile = {'channels': {channel: {'states': {'status:运行': {
+            'resource_id': resource, 'revision': 1, 'source': 'ontotwin_common'}}}
+            for channel, resource in [('animation', 'ot.industrial.agv.running_motion'),
+                ('fx', 'ot.industrial.alarm_flash'), ('visual', 'ot.industrial.warning_material')]}}
+        result = build_presentation('agv', {'status': 'running'}, profile)
+        self.assertEqual('ot.industrial.alarm_flash', result['resolution']['channels']['fx']['resource_id'])
+        inactive = build_presentation('agv', {'status': 'normal', 'animation_state': 'running'}, profile)
+        self.assertNotIn('resource_id', inactive['resolution']['channels']['fx'])
+
+    def test_numeric_battery_condition_and_reset(self):
+        profile = {'channels': {'fx': {'states': {'battery_level:低电量': {
+            'resource_id': 'ot.industrial.alarm_flash', 'source': 'ontotwin_common'}}}}}
+        self.assertIn('resource_id', build_presentation('agv', {'battery_level': 18}, profile)['resolution']['channels']['fx'])
+        self.assertNotIn('resource_id', build_presentation('agv', {'battery_level': 80}, profile)['resolution']['channels']['fx'])
+
     def test_normalizes_state_modifiers_and_actions(self):
         intent = normalize_industrial(
             {
@@ -105,6 +121,23 @@ class PresentationRoutingTestCase(unittest.TestCase):
             profile,
             profile_from_object_type({"interface_configs": {"I3D_Presentation": {"presentation_profile": profile}}}),
         )
+
+    def test_resource_selection_preserves_channel_source_and_identity(self):
+        result = build_presentation(
+            "agv-1",
+            {"status": "fault"},
+            {"channels": {"fx": {"states": {"industrial.machine.fault": {
+                "resource_id": "ot.industrial.alarm_flash",
+                "revision": 1,
+                "source": "ontotwin_common",
+                "slot": "alarm",
+            }}}}},
+        )
+        channel = result["resolution"]["channels"]["fx"]
+        self.assertEqual("platform", channel["source"])
+        self.assertEqual("industrial.fx.warning_flash", channel["behavior_id"])
+        self.assertEqual("ot.industrial.alarm_flash", channel["resource_id"])
+        self.assertEqual(1, channel["revision"])
 
 
 if __name__ == "__main__":

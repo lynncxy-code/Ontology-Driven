@@ -612,6 +612,212 @@ void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool 
     }
 }
 
+void ATwinInstance::ApplyPresentationFromSnapshot(const TSharedPtr<FJsonObject>& PresentationObj)
+{
+    if (!PresentationObj.IsValid())
+    {
+        return;
+    }
+
+    bPresentationAuthoritative = true;
+    double RevisionNumber = 0.0;
+    if (PresentationObj->TryGetNumberField(TEXT("presentation_revision"), RevisionNumber))
+    {
+        CurrentPresentationRevision = FMath::Max(CurrentPresentationRevision, static_cast<int32>(RevisionNumber));
+    }
+    PresentationObj->TryGetStringField(TEXT("decision_id"), CurrentPresentationDecisionId);
+
+    const TSharedPtr<FJsonObject>* ResolutionObj = nullptr;
+    if (PresentationObj->TryGetObjectField(TEXT("resolution"), ResolutionObj) && ResolutionObj)
+    {
+        const TSharedPtr<FJsonObject>* ChannelsObj = nullptr;
+        if ((*ResolutionObj)->TryGetObjectField(TEXT("channels"), ChannelsObj) && ChannelsObj)
+        {
+            for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : (*ChannelsObj)->Values)
+            {
+                const TSharedPtr<FJsonObject>* ChannelObj = nullptr;
+                if (!Pair.Value.IsValid()
+                    || Pair.Value->Type != EJson::Object
+                    || !Pair.Value->TryGetObject(ChannelObj)
+                    || !ChannelObj || !ChannelObj->IsValid())
+                {
+                    continue;
+                }
+                FString BehaviorId;
+                FString Slot;
+                if (!(*ChannelObj)->TryGetStringField(TEXT("behavior_id"), BehaviorId)
+                    || BehaviorId.IsEmpty())
+                {
+                    continue;
+                }
+                (*ChannelObj)->TryGetStringField(TEXT("slot"), Slot);
+                const TSharedPtr<FJsonObject>* ParamsObj = nullptr;
+                (*ChannelObj)->TryGetObjectField(TEXT("params"), ParamsObj);
+                FString Source;
+                (*ChannelObj)->TryGetStringField(TEXT("source"), Source);
+                if (Source.IsEmpty())
+                {
+                    Source = TEXT("platform");
+                }
+                const FString RouteKey = Source + TEXT("|") + BehaviorId + TEXT("|") + Slot;
+                if (ActivePresentationRouteKeys.FindRef(Pair.Key) == RouteKey)
+                {
+                    continue;
+                }
+                if (ExecutePresentationRoute(Pair.Key, BehaviorId, Slot, Source,
+                    ParamsObj && *ParamsObj ? *ParamsObj : MakeShared<FJsonObject>()))
+                    ActivePresentationRouteKeys.Add(Pair.Key, RouteKey);
+            }
+        }
+    }
+
+    const TArray<TSharedPtr<FJsonValue>>* Actions = nullptr;
+    if (PresentationObj->TryGetArrayField(TEXT("actions"), Actions) && Actions)
+    {
+        for (const TSharedPtr<FJsonValue>& ActionValue : *Actions)
+        {
+            const TSharedPtr<FJsonObject>* ActionObj = nullptr;
+            if (!ActionValue.IsValid() || !ActionValue->TryGetObject(ActionObj)
+                || !ActionObj || !ActionObj->IsValid())
+            {
+                continue;
+            }
+            FString EventId;
+            FString ActionId;
+            if (!(*ActionObj)->TryGetStringField(TEXT("event_id"), EventId)
+                || EventId.IsEmpty()
+                || !(*ActionObj)->TryGetStringField(TEXT("id"), ActionId)
+                || ActionId.IsEmpty())
+            {
+                continue;
+            }
+            if (ConsumedPresentationEventIds.Contains(EventId))
+            {
+                continue;
+            }
+            const TSharedPtr<FJsonObject>* ParamsObj = nullptr;
+            (*ActionObj)->TryGetObjectField(TEXT("params"), ParamsObj);
+            const bool bExecuted = ExecutePresentationRoute(
+                TEXT("action"), ActionId, TEXT(""), TEXT("platform"),
+                ParamsObj && *ParamsObj ? *ParamsObj : MakeShared<FJsonObject>());
+            // At-least-once delivery: mark as consumed only after an executor
+            // accepts the event.  The set is intentionally process-local.
+            if (bExecuted)
+            {
+                ConsumedPresentationEventIds.Add(EventId);
+                if (ConsumedPresentationEventIds.Num() > 1024)
+                {
+                    ConsumedPresentationEventIds.Reset();
+                    ConsumedPresentationEventIds.Add(EventId);
+                }
+            }
+        }
+    }
+}
+
+bool ATwinInstance::ExecutePresentationRoute(
+    const FString& Channel,
+    const FString& BehaviorId,
+    const FString& Slot,
+    const FString& Source,
+    const TSharedPtr<FJsonObject>& Params)
+{
+    TArray<IOntoTwinPresentationExecutor*> Executors =
+        IModularFeatures::Get().GetModularFeatureImplementations<IOntoTwinPresentationExecutor>(
+            IOntoTwinPresentationExecutor::GetModularFeatureName());
+    Executors.Sort([](const IOntoTwinPresentationExecutor& Left, const IOntoTwinPresentationExecutor& Right)
+    {
+        return Left.GetPresentationExecutorPriority() > Right.GetPresentationExecutorPriority();
+    });
+
+    for (IOntoTwinPresentationExecutor* Executor : Executors)
+    {
+        if (!Executor || !Executor->SupportsPresentationRoute(Channel, BehaviorId, Slot, Source))
+        {
+            continue;
+        }
+        if (Executor->ExecutePresentationRoute(this, Channel, BehaviorId, Slot, Source, Params))
+        {
+            return true;
+        }
+    }
+
+    // Clear any previous platform effect when a replacement cannot execute.
+    // Do not cache this fallback as success: the desired executor may load later.
+    const FString SafeBehavior = Channel == TEXT("animation") ? TEXT("safe.idle")
+        : Channel == TEXT("visual") ? TEXT("safe.visible")
+        : Channel == TEXT("label") ? TEXT("safe.label") : TEXT("safe.none");
+    for (IOntoTwinPresentationExecutor* Executor : Executors)
+    {
+        if (Executor && Executor->SupportsPresentationRoute(Channel, SafeBehavior, Slot, TEXT("platform")))
+            Executor->ExecutePresentationRoute(this, Channel, SafeBehavior, Slot, TEXT("platform"), nullptr);
+    }
+
+    // Core-level safe fallback.  Unknown/project-specific routes never
+    // execute legacy fields; they degrade to an inert safe state instead.
+    if (Channel == TEXT("animation"))
+    {
+        PlayPresentationAnimation(TEXT("idle"));
+        return false;
+    }
+    if (Channel == TEXT("visual"))
+    {
+        ApplyPresentationMaterialVariant(TEXT("normal"));
+        ApplyVisualVisibility(true);
+    }
+    UE_LOG(LogTemp, Verbose, TEXT("[孪生体] 表现路由未找到执行器，安全回退: %s/%s/%s"),
+        *Channel, *BehaviorId, *Slot);
+    return false;
+}
+
+void ATwinInstance::PlayPresentationAnimation(const FString& StateName)
+{
+    CurrentAnimState = StateName;
+    PlayAnimationState(StateName);
+    if (ActiveContainerHost.IsValid())
+    {
+        ActiveContainerHost->ForwardBehaviorState(CurrentAnimState, CurrentFxTrigger);
+    }
+}
+
+void ATwinInstance::ApplyPresentationMaterialVariant(const FString& VariantName)
+{
+    if (VariantName.IsEmpty() || VariantName == CurrentMaterialVariant)
+    {
+        return;
+    }
+    CurrentMaterialVariant = VariantName;
+    if (VariantName == TEXT("normal"))
+    {
+        RestoreOriginalMaterials();
+    }
+    else if (VariantName == TEXT("gray") || VariantName == TEXT("wireframe"))
+    {
+        OnMaterialVariantChanged(VariantName);
+    }
+    else
+    {
+        OnMaterialVariantChanged(VariantName);
+    }
+    if (ActiveContainerHost.IsValid())
+    {
+        ActiveContainerHost->ForwardVisualState(CurrentMaterialVariant, bVisualVisible);
+    }
+}
+
+void ATwinInstance::TriggerPresentationFx(const FString& FxName)
+{
+    if (!FxName.IsEmpty())
+    {
+        CurrentFxTrigger = FxName;
+        OnFxTriggered(FxName);
+        if (ActiveContainerHost.IsValid())
+        {
+            ActiveContainerHost->ForwardBehaviorState(CurrentAnimState, CurrentFxTrigger);
+        }
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 资产加载
 // ═══════════════════════════════════════════════════════════════════════════

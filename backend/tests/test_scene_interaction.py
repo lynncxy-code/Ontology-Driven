@@ -89,6 +89,11 @@ class SceneInteractionTestCase(unittest.TestCase):
         import ue_project_binding as _ub
         _ub._ue_index.clear()
         self.temp = tempfile.TemporaryDirectory()
+        # A clean checkout has no data/trash; never let tests use the business singleton.
+        import trash_store
+        previous_trash = trash_store._default_store
+        trash_store._default_store = trash_store.TrashStore(os.path.join(self.temp.name, "trash"))
+        self.addCleanup(setattr, trash_store, "_default_store", previous_trash)
         self.store = ProjectStore(
             os.path.join(self.temp.name, "projects"),
             os.path.join(self.temp.name, "active.json"),

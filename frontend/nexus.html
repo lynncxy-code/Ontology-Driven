@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OntoTwin Nexus 2.3 | 本体同步枢纽</title>
+    <title>OntoTwin Nexus | 本体驱动工业数字孪生平台</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/ontotwin-logo.svg?v=20260901-color" />
 
     <!-- Google Fonts -->
     <link href="/vendor/fonts.css" rel="stylesheet" />
@@ -79,18 +80,34 @@
         }
         
         .logo-box {
-            width: 24px;
-            height: 24px;
-            background: #111111;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            font-weight: 600;
-            color: white;
+            width: 40px;
+            height: 30px;
+            object-fit: contain;
             flex-shrink: 0;
-            margin-left: 2px;
+        }
+
+        .logo-text {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            line-height: 1;
+        }
+
+        .brand-name {
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 16px;
+            white-space: nowrap;
+        }
+
+        .brand-subtitle {
+            color: var(--sidebar-text);
+            font-size: 9px;
+            font-weight: 400;
+            letter-spacing: 0;
+            line-height: 11px;
+            white-space: nowrap;
         }
 
         .sidebar.collapsed .sidebar-header .logo-text {
@@ -332,8 +349,11 @@
     <!-- 左侧导航 -->
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <div class="logo-box">N</div>
-            <div class="logo-text">OntoTwin Nexus</div>
+            <img class="logo-box" src="/assets/ontotwin-logo.svg?v=20260901-color" alt="OntoTwin Nexus" />
+            <div class="logo-text">
+                <span class="brand-name">OntoTwin Nexus</span>
+                <span class="brand-subtitle">本体驱动工业数字孪生平台</span>
+            </div>
         </div>
         
         <div class="sidebar-menu-wrapper">

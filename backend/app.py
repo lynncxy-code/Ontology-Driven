@@ -2278,6 +2278,12 @@ def list_assets():
                     if ext
                 ]
                 fmt = "GLB" if "GLB" in ext_list else (ext_list[0] if ext_list else "未知")
+                cover_urls = a.get("coverUrls")
+                cover_url = a.get("coverUrl") or (
+                    cover_urls[0]
+                    if isinstance(cover_urls, list) and cover_urls
+                    else ""
+                )
                 items.append({
                     "file_number": asset_id,
                     "name":        a.get("name", ""),
@@ -2286,7 +2292,9 @@ def list_assets():
                     "bindable":    "GLB" in ext_list,
                     "bounding_box": {},
                     "download_url": "",
-                    "cover_url":   a.get("coverUrl", ""),
+                    # ArtStudio returns both the legacy scalar and the current
+                    # coverUrls array depending on endpoint/version.
+                    "cover_url":   cover_url,
                     "ue_path":     "",
                     "_source": {
                         "artstudio_id": asset_id,

@@ -148,4 +148,56 @@ if assert_data_root_child "$test_root/outside"; then
   fail "the data-root path guard accepted an outside path"
 fi
 
+# Existing historical backups must not make an explicit newer payload reset a
+# no-op. The previous live database and assets must both be recoverable, while
+# fresh seed destinations are empty. Customer secrets/backups stay in place.
+use_data_root "$test_root/upgrade-data"
+old_fingerprint="$(printf 'b%.0s' {1..64})"
+new_fingerprint="$(printf 'e%.0s' {1..64})"
+old_baseline="$DATA_ROOT/baseline-backups/20260826-120000-aaaaaaaaaaaa"
+mkdir -p "$old_baseline/docker" "$old_baseline/release-data" \
+  "$DATA_ROOT/docker" "$DATA_ROOT/release-data" "$DATA_ROOT/backups"
+touch "$old_baseline/docker/oldest-original"
+touch "$DATA_ROOT/docker/previous-live-db" "$DATA_ROOT/release-data/previous-live-asset"
+touch "$DATA_ROOT/release.env" "$DATA_ROOT/backups/customer-backup"
+printf '%s\n' "$old_fingerprint" > "$PAYLOAD_MARKER"
+touch "$IMAGES_MARKER"
+mark_baseline_captured "$old_fingerprint" "$old_baseline"
+prepare_packaged_backend_baseline "$new_fingerprint" "$old_fingerprint" false
+new_backup="$DATA_ROOT/baseline-backups/$(tail -n 1 "$BASELINE_CAPTURE_MARKER")"
+test "$new_backup" != "$old_baseline" || fail "new payload falsely reused the old reset marker"
+test -f "$new_backup/docker/previous-live-db" || fail "previous live database was not preserved"
+test -f "$new_backup/release-data/previous-live-asset" || fail "previous live assets were not preserved"
+test ! -e "$DATA_ROOT/docker/previous-live-db" || fail "old database would override the packaged seed"
+test ! -e "$DATA_ROOT/release-data/previous-live-asset" || fail "old assets would override the packaged seed"
+test -f "$old_baseline/docker/oldest-original" || fail "earliest backup was changed"
+test -f "$DATA_ROOT/release.env" || fail "customer configuration was changed"
+test -f "$DATA_ROOT/backups/customer-backup" || fail "customer backup was changed"
+test ! -e "$PAYLOAD_MARKER" && test ! -e "$IMAGES_MARKER" || fail "old success markers survived reset"
+baseline_capture_matches "$new_fingerprint" || fail "new payload reset was not recorded"
+
+# Crash after reset and during import: retry only clears the disposable attempt;
+# it cannot create another full backup or remove either pre-upgrade snapshot.
+touch "$DATA_ROOT/docker/partial-new-import"
+prepare_packaged_backend_baseline "$new_fingerprint" "" true
+test ! -e "$DATA_ROOT/docker/partial-new-import" || fail "incomplete import survived retry"
+test -f "$new_backup/docker/previous-live-db" || fail "retry damaged the previous live backup"
+test "$(list_managed_baseline_snapshots | wc -l)" -eq 2 || fail "retry captured a duplicate backup"
+
+# Successful installation / later repairs of that same payload preserve edits.
+touch "$DATA_ROOT/docker/customer-edit-after-install"
+prepare_packaged_backend_baseline "$new_fingerprint" "$new_fingerprint" false
+prepare_packaged_backend_baseline "$new_fingerprint" "$new_fingerprint" true
+test -f "$DATA_ROOT/docker/customer-edit-after-install" || fail "same-payload repair discarded customer edits"
+test "$(list_managed_baseline_snapshots | wc -l)" -eq 2 || fail "same-payload repair captured a duplicate backup"
+
+# Incomplete first installation has no pre-existing customer database to capture.
+use_data_root "$test_root/first-install-data"
+mkdir -p "$DATA_ROOT/docker" "$DATA_ROOT/release-data"
+touch "$DATA_ROOT/docker/partial-first-install"
+prepare_packaged_backend_baseline "$new_fingerprint" "" true
+test ! -e "$DATA_ROOT/docker/partial-first-install" || fail "failed first install was not reset"
+test "$(list_managed_baseline_snapshots | wc -l)" -eq 0 || fail "failed first install manufactured a backup"
+baseline_capture_matches "$new_fingerprint" || fail "first-install reset was not recorded"
+
 echo "bootstrap baseline reset tests: PASS"

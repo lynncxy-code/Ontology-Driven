@@ -263,6 +263,39 @@ begin_baseline_capture() {
   resume_baseline_capture
 }
 
+# A backup from another release proves preservation, not installation of the
+# current seed. Each explicitly requested payload reset captures the immediately
+# previous state once. Same-payload retries resume that transaction instead of
+# making repeated backups (the RC15.1 disk exhaustion regression).
+prepare_packaged_backend_baseline() {
+  local payload_fingerprint="$1" installed_fingerprint="$2" previous_bootstrap_incomplete="$3"
+  local canonical_baseline baseline_backup_root
+  [[ "$payload_fingerprint" =~ ^[0-9a-fA-F]{64}$ ]] || return 1
+  canonical_baseline="$(canonical_baseline_snapshot || true)"
+  if baseline_capture_matches "$payload_fingerprint"; then
+    if [ "$previous_bootstrap_incomplete" = true ] && [ -z "$installed_fingerprint" ]; then
+      printf 'Discarding only the incomplete post-reset attempt for this payload\n'
+      discard_disposable_backend_state
+      rm -f "$PAYLOAD_MARKER" "$IMAGES_MARKER"
+    else
+      printf 'The packaged backend baseline reset was already captured for this payload\n'
+    fi
+  elif [ -n "$installed_fingerprint" ] || [ -n "$canonical_baseline" ]; then
+    baseline_backup_root="$DATA_ROOT/baseline-backups/$(date -u +%Y%m%d-%H%M%S)-${payload_fingerprint:0:12}"
+    if [ -e "$baseline_backup_root" ] || [ -L "$baseline_backup_root" ]; then
+      printf 'Refusing to overwrite an existing baseline backup: %s\n' "$baseline_backup_root" >&2
+      return 1
+    fi
+    printf 'Preserving the previous release state before applying the new packaged seed\n'
+    begin_baseline_capture "$payload_fingerprint" "$baseline_backup_root"
+  else
+    printf 'Discarding the incomplete first-install backend baseline before retry\n'
+    discard_disposable_backend_state
+    rm -f "$PAYLOAD_MARKER" "$IMAGES_MARKER"
+    mark_baseline_captured "$payload_fingerprint" "fresh-install"
+  fi
+}
+
 # Unit tests source this file to exercise the destructive-path guards and the
 # one-time baseline state machine without bootstrapping an appliance.
 if [ "${ONTOTWIN_BOOTSTRAP_LIBRARY_ONLY:-0}" = "1" ]; then
@@ -683,38 +716,7 @@ PY
 )"
 if [ "$reset_backend_baseline" = true ] \
   && { [ -n "$installed_fingerprint" ] || [ "$previous_bootstrap_incomplete" = true ]; }; then
-  canonical_baseline="$(canonical_baseline_snapshot || true)"
-  if [ -n "$canonical_baseline" ]; then
-    # A managed snapshot is stronger evidence than the marker: a crash can land
-    # after the atomic same-filesystem moves but before the tiny marker write.
-    # Never capture another baseline once the earliest original is present.
-    if [ "$previous_bootstrap_incomplete" = true ]; then
-      log "Reusing the earliest preserved backend baseline and discarding the incomplete retry state"
-      discard_disposable_backend_state
-      rm -f "$PAYLOAD_MARKER" "$IMAGES_MARKER"
-    elif baseline_capture_matches "$payload_fingerprint"; then
-      log "The packaged backend baseline reset was already captured for this payload"
-    else
-      log "Reusing the earliest preserved backend baseline; no additional backup will be created"
-    fi
-    mark_baseline_captured "$payload_fingerprint" "$canonical_baseline"
-  elif [ -n "$installed_fingerprint" ]; then
-    baseline_backup_root="$DATA_ROOT/baseline-backups/$(date -u +%Y%m%d-%H%M%S)-${payload_fingerprint:0:12}"
-    if [ -e "$baseline_backup_root" ]; then
-      log "Bootstrap failed: the baseline backup destination already exists: $baseline_backup_root"
-      exit 1
-    fi
-    log "Backing up the previous backend baseline before applying the packaged ZHHZ data"
-    begin_baseline_capture "$payload_fingerprint" "$baseline_backup_root"
-    log "Previous backend baseline saved at $baseline_backup_root"
-  else
-    # A failed first installation has no pre-upgrade customer baseline to keep.
-    # Rebuild its disposable state without manufacturing a misleading backup.
-    log "Discarding the incomplete first-install backend baseline before retry"
-    discard_disposable_backend_state
-    rm -f "$PAYLOAD_MARKER" "$IMAGES_MARKER"
-    mark_baseline_captured "$payload_fingerprint" "fresh-install"
-  fi
+  prepare_packaged_backend_baseline "$payload_fingerprint" "$installed_fingerprint" "$previous_bootstrap_incomplete"
   systemctl start docker.service
 fi
 if [ -d "$RELEASE_ROOT/Data" ]; then

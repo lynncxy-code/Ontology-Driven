@@ -156,7 +156,11 @@
           Permanent="yes"
           Vital="yes">
         <Payload SourceFile="$(var.EnableHyperVScriptPath)" Name="Enable-HyperV.ps1" />
-        <ExitCode Value="3010" Behavior="scheduleReboot" />
+        <!-- Hyper-V must be active before MSI/HostService/payload installation.
+             Scheduling the reboot until the end leaves a window where the
+             service is installed but HostControl cannot manage a VM. Force
+             the reboot here; Burn resumes this chain after Windows starts. -->
+        <ExitCode Value="3010" Behavior="forceReboot" />
       </ExePackage>
 
       <MsiPackage SourceFile="$(var.MsiPath)" Vital="yes" />

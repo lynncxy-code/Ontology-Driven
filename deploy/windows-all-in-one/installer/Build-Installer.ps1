@@ -978,6 +978,10 @@ $msiText = Get-Content -Raw -Encoding UTF8 -LiteralPath $msiSource
 if (-not $bundleText.Contains('$(var.PayloadVersion)') -or -not $bundleText.Contains('$(var.BundleVersion)')) {
     throw "Bundle.wxs must consume the PayloadVersion and BundleVersion build variables."
 }
+if ($bundleText -notmatch '<ExitCode\s+Value="3010"\s+Behavior="forceReboot"\s*/>' -or
+    $bundleText -match '<ExitCode\s+Value="3010"\s+Behavior="scheduleReboot"') {
+    throw "Bundle.wxs must force the Hyper-V prerequisite reboot before MSI/payload installation and must not defer it to chain completion."
+}
 if (-not $msiText.Contains('$(var.MsiVersion)')) {
     throw "Package.wxs must consume the MsiVersion build variable."
 }

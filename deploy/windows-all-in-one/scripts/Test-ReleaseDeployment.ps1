@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ExportDirectory,
@@ -9,7 +9,10 @@ param(
     [string]$ProjectId = "",
     [int]$ExpectedInstanceCount = -1,
     [string]$UeProjectId = "",
-    [string]$UeProjectName = ""
+    [string]$UeProjectName = "",
+    [string]$PackagedReleaseDirectory = "",
+    [string]$RuntimeExecutable = "",
+    [string]$RuntimeResultPath = ""
 )
 
 Set-StrictMode -Version Latest
@@ -66,11 +69,22 @@ try {
         New-Item -ItemType Directory -Path $directory -Force | Out-Null
     }
 
-    Copy-Item -LiteralPath (Join-Path $templateRoot "docker-compose.release.yml") -Destination $composeFile
-    Copy-Item -LiteralPath (Join-Path $templateRoot "database\postgres\01-restore.sh") -Destination (Join-Path $stagingRoot "Database\postgres")
+    $composeSource = Join-Path $templateRoot "docker-compose.release.yml"
+    $restoreSource = Join-Path $templateRoot "database\postgres\01-restore.sh"
+    $scriptsSource = Join-Path $templateRoot "scripts"
+    if ($PackagedReleaseDirectory) {
+        $composeSource = Join-Path $PackagedReleaseDirectory "Deploy\docker-compose.release.yml"
+        $restoreSource = Join-Path $PackagedReleaseDirectory "Database\postgres\01-restore.sh"
+        $packagedScripts = Join-Path $PackagedReleaseDirectory "Deploy\scripts"
+        # The slim Linux payload omits Windows support scripts. In that case
+        # use the local test harness for the disposable backup/restore check.
+        if (Test-Path -LiteralPath $packagedScripts -PathType Container) { $scriptsSource = $packagedScripts }
+    }
+    Copy-Item -LiteralPath $composeSource -Destination $composeFile
+    Copy-Item -LiteralPath $restoreSource -Destination (Join-Path $stagingRoot "Database\postgres")
     Copy-Item -LiteralPath (Join-Path $exportRoot "postgres\zhhz.dump") -Destination (Join-Path $stagingRoot "Database\postgres")
     Copy-Item -Path (Join-Path $exportRoot "neo4j\*") -Destination (Join-Path $stagingRoot "Database\neo4j") -Force
-    Copy-Item -LiteralPath (Join-Path $templateRoot "scripts") -Destination $deployRoot -Recurse
+    Copy-Item -LiteralPath $scriptsSource -Destination $deployRoot -Recurse
 
     $sourceAssets = Join-Path $exportRoot "project_assets"
     if (Test-Path -LiteralPath $sourceAssets -PathType Container) {
@@ -201,6 +215,41 @@ WHERE project_id='$ProjectId' AND deleted_at IS NULL;
     if ($LASTEXITCODE -ne 0 -or $configHashesAfter -ne $configHashesBefore -or
         $switchBack.active -ne $ProjectId) {
         throw "Dataset switch regression: ZHHZ type or instance configuration was rewritten."
+    }
+
+    if ($RuntimeExecutable) {
+        if (-not $RuntimeResultPath) { throw "RuntimeResultPath is required for a runtime acceptance run." }
+        $RuntimeResultPath = [IO.Path]::GetFullPath($RuntimeResultPath)
+        if (Test-Path -LiteralPath $RuntimeResultPath) { throw "A fresh runtime result path is required; refusing to reuse prior evidence." }
+        New-Item -ItemType Directory -Path (Split-Path -Parent $RuntimeResultPath) -Force | Out-Null
+        $runtimeProcess = Start-Process -FilePath $RuntimeExecutable -PassThru -WindowStyle Hidden -ArgumentList @(
+            '-NullRHI', '-nosound', '-Unattended', '-OntoTwinDisplaySchemesSelfTest',
+            "-OntoTwinBackendBaseUrl=$baseUri", "-OntoTwinSelfTestOutput=`"$RuntimeResultPath`""
+        )
+        if (-not $runtimeProcess.WaitForExit(660000)) {
+            Stop-Process -Id $runtimeProcess.Id -Force -ErrorAction SilentlyContinue
+            throw "Packaged UE scheme acceptance timed out."
+        }
+        if (-not (Test-Path -LiteralPath $RuntimeResultPath -PathType Leaf)) {
+            throw "UE exited without a selftest result; process exit alone is not acceptance."
+        }
+        $runtimeResult = Get-Content -LiteralPath $RuntimeResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($runtimeProcess.ExitCode -ne 0 -or $runtimeResult.passed -ne $true -or
+            @($runtimeResult.checks | Where-Object { $_.passed -ne $true }).Count -ne 0 -or
+            @($runtimeResult.checks).Count -lt 50 -or $runtimeResult.backend_url -ne $baseUri -or
+            $runtimeResult.ue_project_id -ne $UeProjectId) {
+            throw "Packaged UE scheme acceptance failed. Read $RuntimeResultPath"
+        }
+        [ordered]@{
+            executable = [IO.Path]::GetFullPath($RuntimeExecutable)
+            executable_sha256 = (Get-FileHash -LiteralPath $RuntimeExecutable -Algorithm SHA256).Hash
+            seed_sha256 = (Get-FileHash -LiteralPath (Join-Path $exportRoot 'postgres\zhhz.dump') -Algorithm SHA256).Hash
+            backend_image = $BackendImage
+            project_id = $ProjectId
+            result = $RuntimeResultPath
+            passed = $true
+        } | ConvertTo-Json | Set-Content -LiteralPath "$RuntimeResultPath.provenance.json" -Encoding UTF8
+        Write-Host "Packaged UE scheme acceptance: PASS ($(@($runtimeResult.checks).Count) checks)."
     }
 
     $neo4jArguments = @(

@@ -9,6 +9,11 @@ WORKDIR /app
 COPY deploy/windows-all-in-one/requirements.release.txt /tmp/requirements.release.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.release.txt
 
+# Keep dependency layers cacheable for offline builds, while making the
+# current checkout fingerprint part of the application layer's cache key.
+ARG ONTOTWIN_SOURCE_SHA256=unknown
+RUN printf '%s' "$ONTOTWIN_SOURCE_SHA256" > /tmp/ontotwin-source-sha256
+
 COPY backend/ /app/
 COPY frontend/ /frontend/
 COPY assets/ /assets/

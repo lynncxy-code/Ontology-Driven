@@ -21,11 +21,21 @@ class FakeHttpError(FakeRequestException):
         self.response = response
 
 
-if "requests" not in sys.modules:
-    sys.modules["requests"] = types.SimpleNamespace(
-        RequestException=FakeRequestException,
-        HTTPError=FakeHttpError,
-    )
+# 被测代码写的是 `except requests.RequestException`，所以这两个异常类型必须存在。
+#
+# 不能用 `if "requests" not in sys.modules` 就整体跳过：同目录的
+# test_artstudio_client.py 会先装一个**空的** SimpleNamespace，那时本文件直接
+# 跳过，被测代码取 requests.RequestException 就 AttributeError——单独跑能过、
+# 全量跑必挂，而且挂在哪取决于文件名排序。改成「缺什么补什么」，与顺序无关。
+# 真 requests 已在 sys.modules 时，hasattr 为真，不会覆盖它的任何属性。
+_requests_stub = sys.modules.get("requests")
+if _requests_stub is None:
+    _requests_stub = types.SimpleNamespace()
+    sys.modules["requests"] = _requests_stub
+if not hasattr(_requests_stub, "RequestException"):
+    _requests_stub.RequestException = FakeRequestException
+if not hasattr(_requests_stub, "HTTPError"):
+    _requests_stub.HTTPError = FakeHttpError
 
 from artstudio_upload.service import ArtStudioUploadError, ArtStudioUploadService
 

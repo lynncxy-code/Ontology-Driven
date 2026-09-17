@@ -88,3 +88,6 @@ scripts/patches/
 
 # Windows 快捷方式
 *.lnk
+
+# review-push 的本地验证证据（review.json / test.log / lint.log / 报告）
+.review-push/

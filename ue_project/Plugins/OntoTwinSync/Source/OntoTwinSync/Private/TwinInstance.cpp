@@ -8,6 +8,8 @@
 // ============================================================================
 
 #include "TwinInstance.h"
+#include "TwinSceneManager.h"
+#include "EngineUtils.h"
 #include "DigitalTwinSyncComponent.h"
 #include "OntoTwinOverlayWidget.h"
 #include "Representation/TwinRepresentationHostComponent.h"
@@ -2073,7 +2075,6 @@ void ATwinInstance::LoadRemoteGltf(const FString& StableId)
     const FString CacheDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ModelCache"));
     const FString CacheFile = FPaths::Combine(
         CacheDir, FString::Printf(TEXT("%s_v%s.glb"), *AssetIdPart, *VersionPart));
-    const FString DownloadKey = BackendBaseUrl + TEXT("|") + CacheFile;
 
     // ① 命中缓存 → 直接加载
     if (FPaths::FileExists(CacheFile))
@@ -2097,6 +2098,32 @@ void ATwinInstance::LoadRemoteGltf(const FString& StableId)
         return;
     }
     SetPlaceholderCube();
+    // Use the same configured identity as snapshots and heartbeats, never a
+    // project-filename-derived identity. Older placed instances may have no owner.
+    ATwinSceneManager* Manager = Cast<ATwinSceneManager>(GetOwner());
+    if (!Manager && GetWorld())
+    {
+        for (TActorIterator<ATwinSceneManager> It(GetWorld()); It; ++It)
+        {
+            if (It->BackendBaseUrl != BackendBaseUrl) continue;
+            if (Manager)
+            {
+                UE_LOG(LogTemp, Error, TEXT("[孪生体] ArtStudio 下载身份不明确：存在多个管理器"));
+                ScheduleRemoteGltfRetry(StableId);
+                return;
+            }
+            Manager = *It;
+        }
+    }
+    if (!Manager || Manager->UEProjectId.IsEmpty())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[孪生体] 等待管理器项目身份后下载 ArtStudio 模型"));
+        ScheduleRemoteGltfRetry(StableId);
+        return;
+    }
+    const FString UEProjectId = Manager->UEProjectId;
+    const FString UEProjectName = Manager->UEProjectName;
+    const FString DownloadKey = BackendBaseUrl + TEXT("|") + UEProjectId + TEXT("|") + CacheFile;
     PendingRemoteId = StableId;
 
     IFileManager::Get().MakeDirectory(*CacheDir, /*Tree=*/true);
@@ -2138,10 +2165,7 @@ void ATwinInstance::LoadRemoteGltf(const FString& StableId)
     Request->SetURL(Url);
     Request->SetVerb(TEXT("GET"));
     Request->SetTimeout(180.0f);
-    const FString UEProjectName = FApp::GetProjectName();
-    Request->SetHeader(
-        TEXT("X-OntoTwin-UE-Project-Id"),
-        FString::Printf(TEXT("ueproj_%s"), *UEProjectName));
+    Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Id"), UEProjectId);
     Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Name"), UEProjectName);
 
     const FString ExpectId = StableId;
@@ -2157,6 +2181,19 @@ void ATwinInstance::LoadRemoteGltf(const FString& StableId)
             if (!bOk || !Resp.IsValid() || ResponseCode != 200)
             {
                 FailureReason = FString::Printf(TEXT("HTTP %d"), ResponseCode);
+                if (Resp.IsValid())
+                {
+                    TSharedPtr<FJsonObject> ErrorBody;
+                    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Resp->GetContentAsString());
+                    if (FJsonSerializer::Deserialize(Reader, ErrorBody) && ErrorBody.IsValid())
+                    {
+                        FString ErrorCode;
+                        if (ErrorBody->TryGetStringField(TEXT("error"), ErrorCode))
+                        {
+                            FailureReason += TEXT(" / ") + ErrorCode.Left(160);
+                        }
+                    }
+                }
             }
             else if (!IsValidGlbPayload(Resp->GetContent()))
             {

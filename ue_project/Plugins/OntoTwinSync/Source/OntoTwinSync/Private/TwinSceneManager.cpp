@@ -2787,6 +2787,7 @@ ATwinInstance* ATwinSceneManager::SpawnTwinInstance(
     // ── Spawn ATwinInstance ──────────────────────────────────────────────
     FActorSpawnParameters SpawnParams;
     SpawnParams.Name = FName(*FString::Printf(TEXT("Twin_%s"), *InstanceId));
+    SpawnParams.Owner = this;
     SpawnParams.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
 
     UClass* SpawnClass = InstanceClass ? InstanceClass.Get() : ATwinInstance::StaticClass();
@@ -7157,6 +7158,7 @@ int32 ATwinSceneManager::SpawnPreviewActorsFromJson(
         // 关键：RF_Transient → 保存关卡时绝不写入 .umap（杜绝“误固化”）
         FActorSpawnParameters SpawnParams;
         SpawnParams.ObjectFlags |= RF_Transient;
+        SpawnParams.Owner = this;
 
         ATwinInstance* Inst = World->SpawnActor<ATwinInstance>(
             SpawnClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);

@@ -8,12 +8,13 @@ an offline/demo environment and are also a contract for a future publisher.
 from __future__ import annotations
 
 import copy
+from motion_behaviors import motion_resources, normalize_motion_params, belt_resource
 from typing import Any, Iterable, Mapping
 
-CATALOG_VERSION = "industrial-4.6.examples.1"
+CATALOG_VERSION = "industrial-4.6.motion.2"
 
-_COMMON = "OntoTwin 通用表现"
-_PROJECT = "当前项目表现"
+_COMMON = "行为库"
+_PROJECT = "项目自带"
 
 MOCK_PRESENTATION_RESOURCES = [
     {"resource_id": "ot.industrial.agv.running_motion", "revision": 1, "display_name": "AGV 平稳运行", "resource_type": "animation", "channel": "animation", "source": "ontotwin_common", "source_label": _COMMON, "supported_states": ["running", "industrial.machine.running"], "supported_object_types": ["AGV", "工业车辆", "agv"], "slot": "motion", "preview": {"kind": "animation", "thumbnail": "mock://presentation/agv-running"}, "status": "published", "available": True},
@@ -68,6 +69,14 @@ MOCK_PRESENTATION_RESOURCES.append({
 })
 
 
+# Keep old indicator selections readable, but no longer offer them as animation.
+for _resource in MOCK_PRESENTATION_RESOURCES:
+    if _resource['channel'] == 'animation':
+        _resource['legacy_only'] = True
+MOCK_PRESENTATION_RESOURCES.extend(motion_resources())
+MOCK_PRESENTATION_RESOURCES.append(belt_resource())
+
+
 def list_resources(*, source: str | None = None, channel: str | None = None,
                    object_type: str | None = None, state: str | None = None,
                    include_unavailable: bool = False) -> list[dict[str, Any]]:
@@ -84,6 +93,8 @@ def list_resources(*, source: str | None = None, channel: str | None = None,
     state = str(state or "").strip().lower()
     result = []
     for resource in MOCK_PRESENTATION_RESOURCES:
+        if resource.get('legacy_only') and not include_unavailable:
+            continue
         if source and resource["source"] != source:
             continue
         if channel and resource["channel"] != channel:
@@ -101,7 +112,7 @@ def list_resources(*, source: str | None = None, channel: str | None = None,
             if not any(token in rid_token or rid_token in token for token in normalized_types if token != "*"):
                 continue
         states = [str(value).lower() for value in resource.get("supported_states", [])]
-        if state and state not in states:
+        if state and '*' not in states and state not in states:
             continue
         result.append(copy.deepcopy(resource))
     return result
@@ -129,8 +140,8 @@ def catalog_payload(**filters: Any) -> dict[str, Any]:
         "resources": resources,
         "resource_count": len(resources),
         "mock": False,
-        "example": True,
-        "runtime_note": "需要 UE 加载工业示例包；配置已保存不代表当前 PIE 已应用。",
+        "example": False,
+        "runtime_note": "基础运动需要 UE 加载行为库 0.2；配置保存与运行时执行是不同状态。",
     }
 
 
@@ -155,4 +166,9 @@ def validate_selection(selection: Mapping[str, Any], *, channel: str | None = No
         return False, "resource source does not match selection source", None
     if resource.get("available") is False or resource.get("status") != "published":
         return False, "resource is not published", None
+    if resource_id.startswith('ot.motion.') or resource_id == 'ot.material.belt_scroll':
+        try:
+            normalize_motion_params(resource_id, selection.get('params'))
+        except ValueError as error:
+            return False, str(error), None
     return True, None, resource

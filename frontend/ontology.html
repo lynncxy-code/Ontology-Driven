@@ -470,7 +470,7 @@
                         <div v-if="activeBehaviorTab === 'states'" class="p-5 space-y-4">
                             <p v-if="behaviorCatalogLoading" class="text-xs text-gray-500">正在读取表现目录…</p>
                             <p v-if="behaviorCatalogError" class="text-xs text-gray-700">{{ behaviorCatalogError }} <button type="button" @click="loadBehaviorResources(selected.rid)" class="underline">重试</button></p>
-                            <p class="text-[11px] text-gray-500">工业示例包提供旋转指示、闪烁、材质高亮和标签。需要 UE 加载对应插件；选择后按状态生效。</p>
+                            <p class="text-[11px] text-gray-500">行为库提供模型旋转、平移、往复运动及皮带滚动等表现。选择后设置少量参数，按状态生效；实时位置仍由空间定位负责。</p>
                             <section v-for="group in behaviorStateGroups" :key="group.key" class="rounded-lg border border-gray-200 overflow-hidden">
                                 <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50/60 px-4 py-3">
                                     <div>
@@ -503,6 +503,18 @@
                                                             <div class="min-w-0"><div class="truncate text-[11px] font-medium text-gray-800">{{ resource.name }}</div><div class="mt-0.5 text-[10px] text-gray-500">{{ resource.type }} · {{ resource.version }}</div><div class="mt-1 text-[10px] text-gray-400">{{ resource.compatibility }}</div></div>
                                                         </div>
                                                     </button>
+                                                </div>
+                                                <div v-if="selectedBehaviorResource(group.key, state.key, channel.id)?.parameterSchema?.length" class="mt-3 border-t border-gray-100 pt-3">
+                                                    <p class="text-[11px] text-gray-500 mb-2">{{ selectedBehaviorResource(group.key, state.key, channel.id).targetNote }}</p>
+                                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                        <label v-for="parameter in selectedBehaviorResource(group.key, state.key, channel.id).parameterSchema" :key="parameter.key" class="block text-[11px] text-gray-600">
+                                                            {{ parameter.label }}
+                                                            <select v-if="parameter.type === 'select'" :value="behaviorParameter(group.key, state.key, channel.id, parameter)" @change="setBehaviorParameter(group.key, state.key, channel.id, parameter, $event.target.value)" class="mt-1 w-full rounded-md border border-gray-300 bg-white px-2 py-2 text-xs focus:border-gray-900">
+                                                                <option v-for="option in parameter.options" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                                            </select>
+                                                            <input v-else type="number" :min="parameter.min" :max="parameter.max" :step="parameter.step" :value="behaviorParameter(group.key, state.key, channel.id, parameter)" @input="setBehaviorParameter(group.key, state.key, channel.id, parameter, $event.target.value)" class="mt-1 w-full rounded-md border border-gray-300 bg-white px-2 py-2 text-xs focus:border-gray-900" />
+                                                        </label>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -1102,8 +1114,8 @@ createApp({
             { id: 'label', label: '标签' },
         ];
         const behaviorSources = [
-            { id: 'project', label: '当前项目表现' },
-            { id: 'ontotwin_common', label: 'OntoTwin 通用表现' },
+            { id: 'project', label: '项目自带' },
+            { id: 'ontotwin_common', label: '行为库' },
         ];
         const behaviorResources = ref([]);
         const behaviorCatalogError = ref('');
@@ -1122,6 +1134,8 @@ createApp({
                 version: resource.package_version || `目录修订 ${resource.revision || 1}`,
                 preview: previewKind === 'material' || resource.resource_type === 'dynamic_material' ? 'MAT' : previewKind === 'loop' || resource.channel === 'fx' ? 'FX' : 'ANI',
                 compatibility: resource.description || '已发布的表现资源',
+                parameterSchema: resource.parameter_schema || [],
+                targetNote: resource.target_note || '',
             };
         }
         async function loadBehaviorResources(objectTypeRid) {
@@ -1234,6 +1248,7 @@ createApp({
                     resource_id: value.resource_id,
                     revision: value.revision || 1,
                     behavior_id: value.resource_id,
+                    ...(value.params ? { params: { ...value.params } } : {}),
                 };
             }
             return {
@@ -1442,6 +1457,18 @@ createApp({
             const id = selectedBehaviorResourceId(field, state, channel);
             return behaviorResources.value.find(item => item.id === id)?.name || '';
         }
+        function selectedBehaviorResource(field, state, channel) {
+            return behaviorResources.value.find(item => item.id === selectedBehaviorResourceId(field, state, channel));
+        }
+        function behaviorParameter(field, state, channel, parameter) {
+            return presentationSelections.value.channels?.[behaviorEntryKey(field, state, channel)]?.params?.[parameter.key] ?? parameter.default;
+        }
+        function setBehaviorParameter(field, state, channel, parameter, value) {
+            const entry = ensureBehaviorEntry(field, state, channel);
+            entry.params ||= {};
+            entry.params[parameter.key] = parameter.type === 'number' ? (value === '' ? '' : Number(value)) : value;
+            behaviorSyncState.value = 'idle';
+        }
         function behaviorResourcesFor(channel, source, field, state) {
             const candidates = behaviorResources.value.filter(item => item.channel === channel && item.source === source);
             return candidates;
@@ -1450,13 +1477,16 @@ createApp({
             const entry = ensureBehaviorEntry(field, state, channel);
             entry.source = source;
             entry.resource_id = '';
+            delete entry.params;
             behaviorSyncState.value = 'idle';
         }
         function selectBehaviorResource(field, state, channel, resource) {
             const entry = ensureBehaviorEntry(field, state, channel);
+            if (entry.resource_id === resource.id) return;
             entry.source = resource.source;
             entry.resource_id = resource.id;
             entry.revision = resource.revision || 1;
+            entry.params = Object.fromEntries((resource.parameterSchema || []).map(p => [p.key, p.default]));
             behaviorSyncState.value = 'idle';
         }
         function configuredBehaviorCount(channel) {
@@ -1684,6 +1714,14 @@ createApp({
             presentationSaving.value = true;
             behaviorSyncState.value = 'saving';
             try {
+                for (const [key, entry] of Object.entries(presentationSelections.value.channels || {})) {
+                    const resource = behaviorResources.value.find(item => item.id === entry.resource_id);
+                    for (const parameter of resource?.parameterSchema || []) {
+                        const value = entry.params?.[parameter.key] ?? parameter.default;
+                        if (parameter.type === 'number' && (typeof value !== 'number' || !Number.isFinite(value) || value < parameter.min || value > parameter.max))
+                            throw new Error(`${resource.name}：${parameter.label}应在 ${parameter.min}–${parameter.max} 之间`);
+                    }
+                }
                 const profile = buildPresentationProfile();
                 const { data } = await axios.put(
                     `/api/v2/ontology/types/${encodeURIComponent(selected.value.rid)}/behavior-config`,
@@ -1696,7 +1734,7 @@ createApp({
                 toast('ok', '动态行为已保存，等待运行时确认');
             } catch (e) {
                 behaviorSyncState.value = 'idle';
-                toast('err', e.response?.data?.error || '语义表现配置保存失败');
+                toast('err', e.response?.data?.error || e.message || '语义表现配置保存失败');
             } finally {
                 presentationSaving.value = false;
             }
@@ -2345,6 +2383,7 @@ createApp({
             presentationSelections, presentationPreviewForm, activeBehaviorTab, behaviorChannels, behaviorSources, behaviorSyncState, behaviorSyncLabel, behaviorStateGroups,
             behaviorCatalogLoading, behaviorCatalogError, loadBehaviorResources,
             selectedBehaviorSource, selectedBehaviorResourceId, selectedBehaviorResourceLabel, behaviorResourcesFor, selectBehaviorSource, selectBehaviorResource, configuredBehaviorCount,
+            selectedBehaviorResource, behaviorParameter, setBehaviorParameter,
             isPresentationInjected, presentationProfileSummary, presentationPreview, presentationPreviewRoutes, presentationPreviewDiagnostics,
             presentationSourceLabel, presentationBehaviorLabel, presentationTechnicalSummary,
             presentationSaving, presentationPreviewLoading,

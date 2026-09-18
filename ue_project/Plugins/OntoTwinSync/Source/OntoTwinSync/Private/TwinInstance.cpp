@@ -661,7 +661,13 @@ void ATwinInstance::ApplyPresentationFromSnapshot(const TSharedPtr<FJsonObject>&
                 {
                     Source = TEXT("platform");
                 }
-                const FString RouteKey = Source + TEXT("|") + BehaviorId + TEXT("|") + Slot;
+                FString ParamsKey;
+                if (ParamsObj && ParamsObj->IsValid())
+                {
+                    auto Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&ParamsKey);
+                    FJsonSerializer::Serialize(ParamsObj->ToSharedRef(), Writer);
+                }
+                const FString RouteKey = Source + TEXT("|") + BehaviorId + TEXT("|") + Slot + TEXT("|") + ParamsKey;
                 if (ActivePresentationRouteKeys.FindRef(Pair.Key) == RouteKey)
                 {
                     continue;

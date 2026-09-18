@@ -270,7 +270,7 @@ def normalize_industrial(raw_state: Optional[Mapping[str, Any]], instance_id: st
     }
 
 
-def _route_value(value: Any, default_slot: str) -> Optional[Dict[str, str]]:
+def _route_value(value: Any, default_slot: str) -> Optional[Dict[str, Any]]:
     if isinstance(value, str):
         return {"behavior_id": value, "slot": default_slot}
     if isinstance(value, (tuple, list)) and len(value) >= 1:
@@ -288,6 +288,16 @@ def _route_value(value: Any, default_slot: str) -> Optional[Dict[str, str]]:
         "behavior_id": str(behavior_id),
         "slot": str(value.get("slot") or default_slot),
     }
+    resource_id = str(value.get('resource_id') or behavior_id)
+    if resource_id.startswith('ot.motion.') or resource_id == 'ot.material.belt_scroll':
+        from motion_behaviors import normalize_motion_params
+        try:
+            route['params'] = normalize_motion_params(resource_id, value.get('params'))
+            route['behavior_id'] = resource_id.removeprefix('ot.')
+        except ValueError:
+            return {'behavior_id': 'safe.visible' if resource_id == 'ot.material.belt_scroll' else 'safe.idle', 'slot': default_slot, 'source': 'safe_fallback'}
+    elif isinstance(value.get('params'), Mapping):
+        route['params'] = copy.deepcopy(dict(value['params']))
     # 4.6 selections carry business resource identity and source.  Preserve
     # these fields in the wire result while keeping behavior_id for old UE
     # executors and snapshots.
@@ -440,7 +450,7 @@ def resolve_presentation(intent: Mapping[str, Any], profile: Optional[Mapping[st
             "primary_state": state_id,
             "modifier_ids": channel_modifier_ids,
         }
-        for key in ("resource_id", "revision"):
+        for key in ("resource_id", "revision", "params"):
             if key in route:
                 resolved_channel[key] = route[key]
         resolved[channel] = resolved_channel

@@ -55,6 +55,16 @@ void FOntoTwinSyncEditorModule::RegisterMenus()
 	FToolMenuSection& Section = ToolsMenu->FindOrAddSection(TEXT("OntoTwin"));
 
 	Section.AddEntry(FToolMenuEntry::InitMenuEntry(
+		TEXT("OntoTwinPluginVersions"),
+		LOCTEXT("PluginVersions", "OntoTwin 插件版本与更新"),
+		LOCTEXT("PluginVersionsTip", "比较运行构建、项目源码和本机母本；关闭 UE 后安全更新。"),
+		FSlateIcon(), FUIAction(FExecuteAction::CreateRaw(this, &FOntoTwinSyncEditorModule::OpenDeliveryTools, false))));
+	Section.AddEntry(FToolMenuEntry::InitMenuEntry(
+		TEXT("OntoTwinExportProject"),
+		LOCTEXT("ExportProject", "OntoTwin 导出交付工程"),
+		LOCTEXT("ExportProjectTip", "导出可继续编辑的独立工程、数据集包和版本清单，不改变原工程。"),
+		FSlateIcon(), FUIAction(FExecuteAction::CreateRaw(this, &FOntoTwinSyncEditorModule::OpenDeliveryTools, true))));
+	Section.AddEntry(FToolMenuEntry::InitMenuEntry(
 		TEXT("OntoTwinMouseWorldCoordinates"),
 		LOCTEXT("MouseWorldCoordinatesLabel", "OntoTwin Mouse World Coordinates"),
 		LOCTEXT("MouseWorldCoordinatesTooltip", "Open the OntoTwin editor viewport mouse world-coordinate panel."),

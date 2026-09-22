@@ -18,6 +18,9 @@ public class OntoTwinSyncEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Blutility",
+			"Projects",
+			"Json",
+			"OntoTwinSync",
 			"Slate",
 			"SlateCore",
 			"ToolMenus",

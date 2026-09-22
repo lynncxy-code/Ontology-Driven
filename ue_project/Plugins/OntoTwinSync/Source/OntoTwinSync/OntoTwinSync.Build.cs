@@ -2,12 +2,34 @@
 // 依赖与原 test0316 游戏模块一致；4.0 人物漫游使用 UE 内置 Enhanced Input。
 
 using UnrealBuildTool;
+using System;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 
 public class OntoTwinSync : ModuleRules
 {
 	public OntoTwinSync(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		// Embed the source identity in the DLL, not in a mutable sidecar file.
+		string IdentityRoot = Path.GetFullPath(Path.Combine(ModuleDirectory, "../.."));
+		var IdentityFiles = Directory.GetFiles(Path.Combine(IdentityRoot, "Source"), "*", SearchOption.AllDirectories)
+			.Concat(new[] { Path.Combine(IdentityRoot, "OntoTwinSync.uplugin") })
+			.OrderBy(P => Path.GetRelativePath(IdentityRoot, P).Replace('\\', '/'), StringComparer.Ordinal);
+		var IdentityText = new StringBuilder();
+		using (var Hash = SHA256.Create())
+		{
+			foreach (string File in IdentityFiles)
+			{
+				ExternalDependencies.Add(File);
+				string Digest = Convert.ToHexString(Hash.ComputeHash(System.IO.File.ReadAllBytes(File))).ToLowerInvariant();
+				IdentityText.Append(Path.GetRelativePath(IdentityRoot, File).Replace('\\', '/')).Append('\0').Append(Digest).Append('\n');
+			}
+			string Fingerprint = Convert.ToHexString(Hash.ComputeHash(Encoding.UTF8.GetBytes(IdentityText.ToString()))).ToLowerInvariant();
+			PrivateDefinitions.Add("ONTOTWIN_BUILD_SOURCE_HASH=\"" + Fingerprint + "\"");
+		}
 		// Several UI translation units intentionally use the same anonymous
 		// namespace color names. Keep them as separate translation units.
 		bUseUnity = false;

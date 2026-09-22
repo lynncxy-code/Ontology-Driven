@@ -11,4 +11,5 @@ public:
 private:
 	void RegisterMenus();
 	void OpenMouseWorldCoordinates();
+	void OpenDeliveryTools(bool bExport);
 };

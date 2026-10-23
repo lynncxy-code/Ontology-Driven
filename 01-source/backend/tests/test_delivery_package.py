@@ -182,7 +182,8 @@ class DeliveryTests(unittest.TestCase):
         from db import pg
         pg.DATABASE_URL = os.environ['ONTOTWIN_TEST_PG_URL']
         from project_store_pg import ProjectStorePG
-        store = ProjectStorePG()
+        store = object.__new__(ProjectStorePG)
+        ProjectStorePG.__init__(store)
         original = self.target.read_project('target')
         original['id'] = 'delivery-pg-target'
         original['dataset'].update(id='delivery-pg-target',bound_ue_project_id='ue-delivery-pg')

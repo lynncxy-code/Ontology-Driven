@@ -7,6 +7,7 @@ import requests as http_requests
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from ontology import SharedState
+from instance_labels import resolve_label, register_label_routes
 from mapping_store import (
     ONTOLOGY_PROPERTIES, INTERFACES, INTERFACE_MAP,
     TRANSFORM_TYPES, MOCK_ASSETS, OBJECT_TYPES,
@@ -29,7 +30,14 @@ from presentation_catalog import (
 from ontology_parser import validate_files, parse_ontology_csvs
 from writeback import apply_batch_writeback, apply_writeback, runtime_edit_state_hash
 from material_writeback import apply_material_writeback
-from ue_project_binding import bind_active_dataset, check_request_matches_active, request_ue_project
+from part_transform_writeback import apply_part_transform_writeback
+from ue_project_binding import (
+    bind_active_dataset,
+    check_request_can_write_active,
+    check_request_matches_active,
+    discovered_ue_projects,
+    request_ue_project,
+)
 from realtime_channel import enrich_instances_with_realtime_channel
 from scene_interaction.service import get_runtime_status
 from dataset_activation import (
@@ -168,7 +176,8 @@ def serve_trash():
 
 import json as _json
 import tempfile
-from parser_dxf import extract_preview_data
+from spatial_assets.cad_parser import parse_cad
+from spatial_assets.validators import SpatialFrameValidationError
 from coord_transform import (calibrate as coord_calibrate, apply_transform as coord_apply,
                              canonical_to_ue as coord_canon_to_ue, invert_affine as coord_invert,
                              build_ue_matrix as coord_build_ue_matrix)
@@ -190,10 +199,12 @@ def coord_preview():
     try:
         f.save(tmp.name)
         tmp.close()
-        result = extract_preview_data(tmp.name)
+        result = parse_cad(tmp.name, 'preview')
         if 'error' in result:
             return jsonify(result), 400
         return jsonify(result)
+    except SpatialFrameValidationError as exc:
+        return jsonify({'error':str(exc),'code':exc.code}), exc.status
     finally:
         try:
             os.unlink(tmp.name)
@@ -227,9 +238,10 @@ def coord_types_scan():
     try:
         f.save(tmp.name)
         tmp.close()
-        from parser_dxf import extract_block_candidates
-        result = extract_block_candidates(tmp.name, mapping=mapping)
+        result = parse_cad(tmp.name, 'types', mapping=mapping)
         return jsonify(result)
+    except SpatialFrameValidationError as exc:
+        return jsonify({'error':str(exc),'code':exc.code}), exc.status
     except Exception as e:
         return jsonify({"error": f"DXF 解析失败: {str(e)}"}), 500
     finally:
@@ -412,7 +424,12 @@ def _commit_merge(data, items, source_file, force):
         return jsonify({"error": "merge 模式必须提供 target_dataset_id"}), 400
     if target_id == "demo":
         return jsonify({"error": "Demo 数据集只读，不能合并"}), 400
-    target_ds = next((d for d in _datasets if d["id"] == target_id), None)
+    # Never mutate the shared dataset object before validation/persistence.
+    # Cross-project failures must leave both memory and disk untouched.
+    target_project = (project_store.get_active_copy() if target_id == project_store.get_active_id()
+                      else project_store.read_project(target_id))
+    target_ds = copy.deepcopy((target_project or {}).get('dataset'))
+    baseline_dataset = copy.deepcopy(target_ds)
     if not target_ds:
         return jsonify({"error": f"找不到数据集: {target_id}"}), 404
     if strategy not in ("skip", "overwrite"):
@@ -495,10 +512,28 @@ def _commit_merge(data, items, source_file, force):
     target_ds["graph_data"]["nodes"] = final_nodes
     target_ds["node_count"] = len(final_nodes)
 
-    # 若目标是当前激活的，刷新 _object_types 并持久化
-    if target_id == _active_dataset_id:
-        _object_types = _project_dataset_to_object_types(target_ds)
-        _persist_active_project()
+    # 若目标是当前激活的，刷新 _object_types 并持久化；
+    # 非当前项目也必须写回其项目快照，不能只改进程内 _datasets。
+    def persist_merge(working):
+        if working.get('dataset') != baseline_dataset:
+            raise ValueError('目标类型库已变化，请重新提交并确认')
+        working['dataset'] = copy.deepcopy(target_ds)
+        working['object_types'] = _project_dataset_to_object_types(
+            target_ds, existing_types=working.get('object_types') or {})
+        return copy.deepcopy(working['object_types'])
+    try:
+        with project_store._lock:
+            merged_types = project_store.transact_project(target_id, persist_merge)
+            # Keep the legacy projection in the same critical section as the
+            # durable write, so another merge cannot publish an older snapshot.
+            shared_target = next((d for d in _datasets if d['id'] == target_id), None)
+            if shared_target is not None:
+                shared_target.clear()
+                shared_target.update(copy.deepcopy(target_ds))
+            if target_id == _active_dataset_id:
+                _object_types = merged_types
+    except ValueError as exc:
+        return jsonify({'error': 'merge_conflict', 'message': str(exc)}), 409
 
     mapping_n = _write_back_asset_mapping(items)
 
@@ -894,6 +929,16 @@ def coord_save_components():
         return jsonify({"error": "清空构件时缺少来源标识"}), 400
     if not matrix:
         return jsonify({"error": "缺少 transform_matrix（请先完成标定）"}), 400
+
+    if mode == "dxf":
+        from cad_component_update import CadUpdateError, save_cad_components
+        try:
+            return jsonify(save_cad_components(project_store, data, _build_render_config))
+        except CadUpdateError as exc:
+            return jsonify({"error": exc.code, "message": str(exc)}), exc.status
+        except ProjectMismatch as exc:
+            return jsonify({"error": "project changed", "expected": exc.expected,
+                            "actual": exc.actual}), 409
 
     # 3.1/3.2/3.0.2：规范系 = 来源帧坐标 − 规范原点。
     # 每个来源保存自己的 source→UE 矩阵，避免图片源/CAD 源互相覆盖。
@@ -1942,11 +1987,10 @@ def manage_behavior_config(object_type_rid):
             "presentation_profile": profile_from_object_type(ot),
         })
     if request.method == 'DELETE':
-        configs = ot.setdefault("interface_configs", {})
-        if isinstance(configs, dict):
-            configs.pop("I3D_Behavioral", None)
+        profile = {"version": "1.0", "behavior_library": "none", "channels": {}}
+        _store_behavior_profile(ot, profile)
         _persist_active_project()
-        return jsonify({"object_type_rid": object_type_rid, "presentation_profile": {}})
+        return jsonify({"object_type_rid": object_type_rid, "presentation_profile": profile})
     data = request.get_json(silent=True) or {}
     profile = data.get("presentation_profile", data.get("behavior_config", data))
     error = _validate_behavior_profile(profile)
@@ -1983,10 +2027,10 @@ def manage_presentation_profile(object_type_rid):
         configs = {}
         ot["interface_configs"] = configs
     if request.method == 'DELETE':
-        configs.pop("I3D_Presentation", None)
-        ot.pop("presentation_profile", None)
+        profile = {"version": "1.0", "behavior_library": "none", "channels": {}}
+        _store_behavior_profile(ot, profile)
         _persist_active_project()
-        return jsonify({"object_type_rid": object_type_rid, "presentation_profile": {}})
+        return jsonify({"object_type_rid": object_type_rid, "presentation_profile": profile})
     data = request.get_json(silent=True)
     profile = data.get("presentation_profile") if isinstance(data, dict) else None
     if not isinstance(profile, dict):
@@ -2382,6 +2426,15 @@ def bind_asset():
         return jsonify({"error": "object_type_rid and file_number are required"}), 400
     if rid not in _object_types:
         return jsonify({"error": "ObjectType not found"}), 404
+
+    if data.get("source") == "ue_catalog":
+        from ue_asset_catalog.service import AssetCatalogError
+        try:
+            result = ue_asset_catalog_service.bind_type(data)
+            _refresh_object_types_after_overlay_save()
+            return jsonify(result)
+        except AssetCatalogError as exc:
+            return jsonify({"error": exc.code, "message": str(exc)}), exc.status
 
     # ── 判断数据源 ─────────────────────────────────────────────
     asset_meta = None
@@ -2867,8 +2920,11 @@ def _build_snapshot(instance_id, ctx=None):
             "scale_z":       raw.get("scale_z", 1.0),
         }
 
+    label_source = ot if ot_rid in ctx.object_types else cfg
+    label_text = resolve_label(label_source, {**inst_meta, "id": instance_id}, raw)
     if "I3D_Visual" in injected:
         interfaces["I3D_Visual"] = {
+            "ui_label_content": label_text,
             "material_variant": raw.get("material_variant", "normal"),
             "is_visible": raw.get("is_visible", True)
         }
@@ -2877,7 +2933,7 @@ def _build_snapshot(instance_id, ctx=None):
         interfaces["I3D_Behavioral"] = {
             "animation_state":  raw.get("animation_state", "idle"),
             "fx_trigger":       raw.get("fx_trigger", ""),
-            "ui_label_content": raw.get("ui_label_content", instance_id)
+            "ui_label_content": label_text
         }
 
     if "I3D_Behavioral" in injected or "I3D_Presentation" in injected:
@@ -2887,6 +2943,10 @@ def _build_snapshot(instance_id, ctx=None):
         profile_source = ot if ot_rid in ctx.object_types else cfg
         profile = profile_from_object_type(profile_source)
         presentation = build_presentation(instance_id, raw, profile)
+        for route in presentation.get("resolution", {}).get("channels", {}).values():
+            resource = get_presentation_resource(route.get("resource_id", ""))
+            if resource:
+                route["display_name"] = resource["display_name"]
         interfaces["I3D_Presentation"] = presentation
         # Keep the legacy projections present for clients that only understand
         # the old interfaces, while marking the new authority explicitly.
@@ -3110,9 +3170,9 @@ def writeback_state():
 @app.route('/api/v2/state/writeback/batch', methods=['POST'])
 def writeback_state_batch():
     """原子保存一个 Runtime Editor 会话，最多包含 100 个实例。"""
-    bind_ok, bind_info = check_request_matches_active(project_store, request)
+    bind_ok, bind_info, bind_status = check_request_can_write_active(project_store, request)
     if not bind_ok:
-        return jsonify(bind_info), 403
+        return jsonify(bind_info), bind_status
 
     data = request.json or {}
     ok, info, status = apply_batch_writeback(instance_store, data.get("changes"), max_changes=100)
@@ -3135,9 +3195,9 @@ def writeback_state_batch():
 @app.route('/api/v2/state/material-writeback', methods=['POST'])
 def material_writeback_state():
     """Atomically persist editor-preview material overrides for assembly parts."""
-    bind_ok, bind_info = check_request_matches_active(project_store, request)
+    bind_ok, bind_info, bind_status = check_request_can_write_active(project_store, request)
     if not bind_ok:
-        return jsonify(bind_info), 403
+        return jsonify(bind_info), bind_status
 
     data = request.json or {}
     try:
@@ -3166,6 +3226,45 @@ def material_writeback_state():
         "instance_count": info["instance_count"],
         "part_count": info["part_count"],
         "component_sync_count": info["component_sync_count"],
+        "snapshots": snapshots,
+    })
+
+
+@app.route('/api/v2/state/render-part-writeback', methods=['POST'])
+def render_part_writeback_state():
+    """Atomically persist relative transforms edited on assembly child parts."""
+    bind_ok, bind_info, bind_status = check_request_can_write_active(project_store, request)
+    if not bind_ok:
+        return jsonify(bind_info), bind_status
+
+    data = request.json or {}
+    try:
+        ok, info, status = apply_part_transform_writeback(
+            instance_store,
+            data.get("changes"),
+            expected_project_id=data.get("expected_project_id"),
+        )
+    except ProjectMismatch as error:
+        return jsonify({
+            "status": "error",
+            "error": "project_changed",
+            "expected": error.expected,
+            "actual": error.actual,
+        }), 409
+    if not ok:
+        return jsonify({"status": "error", **info}), status
+
+    snapshots = []
+    for instance_id in info["instance_ids"]:
+        snapshot = _build_snapshot(instance_id)
+        if snapshot is not None:
+            snapshots.append(snapshot)
+    return jsonify({
+        "status": "ok",
+        "instance_count": info["instance_count"],
+        "part_count": info["part_count"],
+        "component_sync_count": info["component_sync_count"],
+        "writebacks": info["results"],
         "snapshots": snapshots,
     })
 
@@ -3668,14 +3767,26 @@ def list_datasets():
 @app.route('/api/v2/ue/bind_active_project', methods=['POST'])
 def bind_active_ue_project():
     """Bind current active dataset/project to a UE project identity.
-    互斥：同一 UE-ID 已绑到其他项目 → 409；带 ?force=1 可强制迁移。"""
+    互斥：同一 UE-ID 已绑到其他项目 → 409；带 ?force=1 可强制迁移。
+    防抢占：激活项目已绑另一个 UE-ID → 409 project_already_bound；同样需 force。
+    可选 target_project_id：按指定项目绑定（UE 重绑上次成功的项目），不依赖激活态。"""
     global _datasets
     ue = request_ue_project(request)
-    force = str(request.args.get("force") or (request.get_json(silent=True) or {}).get("force") or "").lower() in ("1", "true", "yes")
-    ok, info = bind_active_dataset(project_store, ue["id"], ue["name"], force=force)
+    body = request.get_json(silent=True) or {}
+    force = str(request.args.get("force") or body.get("force") or "").lower() in ("1", "true", "yes")
+    target_project_id = str(
+        request.args.get("target_project_id") or body.get("target_project_id") or ""
+    ).strip() or None
+    ok, info = bind_active_dataset(
+        project_store, ue["id"], ue["name"], force=force, target_project_id=target_project_id
+    )
     if not ok:
-        # 互斥冲突返 409，其他参数错返 400
-        code = 409 if info.get("error") == "ue_project_already_bound" else 400
+        # 互斥/抢占冲突返 409，目标项目不存在返 404，其他参数错返 400
+        code = {
+            "ue_project_already_bound": 409,
+            "project_already_bound": 409,
+            "target_project_not_found": 404,
+        }.get(info.get("error"), 400)
         return jsonify(info), code
     ds = info["dataset"]
     for i, item in enumerate(_datasets):
@@ -3686,11 +3797,15 @@ def bind_active_ue_project():
 
 @app.route('/api/v2/ue/binding_status', methods=['GET'])
 def ue_binding_status():
-    ue = request_ue_project(request)
-    ok, info = check_request_matches_active(project_store, request)
-    status = "ok" if ok else "error"
-    code = 200 if ok else 403
-    return jsonify({"status": status, "request": ue, **info}), code
+    from ue_project_binding import binding_status as _binding_status
+    body, code = _binding_status(project_store, request)
+    return jsonify(body), code
+
+
+@app.route('/api/v2/ue/discovered', methods=['GET'])
+def ue_discovered_projects():
+    """Return recent UE identities for explicit Web UI binding selection."""
+    return jsonify({"items": discovered_ue_projects(project_store)})
 
 
 @app.route('/api/v2/ontology/datasets', methods=['POST'])
@@ -5261,20 +5376,23 @@ def get_graph_data():
 # 启动时从 ProjectStore 恢复数据集 + 激活态 + 类型表（须在所有函数定义之后调用）
 _init_from_project_store()
 
-# 启动时扫盘构建 UE-ID→pid 索引（3.5：UE 请求按 UE-ID 路由）
-try:
-    from ue_project_binding import rebuild_index as _ue_rebuild_index
-    _idx = _ue_rebuild_index(project_store)
-    if _idx:
-        print(f"[ue_binding] 索引已建 {len(_idx)} 条：{list(_idx.keys())}")
-except Exception as _e:
-    print(f"[ue_binding] 索引构建失败: {_e}")
+# 启动时扫盘构建 UE-ID→pid 索引（3.5：UE 请求按 UE-ID 路由）。
+# 失败（如 PG 尚未就绪）不再是永久性的：resolve_project_for_ue 未命中时会节流懒重建。
+from ue_project_binding import (
+    index_snapshot as _ue_index_snapshot,
+    try_rebuild_index as _ue_try_rebuild_index,
+)
+if _ue_try_rebuild_index(project_store, force=True):
+    _idx = _ue_index_snapshot()
+    print(f"[ue_binding] 索引已建 {len(_idx)} 条：{list(_idx.keys())}")
 
 
 def _refresh_object_types_after_overlay_save():
     global _object_types
     _object_types = project_store.get_object_types()
 
+
+register_label_routes(app, lambda: _object_types, _persist_active_project)
 
 from overlay import register_overlay_routes
 overlay_service = register_overlay_routes(app, project_store, _refresh_object_types_after_overlay_save)
@@ -5302,6 +5420,8 @@ def _dataset_package_names():
 
 def _dataset_package_imported(dataset):
     """Refresh the Web catalog after a committed import, update or binding change."""
+    # 导入/更新/回滚直接整份写项目，绑定字段可能随之变化 → 同步 UE-ID 索引
+    _ue_try_rebuild_index(project_store, force=True)
     for index, item in enumerate(_datasets):
         if item.get('id') == dataset.get('id'):
             _datasets[index] = dataset
@@ -5342,6 +5462,10 @@ register_spatial_asset_routes(app, project_store)
 
 from ue_asset_catalog import register_ue_asset_catalog_routes
 ue_asset_catalog_service = register_ue_asset_catalog_routes(app, project_store)
+instance_model_binding_service.ue_asset_catalog = ue_asset_catalog_service
+
+from ue_diagnostics import register_ue_diagnostics_routes
+register_ue_diagnostics_routes(app, lambda: project_store)
 
 from snapshot_delta import register_snapshot_delta_routes
 from ue_project_binding import resolve_project_for_ue as _ue_resolve
@@ -5410,11 +5534,7 @@ def trash_restore(trash_id):
     # 恢复项目后：文件后端需刷 _datasets 内存缓存 + UE 索引
     if kind == "project":
         _init_from_project_store()
-        try:
-            from ue_project_binding import rebuild_index as _ue_rebuild_index
-            _ue_rebuild_index(project_store)
-        except Exception:
-            pass
+        _ue_try_rebuild_index(project_store, force=True)
     return jsonify({"status": "ok", "kind": kind, "restored": restored_id})
 
 

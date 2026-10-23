@@ -16,9 +16,20 @@ X-OntoTwin-UE-Project-Id / X-OntoTwin-UE-Project-Name。
   check_request_matches_active 名称与语义（旧调用方无需改动）
 - bind_active_dataset 现在会做互斥检查（force=True 可强制迁移）
 - check_request_matches_active 现在放行"绑到任意项目"的 UE 请求（不再要求匹配激活）
+
+2026-10 连接稳定性修订：
+- 索引只读 list_projects() 元数据重建；未命中时节流懒重建（自愈：后端先于
+  PG 就绪启动、离线工具/导入直接改库后，不必重启 backend）
+- 未绑定的 UE 请求在错误体里带 binding_state="unbound"（错误码仍是
+  ue_project_mismatch，兼容旧插件）
+- 绑定不再静默抢占：目标项目已绑其他 UE-ID 时返回 project_already_bound，
+  需要 force 才覆盖
+- bind 支持 target_project_id：UE 可按上次成功绑定的项目重绑，不依赖激活态
 """
 
+import datetime
 import threading
+import time
 from contextlib import nullcontext
 
 UE_ID_HEADER = "X-OntoTwin-UE-Project-Id"
@@ -77,32 +88,176 @@ def active_binding(store):
 
 _index_lock = threading.RLock()
 _ue_index = {}  # ue_id -> pid
+# 同一 UE-ID 出现在多个项目上的冲突（ue_id -> [pid...]），供诊断接口展示。
+_ue_conflicts = {}
+# 懒重建节流：索引未命中时最多每 _LAZY_REBUILD_INTERVAL 秒回源重建一次。
+_LAZY_REBUILD_INTERVAL = 5.0
+_last_rebuild = {"at": 0.0, "ok": False, "error": "", "attempted_at": 0.0}
+
+# UE 身份发现是临时状态，不写入项目数据。它只用于网页提供“最近发现的 UE”
+# 选择项；真正的项目绑定仍由显式确认操作持久化。请求停止一段时间后自动过期。
+_DISCOVERY_TTL_SECONDS = 10 * 60
+_DISCOVERY_MAX_ENTRIES = 256
+_discovered_lock = threading.RLock()
+_discovered_ue = {}  # ue_id -> {name, context, last_seen_epoch}
+
+
+def observe_ue_project(request):
+    """记录一次带 UE 身份的请求，供网页显示最近发现的工程。"""
+    incoming = request_ue_project(request)
+    ue_id = incoming.get("id") or ""
+    if not ue_id:
+        return None
+    now = time.time()
+    context = (request.headers.get("X-OntoTwin-UE-Context") or "").strip().lower()
+    with _discovered_lock:
+        for stale_id, value in list(_discovered_ue.items()):
+            if now - value['last_seen_epoch'] > _DISCOVERY_TTL_SECONDS:
+                _discovered_ue.pop(stale_id, None)
+        previous = _discovered_ue.get(ue_id) or {}
+        if ue_id not in _discovered_ue and len(_discovered_ue) >= _DISCOVERY_MAX_ENTRIES:
+            oldest = min(_discovered_ue, key=lambda key: _discovered_ue[key]['last_seen_epoch'])
+            _discovered_ue.pop(oldest)
+        _discovered_ue[ue_id] = {
+            "ue_project_id": ue_id,
+            "ue_project_name": incoming.get("name") or ue_id,
+            "context": context or previous.get('context') or "unknown",
+            "last_seen_epoch": now,
+        }
+    return ue_id
+
+
+def discovered_ue_projects(store, max_age_seconds=_DISCOVERY_TTL_SECONDS):
+    """Return recent UE identities plus their current persistent binding."""
+    now = time.time()
+    with _discovered_lock:
+        for ue_id, value in list(_discovered_ue.items()):
+            if now - float(value.get("last_seen_epoch") or 0) > max_age_seconds:
+                _discovered_ue.pop(ue_id, None)
+        discovered = [dict(value) for value in _discovered_ue.values()]
+
+    # The index is rebuilt on startup and after binding changes. A throttled
+    # refresh here also makes the picker correct when another process changed
+    # the persistent project store.
+    try_rebuild_index(store)
+    projects = {}
+    try:
+        projects = {
+            str(meta.get("id")): meta
+            for meta in (store.list_projects() or [])
+            if isinstance(meta, dict) and meta.get("id")
+        }
+    except Exception:
+        projects = {}
+
+    result = []
+    for value in discovered:
+        ue_id = value["ue_project_id"]
+        pid = index_lookup(ue_id)
+        if pid and str(pid) not in projects:
+            pid = None
+        meta = projects.get(str(pid)) if pid else None
+        seen = float(value.get("last_seen_epoch") or now)
+        result.append({
+            "ue_project_id": ue_id,
+            "ue_project_name": value.get("ue_project_name") or ue_id,
+            "context": value.get("context") or "unknown",
+            "last_seen_at": datetime.datetime.fromtimestamp(
+                seen, datetime.timezone.utc
+            ).isoformat().replace("+00:00", "Z"),
+            "last_seen_seconds": max(0, int(now - seen)),
+            "online": now - seen <= 10,
+            "binding_state": "bound" if pid else "unbound",
+            "project_id": str(pid) if pid else "",
+            "project_name": (meta or {}).get("name") or "",
+            "is_active": bool(pid and hasattr(store, "get_active_id") and pid == store.get_active_id()),
+        })
+    result.sort(key=lambda item: (not item["online"], item["last_seen_seconds"], item["ue_project_name"].casefold()))
+    return result
+
+
+def _binding_id_from_meta(store, meta):
+    """优先用 list_projects() 自带的绑定字段；旧/自定义 store 没有时再读整份项目。"""
+    if "bound_ue_project_id" in meta:
+        return str(meta.get("bound_ue_project_id") or "").strip()
+    if not hasattr(store, "read_project"):
+        return ""
+    proj = store.read_project(meta.get("id"))
+    ds = (proj or {}).get("dataset") if isinstance(proj, dict) else None
+    return str((ds or {}).get("bound_ue_project_id") or "").strip() if isinstance(ds, dict) else ""
 
 
 def rebuild_index(store):
-    """启动或大规模变更后调用：扫全部项目文件重建索引。"""
-    new_index = {}
-    if hasattr(store, "list_projects"):
-        for meta in store.list_projects() or []:
-            pid = meta.get("id") if isinstance(meta, dict) else None
-            if not pid:
-                continue
-            proj = None
-            if hasattr(store, "read_project"):
-                try:
-                    proj = store.read_project(pid)
-                except Exception:
-                    proj = None
-            if not isinstance(proj, dict):
-                continue
-            ds = proj.get("dataset") or {}
-            ue_id = (ds.get("bound_ue_project_id") or "").strip() if isinstance(ds, dict) else ""
-            if ue_id:
-                new_index[ue_id] = pid
+    """启动或大规模变更后调用：从持久层重建 UE-ID→pid 索引。
+
+    只读 list_projects() 的元数据（PG 一条 SQL / JSON 逐文件），不再逐项目
+    read_project 重组全部实例，因此可以放在请求路径上做懒重建。
+    list_projects() 抛错（例如 PG 尚未就绪）时向上抛出，且不清空现有索引。
+    同一 UE-ID 绑在多个项目上时：优先激活项目，否则取 id 字典序最小者，
+    并把冲突记入 _ue_conflicts（诊断接口可见）。
+    """
+    metas = store.list_projects() if hasattr(store, "list_projects") else []
+    active_id = store.get_active_id() if hasattr(store, "get_active_id") else None
+    seen = {}
+    for meta in metas or []:
+        pid = meta.get("id") if isinstance(meta, dict) else None
+        if not pid:
+            continue
+        try:
+            ue_id = _binding_id_from_meta(store, meta)
+        except Exception:
+            ue_id = ""
+        if ue_id:
+            seen.setdefault(ue_id, []).append(str(pid))
+
+    new_index, conflicts = {}, {}
+    for ue_id, pids in seen.items():
+        pids = sorted(set(pids))
+        if len(pids) > 1:
+            conflicts[ue_id] = pids
+        new_index[ue_id] = active_id if active_id in pids else pids[0]
+
     with _index_lock:
         _ue_index.clear()
         _ue_index.update(new_index)
+        _ue_conflicts.clear()
+        _ue_conflicts.update(conflicts)
+        now = time.monotonic()
+        _last_rebuild.update(at=now, attempted_at=now, ok=True, error="")
+    if conflicts:
+        print(f"[ue_binding] 同一 UE-ID 绑定到多个项目（已按激活/字典序取一个）：{conflicts}")
     return dict(new_index)
+
+
+def try_rebuild_index(store, force=False):
+    """节流 + 吞异常的重建入口，供请求路径调用。返回是否成功执行了重建。"""
+    with _index_lock:
+        now = time.monotonic()
+        if not force and now - _last_rebuild["attempted_at"] < _LAZY_REBUILD_INTERVAL:
+            return False
+        _last_rebuild["attempted_at"] = now
+    try:
+        rebuild_index(store)
+        return True
+    except Exception as exc:
+        with _index_lock:
+            _last_rebuild.update(ok=False, error=str(exc))
+        print(f"[ue_binding] 索引重建失败: {exc}")
+        return False
+
+
+def index_state():
+    """诊断用：索引规模、冲突与最近一次重建结果。"""
+    with _index_lock:
+        return {
+            "size": len(_ue_index),
+            "conflicts": {k: list(v) for k, v in _ue_conflicts.items()},
+            "last_rebuild_ok": bool(_last_rebuild["ok"]),
+            "last_rebuild_error": _last_rebuild["error"],
+            "seconds_since_rebuild": (
+                round(time.monotonic() - _last_rebuild["at"], 1) if _last_rebuild["at"] else None
+            ),
+        }
 
 
 def index_set(ue_id, pid):
@@ -140,6 +295,15 @@ def index_snapshot():
         return dict(_ue_index)
 
 
+def lookup_with_heal(store, ue_id):
+    """索引查找；未命中时节流回源重建一次再查（索引自愈）。"""
+    pid = index_lookup(ue_id)
+    if pid is None and ue_id and store is not None:
+        if try_rebuild_index(store):
+            pid = index_lookup(ue_id)
+    return pid
+
+
 # ═══════════════════════════════════════════════════════════════
 # Resolver：UE 请求 → 应该服务哪个项目
 # ═══════════════════════════════════════════════════════════════
@@ -152,6 +316,9 @@ def resolve_project_for_ue(store, request):
       pid=None,  ok=False → 拒绝，info 含 error/message
     """
     incoming = request_ue_project(request)
+    # Every UE request is also a lightweight discovery heartbeat. This keeps
+    # the web picker useful without introducing a second registration protocol.
+    observe_ue_project(request)
     ue_id = incoming.get("id") or ""
 
     if not ue_id:
@@ -162,19 +329,25 @@ def resolve_project_for_ue(store, request):
             "message": "UE 请求缺少 X-OntoTwin-UE-Project-Id 头",
         }
 
-    pid = index_lookup(ue_id)
+    pid = lookup_with_heal(store, ue_id)
     if pid is None:
         # 错误码保留旧名 ue_project_mismatch 以兼容 UE 插件里的硬编码
-        # （TwinSceneManager.cpp 里根据此码走"save disabled"专属提示）
+        # （TwinSceneManager.cpp 里根据此码走"save disabled"专属提示）；
+        # binding_state 让新插件/诊断区分"未绑定"和真正的冲突。
         return None, False, {
             "error": "ue_project_mismatch",
-            "message": "该 UE 未绑定到任何项目；请在 Web UI 激活目标项目后在 UE 中执行绑定",
+            "binding_state": "unbound",
+            "message": (
+                f"UE 工程 {ue_id} 尚未绑定到任何 OntoTwin 项目；"
+                "请在 Web UI 激活目标项目后，在 UE 中执行“绑定当前UE工程到激活数据集”"
+            ),
             "request_ue_project_id": ue_id,
             "request_ue_project_name": incoming.get("name"),
         }
 
     return pid, True, {
         "mode": "matched",
+        "binding_state": "bound",
         "project_id": pid,
         "request_ue_project_id": ue_id,
         "request_ue_project_name": incoming.get("name"),
@@ -189,9 +362,56 @@ def check_request_matches_active(store, request):
     """
     3.5 起新语义：只要 UE 已绑到"某个"项目就放行（Web 请求也放行）。
     切激活不再影响老 UE。返回 (ok, info)。info 里带 project_id 供调用方按需路由。
+    注意：写入当前激活项目的接口还必须再用 check_request_can_write_active 校验。
     """
     pid, ok, info = resolve_project_for_ue(store, request)
     return bool(ok), dict(info)
+
+
+def check_request_can_write_active(store, request):
+    """写接口专用：UE 请求必须绑定到"当前激活项目"才能写。
+
+    写路径直接操作激活项目的内存 store；若 UE 绑的是另一个项目而照样放行，
+    迁移出的副本与源项目共享实例 ID 时会把改动写进错误的项目。
+    返回 (ok, info, http_status)。
+    """
+    pid, ok, info = resolve_project_for_ue(store, request)
+    if not ok:
+        return False, dict(info), 403
+    active_id = store.get_active_id() if hasattr(store, "get_active_id") else None
+    if pid is not None and pid != active_id:
+        return False, {
+            "error": "ue_project_not_active",
+            "message": "UE 所绑项目非当前激活项目；只有激活项目可写入。请在 Web UI 激活后重试。",
+            "ue_project_id": pid,
+            "active_project_id": active_id,
+        }, 409
+    return True, dict(info), 200
+
+
+def binding_status(store, request):
+    """/api/v2/ue/binding_status 的响应体与状态码。
+
+    - 已绑定：200 mode=matched（与旧版一致），附 is_active/can_write
+    - 未绑定：200 mode=unbound（旧插件据此启用 F10“绑定”按钮）
+    - 缺 UE-ID 等真正错误：403
+    """
+    incoming = request_ue_project(request)
+    pid, ok, info = resolve_project_for_ue(store, request)
+    active_id = store.get_active_id() if hasattr(store, "get_active_id") else None
+    body = {"request": incoming, "active_project_id": active_id, **info}
+    if ok:
+        if pid is not None:
+            body["is_active"] = pid == active_id
+            body["can_write"] = pid == active_id
+        body["status"] = "ok"
+        return body, 200
+    if info.get("binding_state") == "unbound":
+        body.update(status="ok", mode="unbound", can_write=False)
+        body.pop("error", None)
+        return body, 200
+    body["status"] = "error"
+    return body, 403
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -199,28 +419,40 @@ def check_request_matches_active(store, request):
 # ═══════════════════════════════════════════════════════════════
 
 def bind_active_dataset(store, ue_project_id, ue_project_name, force=False, target_project_id=None):
-    """把当前激活项目绑到指定 UE-ID。
+    """把当前激活项目（或显式 target_project_id）绑到指定 UE-ID。
     互斥：同一 UE-ID 只能绑一个项目；已绑他处需 force=True 才能迁移。
+    防抢占：目标项目已绑另一个 UE-ID 时同样需要 force=True 才能覆盖。
     锁序：_index_lock（外）→ store._lock（内），全流程原子；
     重要节点做失败回滚，避免"清了旧但没写新"造成索引与真源不一致。
     """
     if not ue_project_id:
         return False, {"error": "ue_project_id is required"}
 
-    # Standalone maintenance/migration processes import this module without
-    # running app.py's startup hook, so their process-local index starts empty.
-    # Rebuild from the persistent project store before deciding exclusivity;
-    # otherwise an offline migration can bind the same UE ID to two projects.
+    # 索引可能落后于持久层（PG 晚于 backend 就绪、独立维护/迁移进程、离线改库）。
+    # 未命中时判定互斥前先从持久层重建；失败也继续，由下方真源字段兜底。
     if index_lookup(ue_project_id) is None:
-        rebuild_index(store)
+        try:
+            rebuild_index(store)
+        except Exception as exc:
+            print(f"[ue_binding] bind 前索引重建失败: {exc}")
 
     store_lock = getattr(store, "_lock", None) or nullcontext()
     with _index_lock:
         with store_lock:
             # 在锁内重读激活态：避免另一线程正好切换激活导致我们写错项目
-            active = store.read_project(target_project_id) if target_project_id else (store.get_active() if hasattr(store, "get_active") else None)
+            if target_project_id:
+                active = store.read_project(target_project_id) if hasattr(store, "read_project") else None
+                if not active:
+                    return False, {
+                        "error": "target_project_not_found",
+                        "message": f"目标项目不存在: {target_project_id}",
+                        "target_project_id": target_project_id,
+                    }
+            else:
+                active = store.get_active() if hasattr(store, "get_active") else None
             if not active:
-                return False, {"error": "no active project"}
+                return False, {"error": "no active project",
+                               "message": "Web UI 当前没有激活的项目（或激活的是内置 Demo）；请先激活目标项目"}
             active_pid = active.get("id")
 
             existing_pid = _ue_index.get(str(ue_project_id))
@@ -229,6 +461,20 @@ def bind_active_dataset(store, ue_project_id, ue_project_name, force=False, targ
                     "error": "ue_project_already_bound",
                     "message": f"该 UE 已绑到另一项目 {existing_pid}；先在那边解绑或加 force=1 迁移",
                     "bound_to": existing_pid,
+                }
+
+            ds = active.get("dataset") if target_project_id else active_dataset(store)
+            current_ue = str((ds or {}).get("bound_ue_project_id") or "").strip() if isinstance(ds, dict) else ""
+            if current_ue and current_ue != str(ue_project_id) and not force:
+                return False, {
+                    "error": "project_already_bound",
+                    "message": (
+                        f"项目 {active_pid} 已绑定 UE 工程 {current_ue}；"
+                        "如确认要改绑到当前 UE 工程，请显式强制绑定（force=1）"
+                    ),
+                    "project_id": active_pid,
+                    "bound_ue_project_id": current_ue,
+                    "bound_ue_project_name": str((ds or {}).get("bound_ue_project_name") or ""),
                 }
 
             # force 迁移：先快照旧项目绑定用于回滚；再清空旧项目绑定（失败则终止）
@@ -251,7 +497,6 @@ def bind_active_dataset(store, ue_project_id, ue_project_name, force=False, targ
                         "bound_to": existing_pid,
                     }
 
-            ds = active.get('dataset') if target_project_id else active_dataset(store)
             if not ds:
                 ds = {
                     "id": active.get("id"),
@@ -266,7 +511,8 @@ def bind_active_dataset(store, ue_project_id, ue_project_name, force=False, targ
             ds["bound_ue_project_name"] = ue_project_name or ue_project_id
             try:
                 if target_project_id:
-                    active['dataset'] = ds
+                    active = dict(active)
+                    active["dataset"] = ds
                     store.write_project(target_project_id, active)
                 elif hasattr(store, "set_dataset"):
                     store.set_dataset(ds)
@@ -288,6 +534,7 @@ def bind_active_dataset(store, ue_project_id, ue_project_name, force=False, targ
             for k in [k for k, v in _ue_index.items() if v == str(active_pid) and k != str(ue_project_id)]:
                 _ue_index.pop(k, None)
             _ue_index[str(ue_project_id)] = str(active_pid)
+            _ue_conflicts.pop(str(ue_project_id), None)
 
     return True, {"project_id": active_pid, "dataset": ds}
 

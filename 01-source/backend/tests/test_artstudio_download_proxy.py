@@ -146,7 +146,9 @@ class TimeoutDefaultTestCase(unittest.TestCase):
 
     def test_compose_default_matches_code_default(self):
         """compose 的 ${VAR:-默认} 会盖住 Python 的默认值，两处必须一致。"""
-        compose = os.path.join(os.path.dirname(BACKEND_DIR), "docker-compose.yml")
+        compose = os.path.abspath(os.path.join(BACKEND_DIR, "..", "..", "docker-compose.yml"))
+        if not os.path.exists(compose):
+            compose = os.path.join(os.path.dirname(BACKEND_DIR), "docker-compose.yml")
         with open(compose, encoding="utf-8") as fh:
             text = fh.read()
         self.assertIn("ARTSTUDIO_TIMEOUT=${ARTSTUDIO_TIMEOUT:-20}", text)

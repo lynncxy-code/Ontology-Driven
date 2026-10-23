@@ -378,12 +378,16 @@ class OverlayPostgresStorageTestCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        if not os.environ.get('ONTOTWIN_TEST_PG_URL'):
+            raise unittest.SkipTest('requires isolated PostgreSQL test database')
+        if pg_db is not None:
+            pg_db.DATABASE_URL = os.environ['ONTOTWIN_TEST_PG_URL']
         if ProjectStorePG is None or pg_db is None or not pg_db.ping():
             raise unittest.SkipTest("PostgreSQL is unavailable")
 
     def setUp(self):
         self.project_id = f"overlay_pg_{uuid.uuid4().hex}"
-        self.store = ProjectStorePG.__new__(ProjectStorePG)
+        self.store = object.__new__(ProjectStorePG)
         self.store._lock = threading.RLock()
         self.store._active_id = self.project_id
         self.store._dirty = False

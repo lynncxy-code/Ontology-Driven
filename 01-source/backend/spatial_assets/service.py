@@ -3,11 +3,13 @@ import datetime
 import hashlib
 import json
 import os
+import threading
 import uuid
 
 from coord_transform import build_ue_matrix, calibrate as coord_calibrate, invert_affine
 
 from .storage import SpatialAssetStorage
+from .cad_parser import parse_cad
 from .validators import (
     SpatialFrameValidationError,
     clean_name,
@@ -22,6 +24,9 @@ from .validators import (
 IMAGE_CALIBRATION_PUBLISH_RMSE_CM = 50.0
 IMAGE_CALIBRATION_PUBLISH_MAX_RESIDUAL_CM = 75.0
 CAD_CALIBRATION_PUBLISH_RMSE_CM = 200.0
+_TYPE_SCAN_MAPPING_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "block_asset_mapping.json"
+)
 
 
 class SpatialFrameNotFoundError(LookupError):
@@ -64,9 +69,13 @@ def _multiply_affine(left, right):
 
 
 class SpatialFrameService:
+    _scan_locks_guard = threading.Lock()
+    _scan_locks = {}
     def __init__(self, store, asset_root=None):
         self.store = store
         self.storage = SpatialAssetStorage(asset_root)
+        with self._scan_locks_guard:
+            self._type_scan_lock = self._scan_locks.setdefault(self.storage.root, threading.Lock())
 
     def _project(self):
         project = self.store.get_active_copy()
@@ -77,6 +86,9 @@ class SpatialFrameService:
     @staticmethod
     def _public_frame(frame):
         value = copy.deepcopy(frame)
+        # Type scan results are derived, rebuildable cache data. Never expose
+        # the potentially large cache through the project frame payload.
+        value.pop("type_scan", None)
         if value.get("kind") == "image" and isinstance(value.get("image"), dict):
             value["image_url"] = f"/api/v2/spatial-frames/{value.get('id')}/image"
         image = value.get("image")
@@ -157,6 +169,10 @@ class SpatialFrameService:
 
     def create_cad_frame(self, file_storage, fields, expected_project_id=None):
         project = self._project()
+        # Updating an existing drawing is explicit; filenames never choose a target.
+        update_id = str(fields.get("update_frame_id") or "").strip()
+        if update_id:
+            return self._replace_cad_source(project, update_id, file_storage, fields, expected_project_id)
         if file_storage is None:
             raise SpatialFrameValidationError("cad_required", "请选择 DXF 文件", status=400)
         cad, path, created = self.storage.store_cad_stream(
@@ -202,6 +218,53 @@ class SpatialFrameService:
             self.storage.remove_if_created(path, created)
             raise
         return {"status": "ok", "frame": self._public_frame(frame)}
+
+    def _replace_cad_source(self, project, frame_id, file_storage, fields, expected_project_id):
+        from project_store import ProjectMismatch
+        expected_project_id = expected_project_id or project["id"]
+        if expected_project_id != project["id"]:
+            raise ProjectMismatch(expected_project_id, project["id"])
+        current = _find_frame(project, frame_id)
+        if not current or current.get("kind") != "cad":
+            raise SpatialFrameNotFoundError("当前项目中找不到要更新的 CAD 底图")
+        try:
+            expected_revision = int(fields["expected_draft_revision"])
+        except (KeyError, TypeError, ValueError):
+            raise SpatialFrameConflictError("请重新加载底图后再上传新版 CAD")
+        if expected_revision != int(current.get("draft_revision") or 0):
+            raise SpatialFrameConflictError("底图已被修改，请重新加载后再上传新版 CAD")
+        if file_storage is None:
+            raise SpatialFrameValidationError("cad_required", "请选择新版 DXF 文件", status=400)
+        cad, path, created = self.storage.store_cad_stream(
+            project["id"], file_storage.stream, file_storage.filename or "")
+
+        def update(working):
+            target = _find_frame(working, frame_id)
+            if (not target or target.get("kind") != "cad"
+                    or int(target.get("draft_revision") or 0) != expected_revision
+                    or target != current):
+                raise SpatialFrameConflictError("上传期间底图已变化，请重新加载后重试")
+            target.update(cad=cad, status="draft", draft_revision=expected_revision + 1,
+                          updated_at=_utc_now())
+            target.pop("type_scan", None)
+            # Reuse the existing frame identity/calibration. Publishing is still
+            # explicit; components, bindings and instances are untouched here.
+            return {"status": "ok", "frame": self._public_frame(target)}
+
+        try:
+            preview = None
+            if str(fields.get('include_preview') or '') == '1':
+                with self._type_scan_lock:
+                    preview = parse_cad(path, 'preview')
+                if not isinstance(preview, dict) or preview.get('error'):
+                    raise SpatialFrameValidationError('cad_parse_failed', '新版 DXF 解析失败，原底图保持不变')
+            result = self.store.transact_expected_active(expected_project_id, update)
+            if preview is not None:
+                result['preview'] = preview
+            return result
+        except Exception:
+            self.storage.remove_if_created(path, created)
+            raise
 
     def save_draft(self, frame_id, payload, expected_project_id=None):
         if not isinstance(payload, dict):
@@ -597,3 +660,88 @@ class SpatialFrameService:
         if not os.path.isfile(path):
             raise SpatialFrameNotFoundError("CAD 空间底图原始文件不存在")
         return path, cad
+
+    def scan_cad_types(self, frame_id, force=False, expected_project_id=None):
+        # Serialize cache lookup as well as parsing, so waiting requests reuse
+        # the completed result rather than parsing the same large file again.
+        with self._type_scan_lock:
+            return self._scan_cad_types_locked(frame_id, force, expected_project_id)
+
+    def _scan_cad_types_locked(self, frame_id, force=False, expected_project_id=None):
+        """Scan stored CAD into a disposable sidecar, never mutate the frame.
+
+        The browser should not re-upload a large DXF merely to populate the
+        type-audit step.  The source is already content-addressed in storage,
+        so its SHA-256 is also the cache key and invalidation signal.
+        """
+        project = self._project()
+        if expected_project_id and project.get("id") != expected_project_id:
+            raise SpatialFrameConflictError("项目已切换，请刷新后重新扫描")
+        current = _find_frame(project, frame_id)
+        if not current or current.get("kind") != "cad" or not isinstance(current.get("cad"), dict):
+            raise SpatialFrameNotFoundError("当前项目中找不到该 CAD 空间底图")
+        cad = current.get("cad") or {}
+        source_sha256 = str(cad.get("sha256") or "")
+        try:
+            with open(_TYPE_SCAN_MAPPING_FILE, "rb") as handle:
+                mapping_hash = hashlib.sha256(handle.read()).hexdigest()
+        except OSError:
+            mapping_hash = ""
+        cached = self.storage.read_type_scan_cache(
+            project.get("id"), frame_id, source_sha256
+        )
+        if (
+            not force
+            and cached
+            and cached.get("source_sha256") == source_sha256
+            and cached.get("cache_version") == 1
+            and cached.get("mapping_hash") == mapping_hash
+            and isinstance(cached.get("result"), dict)
+        ):
+            return {
+                "status": "ok",
+                "cached": True,
+                "frame_id": frame_id,
+                "source_sha256": source_sha256,
+                "scanned_at": cached.get("scanned_at"),
+                "result": copy.deepcopy(cached["result"]),
+            }
+
+        path = self.storage.resolve_cad(project.get("id"), cad)
+        if not os.path.isfile(path):
+            raise SpatialFrameNotFoundError("CAD 空间底图原始文件不存在")
+
+        mapping = {}
+        if os.path.exists(_TYPE_SCAN_MAPPING_FILE):
+            try:
+                with open(_TYPE_SCAN_MAPPING_FILE, "r", encoding="utf-8") as handle:
+                    mapping = json.load(handle) or {}
+            except (OSError, ValueError):
+                mapping = {}
+        result = parse_cad(path, 'types', mapping)
+        scanned_at = _utc_now()
+        cache = {
+            "cache_version": 1,
+            "mapping_hash": mapping_hash,
+            "source_sha256": source_sha256,
+            "scanned_at": scanned_at,
+            "result": copy.deepcopy(result),
+        }
+
+        # Revalidate that the source is still the same, but persist only the
+        # derived cache sidecar. This avoids changing frame revisions/fingerprints.
+        latest = self._project()
+        latest_frame = _find_frame(latest, frame_id)
+        if not latest_frame or (latest_frame.get("cad") or {}).get("sha256") != source_sha256:
+            raise SpatialFrameConflictError("CAD 原始文件已变化，请刷新后重新扫描")
+        if latest.get("id") != project.get("id"):
+            raise SpatialFrameConflictError("项目已切换，请刷新后重新扫描")
+        self.storage.write_type_scan_cache(project.get("id"), frame_id, source_sha256, cache)
+        return {
+            "status": "ok",
+            "cached": False,
+            "frame_id": frame_id,
+            "source_sha256": source_sha256,
+            "scanned_at": scanned_at,
+            "result": result,
+        }

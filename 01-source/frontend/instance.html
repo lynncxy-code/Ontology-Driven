@@ -15,6 +15,8 @@
     <script src="/hierarchy_menu.js"></script>
     <script src="/vendor/jsencrypt-3.3.2.min.js" integrity="sha384-2U3ZOFBn6am8uySRD8FeajTevK2M7ic+Z/2JAvpISsFItINnWF00bn+YpaZK+Isy" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="/nexus_titlebar.css" />
+    <link rel="stylesheet" href="/instance_control.css" />
+    <link rel="stylesheet" href="/instance_list.css" />
     <style>
         .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
@@ -66,14 +68,16 @@
             aspect-ratio: auto;
         }
     </style>
+    <script src="/ue_asset_picker.js"></script>
+    <link rel="stylesheet" href="/ue_asset_picker.css">
 </head>
 <body class="bg-gray-50 text-gray-900 h-screen overflow-hidden flex flex-col font-sans antialiased">
 <div id="app" class="flex flex-col flex-1 min-h-0">
     <!-- Header -->
-    <header class="nexus-titlebar">
+    <header class="nexus-titlebar" :inert="spawnDialogOpen ? '' : null">
         <div class="nexus-titlebar__main">
             <h1 class="nexus-titlebar__title">实例运维与监控中心</h1>
-            <p class="nexus-titlebar__subtitle">管理数字孪生实例生命周期，提供实时监控与手动 Override 干预</p>
+            <p class="nexus-titlebar__subtitle">查看实例状态，管理场景显示、模型与信息展示</p>
         </div>
         <div class="nexus-titlebar__actions">
             <a href="/ontology" class="text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md transition border border-transparent hover:border-gray-300">
@@ -82,15 +86,20 @@
         </div>
     </header>
 
-    <div class="flex flex-1 overflow-hidden min-h-0">
-        <!-- Left: Spawn + List -->
-        <div class="w-96 bg-white border-r border-gray-200 flex flex-col min-h-0 relative">
-            <!-- Spawn Form -->
-            <div class="flex-shrink-0 border-b border-gray-200">
-                <div class="px-5 py-3 border-b border-gray-200 bg-gray-50/50">
-                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">实例投产 (Spawn)</span>
-                </div>
-                <div class="p-5 space-y-3 bg-white">
+    <div class="il-layout flex flex-1 overflow-hidden min-h-0" :inert="spawnDialogOpen ? '' : null">
+        <!-- Left: full-height instance list -->
+        <div class="il-sidebar bg-white border-r border-gray-200 flex flex-col min-h-0 relative">
+            <!-- Teleport keeps the low-frequency form out of the list layout. -->
+            <teleport to="body">
+                <div v-if="spawnDialogOpen" class="ic-modal-mask" @click.self="closeSpawnDialog" @keydown.esc.stop.prevent="closeSpawnDialog">
+                    <form ref="spawnDialogRef" class="il-spawn-dialog" role="dialog" aria-modal="true"
+                          aria-labelledby="spawn-dialog-title" tabindex="-1" @submit.prevent="spawnInstance" @keydown.tab="trapSpawnDialog">
+                        <header class="il-spawn-head">
+                            <h2 id="spawn-dialog-title">新建投产</h2>
+                            <p>选择设备类型与实例编号，设置初始位置。</p>
+                        </header>
+                        <fieldset :disabled="spawning">
+                <div class="il-spawn-fields space-y-3">
                     <div class="flex items-center gap-3">
                         <label class="w-12 text-xs font-medium text-gray-500 shrink-0">类型</label>
                         <select v-model="spawnForm.objectTypeRid" aria-label="投产设备类型"
@@ -125,47 +134,60 @@
                         <div class="flex items-center gap-3">
                             <label class="w-12 text-xs font-medium text-gray-500 shrink-0"></label>
                             <div class="grid grid-cols-3 gap-2 flex-1">
-                                <input v-model.number="spawnForm.x" type="number" placeholder="X" class="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm font-mono text-center outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
-                                <input v-model.number="spawnForm.y" type="number" placeholder="Y" class="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm font-mono text-center outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
-                                <input v-model.number="spawnForm.z" type="number" placeholder="Z" class="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm font-mono text-center outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
+                                <input v-model.number="spawnForm.x" type="number" step="any" aria-label="初始 X 坐标（厘米）" placeholder="X" class="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm font-mono text-center outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
+                                <input v-model.number="spawnForm.y" type="number" step="any" aria-label="初始 Y 坐标（厘米）" placeholder="Y" class="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm font-mono text-center outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
+                                <input v-model.number="spawnForm.z" type="number" step="any" aria-label="初始 Z 坐标（厘米）" placeholder="Z" class="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm font-mono text-center outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
                             </div>
                         </div>
-                    </div>
-                    <div class="pt-2">
-                        <button @click="spawnInstance" :disabled="!spawnForm.objectTypeRid || !spawnForm.instanceId.trim() || !!spawnIdConflict || spawning"
-                                class="w-full text-sm font-bold bg-gray-900 text-white rounded-md py-2.5 hover:bg-gray-800 disabled:opacity-50 transition border border-gray-900 shadow-sm flex items-center justify-center gap-2">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                            {{ spawning ? '投产分配中...' : '确认投产上线' }}
-                        </button>
                     </div>
                     <div v-if="readyTypes.length === 0" class="text-xs text-yellow-600 bg-yellow-50 border border-yellow-200 p-2 rounded mt-2">
                         请先前往本体配置中心，为设备类型启用三维表现能力。
                     </div>
                 </div>
-            </div>
+
+                        </fieldset>
+                        <footer class="il-spawn-foot">
+                            <p id="spawn-submit-hint" class="il-help" :class="{ 'ic-error': spawnError }" aria-live="polite">{{ spawnError || spawnSubmitHint }}</p>
+                            <div class="ic-actions">
+                                <button type="button" class="ic-btn" :disabled="spawning" @click="closeSpawnDialog">取消</button>
+                                <button type="submit" class="ic-btn ic-btn-primary" :disabled="!!spawnSubmitHint || spawning" aria-describedby="spawn-submit-hint">
+                                    {{ spawning ? '投产分配中…' : '确认投产上线' }}
+                                </button>
+                            </div>
+                        </footer>
+                    </form>
+                </div>
+            </teleport>
 
             <!-- Instance List -->
             <div class="flex flex-col flex-1 min-h-0">
-                <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
+                <div class="il-list-head">
                     <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">存活实例清单 <span class="text-gray-400 font-mono ml-1">({{ filteredInstances.length }})</span></span>
-                    <div class="flex items-center gap-2">
-                        <button @click="openZoneManager"
+                    <div class="ic-actions">
+                        <button type="button" class="ic-btn" @click="openSpawnDialog">新建投产</button>
+                        <button type="button" class="ic-btn" @click="loadInstances">刷新</button>
+                        <details class="il-more" @keydown.esc.stop.prevent="$event.currentTarget.open = false; $event.currentTarget.querySelector('summary').focus()">
+                            <summary class="ic-btn">更多操作</summary>
+                            <div class="il-more-menu">
+                        <button @click="runListAction($event, openZoneManager)"
                                 class="text-[10px] font-medium text-gray-700 hover:text-gray-950 px-2 py-1 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-100 transition disabled:opacity-40">
                             分区管理
                         </button>
-                        <button @click="openBatchDrawer" :disabled="instances.length === 0"
+                        <button @click="runListAction($event, openBatchDrawer)" :disabled="instances.length === 0"
                                 class="text-[10px] font-medium text-gray-600 hover:text-gray-950 px-2 py-1 bg-white border border-gray-200 rounded shadow-sm hover:bg-gray-100 transition disabled:opacity-40">
                             批量部署
                         </button>
-                        <button @click="loadInstances" class="text-[10px] font-medium text-gray-500 hover:text-gray-900 px-2 py-1 bg-white border border-gray-200 rounded shadow-sm hover:shadow transition">
-                            刷新
-                        </button>
+                            </div>
+                        </details>
                     </div>
                 </div>
                 <!-- Type and zone filters for instance list -->
                 <div class="flex-shrink-0 px-4 py-2 border-b border-gray-100 bg-white grid grid-cols-2 gap-2">
-                    <input v-model.trim="instanceSearch" type="text" placeholder="搜索实例" aria-label="搜索存活实例"
-                           class="col-span-2 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-gray-900 focus:ring-2 focus:ring-gray-100" />
+                    <div class="il-search col-span-2">
+                        <input ref="instanceSearchRef" v-model.trim="instanceSearch" type="search" placeholder="搜索名称、编号、类型或分区" aria-label="搜索存活实例"
+                               class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-gray-900 focus:ring-2 focus:ring-gray-100" />
+                        <button v-if="instanceSearch" type="button" class="il-search-clear" @click="clearInstanceSearch">清除</button>
+                    </div>
                     <label class="space-y-1">
                         <span class="block text-[10px] font-medium text-gray-400">设备类型</span>
                         <select v-model="instanceTypeFilter" class="w-full text-xs border border-gray-300 rounded-md px-2 py-1.5 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100 transition bg-white">
@@ -182,7 +204,7 @@
                         </select>
                     </label>
                 </div>
-                <div class="flex-1 overflow-y-auto p-4 space-y-2">
+                <div ref="instanceListRef" class="il-list flex-1 overflow-y-auto" aria-label="实例清单">
                     <div v-if="filteredInstances.length === 0" class="text-center text-sm text-gray-400 py-10">{{ instances.length ? '没有匹配的实例' : '当前无实例在役' }}</div>
                     <div v-for="group in instanceTreeGroups" :key="group.key" class="rounded-lg border border-gray-200 bg-white overflow-hidden">
                         <button type="button"
@@ -200,8 +222,7 @@
                              收起的分组不该占渲染预算——507 实例时是 4500+ 个节点常驻，
                              上万条就是几万个。进页面时 expandedInstanceMenus 为空，
                              这里一条都不建，展开哪组才建哪组。
-                             注意：有筛选条件时 isInstanceMenuOpen 一律返回 true（强制全展开），
-                             所以搜索态下 v-if 和 v-show 等价，省不到——那条路靠下面的防抖。 -->
+                             筛选时默认展开匹配分组，用户仍可手动收起；搜索输入保留防抖。 -->
                         <div v-if="isInstanceMenuOpen(group.key)" class="p-2 space-y-2 border-t border-gray-100">
                             <div v-for="inst in group.items" :key="inst.id"
                                  @click="selectInstance(inst)"
@@ -238,7 +259,7 @@
         </div>
 
         <!-- Right: Monitor Panel -->
-        <div class="flex-1 flex flex-col min-h-0 bg-gray-50">
+        <div class="il-detail flex-1 flex flex-col min-h-0 bg-gray-50">
             <nav class="shrink-0 bg-white border-b border-gray-200 px-6" role="tablist" aria-label="实例运维工作区">
                 <div class="flex items-end gap-7">
                     <button id="instance-tab-control"
@@ -330,10 +351,10 @@
                 <div class="runtime-stream-body px-6 py-4">
                     <div class="runtime-stream-viewport relative overflow-hidden rounded-lg border border-gray-200 bg-gray-950 shadow-sm">
                         <iframe v-if="runtimeStreamSrc"
+                                data-ontotwin-trust="configured-runtime-stream"
                                 :src="runtimeStreamSrc"
                                 class="absolute inset-0 h-full w-full border-0 bg-black"
                                 allow="fullscreen; autoplay; clipboard-read; clipboard-write; gamepad"
-                                allowfullscreen
                                 @load="handleRuntimeStreamLoad"
                                 @error="handleRuntimeStreamError"></iframe>
                         <div v-else class="absolute inset-0 flex flex-col items-center justify-center px-6 text-center text-gray-300">
@@ -357,148 +378,61 @@
             </div>
 
             <template v-else>
-                <!-- Monitor Header -->
-                <div class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0 shadow-sm z-10">
-                    <div class="flex flex-wrap items-center gap-3">
-                        <span class="text-xl font-bold font-mono text-gray-900">{{ selectedInst.id }}</span>
-                        <span :class="[
-                            'text-xs font-bold px-2.5 py-1 rounded-md border flex items-center gap-1.5',
-                            instanceLivenessTag(selectedInst).classes
-                        ]" :aria-label="instanceLivenessTag(selectedInst).detail">
-                            <span :class="['w-2 h-2 rounded-full', instanceLivenessTag(selectedInst).dot]"></span>
-                            {{ instanceLivenessTag(selectedInst).label }}
-                        </span>
+                <!-- Instance identity and honest refresh state -->
+                <div class="ic-header">
+                    <div>
+                        <div class="flex flex-wrap items-center gap-3">
+                            <span class="ic-header-id">{{ selectedInst.id }}</span>
+                            <span class="ic-tag" :aria-label="instanceLivenessTag(selectedInst).detail">{{ instanceLivenessTag(selectedInst).label }}</span>
+                        </div>
+                        <div class="ic-header-meta">
+                            <span>类型：{{ currentSnap?.objectTypeName || selectedInst.object_type_name || '正在读取' }}</span>
+                            <span aria-live="polite">{{ snapshotLoading ? '正在读取最新状态…' : snapshotUpdatedAt ? '最近读取 ' + snapshotUpdatedAt : '尚未读取状态' }}</span>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-4 text-xs">
-                        <a :href="`/interaction?target=instance&instance_id=${encodeURIComponent(selectedInst.id)}&from=instance`"
-                           class="text-xs font-medium px-2.5 py-1 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black transition inline-flex items-center gap-1.5">
-                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M8 9h8M8 13h5"></path></svg>
-                            配置信息面板
-                        </a>
-                        <button @click="openPos" class="text-xs font-medium px-2.5 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition">微调位置</button>
-                        <span class="text-gray-500 font-medium">源类型: <span class="text-gray-800">{{ currentSnap?.objectTypeName }}</span></span>
-                        <div class="w-px h-4 bg-gray-300"></div>
-                        <span class="text-gray-400 font-mono tracking-widest flex items-center gap-1.5">
-                            <span class="relative flex h-2 w-2">
-                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                              <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-                            </span>
-                            500MS POLLING
-                        </span>
+                    <div class="ic-actions">
+                        <button type="button" @click="refreshInstanceView" :disabled="snapshotLoading || overriding || controlDirtyCount > 0" class="ic-btn">刷新状态</button>
                     </div>
                 </div>
 
                 <div class="flex-1 overflow-y-auto p-6">
 
-                    <div class="mx-auto max-w-5xl flex flex-col gap-4">
-                        <!-- Instance model binding (3.3.3) -->
-                        <div v-show="activeMonitorTab === 'control'" class="order-2 space-y-4">
-                            <div class="flex flex-wrap items-end justify-between gap-3 px-1 pt-1">
-                                <div>
-                                    <h3 class="text-sm font-semibold text-gray-900">模型配置</h3>
-                                    <p class="mt-1 text-[11px] leading-relaxed text-gray-500">仅影响当前实例，保存后持久生效；上方热干预仍用于临时运行控制。</p>
-                                </div>
-                                <span class="text-[10px] font-medium px-2 py-1 rounded-md border border-gray-200 bg-white text-gray-500">持久配置</span>
+                    <div class="ic-workspace mx-auto max-w-5xl w-full flex flex-col gap-4">
+                        <!-- Model overrides remain a separate, persistent workflow. -->
+                        <section v-show="activeMonitorTab === 'control'" class="ic-card order-2" aria-labelledby="instance-model-heading">
+                            <div class="ic-card-head">
+                                <div><h3 id="instance-model-heading" class="ic-title">实例模型</h3><p class="ic-help">可单独更换；取消覆盖后重新跟随类型配置。</p></div>
+                                <span class="ic-tag">独立保存</span>
                             </div>
-                            <div v-if="modelBindingLoading" class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm" aria-live="polite">
-                                <div class="h-4 w-32 rounded bg-gray-200 animate-pulse"></div>
-                                <div class="mt-4 h-20 rounded-lg bg-gray-100 animate-pulse"></div>
-                                <div class="mt-3 h-10 rounded-lg bg-gray-100 animate-pulse"></div>
-                            </div>
-                            <div v-else-if="modelBindingError" class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                                <div class="text-sm font-semibold text-gray-900">模型配置暂时无法读取</div>
-                                <p class="mt-1 text-xs leading-relaxed text-gray-500">{{ modelBindingError }}</p>
-                                <button type="button" @click="loadModelBinding" class="mt-4 text-xs font-medium px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">重新读取</button>
+                            <div v-if="modelBindingLoading" class="ic-section ic-note" role="status">正在读取模型配置…</div>
+                            <div v-else-if="modelBindingError" class="ic-section">
+                                <p class="ic-note ic-error" role="alert">{{ modelBindingError }}</p>
+                                <button type="button" @click="loadModelBinding" class="ic-btn">重新读取</button>
                             </div>
                             <template v-else-if="modelBinding">
-                                <div v-if="!modelBinding.capability.enabled" class="bg-white border border-gray-300 rounded-xl p-5 shadow-sm">
-                                    <div class="text-sm font-semibold text-gray-900">当前类型尚未启用三维表现能力</div>
-                                    <p class="mt-1 text-xs leading-relaxed text-gray-500">已有覆盖数据会保留，但在启用 I3D_Representable 前不会渲染，也不能保存新的模型覆盖。</p>
-                                    <a :href="`/ontology?rid=${encodeURIComponent(modelBinding.object_type_rid)}`"
-                                       class="mt-3 inline-flex text-xs font-medium text-gray-900 underline underline-offset-4 hover:text-black">前往本体配置中心</a>
-                                </div>
-
-                                <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                                    <div class="px-5 py-4 border-b border-gray-200 bg-gray-50/50 flex flex-wrap items-center justify-between gap-3">
-                                        <div>
-                                            <div class="text-sm font-semibold text-gray-900">当前生效模型</div>
-                                            <div class="mt-1 text-[11px] text-gray-500">生效优先级：实例覆盖 ＞ 类型默认 ＞ 实例原始模型 ＞ 占位模型。</div>
-                                        </div>
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-[10px] px-2 py-1 rounded-md border border-gray-200 bg-white text-gray-600">{{ modelBinding.model_status.label }}</span>
-                                            <span class="text-[10px] px-2 py-1 rounded-md border border-gray-200 bg-white text-gray-600">{{ modelBinding.delivery_status.label }}</span>
-                                        </div>
+                                <div v-if="!modelBinding.capability.enabled" class="ic-section ic-note">此类型未启用三维存在能力，暂不能更换模型。<a :href="'/ontology?rid=' + encodeURIComponent(modelBinding.object_type_rid)" class="ic-link">前往类型设置</a></div>
+                                <div class="ic-section ic-pair flex-wrap">
+                                    <div class="min-w-0">
+                                        <div class="ic-value">{{ modelBinding.effective_model.label }}</div>
+                                        <p class="ic-help">{{ modelModeLabel(modelBinding.effective_model.mode) }} · {{ modelBinding.delivery_status.label }}</p>
                                     </div>
-                                    <div class="p-5">
-                                        <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                                            <div class="flex flex-wrap items-start justify-between gap-4">
-                                                <div class="min-w-0">
-                                                    <div class="flex flex-wrap items-center gap-2">
-                                                        <span class="text-sm font-semibold text-gray-950 break-all">{{ modelBinding.effective_model.label }}</span>
-                                                        <span class="text-[10px] font-medium border border-gray-300 rounded px-1.5 py-0.5 bg-white text-gray-600">{{ modelModeLabel(modelBinding.effective_model.mode) }}</span>
-                                                    </div>
-                                                    <div class="mt-2 text-[11px] text-gray-500">来源：{{ modelSourceLabel(modelBinding.effective_model.source) }}</div>
-                                                    <div v-if="modelBinding.effective_model.ue_asset_path" class="mt-1 text-[11px] font-mono text-gray-500 break-all">{{ modelBinding.effective_model.ue_asset_path }}</div>
-                                                    <div class="mt-3 rounded-md border border-gray-200 bg-white px-3 py-2 text-[11px] text-gray-600">
-                                                        <div class="flex items-center gap-1.5">
-                                                            <span :class="['w-1.5 h-1.5 rounded-full', modelBinding.effective_container?.enabled ? 'bg-gray-900' : 'bg-gray-300']"></span>
-                                                            <span class="font-medium text-gray-800">{{ modelBinding.effective_container?.enabled ? 'Blueprint 容器表现' : '直接资产表现' }}</span>
-                                                        </div>
-                                                        <template v-if="modelBinding.effective_container?.enabled">
-                                                            <div class="mt-1 font-mono break-all">{{ modelBinding.effective_container.container_blueprint_id }}</div>
-                                                            <div class="mt-1 text-gray-500">槽位：<span class="font-mono">{{ modelBinding.effective_container.container_slot }}</span></div>
-                                                        </template>
-                                                        <div v-else class="mt-1 text-gray-500">{{ modelBinding.effective_container?.message || '模型由 TwinInstance 直接加载。' }}</div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex shrink-0 items-center gap-2">
-                                                    <button type="button" @click="openModelPicker" :disabled="!modelBinding.capability.enabled"
-                                                            class="text-xs font-medium px-4 py-2 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed">
-                                                        {{ modelBinding.instance_override ? '更换此实例模型' : '为此实例选择模型' }}
-                                                    </button>
-                                                    <button v-if="modelBinding.instance_override" type="button" @click="openModelRestoreConfirm"
-                                                            class="text-xs font-medium px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100">
-                                                        取消实例模型覆盖
-                                                    </button>
-                                                    <span v-else class="text-[11px] text-gray-500">当前未设置实例模型覆盖</span>
-                                                </div>
-                                            </div>
-                                            <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] text-gray-500">
-                                                <div class="rounded-md border border-gray-200 bg-white px-3 py-2">{{ modelBinding.model_status.message }}</div>
-                                                <div class="rounded-md border border-gray-200 bg-white px-3 py-2">{{ modelBinding.delivery_status.message }}</div>
-                                            </div>
-                                        </div>
+                                    <div class="ic-actions">
+                                        <button type="button" @click="openModelPicker" :disabled="!modelBinding.capability.enabled" class="ic-btn">{{ modelBinding.instance_override ? '更换模型' : '单独设置模型' }}</button>
+                                        <button v-if="modelBinding.instance_override" type="button" @click="openModelRestoreConfirm" class="ic-btn">取消实例覆盖</button>
                                     </div>
                                 </div>
-
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                                        <div class="text-xs font-semibold text-gray-900">类型默认模型</div>
-                                        <template v-if="modelBinding.type_default.mode === 'type_default'">
-                                            <div class="mt-3 text-sm text-gray-800 break-all">{{ modelBinding.type_default.label }}</div>
-                                            <div v-if="modelBinding.type_default.ue_asset_path" class="mt-1 text-[11px] font-mono text-gray-500 break-all">{{ modelBinding.type_default.ue_asset_path }}</div>
-                                            <p class="mt-3 text-[11px] leading-relaxed text-gray-500">未设置实例模型覆盖时，实例会跟随这里的最新配置。</p>
-                                        </template>
-                                        <template v-else>
-                                            <div class="mt-3 text-sm text-gray-500">当前类型未设置默认模型</div>
-                                            <p class="mt-3 text-[11px] leading-relaxed text-gray-500">取消覆盖后，将继续使用实例原始模型；没有原始模型时显示占位模型。</p>
-                                        </template>
+                                <details class="ic-details">
+                                    <summary>模型来源与同步详情</summary>
+                                    <div class="ic-details-body">
+                                        <div><p class="ic-note">当前资产 · {{ modelSourceLabel(modelBinding.effective_model.source) }}</p><code>{{ modelBinding.effective_model.ue_asset_path || '无资产路径' }}</code></div>
+                                        <p class="ic-note">{{ modelBinding.model_status.message }} {{ modelBinding.delivery_status.message }}</p>
+                                        <div class="ic-note">类型默认：{{ modelBinding.type_default.label || '未设置' }}<br>实例原始模型：{{ modelBinding.original_assembly?.label || '无可恢复的原始模型' }}</div>
+                                        <p class="ic-note">优先使用实例覆盖，其次类型默认，再次实例原始模型；均无配置时显示占位模型。</p>
+                                        <div v-if="modelBinding.effective_container?.enabled" class="ic-note">Blueprint 容器：<code>{{ modelBinding.effective_container.container_blueprint_id }}</code></div>
                                     </div>
-                                    <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                                        <div class="text-xs font-semibold text-gray-900">实例原始模型</div>
-                                        <template v-if="modelBinding.original_assembly">
-                                            <div class="mt-3 text-sm text-gray-800">{{ modelBinding.original_assembly.label }}</div>
-                                            <div class="mt-1 text-[11px] text-gray-500">组合模型 · {{ modelBinding.original_assembly.part_count }} 个部件</div>
-                                            <p class="mt-3 text-[11px] leading-relaxed text-gray-500">仅当没有实例覆盖且类型未设置默认模型时，才会使用这些原始部件。</p>
-                                        </template>
-                                        <template v-else>
-                                            <div class="mt-3 text-sm text-gray-500">当前实例没有可恢复的原始模型</div>
-                                            <p class="mt-3 text-[11px] leading-relaxed text-gray-500">没有实例覆盖和类型默认模型时，将显示占位模型。</p>
-                                        </template>
-                                    </div>
-                                </div>
+                                </details>
                             </template>
-                        </div>
+                        </section>
 
                         <!-- Interface Snapshot (JSON) -->
                         <div v-if="currentSnap" v-show="activeMonitorTab === 'json'" class="order-1 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
@@ -520,146 +454,71 @@
                             </div>
                         </div>
 
-                        <!-- Manual Override Panel -->
-                        <div v-if="currentSnap" v-show="activeMonitorTab === 'control'" class="order-1 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                            <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
-                                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">热干预终端 (Override)</span>
-                                <span class="text-[9px] font-mono bg-gray-100 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded tracking-widest">DEBUG CONTROL</span>
+                        <div v-show="activeMonitorTab === 'control'" class="order-1">
+                            <div v-if="!currentSnap" class="ic-card ic-section" role="status">
+                                <p class="ic-note" :class="{'ic-error':snapshotError}">{{ snapshotError || '正在读取实例状态…' }}</p>
+                                <button v-if="snapshotError" type="button" @click="fetchSnap" class="ic-btn">重试</button>
                             </div>
-                            <div class="p-5 space-y-6">
-                                <!-- Representable Overlay -->
-                                <div v-if="currentSnap.injected_interfaces.includes('I3D_Representable') || currentSnap.interfaces.I3D_Representable" class="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
-                                    <h4 class="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                                        I3D_Representable [基础表征]
-                                    </h4>
-                                    <div class="flex items-center gap-3">
-                                        <span class="w-10 text-xs text-gray-500">可见性</span>
-                                        <div class="flex flex-wrap gap-2">
-                                            <button v-for="vis in [{label: '加载进场景', val: true}, {label: '从场景卸载', val: false}]" :key="vis.label"
-                                                    @click="overridePatch.is_loaded = vis.val"
-                                                    :class="[
-                                                        'text-xs font-mono px-3 py-1.5 rounded transition border',
-                                                        (overridePatch.is_loaded !== undefined ? overridePatch.is_loaded : (currentSnap.raw_state?.is_loaded !== false)) === vis.val
-                                                            ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
-                                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-                                                    ]">
-                                                {{ vis.label }}
-                                            </button>
+                            <div v-else class="ic-overview">
+                                <section class="ic-card" aria-labelledby="scene-control-heading">
+                                    <div class="ic-card-head">
+                                        <div><h3 id="scene-control-heading" class="ic-title">场景控制</h3><p class="ic-help">只影响当前实例，修改后统一保存。</p></div>
+                                        <span class="ic-tag">当前实例</span>
+                                    </div>
+                                    <div v-if="currentSnap.interfaces.I3D_Representable" class="ic-row">
+                                        <div class="ic-row-copy"><div id="control-loaded-label" class="ic-row-title">加载到场景</div><p id="control-loaded-help" class="ic-help">关闭后从场景移除模型，不删除实例数据。</p></div>
+                                        <label class="ic-toggle"><input type="checkbox" v-model="overridePatch.is_loaded" :disabled="overriding || snapshotLoading" aria-labelledby="control-loaded-label" aria-describedby="control-loaded-help"><span>{{ overridePatch.is_loaded ? '开启' : '关闭' }}</span></label>
+                                    </div>
+                                    <div v-if="currentSnap.interfaces.I3D_Visual" class="ic-row">
+                                        <div class="ic-row-copy"><div id="control-visible-label" class="ic-row-title">显示模型</div><p id="control-visible-help" class="ic-help">{{ overridePatch.is_loaded === false ? '场景未加载；下次加载后使用此显示设置。' : '仅控制显隐，不卸载模型。' }}</p></div>
+                                        <label class="ic-toggle"><input type="checkbox" v-model="overridePatch.is_visible" :disabled="overriding || snapshotLoading || overridePatch.is_loaded === false" aria-labelledby="control-visible-label" aria-describedby="control-visible-help"><span>{{ overridePatch.is_visible ? '显示' : '隐藏' }}</span></label>
+                                    </div>
+                                    <div v-if="currentSnap.interfaces.I3D_Representable" class="ic-row">
+                                        <div class="ic-row-copy"><div id="control-position-label" class="ic-row-title">UE 内位置编辑</div><p id="control-position-help" class="ic-help">允许在 UE 中手动调整。实时定位设备建议关闭。</p></div>
+                                        <label class="ic-toggle"><input type="checkbox" v-model="overridePatch.runtime_spatial_editable" :disabled="overriding || snapshotLoading" aria-labelledby="control-position-label" aria-describedby="control-position-help"><span>{{ overridePatch.runtime_spatial_editable ? '允许' : '只读' }}</span></label>
+                                    </div>
+                                    <div v-if="!overrideFields.length" class="ic-section ic-note">此类型没有可用场景控制项。</div>
+                                    <div v-if="currentSnap.interfaces.I3D_Spatial" class="ic-row">
+                                        <div class="ic-row-copy"><div class="ic-row-title">位置坐标</div><p class="ic-help">网页坐标编辑独立保存，不包含在下方更改中。</p></div>
+                                        <button type="button" @click="openPos" class="ic-btn" :disabled="overriding">编辑位置</button>
+                                    </div>
+                                    <div v-if="snapshotError || controlError" class="ic-message ic-error" role="alert">{{ controlError || snapshotError }}</div>
+                                    <div v-if="controlSavedMessage && !controlDirtyCount" class="ic-message" role="status">{{ controlSavedMessage }}</div>
+                                    <div class="ic-footer">
+                                        <span class="ic-note" role="status">{{ controlDirtyCount ? controlDirtyCount + ' 项未保存' : '无未保存更改' }}</span>
+                                        <div class="ic-actions">
+                                            <button type="button" @click="resetOverride" :disabled="overriding || !controlDirtyCount" class="ic-btn">撤销</button>
+                                            <button type="button" @click="applyOverride()" :disabled="overriding || !controlDirtyCount || snapshotLoading" class="ic-btn ic-btn-primary">{{ overriding ? '保存中…' : '保存更改' }}</button>
                                         </div>
                                     </div>
-                                    <div class="flex items-center gap-3 mt-4">
-                                        <span class="w-20 text-xs text-gray-500">运行时编辑</span>
-                                        <div class="flex flex-wrap gap-2">
-                                            <button v-for="choice in [{label: '允许空间编辑', val: true}, {label: '实时位置只读', val: false}]" :key="choice.label"
-                                                    @click="overridePatch.runtime_spatial_editable = choice.val"
-                                                    :class="[
-                                                        'text-xs px-3 py-1.5 rounded transition border',
-                                                        (overridePatch.runtime_spatial_editable !== undefined ? overridePatch.runtime_spatial_editable : (currentSnap.runtimeEditor?.spatialEditable !== false)) === choice.val
-                                                            ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
-                                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-                                                    ]">
-                                                {{ choice.label }}
-                                            </button>
-                                        </div>
+                                </section>
+                                <div class="ic-column">
+                                <section class="ic-card" aria-labelledby="inherited-heading">
+                                    <div class="ic-card-head">
+                                        <div><h3 id="inherited-heading" class="ic-title">文字与行为</h3><p class="ic-help">此处只读。修改类型设置将影响同类型实例。</p></div>
+                                        <span class="ic-tag">继承类型</span>
                                     </div>
-                                    <p class="mt-2 ml-[92px] text-[11px] leading-relaxed text-gray-400">实时位置源持续驱动的设备建议设为只读，避免 F8 调整与现场状态互相覆盖。</p>
+                                    <div class="ic-section">
+                                        <div class="ic-pair"><span class="ic-row-title">文字标签</span><a :href="'/ontology?rid=' + encodeURIComponent(currentSnap.objectTypeRid) + '&tab=visual'" class="ic-link">类型设置</a></div>
+                                        <p class="ic-value">{{ plainLabelSummary }}</p>
+                                    </div>
+                                    <div class="ic-section">
+                                        <div class="ic-pair"><span class="ic-row-title">状态表现</span><a :href="'/ontology?rid=' + encodeURIComponent(currentSnap.objectTypeRid) + '&tab=behavioral'" class="ic-link">类型设置</a></div>
+                                        <p v-if="!currentSnap.interfaces.I3D_Presentation" class="ic-help">此类型未启用动态行为。</p>
+                                        <template v-else>
+                                            <p class="ic-help">业务状态：{{ currentSnap.raw_state?.status ?? currentSnap.raw_state?.state ?? '暂无数据' }}</p>
+                                            <dl class="ic-routes"><template v-for="(route, channel) in currentSnap.interfaces.I3D_Presentation.resolution?.channels" :key="channel"><dt>{{ {animation:'动画',visual:'动态材质',fx:'特效',label:'状态标签'}[channel] || channel }}</dt><dd>{{ route.source === 'safe_fallback' ? '无附加表现' : (route.display_name || '类型默认表现') + ' · ' + (route.source === 'platform' ? '行为库' : '项目自带') }}</dd></template></dl>
+                                            <p class="ic-help" style="margin-top:12px">以上为配置匹配结果，非 UE 执行确认。</p>
+                                        </template>
+                                    </div>
+                                </section>
+                                <section class="ic-card" aria-label="实例信息面板">
+                                    <div class="ic-section">
+                                        <div class="ic-pair"><span class="ic-row-title">信息面板</span><a :href="'/interaction?target=instance&instance_id=' + encodeURIComponent(selectedInst.id) + '&from=instance'" class="ic-link">配置此实例</a></div>
+                                        <p class="ic-help">点击模型后的详细信息，可为此实例单独配置；与文字标签独立。</p>
+                                    </div>
+                                </section>
                                 </div>
-
-                                <!-- Spatial 位置/朝向已移交「微调位置(多坐标)」面板，此处不再热干预 -->
-
-                                <!-- Visual Overlay -->
-                                <div v-if="currentSnap.injected_interfaces.includes('I3D_Visual')" class="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
-                                    <h4 class="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>
-                                        I3D_Visual [材质外观]
-                                    </h4>
-                                    <div class="flex items-center gap-3 mb-4">
-                                        <span class="w-10 text-xs text-gray-500">显隐</span>
-                                        <div class="flex flex-wrap gap-2">
-                                            <button v-for="vis in [{label: '允许渲染(Visible)', val: true}, {label: '仅隐藏(Hidden)', val: false}]" :key="vis.label"
-                                                    @click="overridePatch.is_visible = vis.val"
-                                                    :class="[
-                                                        'text-xs font-mono px-3 py-1.5 rounded transition border',
-                                                        (overridePatch.is_visible !== undefined ? overridePatch.is_visible : (currentSnap.interfaces.I3D_Visual.is_visible !== false)) === vis.val
-                                                            ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
-                                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-                                                    ]">
-                                                {{ vis.label }}
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        <span class="w-10 text-xs text-gray-500">变体</span>
-                                        <div class="flex flex-wrap gap-2">
-                                            <button v-for="matInfo in [{label:'普通(normal)', val:'normal'}, {label:'线框(wireframe)', val:'wireframe'}, {label:'灰模(gray)', val:'gray'}, {label:'高亮(highlight)', val:'highlight'}]" :key="matInfo.val"
-                                                    @click="overridePatch.material_variant = matInfo.val"
-                                                    :class="[
-                                                        'text-xs font-mono px-3 py-1.5 rounded transition border',
-                                                        (overridePatch.material_variant || currentSnap.interfaces.I3D_Visual.material_variant || 'normal') === matInfo.val
-                                                            ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
-                                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-                                                    ]">
-                                                {{ matInfo.label }}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Behavioral Overlay -->
-                                <div v-if="currentSnap.injected_interfaces.includes('I3D_Behavioral')" class="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
-                                    <h4 class="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                        I3D_Behavioral [行为表达]
-                                    </h4>
-                                    <div class="flex items-center gap-3 mb-4">
-                                        <span class="w-10 text-xs text-gray-500">动画</span>
-                                        <div class="flex flex-wrap gap-2">
-                                            <button v-for="sInfo in [{label:'停止(idle)', val:'idle'}, {label:'平移(translate)', val:'translate'}, {label:'跳跃(jump)', val:'jump'}, {label:'翻转(flip)', val:'flip'}]" :key="sInfo.val"
-                                                    @click="overridePatch.animation_state = sInfo.val"
-                                                    :class="[
-                                                        'text-xs font-mono px-3 py-1.5 rounded transition border',
-                                                        (overridePatch.animation_state || currentSnap.interfaces.I3D_Behavioral.animation_state || 'idle') === sInfo.val
-                                                            ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
-                                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-                                                    ]">
-                                                {{ sInfo.label }}
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-3 mb-4">
-                                        <span class="w-10 text-xs text-gray-500">特效</span>
-                                        <div class="flex flex-wrap gap-2">
-                                            <button v-for="fInfo in [{label:'正常(normal)', val:'normal'}, {label:'火警(fire)', val:'fire'}, {label:'烟雾(smoke)', val:'smoke'}, {label:'警报(warning)', val:'warning'}]" :key="fInfo.val"
-                                                    @click="overridePatch.fx_trigger = fInfo.val"
-                                                    :class="[
-                                                        'text-xs font-mono px-3 py-1.5 rounded transition border',
-                                                        (overridePatch.fx_trigger || currentSnap.interfaces.I3D_Behavioral.fx_trigger) === fInfo.val
-                                                            ? 'bg-gray-900 text-white border-gray-900 shadow-inner'
-                                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-                                                    ]">
-                                                {{ fInfo.label }}
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        <span class="w-10 text-xs text-gray-500">文本</span>
-                                        <input type="text" v-model="overridePatch.ui_label_content" :placeholder="currentSnap.interfaces.I3D_Behavioral.ui_label_content"
-                                               class="flex-1 text-sm border border-gray-300 rounded px-3 py-1.5 font-sans outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition" />
-                                    </div>
-                                </div>
-
-                                <!-- Action Buttons -->
-                                <div class="pt-2 flex items-center gap-3 border-t border-gray-100">
-                                    <button @click="applyOverride" :disabled="overriding"
-                                            class="flex-1 text-sm font-bold bg-gray-900 text-white px-4 py-2.5 rounded-md hover:bg-gray-800 transition disabled:opacity-50">
-                                        {{ overriding ? '命令下发中...' : '提交 Override 覆写' }}
-                                    </button>
-                                    <button @click="resetOverride" class="w-24 text-sm font-medium bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-md hover:bg-gray-50 hover:border-gray-400 transition">
-                                        复位重置
-                                    </button>
-                                </div>
-                            </div>
                             </div>
                         </div>
                     </div>
@@ -669,6 +528,16 @@
         </div>
     </div>
 
+    <div v-if="controlDialog" class="ic-modal-mask" @click.self="closeControlDialog" @keydown.esc.stop="closeControlDialog">
+        <section ref="controlDialogElement" role="dialog" aria-modal="true" aria-labelledby="control-confirm-title" class="ic-modal" @keydown.tab="trapControlDialog">
+            <h3 id="control-confirm-title" class="ic-title">{{ controlDialog.kind === 'unload' ? '从场景卸载模型？' : '放弃未保存的更改？' }}</h3>
+            <p class="ic-help" style="margin:12px 0 20px">{{ controlDialog.kind === 'unload' ? '保存后，此实例的模型将离开场景；实例数据和配置保留，之后可以重新加载。' : '切换实例会丢弃当前草稿。选择返回可继续编辑或保存。' }}</p>
+            <div class="ic-actions" style="justify-content:flex-end">
+                <button type="button" @click="closeControlDialog" class="ic-btn">返回</button>
+                <button type="button" @click="confirmControlDialog" class="ic-btn ic-btn-primary">{{ controlDialog.kind === 'unload' ? '保存并卸载' : '放弃并切换' }}</button>
+            </div>
+        </section>
+    </div>
     <!-- 实例分区批量管理 modal -->
     <transition name="fade">
         <div v-if="zoneManagerOpen"
@@ -962,28 +831,24 @@
                         <div class="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-1">
                             <button type="button" @click="switchModelAssetMode('studio')" :class="['px-3 py-1.5 rounded-md text-xs font-medium transition', modelAssetMode === 'studio' ? 'bg-white text-gray-950 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-900']">ArtStudio 资产库</button>
                             <button type="button" @click="switchModelAssetMode('mine')" :class="['px-3 py-1.5 rounded-md text-xs font-medium transition', modelAssetMode === 'mine' ? 'bg-white text-gray-950 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-900']">我的资产</button>
+                            <button type="button" @click="switchModelAssetMode('ue')" :class="['px-3 py-1.5 rounded-md text-xs font-medium transition', modelAssetMode === 'ue' ? 'bg-white text-gray-950 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-900']">工程资产</button>
                             <button type="button" @click="switchModelAssetMode('manual')" :class="['px-3 py-1.5 rounded-md text-xs font-medium transition', modelAssetMode === 'manual' ? 'bg-white text-gray-950 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-900']">路径直连</button>
                         </div>
-                        <button ref="modelUploadTriggerRef" type="button" @click="openModelUpload"
+                        <button v-if="modelAssetMode === 'studio' || modelAssetMode === 'mine'" ref="modelUploadTriggerRef" type="button" @click="openModelUpload"
                                 class="text-xs font-medium px-3 py-2 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black whitespace-nowrap">上传模型</button>
                     </div>
-                    <div v-if="modelAssetMode === 'mine'" class="py-3 text-[11px] leading-relaxed text-gray-600">
-                        <span v-if="artstudioIdentityLoading">正在确认 ArtStudio 登录状态…</span>
-                        <template v-else-if="artstudioIdentity?.authenticated">
-                            当前账号：<span class="font-medium text-gray-900">{{ artstudioIdentity.user?.display_name }}</span>
-                            <span v-if="artstudioIdentity.user?.username" class="font-mono text-gray-500">（{{ artstudioIdentity.user.username }}）</span>
-                            <button type="button" @click="refreshMyModelAssets" class="ml-2 underline underline-offset-2 hover:text-gray-900">刷新</button>
-                            <button type="button" @click="disconnectArtstudio" :disabled="artstudioDisconnecting" class="ml-2 underline underline-offset-2 hover:text-gray-900 disabled:opacity-40">{{ artstudioDisconnecting ? '正在断开…' : '断开连接' }}</button>
-                        </template>
-                        <template v-else>
-                            {{ artstudioIdentityError || '尚未连接 ArtStudio 账号。' }}
-                            <button ref="artstudioLoginTriggerRef" type="button" @click="openArtstudioLogin" class="ml-2 font-medium text-gray-900 underline underline-offset-2 hover:text-black">连接账号</button>
-                        </template>
-                    </div>
+
                 </div>
 
                 <div class="flex-1 min-h-0 overflow-y-auto p-6">
-                    <template v-if="modelAssetMode !== 'manual' && (modelAssetMode !== 'mine' || artstudioIdentity?.authenticated)">
+                    <ue-asset-picker v-if="modelAssetMode === 'ue'" :dataset="activeDataset" :disabled="modelBindingSaving" @select="selectUEModelAsset"></ue-asset-picker>
+                    <p v-if="modelAssetMode === 'ue' && modelAssetsError" class="mt-3 text-xs text-red-700" role="alert">{{ modelAssetsError }}</p>
+                    <div v-if="modelAssetMode === 'mine'" class="flex flex-wrap items-center gap-3 mb-4 text-xs text-gray-600">
+                        <span>{{ artstudioIdentity?.authenticated ? '已连接 ArtStudio 账号' : '连接账号后查看个人和私有资产' }}</span>
+                        <button v-if="!artstudioIdentity?.authenticated" type="button" @click="openArtstudioLogin" class="px-3 py-2 border border-gray-200 rounded-md">连接账号</button>
+                        <button v-else type="button" @click="disconnectArtstudio" class="px-3 py-2 border border-gray-200 rounded-md">断开连接</button>
+                    </div>
+                    <template v-if="modelAssetMode === 'studio' || modelAssetMode === 'mine'">
                         <div class="mb-4 flex flex-wrap items-center gap-2">
                             <select v-if="modelAssetMode === 'studio'" v-model="modelAssetOwner" @change="reloadModelAssets"
                                     class="text-xs border border-gray-300 rounded-md px-2.5 py-2 bg-white outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-100">
@@ -1442,6 +1307,7 @@ const INSTANCE_LIVENESS_TAGS = Object.freeze({
 
 const { createApp, ref, computed, onMounted, onUnmounted, watch, nextTick } = Vue;
 createApp({
+    components: { 'ue-asset-picker': OntoTwinUEAssetPicker },
     setup() {
         const instances = ref([]);
         const objectTypes = ref([]);
@@ -1463,7 +1329,7 @@ createApp({
         const modelRestoreOpen = ref(false);
         const modelRestoreDialogRef = ref(null);
         let modelReturnFocus = null;
-        const modelAssetMode = ref('studio');
+        const modelAssetMode = ref('ue');
         const modelAssets = ref([]);
         const modelAssetsLoading = ref(false);
         const modelAssetsError = ref('');
@@ -1527,6 +1393,39 @@ createApp({
         const spawnForm = ref({ objectTypeRid: '', instanceId: '', x: 0, y: 0, z: 0 });
         const spawnIdMode = ref('roster');
         const spawnRosterSelection = ref('');
+        const spawnDialogOpen = ref(false);
+        const spawnDialogRef = ref(null);
+        const spawnError = ref('');
+        let spawnReturnFocus = null;
+        const spawnSubmitHint = computed(() => {
+            if (!spawnForm.value.objectTypeRid) return '请选择设备类型。';
+            if (!spawnForm.value.instanceId.trim()) return '请选择或输入实例编号。';
+            if (spawnIdConflict.value) return spawnIdConflict.value;
+            if (![spawnForm.value.x, spawnForm.value.y, spawnForm.value.z].every(Number.isFinite)) return '请填写有效的 X、Y、Z 坐标。';
+            return '';
+        });
+
+        async function openSpawnDialog() {
+            spawnReturnFocus = document.activeElement;
+            spawnError.value = '';
+            spawnDialogOpen.value = true;
+            await nextTick();
+            spawnDialogRef.value?.querySelector('select')?.focus();
+        }
+
+        function closeSpawnDialog() {
+            if (spawning.value) return;
+            spawnDialogOpen.value = false;
+            nextTick(() => spawnReturnFocus?.focus({ preventScroll: true }));
+        }
+
+        function trapSpawnDialog(event) {
+            const elements = Array.from(spawnDialogRef.value?.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled)') || []);
+            if (!elements.length) { event.preventDefault(); spawnDialogRef.value?.focus(); return; }
+            const first = elements[0], last = elements[elements.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        }
 
         // ── Instance list filter ─────────────────────────────────────────
         const UNASSIGNED_ZONE_FILTER = '__unassigned__';
@@ -1536,6 +1435,31 @@ createApp({
         // 就是一轮全量渲染。250ms 是停手后才算，连续输入期间只算最后一次。
         const instanceSearch = ref('');
         const instanceSearchApplied = ref('');
+        const instanceSearchRef = ref(null);
+        const instanceListRef = ref(null);
+        const collapsedFilteredMenus = ref(new Set());
+        function runListAction(event, action) {
+            const menu = event.currentTarget.closest('details');
+            menu.open = false;
+            menu.querySelector('summary').focus({ preventScroll: true });
+            action();
+        }
+        function closeListActions(event) {
+            const menu = document.querySelector('.il-more[open]');
+            if (menu && !menu.contains(event.target)) menu.open = false;
+        }
+        function clearInstanceSearch() {
+            if (instanceSearchTimer) clearTimeout(instanceSearchTimer);
+            instanceSearch.value = '';
+            instanceSearchApplied.value = '';
+            instanceSearchRef.value?.focus({ preventScroll: true });
+        }
+        function handleListShortcut(event) {
+            if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
+            if (event.target.closest('input, textarea, select, [contenteditable="true"]') || document.querySelector('[aria-modal="true"]')) return;
+            event.preventDefault();
+            instanceSearchRef.value?.focus({ preventScroll: true });
+        }
         let instanceSearchTimer = null;
         watch(instanceSearch, (value) => {
             if (instanceSearchTimer) clearTimeout(instanceSearchTimer);
@@ -1547,6 +1471,10 @@ createApp({
         const instanceTypeFilter = ref('');
         const instanceZoneFilter = ref('');
         const expandedInstanceMenus = ref(new Set());
+        watch([instanceSearchApplied, instanceTypeFilter, instanceZoneFilter], () => {
+            collapsedFilteredMenus.value = new Set();
+            if (instanceListRef.value) instanceListRef.value.scrollTop = 0;
+        });
         const zoneCatalog = ref([]);
         const zoneCatalogLoading = ref(false);
         const zoneCatalogError = ref('');
@@ -1620,6 +1548,8 @@ createApp({
                     inst.id,
                     inst.object_type_name,
                     inst.object_type_rid,
+                    inst.zone_id,
+                    availableZones.value.find(zone => zone.id === inst.zone_id)?.name,
                     ...(inst.hierarchy_path || []),
                 ].filter(Boolean).join(' ').toLowerCase();
                 return (!query || searchText.includes(query)) &&
@@ -1636,10 +1566,16 @@ createApp({
             // 用 applied 而不是即时值：否则刚敲第一个字符时分组已经全部展开、
             // 过滤却还没生效，会出现"全展开 + 全量条目"的瞬间——正是防抖要避免的那一帧。
             const filtersActive = Boolean(instanceSearchApplied.value || instanceTypeFilter.value || instanceZoneFilter.value);
-            return filtersActive || expandedInstanceMenus.value.has(key);
+            return filtersActive ? !collapsedFilteredMenus.value.has(key) : expandedInstanceMenus.value.has(key);
         }
 
         function toggleInstanceMenu(key) {
+            if (instanceSearchApplied.value || instanceTypeFilter.value || instanceZoneFilter.value) {
+                const next = new Set(collapsedFilteredMenus.value);
+                if (next.has(key)) next.delete(key); else next.add(key);
+                collapsedFilteredMenus.value = next;
+                return;
+            }
             const next = new Set(expandedInstanceMenus.value);
             if (next.has(key)) next.delete(key);
             else next.add(key);
@@ -1827,19 +1763,72 @@ createApp({
             // 3.2：I3D_Spatial(位置/朝向)移交「位置编辑(多坐标)」面板(规范坐标，持久)，
             // 不再放进 Override 热干预(其改 UE 坐标会被重算覆盖)。
             if (ifaces.I3D_Visual) {
-                fields.push({ key: 'material_variant', type: 'text' });
                 fields.push({ key: 'is_visible', type: 'boolean' });
-            }
-            if (ifaces.I3D_Behavioral) {
-                fields.push({ key: 'animation_state', type: 'text' });
-                fields.push({ key: 'fx_trigger', type: 'text' });
-                fields.push({ key: 'ui_label_content', type: 'text' });
             }
             return fields;
         });
 
         const pendingDelete = ref(null);
         const overridePatch = ref({});
+        const snapshotLoading = ref(false);
+        const snapshotError = ref('');
+        const snapshotUpdatedAt = ref('');
+        const controlError = ref('');
+        const controlSavedMessage = ref('');
+        const controlDialog = ref(null);
+        const controlDialogElement = ref(null);
+        let controlReturnFocus = null;
+        function savedControlValue(key) {
+            const snap = currentSnap.value;
+            if (!snap) return true;
+            const raw = snap.raw_state || {};
+            if (typeof raw[key] === 'boolean') return raw[key];
+            if (key === 'runtime_spatial_editable') return snap.runtimeEditor?.spatialEditable !== false;
+            if (key === 'is_loaded') return snap.interfaces?.I3D_Representable?.is_visible !== false;
+            return snap.interfaces?.I3D_Visual?.is_visible !== false;
+        }
+        function controlPatch() {
+            const patch = {};
+            for (const { key } of overrideFields.value) {
+                const value = overridePatch.value[key];
+                if (typeof value === 'boolean' && value !== savedControlValue(key)) patch[key] = value;
+            }
+            return patch;
+        }
+        const controlDirtyCount = computed(() => Object.keys(controlPatch()).length);
+        const plainLabelSummary = computed(() => {
+            const snap = currentSnap.value;
+            const type = objectTypes.value.find(t => t.rid === snap?.objectTypeRid);
+            const text = snap?.interfaces?.I3D_Visual?.ui_label_content || snap?.interfaces?.I3D_Behavioral?.ui_label_content;
+            if (text) return text;
+            return type?.interface_configs?.I3D_Visual?.label?.enabled ? '已开启，当前无文字内容' : '未开启';
+        });
+        function openControlDialog(action) {
+            controlReturnFocus = document.activeElement;
+            controlDialog.value = action;
+            nextTick(() => controlDialogElement.value?.querySelector('button')?.focus());
+        }
+        function closeControlDialog() {
+            controlDialog.value = null;
+            nextTick(() => controlReturnFocus?.focus?.());
+        }
+        function confirmControlDialog() {
+            const action = controlDialog.value;
+            closeControlDialog();
+            if (action?.kind === 'unload') applyOverride(true);
+            if (action?.kind === 'leave') selectInstance(action.target, true);
+        }
+        function trapControlDialog(event) {
+            const buttons = controlDialogElement.value?.querySelectorAll('button');
+            if (!buttons?.length) return;
+            const first = buttons[0], last = buttons[buttons.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        }
+        async function refreshInstanceView() {
+            await Promise.all([fetchSnap(), loadModelBinding()]);
+        }
+
 
         const activeDatasetLabel = computed(() => {
             if (!activeDataset.value) return '加载中';
@@ -1892,7 +1881,7 @@ createApp({
             const raw = snap.raw_state || {};
             overrideFields.value.forEach(f => { 
                 if (!(f.key in patch)) {
-                    patch[f.key] = raw[f.key] ?? ''; 
+                    patch[f.key] = raw[f.key] ?? (f.key === 'runtime_spatial_editable' ? currentSnap.value.runtimeEditor?.spatialEditable !== false : true);
                 }
             });
             overridePatch.value = patch;
@@ -1946,7 +1935,7 @@ createApp({
                 artstudio_mine: 'ArtStudio · 我的资产',
                 mock: '历史本地资产',
                 local: '运行时模型文件',
-                ue_cooked: 'UE 已打包资产',
+                ue_cooked: '工程资产',
                 assembly: '实例原始组合',
                 none: '未配置',
                 manual: '手动路径',
@@ -2029,6 +2018,7 @@ createApp({
             modelAssetTotal.value = 0;
             modelAssetsError.value = '';
             selectedModelAssetId.value = '';
+            if (mode === 'ue') return;
             if (mode === 'manual') {
                 await nextTick();
                 modelManualPathRef.value?.focus();
@@ -2044,7 +2034,7 @@ createApp({
 
         async function loadModelAssets() {
             const requestMode = modelAssetMode.value;
-            if (requestMode === 'manual') return;
+            if (requestMode === 'manual' || requestMode === 'ue') return;
             if (requestMode === 'mine' && !artstudioIdentity.value?.authenticated) return;
             const requestSeq = ++modelAssetLoadSeq;
             modelAssetsLoading.value = true;
@@ -2093,6 +2083,12 @@ createApp({
             loadModelAssets();
         }
 
+        function selectUEModelAsset(asset) {
+            modelAssets.value = asset ? [asset] : [];
+            selectedModelAssetId.value = asset?.file_number || '';
+            modelAssetsError.value = '';
+        }
+
         function selectModelAsset(asset) {
             if (!asset || asset.bindable === false) return;
             selectedModelAssetId.value = asset.file_number;
@@ -2108,7 +2104,8 @@ createApp({
                 body.file_number = modelManualPath.value.trim();
             } else {
                 body.file_number = selectedModelAsset.value.file_number;
-                body.source = modelAssetMode.value === 'mine' ? 'artstudio_mine' : 'artstudio';
+                body.source = modelAssetMode.value === 'ue' ? 'ue_catalog' : 'artstudio';
+                if (modelAssetMode.value === 'ue') Object.assign(body, {expected_project_id:selectedModelAsset.value.expected_project_id, ue_project_id:selectedModelAsset.value.ue_project_id, catalog_revision:selectedModelAsset.value.catalog_revision});
                 if (selectedModelAsset.value.ue_path) body.ue_asset_path = selectedModelAsset.value.ue_path;
             }
             modelBindingSaving.value = true;
@@ -2197,6 +2194,7 @@ createApp({
         }
 
         async function openModelUpload() {
+            if (!artstudioIdentity.value?.authenticated) await loadArtstudioIdentity();
             if (!artstudioIdentity.value?.authenticated) {
                 modelUploadAfterLogin = true;
                 await openArtstudioLogin();
@@ -2233,7 +2231,7 @@ createApp({
         function selectUploadedModelAsset(asset) {
             if (!asset) return;
             ++modelAssetLoadSeq;
-            modelAssetMode.value = 'mine';
+            modelAssetMode.value = modelUploadForm.value.visibility === 'private' ? 'mine' : 'studio';
             modelAssetPage.value = 1;
             modelAssets.value = [asset, ...modelAssets.value.filter(item => item.file_number !== asset.file_number)];
             modelAssetTotal.value = Math.max(modelAssetTotal.value + 1, modelAssets.value.length);
@@ -2846,7 +2844,8 @@ createApp({
         }
 
         async function spawnInstance() {
-            if (!spawnForm.value.objectTypeRid || !spawnForm.value.instanceId.trim() || spawnIdConflict.value) return;
+            if (spawning.value || spawnSubmitHint.value) return;
+            spawnError.value = '';
             const instanceId = spawnForm.value.instanceId.trim();
             const rosterEntry = selectedSpawnRosterEntry.value;
             const selectedType = readyTypes.value.find(type => type.rid === spawnForm.value.objectTypeRid);
@@ -2879,9 +2878,13 @@ createApp({
                 spawnForm.value.instanceId = '';
                 spawnRosterSelection.value = '';
                 spawnIdMode.value = 'roster';
-                await loadInstances();
+                try { await loadInstances(); }
+                catch (_) { toast('err', '投产已完成，清单刷新失败，请点击刷新。'); }
+                spawning.value = false;
+                closeSpawnDialog();
             } catch (e) {
-                toast('err', e.response?.data?.error || '投产配置无法解析或请求中断');
+                spawnError.value = e.response?.data?.error || '投产配置无法解析或请求中断，填写内容已保留。';
+                toast('err', spawnError.value);
             } finally {
                 spawning.value = false;
             }
@@ -2903,8 +2906,20 @@ createApp({
             }
         }
 
-        function selectInstance(inst) {
+        function selectInstance(inst, discardDraft = false) {
+            if (overriding.value) return;
+            if (!discardDraft && controlDirtyCount.value && selectedInst.value?.id !== inst.id) {
+                openControlDialog({kind: 'leave', target: inst});
+                return;
+            }
+            if (controlDirtyCount.value && selectedInst.value?.id === inst.id) return;
+            controlError.value = '';
+            controlSavedMessage.value = '';
+            snapshotError.value = '';
+            snapshotUpdatedAt.value = '';
             selectedInst.value = inst;
+            currentSnap.value = null;
+            overridePatch.value = {};
             activeMonitorTab.value = 'control';
             modelBinding.value = null;
             modelBindingError.value = '';
@@ -2918,28 +2933,45 @@ createApp({
         }
 
         async function fetchSnap() {
-            if (!selectedInst.value) return;
+            if (!selectedInst.value || controlDirtyCount.value || overriding.value) return;
+            const instanceId = selectedInst.value.id;
+            snapshotLoading.value = true;
+            snapshotError.value = '';
             try {
-                const res = await axios.get(`/api/v2/state/snapshot?id=${selectedInst.value.id}`);
+                const res = await axios.get(`/api/v2/state/snapshot?id=${encodeURIComponent(instanceId)}`, {timeout:10000});
+                if (selectedInst.value?.id !== instanceId) return;
                 currentSnap.value = res.data;
-            } catch (_) {}
+                snapshotUpdatedAt.value = new Date().toLocaleTimeString('zh-CN', {hour12:false});
+                resetOverride();
+            } catch (e) {
+                if (selectedInst.value?.id === instanceId) snapshotError.value = '状态读取失败，当前显示可能不是最新数据。请重试。';
+            } finally {
+                if (selectedInst.value?.id === instanceId) snapshotLoading.value = false;
+            }
         }
 
-        async function applyOverride() {
-            if (!selectedInst.value) return;
+        async function applyOverride(confirmed = false) {
+            if (!selectedInst.value || overriding.value || !controlDirtyCount.value) return;
+            const patch = controlPatch();
+            if (patch.is_loaded === false && !confirmed) {
+                openControlDialog({kind:'unload'});
+                return;
+            }
+            const instanceId = selectedInst.value.id;
             overriding.value = true;
+            controlError.value = '';
+            controlSavedMessage.value = '';
             try {
-                const patch = {};
-                for (const [k, v] of Object.entries(overridePatch.value)) {
-                    if (v !== '' && v !== null && v !== undefined) patch[k] = v;
-                }
                 const res = await axios.post('/api/v2/state/override', {
-                    instance_id: selectedInst.value.id, patch
-                });
+                    instance_id: instanceId, patch
+                }, {timeout:10000});
+                if (selectedInst.value?.id !== instanceId) return;
                 currentSnap.value = res.data.snapshot;
-                toast('ok', `接口下发：环境覆写命令已送达`);
+                resetOverride();
+                snapshotUpdatedAt.value = new Date().toLocaleTimeString('zh-CN', {hour12:false});
+                controlSavedMessage.value = '已保存至平台。UE 场景效果以实际同步为准。';
             } catch (e) {
-                toast('err', e.response?.data?.error || '参数越界或传输中断');
+                if (selectedInst.value?.id === instanceId) controlError.value = e.response?.data?.error || '保存失败，修改已保留，请重试。';
             } finally {
                 overriding.value = false;
             }
@@ -2948,9 +2980,9 @@ createApp({
         function resetOverride() {
             if (!currentSnap.value) return;
             const patch = {};
-            const raw = currentSnap.value.raw_state || {};
-            overrideFields.value.forEach(f => { patch[f.key] = raw[f.key] ?? ''; });
+            overrideFields.value.forEach(f => { patch[f.key] = savedControlValue(f.key); });
             overridePatch.value = patch;
+            controlError.value = '';
         }
 
         async function openPos() {
@@ -3070,6 +3102,8 @@ createApp({
         }
 
         onMounted(() => {
+            document.addEventListener('keydown', handleListShortcut);
+            document.addEventListener('click', closeListActions);
             loadInstances();
             loadZoneCatalog();
             // 原来这里挂了个 2s 定时器全量拉 /api/v2/instances。实测 5 轮响应体
@@ -3081,6 +3115,8 @@ createApp({
             restoreRuntimeStreamUrl();
         });
         onUnmounted(() => {
+            document.removeEventListener('keydown', handleListShortcut);
+            document.removeEventListener('click', closeListActions);
             if (instanceSearchTimer) clearTimeout(instanceSearchTimer);
             clearRuntimeStreamTimer();
         });
@@ -3088,7 +3124,11 @@ createApp({
         return {
             instances, objectTypes, readyTypes, instanceRoster, availableRosterEntries,
             selectedSpawnRosterEntry, spawnIdConflict, spawnIdHint, selectedInst, currentSnap,
+            snapshotLoading, snapshotError, snapshotUpdatedAt, controlError, controlSavedMessage, controlDirtyCount, plainLabelSummary,
+            controlDialog, controlDialogElement, closeControlDialog, confirmControlDialog, trapControlDialog, refreshInstanceView,
             spawnForm, spawnIdMode, spawnRosterSelection, spawning, overriding, overrideFields, overridePatch, toasts, pendingDelete,
+            spawnDialogOpen, spawnDialogRef, spawnSubmitHint, spawnError, openSpawnDialog, closeSpawnDialog, trapSpawnDialog,
+            instanceSearchRef, instanceListRef, clearInstanceSearch, runListAction,
             rosterEntryLabel, applySpawnRosterEntry, handleSpawnIdSelection, returnToRosterSelection,
             activeMonitorTab, switchMonitorTab,
             // 3.3.3 instance model binding
@@ -3103,7 +3143,7 @@ createApp({
             modelApplyReady, selectedModelSummary,
             modelModeLabel, modelSourceLabel, modelFallbackText, loadModelBinding, openModelPicker, closeModelPicker,
             switchModelAssetMode, loadModelAssets, reloadModelAssets, changeModelAssetPage,
-            selectModelAsset, applyInstanceModel, openModelRestoreConfirm,
+            selectUEModelAsset, selectModelAsset, applyInstanceModel, openModelRestoreConfirm,
             openModelUpload, closeModelUpload, onModelUploadFileChange, submitModelUpload,
             closeModelRestoreConfirm, restoreInstanceModel,
             artstudioIdentity, artstudioIdentityLoading, artstudioIdentityError, artstudioDisconnecting,

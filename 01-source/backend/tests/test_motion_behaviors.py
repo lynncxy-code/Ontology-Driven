@@ -9,6 +9,16 @@ from presentation_routing import build_presentation, profile_fingerprint
 
 
 class MotionTests(unittest.TestCase):
+    def test_cleared_channel_does_not_resurrect_platform_defaults(self):
+        profile = {'behavior_library':'none','channels':{'fx':{'states':{'status:running':{
+            'resource_id':'ot.industrial.alarm_flash','source':'ontotwin_common'}}}}}
+        routes = build_presentation('test', {'status':'running'}, profile)['resolution']['channels']
+        self.assertEqual('safe.idle', routes['animation']['behavior_id'])
+        self.assertEqual('industrial.fx.warning_flash', routes['fx']['behavior_id'])
+        profile['channels'] = {}
+        routes = build_presentation('test', {'status':'fault','battery_level':10}, profile)['resolution']['channels']
+        self.assertEqual(['safe.idle','safe.visible','safe.none','safe.label'], [routes[k]['behavior_id'] for k in ('animation','visual','fx','label')])
+
     def test_real_motion_choices_replace_indicators(self):
         resources = list_resources(channel='animation', source='ontotwin_common', state='normal')
         self.assertEqual(6, len(resources))

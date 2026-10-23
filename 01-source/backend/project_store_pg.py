@@ -15,14 +15,17 @@ ProjectStorePG —— PostgreSQL 后端（OntoTwin 3.4）
 """
 
 import json
+import os
 import time
 import threading
+import copy
+from contextlib import nullcontext
 
 from psycopg.types.json import Jsonb
 
 from project_store import (
     CURRENT_SCHEMA_VERSION,
-    ProjectStore,
+    ProjectStoreJSON as ProjectStore,
     _clean_hierarchy_path,
     _as_graph_dataset,
     _default_media_policy,
@@ -36,13 +39,70 @@ from project_store import (
 from db import pg
 
 
+def _env_float(name, default):
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _wait_for_database():
+    """等待 PG 可连。
+
+    发布包都是 restart: unless-stopped：宿主机/Docker Desktop 重启时容器并发拉起，
+    compose 的 depends_on 不生效。backend 若先于 PG 起来，过去会以"无激活项目、
+    空 UE 绑定索引"的半残状态一直运行，所有 UE 请求 403。这里先等库就绪；
+    超时则抛错让进程退出，由重启策略重新拉起，而不是静默带病运行。
+    """
+    timeout = _env_float("ONTOTWIN_DB_WAIT_SECONDS", 60)
+    deadline = time.monotonic() + max(0.0, timeout)
+    attempt = 0
+    while True:
+        attempt += 1
+        if pg.ping():
+            if attempt > 1:
+                print(f"[project_store_pg] PostgreSQL 已就绪（第 {attempt} 次探测）")
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        if attempt == 1:
+            print(f"[project_store_pg] 等待 PostgreSQL 就绪（最长 {timeout:.0f}s）…")
+        time.sleep(min(2.0, max(0.1, deadline - time.monotonic())))
+
+
 class ProjectStorePG(ProjectStore):
+    def __new__(cls, *args, **kwargs):
+        # 调用方显式给了 projects_dir / active_file，或者 monkeypatch 了 _DATA_DIR / _PROJECTS_DIR，
+        # 说明它要的是"隔离的文件库"（单元测试、离线工具）。在 ONTOTWIN_STORE=pg 的容器里，
+        # ProjectStore 名指向本类，过去这些参数会被忽略、数据直接写进真实 PG（并改写激活项目）。
+        # 这里把这类调用交还给 JSON 实现。
+        import project_store as _base_ps
+        default_data = os.path.join(os.path.dirname(_base_ps.__file__), "data")
+        curr_data = getattr(_base_ps, "_DATA_DIR", default_data)
+        curr_pdir = getattr(_base_ps, "_PROJECTS_DIR", os.path.join(default_data, "projects"))
+        is_patched = (curr_data != default_data) or (curr_pdir != os.path.join(default_data, "projects"))
+        is_forced_json = os.environ.get("ONTOTWIN_STORE", "json").lower() != "pg"
+        if args or kwargs.get("projects_dir") or kwargs.get("active_file") or is_patched or is_forced_json:
+            store = ProjectStore.__new__(ProjectStore)
+            store.__init__(*args, **kwargs)
+            return store
+        return super().__new__(cls)
+
     def __init__(self, *args, **kwargs):
         # 不调用父类 __init__（那是 JSON 目录初始化）；自建最小状态。
         self._lock = threading.RLock()
         self._active_id = None
         self._current = None
         self._dirty = False
+        if not _wait_for_database():
+            message = (
+                f"PostgreSQL 在 {_env_float('ONTOTWIN_DB_WAIT_SECONDS', 60):.0f}s 内不可达"
+                f"（DATABASE_URL 主机：{pg.DATABASE_URL.rsplit('@', 1)[-1]}）"
+            )
+            if os.environ.get("ONTOTWIN_DB_ALLOW_START_WITHOUT_DB", "").strip().lower() in {"1", "true", "yes"}:
+                print(f"[project_store_pg] {message}；按 ONTOTWIN_DB_ALLOW_START_WITHOUT_DB 继续启动（无数据）")
+            else:
+                raise RuntimeError(message + "；拒绝以空数据状态启动")
         try:
             pg.init_schema()          # 幂等建表（docker 首次已建；本地/补建兜底）
         except Exception as e:
@@ -102,8 +162,8 @@ class ProjectStorePG(ProjectStore):
                 )
 
     # ── 读单个项目：从分表重组成内存 dict ────────────────────
-    def _read_project(self, pid):
-        with pg.get_conn() as conn:
+    def _read_project(self, pid, connection=None):
+        with (nullcontext(connection) if connection is not None else pg.get_conn()) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """SELECT id, name, created_at, dataset, calibration, spatial_profile,
@@ -197,14 +257,14 @@ class ProjectStorePG(ProjectStore):
                 return self._ensure_collections(proj)
 
     # ── 存当前项目：把内存 dict 拆解写回分表（事务原子）────────
-    def _save_current(self):
+    def _save_current(self, connection=None):
         if not self._current:
             return
         proj = self._current
         pid = proj["id"]
         ots = proj.get("object_types") or {}
         insts = proj.get("instances") or {}
-        with pg.get_conn() as conn:
+        with (nullcontext(connection) if connection is not None else pg.get_conn()) as conn:
             with conn.transaction():
                 with conn.cursor() as cur:
                     # 1) 项目行（低频嵌套块直接 JSONB）
@@ -336,6 +396,29 @@ class ProjectStorePG(ProjectStore):
                             (pid,),
                         )
         self._dirty = False
+
+    def transact_project(self, pid, updater):
+        """Read-modify-write on one connection/row lock, never resurrect a deleted project."""
+        with self._lock:
+            previous, dirty_before = self._current, self._dirty
+            try:
+                with pg.get_conn() as conn, conn.transaction():
+                    with conn.cursor() as cur:
+                        cur.execute('SELECT id FROM project WHERE id=%s AND deleted_at IS NULL FOR UPDATE', (pid,))
+                        if cur.fetchone() is None:
+                            raise ValueError(f'project not found: {pid}')
+                    project = self._current if self._active_id == pid else self._read_project(pid, conn)
+                    working = copy.deepcopy(project)
+                    result = updater(working)
+                    self._current = working
+                    self._save_current(conn)
+            except Exception:
+                self._current, self._dirty = previous, dirty_before
+                raise
+            finally:
+                if self._active_id != pid:
+                    self._current, self._dirty = previous, dirty_before
+            return result
 
     def _soft_delete_absent_instances(self):
         """按当前内存实例集合收敛 PG 实例表。仅用于明确的删除/重铸造操作。"""

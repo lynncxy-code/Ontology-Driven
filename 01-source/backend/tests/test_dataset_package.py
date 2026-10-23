@@ -327,7 +327,8 @@ class DatasetPackageTests(unittest.TestCase):
         pg.DATABASE_URL = os.environ["ONTOTWIN_TEST_PG_URL"]
         from project_store_pg import ProjectStorePG
 
-        pg_store = ProjectStorePG()
+        pg_store = object.__new__(ProjectStorePG)
+        ProjectStorePG.__init__(pg_store)
         pg_importer = DatasetPackageService(pg_store, dataset_names=lambda: [])
         first = pg_importer.import_package(self.package_bytes, "PG Migrated")
         pg_project = pg_store.read_project(first["project_id"])

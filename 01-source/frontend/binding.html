@@ -66,6 +66,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);-webkit-font-
 .r-main{flex:1;min-width:0}
 .r-title{font-size:var(--t-base);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .r-meta{font-size:var(--t-xs);color:var(--ink-3);margin-top:2px}
+.roster-name{white-space:normal;overflow-wrap:anywhere}
+.roster-id{font-family:monospace;overflow-wrap:anywhere}
 .r-slot{flex:none}
 .r-actions{display:flex;align-items:center;gap:6px;flex:none}
 .pill{display:inline-flex;align-items:center;gap:6px;background:var(--ok-bg);color:var(--ok);font-size:var(--t-sm);padding:4px 8px;border-radius:var(--r-md);font-family:monospace}
@@ -145,7 +147,7 @@ select.bind{height:32px;font-size:var(--t-sm);max-width:180px;border:1px solid v
     </div>
     <div class="pane">
       <div class="pane-head">
-        <span class="t">实例清单（实例编号）</span>
+        <span class="t">实例清单（名称与编号）</span>
         <span class="m"><a href="javascript:void(0)" onclick="document.getElementById('csvInput').click()" style="color:var(--ink-2);text-decoration:underline">上传 CSV</a></span>
       </div>
       <div class="roster-add">
@@ -252,6 +254,24 @@ function deployedSet(){
   return s;
 }
 
+function rosterNames(deployed){
+  var bound = Object.create(null);
+  State.components.forEach(function(c){
+    if(c.bound_instance_id) bound[c.bound_instance_id] = c;
+  });
+  var names = Object.create(null);
+  State.roster.forEach(function(r){
+    var instance = deployed[r.instance_id] || {};
+    var component = bound[r.instance_id] || {};
+    // display_name may default to the ID; that is not a readable name.
+    var candidates = [instance.display_name, r.name, instance.object_type_name, component.type_name, r.type];
+    names[r.instance_id] = candidates.map(function(value){
+      return typeof value === 'string' ? value.trim() : '';
+    }).find(function(value){ return value && value !== r.instance_id; }) || '名称未提供';
+  });
+  return names;
+}
+
 function unboundComponentIds(){
   return State.components.filter(function(c){ return !c.bound_instance_id; }).map(function(c){ return c.id; });
 }
@@ -333,6 +353,7 @@ function render(){
   }
   var taken = takenSet();
   var deployed = deployedSet();
+  var names = rosterNames(deployed);
   var visibleComponents = filteredComponents();
 
   // 左：构件
@@ -356,7 +377,7 @@ function render(){
       var opts = '<option value="">— 选择实例编号 —</option>';
       State.roster.forEach(function(r){
         if(!taken[r.instance_id] && !deployed[r.instance_id]){
-          opts += '<option value="'+esc(r.instance_id)+'">'+esc(r.instance_id)+'</option>';
+          opts += '<option value="'+esc(r.instance_id)+'">'+esc(names[r.instance_id])+' · '+esc(r.instance_id)+'</option>';
         }
       });
       slot = '<select class="bind" data-bind="'+esc(c.id)+'">'+opts+'</select>';
@@ -401,7 +422,8 @@ function render(){
       dotCls = 'dot-warn';
     }
     row.innerHTML = '<span class="dot '+dotCls+'"></span>'
-      + '<span class="r-main" style="font-family:monospace;font-size:var(--t-base)">'+esc(r.instance_id)+'</span>' + tag
+      + '<div class="r-main"><div class="r-title roster-name">'+esc(names[r.instance_id])+'</div>'
+      + '<div class="r-meta roster-id">'+esc(r.instance_id)+'</div></div>' + tag
       + (r.source === 'auto' ? '<span class="tag-info">自动编号</span>' : '');
     rl.appendChild(row);
   });

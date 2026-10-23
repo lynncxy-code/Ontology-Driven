@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>监控总览 · OntoTwin Nexus</title>
+  <link rel="icon" href="/assets/ontotwin-logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/monitor-test.css?v=compact-16x9-20260929">
+  <script src="/ue_hud/assets/js/ue-bridge.js" defer></script>
+  <script src="/monitor-test.js?v=compact-16x9-20260929" defer></script>
+</head>
+<body>
+  <main>
+    <header class="glass">
+      <div><p class="eyebrow">ONTOTWIN NEXUS / 0BAY</p><h1>监控总览 <span class="badge">测试环境</span></h1></div>
+      <a class="btn" id="overview" href="/monitor-test.html" data-ontotwin-interactive>总览</a>
+    </header>
+    <p class="intro">14 路独立信号 · 合成测试画面</p>
+    <div class="workspace">
+      <section class="viewer glass" aria-labelledby="current-title">
+        <div class="panel-heading"><h2 id="current-title">选择一个摄像头</h2><div class="viewer-actions"><span id="selection-label">未选择</span><button class="btn" id="close-viewer" type="button" aria-label="关闭监控窗口" data-ontotwin-interactive>关闭</button></div></div>
+        <div id="screen" class="screen"><div class="empty"><div class="empty-mark" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="12" width="27" height="24" rx="4"/><path d="m32 20 11-6v20l-11-6z"/></svg></div><h3>从左侧选择摄像头</h3><p>或在场景中点击对应设备</p></div></div>
+        <div class="viewer-footer"><p id="player-status" role="status" aria-live="polite">尚未连接视频流</p><button class="btn" id="retry" type="button" disabled data-ontotwin-interactive>重新连接</button></div>
+      </section>
+      <aside class="directory glass" aria-labelledby="directory-title">
+        <div class="panel-heading"><h2 id="directory-title">摄像头</h2><span>14 路</span></div>
+        <nav id="channels" class="channels" aria-label="选择摄像头视频流" data-ontotwin-interactive></nav>
+        <p class="directory-note">一次播放一路。切换时断开上一条视频连接。</p>
+      </aside>
+    </div>
+    <footer>本机测试 · 非真实监控</footer>
+  </main>
+</body>
+</html>

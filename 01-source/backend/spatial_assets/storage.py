@@ -1,6 +1,7 @@
 import hashlib
 import os
 import tempfile
+import json
 
 from .validators import (
     CAD_HEADER_BYTES,
@@ -151,6 +152,36 @@ class SpatialAssetStorage:
         path = os.path.realpath(os.path.join(directory, storage_name))
         if os.path.commonpath([directory, path]) != directory:
             raise ValueError("invalid CAD asset path")
+        return path
+
+    def type_scan_cache_path(self, project_id, frame_id, source_sha256):
+        """Return a safe, rebuildable path outside the ProjectStore JSON."""
+        directory = os.path.realpath(os.path.join(
+            self._project_dir(project_id), "type_scan_cache"
+        ))
+        os.makedirs(directory, exist_ok=True)
+        safe_frame = safe_storage_segment(frame_id)
+        safe_sha = safe_storage_segment(source_sha256)
+        path = os.path.realpath(os.path.join(directory, f"{safe_frame}_{safe_sha}.json"))
+        if os.path.commonpath([directory, path]) != directory:
+            raise ValueError("invalid type scan cache path")
+        return path
+
+    def read_type_scan_cache(self, project_id, frame_id, source_sha256):
+        path = self.type_scan_cache_path(project_id, frame_id, source_sha256)
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                value = json.load(handle)
+            return value if isinstance(value, dict) else None
+        except (OSError, ValueError):
+            return None
+
+    def write_type_scan_cache(self, project_id, frame_id, source_sha256, value):
+        path = self.type_scan_cache_path(project_id, frame_id, source_sha256)
+        temp = path + ".tmp"
+        with open(temp, "w", encoding="utf-8") as handle:
+            json.dump(value, handle, ensure_ascii=False, separators=(",", ":"))
+        os.replace(temp, path)
         return path
 
     @staticmethod

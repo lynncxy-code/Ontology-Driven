@@ -1,0 +1,37 @@
+/* List-first workspace; low-frequency creation uses the existing grayscale modal language. */
+.il-sidebar{flex:0 0 40%;min-width:340px;max-width:560px}
+.il-detail{min-width:0}
+.il-list-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid #e8e8e8;background:#fafafa;flex-shrink:0}
+.il-list-head>.ic-actions{gap:8px}
+.il-list-head .ic-btn{font-size:12px;padding:6px 8px}
+.il-more{position:relative}
+.il-more summary{list-style:none}
+.il-more summary::-webkit-details-marker{display:none}
+.il-more-menu{position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:128px;padding:4px;background:#fff;border:1px solid #e8e8e8;border-radius:8px;box-shadow:0 4px 16px rgba(20,20,20,.08)}
+.il-more-menu button{display:block;width:100%;text-align:left;font-size:12px;border:0;box-shadow:none;padding:8px 12px}
+.il-search{position:relative}
+.il-search input{padding-right:52px}
+.il-search input::-webkit-search-cancel-button{display:none}
+.il-search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:12px;color:#5c5c5c;padding:4px;border-radius:6px}
+.il-search-clear:hover{background:#f3f3f3;color:#1a1a1a}
+.il-search-clear:focus-visible,.il-more summary:focus-visible,.il-more-menu button:focus-visible{outline:2px solid #1a1a1a;outline-offset:2px}
+.il-list{overscroll-behavior:contain;scrollbar-gutter:stable;padding:12px 16px}
+.il-list>div+div{margin-top:4px}
+.il-list>div>button{padding:8px 12px}
+.il-list>div>div>div{padding:8px 12px;border-radius:8px}
+.il-spawn-dialog{width:min(520px,100%);max-height:82vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 16px 48px rgba(20,20,20,.18);color:#1a1a1a}
+.il-spawn-head{padding:24px 24px 0}
+.il-spawn-head h2{font-size:16px;font-weight:600;margin:0}
+.il-spawn-head p,.il-help{font-size:12px;line-height:1.6;color:#5c5c5c;margin:8px 0 0}
+.il-spawn-dialog fieldset{min-width:0}
+.il-spawn-fields{padding:24px}
+.il-spawn-foot{position:sticky;bottom:0;background:#fff;border-top:1px solid #e8e8e8;padding:16px 24px}
+.il-spawn-foot .ic-actions{justify-content:flex-end}
+.il-spawn-foot .il-help:not(:empty){margin:0 0 12px}
+.il-spawn-foot .ic-error{color:#b42318}
+@media(max-width:760px){
+    .il-layout{flex-direction:column;overflow-y:auto}
+    .il-sidebar{flex:0 0 60vh;min-width:0;max-width:none;border-right:0;border-bottom:1px solid #e8e8e8}
+    .il-detail{flex:0 0 75vh}
+    .il-list-head{padding:12px 16px}
+}

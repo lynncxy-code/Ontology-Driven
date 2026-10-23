@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>本体配置中心 | OntoTwin Nexus 2.3</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/vendor/tailwind-3.4.17.min.css" />
     <script src="/vendor/vue-3.3.4.global.prod.js" integrity="sha384-QLgwzsuau/sa8LhRgjRzkvQS0LyUzCM2B8FPwVoSu1KDel940/orifPaumNXp9hK" crossorigin="anonymous"></script>
     <script src="/vendor/axios-1.7.9.min.js" integrity="sha384-jLwhcmGu/RL8PSTUEl/559f8QVLL4QqM+HBvoZlt4F7XCdsdoDGAwW4nPFfoM7lU" crossorigin="anonymous"></script>
     <script src="/artstudio_upload.js"></script>
     <script src="/hierarchy_menu.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.3.2/bin/jsencrypt.min.js" integrity="sha384-FwzUI3CDdHbj2MEKbnjj0eCvB+gYurE3x3pW/udNFOVUbrCrl3REWMQ1FBTolvoj" crossorigin="anonymous"></script>
+    <script src="/vendor/jsencrypt-3.3.2.min.js" integrity="sha384-2U3ZOFBn6am8uySRD8FeajTevK2M7ic+Z/2JAvpISsFItINnWF00bn+YpaZK+Isy" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="/nexus_titlebar.css" />
     <style>
         .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
@@ -19,6 +19,8 @@
         ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
     </style>
+    <script src="/ue_asset_picker.js"></script>
+    <link rel="stylesheet" href="/ue_asset_picker.css">
 </head>
 <body class="bg-gray-50 text-gray-900 h-screen overflow-hidden flex flex-col font-sans antialiased">
 <div id="app" class="flex flex-col flex-1 min-h-0">
@@ -193,7 +195,9 @@
                         </div>
                     </div>
 
-                    <div v-if="hasVisual || hasBehavioral" class="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+                    <div v-if="hasRepresentable || hasVisual || hasBehavioral" class="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+                        <button v-if="hasRepresentable" type="button" @click="activeCapabilityTab = 'model'"
+                                :class="['flex-1 rounded-md px-3 py-2 text-xs font-medium transition', activeCapabilityTab === 'model' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50']">模型配置</button>
                         <button v-if="hasVisual" type="button" @click="activeCapabilityTab = 'visual'"
                                 :class="['flex-1 rounded-md px-3 py-2 text-xs font-medium transition', activeCapabilityTab === 'visual' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50']">
                             外观表现 <span class="ml-1 font-mono text-[9px] opacity-70">I3D_Visual</span>
@@ -444,6 +448,40 @@
                         </div>
                     </div>
 
+                    <section v-if="hasVisual && activeCapabilityTab === 'visual'" class="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
+                        <h3 class="text-sm font-semibold text-gray-900">文字标签</h3>
+                        <p class="text-xs text-gray-500">模型旁的简短文字，默认关闭；本类型的所有实例统一继承。点击模型后的详细内容仍在“配置信息面板”中管理。</p>
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" v-model="labelForm.enabled" :disabled="labelSaving" class="accent-gray-900">
+                            显示文字标签
+                        </label>
+                        <template v-if="labelForm.enabled">
+                            <label class="block text-xs text-gray-600">文字来源
+                                <select v-model="labelForm.source" :disabled="labelSaving" class="mt-2 block w-full rounded-md border border-gray-300 p-2 text-sm">
+                                    <option value="instance_name">实例名称</option>
+                                    <option value="field" :disabled="!selected.properties?.length">业务字段{{ selected.properties?.length ? '' : '（暂无字段）' }}</option>
+                                    <option value="fixed">固定文字</option>
+                                </select>
+                            </label>
+                            <label v-if="labelForm.source === 'field'" class="block text-xs text-gray-600">选择字段
+                                <select v-model="labelForm.field" :disabled="labelSaving" class="mt-2 block w-full rounded-md border border-gray-300 p-2 text-sm">
+                                    <option value="">请选择字段</option>
+                                    <option v-for="p in selected.properties" :key="p.name" :value="p.name">{{ p.label || p.name }}</option>
+                                </select>
+                                <span class="mt-2 block text-gray-400">读取每个实例自身的字段值；没有值时不显示标签。</span>
+                            </label>
+                            <label v-if="labelForm.source === 'fixed'" class="block text-xs text-gray-600">标签文字
+                                <input v-model="labelForm.text" :disabled="labelSaving" maxlength="256" class="mt-2 block w-full rounded-md border border-gray-300 p-2 text-sm" placeholder="同类型实例显示相同文字">
+                            </label>
+                        </template>
+                        <div class="flex items-center gap-3">
+                            <button type="button" @click="saveLabelConfig" :disabled="labelSaving || !labelDirty" class="rounded-md bg-gray-900 px-3 py-2 text-xs text-white disabled:opacity-40">{{ labelSaving ? '保存中…' : '保存标签设置' }}</button>
+                            <button type="button" @click="resetLabelForm" :disabled="labelSaving || !labelDirty" class="rounded-md border border-gray-300 px-3 py-2 text-xs text-gray-700 disabled:opacity-40">撤销未保存</button>
+                            <span class="text-xs text-gray-400">{{ labelDirty ? '有未保存修改' : '与类型设置一致' }}</span>
+                        </div>
+                        <p class="border-t border-gray-100 pt-3 text-xs text-gray-500">按状态变化的材质在“动态行为”配置；模型选择在“模型配置”。此处不再提供旧的固定材质变体按钮。</p>
+                    </section>
+
                     <!-- 4.5 Dynamic behavior configuration -->
                     <div v-if="hasBehavioral && activeCapabilityTab === 'behavioral'" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                         <div class="px-5 py-4 border-b border-gray-200 bg-gray-50/50 flex flex-wrap items-start justify-between gap-3">
@@ -488,7 +526,10 @@
                                             <div v-for="channel in behaviorChannels" :key="channel.id" class="rounded-md border border-gray-200 p-3">
                                                 <div class="flex flex-wrap items-center justify-between gap-2">
                                                     <span class="text-[11px] font-medium text-gray-800">{{ channel.label }}</span>
-                                                    <span class="text-[10px] text-gray-400">{{ selectedBehaviorResourceLabel(group.key, state.key, channel.id) || '未选择' }}</span>
+                                                    <div class="flex items-center gap-3">
+                                                        <span class="text-[10px] text-gray-400">{{ selectedBehaviorResourceLabel(group.key, state.key, channel.id) || '未选择' }}</span>
+                                                        <button v-if="selectedBehaviorResourceId(group.key, state.key, channel.id)" type="button" @click="clearBehaviorSelection(group.key, state.key, channel.id)" :disabled="presentationSaving" :aria-label="'清空' + state.label + '的' + channel.label" class="rounded-md border border-gray-300 px-2 py-1 text-[10px] text-gray-600 hover:bg-gray-50 disabled:opacity-40">清空</button>
+                                                    </div>
                                                 </div>
                                                 <div class="mt-2 flex flex-wrap gap-1.5">
                                                     <button v-for="source in behaviorSources" :key="source.id" type="button" @click="selectBehaviorSource(group.key, state.key, channel.id, source.id)"
@@ -523,7 +564,7 @@
                             </section>
                             <div class="flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4">
                                 <button type="button" @click="savePresentationProfile" :disabled="presentationSaving" class="rounded-md bg-gray-900 px-4 py-2 text-xs font-medium text-white hover:bg-black disabled:opacity-40">{{ presentationSaving ? '正在保存…' : '保存动态行为' }}</button>
-                                <span class="text-[11px] text-gray-500">保存代表配置已写入；当前页面尚未接入 UE 应用回执。</span>
+                                <span class="text-[11px] text-gray-500">清空后需保存；未选择的通道不自动添加默认行为。保存代表配置已写入，尚未接入 UE 应用回执。</span>
                             </div>
                         </div>
                         <div v-else class="p-5">
@@ -538,15 +579,15 @@
                     </div>
 
                     <!-- Model Binding -->
-                    <div v-if="selected && !hasRepresentable && !hasVisual" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                    <div v-if="selected && !hasRepresentable" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                         <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
                             <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">三维模型绑定</span>
                             <span class="text-[10px] text-gray-400">尚未启用</span>
                         </div>
-                        <div class="p-5 text-sm text-gray-500">启用并保存三维表现能力后，即可配置类型默认模型。</div>
+                        <div class="p-5 text-sm text-gray-500">启用并保存三维存在能力后，即可配置类型默认模型。</div>
                     </div>
                     <transition name="fade">
-                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm" v-if="(hasRepresentable || hasVisual) && activeCapabilityTab === 'visual'">
+                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm" v-if="hasRepresentable && activeCapabilityTab === 'model'">
                             <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
                                 <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">三维模型绑定</span>
                                 <span class="text-[10px] text-gray-400">用于 UE 预览与实例生成</span>
@@ -600,60 +641,49 @@
                                     </div>
                                 </div>
 
-                                <!-- 三种绑定模式切换 -->
+                                <!-- 模型来源切换 -->
                                 <div class="flex items-center gap-3 mb-4">
                                     <div class="flex bg-gray-100 border border-gray-200 rounded-lg overflow-hidden p-1">
                                         <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='library' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('library')">ArtStudio 资产库</button>
                                         <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='mine' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('mine')">我的资产</button>
+                                        <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='ue' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('ue')">工程资产</button>
                                         <button class="px-3 text-xs font-medium py-1.5 rounded-md transition flex-shrink-0" :class="bindMode==='manual' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'" @click="switchBindMode('manual')">路径直连</button>
                                     </div>
-                                    <button ref="assetUploadTrigger" type="button" @click="openAssetUpload"
+                                    <button v-if="bindMode === 'library' || bindMode === 'mine'" ref="assetUploadTrigger" type="button" @click="openAssetUpload"
                                             class="ml-auto text-xs font-medium px-3 py-2 rounded-md border border-gray-900 bg-gray-900 text-white hover:bg-black whitespace-nowrap">上传模型</button>
                                     <!-- 数据源指示 -->
                                     <span v-if="bindMode==='library'" class="text-[10px] font-mono text-gray-600 bg-gray-50 border border-gray-200" style="padding:2px 8px; border-radius:4px;">
                                         ArtStudio 资产库
                                     </span>
-                                    <span v-if="bindMode==='mine'" class="text-[10px] font-mono ml-auto text-gray-600 bg-gray-50 border border-gray-200" style="padding:2px 8px; border-radius:4px;">
-                                        ArtStudio · 我的资产
-                                    </span>
+
                                     <span v-if="bindMode==='manual'" class="text-[10px] font-mono ml-auto text-gray-600 bg-gray-50 border border-gray-200" style="padding:2px 8px; border-radius:4px;">
                                         运行时 GLB / UE 已打包资产
                                     </span>
                                 </div>
-                                <div v-if="bindMode === 'mine'"
-                                     class="mb-4 text-[11px] text-gray-600 leading-relaxed border-l-2 border-gray-300 pl-3">
-                                    <span v-if="identityLoading">正在确认 ArtStudio 登录状态…</span>
-                                    <template v-else-if="artstudioIdentity?.authenticated">
-                                        当前账号：
-                                        <span class="font-medium text-gray-900">{{ artstudioIdentity.user?.display_name }}</span>
-                                        <span v-if="artstudioIdentity.user?.username" class="font-mono text-gray-500">（{{ artstudioIdentity.user.username }}）</span>
-                                        <button @click="refreshMyAssets" class="ml-2 text-[10px] underline underline-offset-2 hover:text-gray-900">刷新状态</button>
-                                        <button @click="disconnectArtstudio" :disabled="disconnecting"
-                                                class="ml-2 text-[10px] underline underline-offset-2 hover:text-gray-900 disabled:opacity-50">
-                                            {{ disconnecting ? '正在断开…' : '断开连接' }}
-                                        </button>
-                                    </template>
-                                    <template v-else>
-                                        {{ identityError || '尚未连接 ArtStudio 账号。' }}
-                                        <button ref="loginTrigger" @click="openArtstudioLogin" :disabled="identityLoading"
-                                                class="ml-2 text-[10px] font-medium text-gray-900 underline underline-offset-2 hover:text-black disabled:opacity-50">连接账号</button>
-                                    </template>
-                                </div>
+                                <template v-if="bindMode === 'ue'">
+                                    <ue-asset-picker :key="selected?.rid" :dataset="activeDataset" :disabled="bindingAsset" @select="selectUETypeAsset"></ue-asset-picker>
+                                    <button type="button" class="mt-4 text-xs font-medium bg-gray-900 text-white px-4 py-2 rounded-md disabled:opacity-50" :disabled="!selectedAsset || bindingAsset" @click="bindAsset(selectedAssetFn)">{{ bindingAsset ? '正在绑定…' : '确认绑定选中资产' }}</button>
+                                </template>
                                 <div v-if="assetLoadWarning && (bindMode === 'library' || bindMode === 'mine')"
                                      class="mb-4 text-[11px] text-gray-600 leading-relaxed border-l-2 border-gray-300 pl-3">
                                     {{ assetLoadWarning }}
                                 </div>
 
-                                <template v-if="bindMode === 'library'">
+                                <div v-if="bindMode === 'mine'" class="flex flex-wrap items-center gap-3 mb-4 text-xs text-gray-600">
+                                    <span>{{ artstudioIdentity?.authenticated ? '已连接 ArtStudio 账号' : '连接账号后查看个人和私有资产' }}</span>
+                                    <button v-if="!artstudioIdentity?.authenticated" type="button" @click="openArtstudioLogin" class="px-3 py-2 border border-gray-200 rounded-md">连接账号</button>
+                                    <button v-else type="button" @click="disconnectArtstudio" class="px-3 py-2 border border-gray-200 rounded-md">断开连接</button>
+                                </div>
+                                <template v-if="bindMode === 'library' || bindMode === 'mine'">
                                     <!-- ArtStudio 筛选栏：所有者 + 分类 + 搜索 -->
                                     <div class="flex items-center gap-2 mb-4">
-                                        <select v-model="assetOwnerType" @change="onFilterChange"
+                                        <select v-if="bindMode === 'library'" v-model="assetOwnerType" @change="onFilterChange"
                                                 class="text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-gray-900 bg-white">
                                             <option value="">全部所有者</option>
                                             <option value="1">组织资产</option>
                                             <option value="2">个人资产</option>
                                         </select>
-                                        <select v-model="assetCategory" @change="onFilterChange"
+                                        <select v-if="bindMode === 'library'" v-model="assetCategory" @change="onFilterChange"
                                                 class="text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-gray-900 bg-white">
                                             <option v-for="c in ASSET_CATEGORIES" :key="c.value" :value="c.value">{{ c.label }}</option>
                                         </select>
@@ -664,18 +694,8 @@
                                     </div>
                                 </template>
 
-                                <template v-if="bindMode === 'mine' && artstudioIdentity?.authenticated">
-                                    <!-- 当前 ArtStudio 用户的个人资产：搜索 -->
-                                    <div class="flex items-center gap-2 mb-4">
-                                        <input type="text" v-model="assetQuery" @keyup.enter="onSearch"
-                                               placeholder="搜索资产名称…"
-                                               class="flex-1 text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-gray-900" />
-                                        <button @click="onSearch" class="text-xs px-3 py-1.5 bg-gray-100 border border-gray-200 rounded-md hover:bg-gray-200 whitespace-nowrap">搜索</button>
-                                    </div>
-                                </template>
-
-                                <!-- 资产卡片网格 + 分页（公开库 / 我的资产共用） -->
-                                <template v-if="bindMode === 'library' || (bindMode === 'mine' && artstudioIdentity?.authenticated)">
+                                <!-- ArtStudio 资产卡片与分页 -->
+                                <template v-if="bindMode === 'library' || bindMode === 'mine'">
                                     <!-- 资产卡片网格 -->
                                     <div class="grid grid-cols-2 gap-3 mb-4">
                                         <div v-for="asset in pagedAssets" :key="asset.file_number"
@@ -795,7 +815,7 @@
                         </div>
                     </transition>
 
-                    <div v-if="hasRepresentable" class="mt-6 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                    <div v-if="hasRepresentable && activeCapabilityTab === 'model'" class="mt-6 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                         <div class="px-5 py-4 border-b border-gray-200 bg-gray-50/50 flex flex-wrap items-start justify-between gap-3">
                             <div>
                                 <h3 class="text-sm font-semibold text-gray-900">Blueprint 表现容器</h3>
@@ -1052,6 +1072,7 @@
 <script>
 const { createApp, ref, computed, onMounted, nextTick } = Vue;
 createApp({
+    components: { 'ue-asset-picker': OntoTwinUEAssetPicker },
     setup() {
         const objectTypes   = ref([]);
         const typeInstances = ref([]);
@@ -1067,7 +1088,7 @@ createApp({
         const pendingRemove = ref(new Set());   // 编辑模式下，待卸载的接口
         const editMode      = ref(false);        // 是否处于修改模式
         const saving        = ref(false);
-        const bindMode      = ref('library');
+        const bindMode      = ref('ue');
         const selectedAssetFn = ref('');
         const selectedAssetUePath = ref('');    // 当前选中资产的 UE 路径
         const manualPath    = ref('');
@@ -1104,7 +1125,7 @@ createApp({
         const presentationPreview = ref(null);
         const presentationSelections = ref({ channels: {} });
         const interfaceEditorOpen = ref(false);
-        const activeCapabilityTab = ref('visual');
+        const activeCapabilityTab = ref('model');
         const activeBehaviorTab = ref('states');
         const behaviorSyncState = ref('idle');
         const behaviorChannels = [
@@ -1254,6 +1275,7 @@ createApp({
             return {
                 version: '1.0',
                 normalization_profile: 'industrial.v1',
+                behavior_library: 'none',
                 channels,
             };
         }
@@ -1395,7 +1417,7 @@ createApp({
         const hasRepresentable = computed(() => {
             if (!selected.value) return false;
             const injected = selected.value.injected_interfaces || [];
-            return injected.includes('I3D_Representable') || pendingInterfaces.value.has('I3D_Representable');
+            return injected.includes('I3D_Representable');
         });
 
         const isPresentationInjected = computed(() => (
@@ -1475,10 +1497,20 @@ createApp({
         }
         function selectBehaviorSource(field, state, channel, source) {
             const entry = ensureBehaviorEntry(field, state, channel);
+            if (entry.source === source) return;
             entry.source = source;
             entry.resource_id = '';
             delete entry.params;
             behaviorSyncState.value = 'idle';
+        }
+        function clearBehaviorSelection(field, state, channel) {
+            delete presentationSelections.value.channels[behaviorEntryKey(field, state, channel)];
+            behaviorSyncState.value = 'idle';
+        }
+        function defaultCapabilityTab(interfaces) {
+            if (interfaces.includes('I3D_Representable')) return 'model';
+            if (interfaces.includes('I3D_Behavioral')) return 'behavioral';
+            return 'visual';
         }
         function selectBehaviorResource(field, state, channel, resource) {
             const entry = ensureBehaviorEntry(field, state, channel);
@@ -1682,8 +1714,9 @@ createApp({
                 pendingRemove.value = new Set();
                 toast('ok', '能力变更已保存');
                 await loadTypes();
-                if (activeCapabilityTab.value === 'behavioral' && !hasBehavioral.value) activeCapabilityTab.value = 'visual';
-                if (activeCapabilityTab.value === 'visual' && !hasVisual.value && hasBehavioral.value) activeCapabilityTab.value = 'behavioral';
+                const tabInterface = { model: 'I3D_Representable', visual: 'I3D_Visual', behavioral: 'I3D_Behavioral' };
+                if (!isInjected(tabInterface[activeCapabilityTab.value]))
+                    activeCapabilityTab.value = defaultCapabilityTab(selected.value.injected_interfaces || []);
             } catch (e) {
                 toast('err', e.response?.data?.error || '能力变更保存失败');
             } finally {
@@ -1793,6 +1826,11 @@ createApp({
                     object_type_rid: selected.value.rid,
                     file_number: id.trim(),
                 };
+                if (bindMode.value === 'ue') {
+                    if (!selectedAsset.value) return;
+                    Object.assign(body, {source:'ue_catalog', expected_project_id:selectedAsset.value.expected_project_id,
+                        ue_project_id:selectedAsset.value.ue_project_id, catalog_revision:selectedAsset.value.catalog_revision});
+                }
                 if (selectedAssetUePath.value) {
                     body.ue_asset_path = selectedAssetUePath.value.trim();
                 }
@@ -1805,8 +1843,15 @@ createApp({
                     await loadTypes();
                 } else { toast('err', res.data.warning); }
             } catch (e) {
-                assetResult.value = { valid: false, warning: e.response?.data?.error || '绑定请求中断' };
+                assetResult.value = { valid: false, warning: e.response?.data?.message || e.response?.data?.error || '绑定请求中断' };
             } finally { bindingAsset.value = false; }
+        }
+
+        function selectUETypeAsset(asset) {
+            allAssets.value = asset ? [asset] : [];
+            selectedAssetFn.value = asset?.file_number || '';
+            selectedAssetUePath.value = asset?.ue_path || '';
+            assetResult.value = null;
         }
 
         function selectLibraryAsset(asset) {
@@ -1834,7 +1879,7 @@ createApp({
                 mine: 'ArtStudio · 我的资产',
                 mock: '历史本地资产',
                 local: '运行时 GLB 文件',
-                ue_cooked: 'UE 已打包资产引用',
+                ue_cooked: '工程资产',
             };
             return map[source] || '手动绑定';
         }
@@ -1899,16 +1944,43 @@ createApp({
             }
         }
 
+        function typeLabelConfig(ot) {
+            return {enabled:false, source:'instance_name', field:'', text:'', ...(ot?.interface_configs?.I3D_Visual?.label || {})};
+        }
+        const labelForm = ref(typeLabelConfig(null));
+        const labelSaving = ref(false);
+        const labelDirty = computed(() => JSON.stringify(labelForm.value) !== JSON.stringify(typeLabelConfig(selected.value)));
+        function resetLabelForm() { labelForm.value = typeLabelConfig(selected.value); }
+        async function saveLabelConfig() {
+            if (!selected.value || labelSaving.value) return;
+            const target = selected.value;
+            const config = {...labelForm.value};
+            labelSaving.value = true;
+            try {
+                const {data} = await axios.put('/api/v2/ontology/types/' + encodeURIComponent(target.rid) + '/label-config', config);
+                const update = ot => {
+                    if (!ot) return;
+                    ot.interface_configs = {...ot.interface_configs, I3D_Visual:{...ot.interface_configs?.I3D_Visual, label:data.label}};
+                };
+                update(objectTypes.value.find(ot => ot.rid === target.rid));
+                if (selected.value?.rid === target.rid) { update(selected.value); resetLabelForm(); }
+                toast('ok', '标签设置已保存，同类型实例将在同步后更新');
+            } catch (e) {
+                toast('err', e.response?.data?.error || '标签设置保存失败');
+            } finally { labelSaving.value = false; }
+        }
+
         function selectType(ot) {
-            if (saving.value) return;
+            if (saving.value || bindingAsset.value) return;
             selected.value = { ...ot };
-            activeCapabilityTab.value = (ot.injected_interfaces || []).includes('I3D_Behavioral') ? 'behavioral' : 'visual';
+            resetLabelForm();
+            activeCapabilityTab.value = defaultCapabilityTab(ot.injected_interfaces || []);
             pendingInterfaces.value = new Set();
             pendingRemove.value = new Set();
             editMode.value = false;
             assetResult.value = null;
             presentationSelections.value = createPresentationSelections(ot.presentation_profile || {});
-            behaviorSyncState.value = Object.keys(presentationSelections.value.channels).length ? 'saved' : 'idle';
+            behaviorSyncState.value = Object.keys(ot.presentation_profile || {}).length ? 'saved' : 'idle';
             presentationPreview.value = null;
             selectedAssetFn.value = ot.asset_id || '';
             selectedAssetUePath.value = ot.ue_asset_path || '';
@@ -1934,6 +2006,7 @@ createApp({
                 const fresh = typesRes.data.find(t => t.rid === selected.value.rid);
                 if (fresh) {
                     selected.value = { ...fresh };
+                    resetLabelForm();
                     presentationSelections.value = createPresentationSelections(fresh.presentation_profile || {});
                     presentationPreview.value = null;
                     containerBlueprintPath.value = fresh.container_blueprint_id || '';
@@ -2005,6 +2078,7 @@ createApp({
         async function loadAssets() {
             const requestSeq = ++assetLoadSeq;
             const requestMode = bindMode.value;
+            if (requestMode === 'ue') return;
             if (requestMode === 'manual') {
                 allAssets.value = [];
                 assetTotal.value = 0;
@@ -2228,6 +2302,7 @@ createApp({
         }
 
         async function openAssetUpload() {
+            if (!artstudioIdentity.value?.authenticated) await loadArtstudioIdentity();
             if (!artstudioIdentity.value?.authenticated) {
                 assetUploadAfterLogin = true;
                 await openArtstudioLogin();
@@ -2264,8 +2339,8 @@ createApp({
         function selectUploadedAsset(asset) {
             if (!asset) return;
             ++assetLoadSeq;
-            bindMode.value = 'mine';
-            assetSource.value = 'mine';
+            bindMode.value = assetUploadForm.value.visibility === 'private' ? 'mine' : 'library';
+            assetSource.value = 'studio';
             assetPage.value = 1;
             allAssets.value = [asset, ...allAssets.value.filter(item => item.file_number !== asset.file_number)];
             assetTotal.value = Math.max(assetTotal.value + 1, allAssets.value.length);
@@ -2318,6 +2393,7 @@ createApp({
             assetPage.value = 1;
             allAssets.value = [];
             assetTotal.value = 0;
+            if (mode === 'ue') return;
             if (mode === 'mine') {
                 const authenticated = await loadArtstudioIdentity();
                 if (bindMode.value === 'mine' && authenticated) await loadAssets();
@@ -2365,6 +2441,8 @@ createApp({
                 if (target) {
                     openTypeMenuForRid(target.rid);
                     selectType(target);
+                    const tab = urlParams.get('tab');
+                    if ((tab === 'visual' && hasVisual.value) || (tab === 'behavioral' && hasBehavioral.value)) activeCapabilityTab.value = tab;
                     // 等待渲染完成后自动滚动到选中项
                     setTimeout(() => {
                         const el = document.getElementById('list-item-' + target.rid.replace(/\./g, '-'));
@@ -2374,6 +2452,7 @@ createApp({
             }
         });
         return {
+            labelForm, labelSaving, labelDirty, saveLabelConfig, resetLabelForm,
             objectTypes, typeSearch, sortedObjectTypes, filteredObjectTypes, objectTypeMenuGroups, expandedTypeMenus, isTypeMenuOpen, toggleTypeMenu, typeCategoryCaption, allInterfaces, allAssets, assetTotal, assetSource, selected, activeDataset,
             parentInterfaces, childInterfaces, pendingInterfaces, pendingRemove, hasRepresentable, hasVisual, hasBehavioral,
             capabilityInterfaces, interfaceEditorOpen, isCapabilityEnabled, activeCapabilityTab,
@@ -2383,7 +2462,7 @@ createApp({
             presentationSelections, presentationPreviewForm, activeBehaviorTab, behaviorChannels, behaviorSources, behaviorSyncState, behaviorSyncLabel, behaviorStateGroups,
             behaviorCatalogLoading, behaviorCatalogError, loadBehaviorResources,
             selectedBehaviorSource, selectedBehaviorResourceId, selectedBehaviorResourceLabel, behaviorResourcesFor, selectBehaviorSource, selectBehaviorResource, configuredBehaviorCount,
-            selectedBehaviorResource, behaviorParameter, setBehaviorParameter,
+            selectedBehaviorResource, behaviorParameter, setBehaviorParameter, clearBehaviorSelection,
             isPresentationInjected, presentationProfileSummary, presentationPreview, presentationPreviewRoutes, presentationPreviewDiagnostics,
             presentationSourceLabel, presentationBehaviorLabel, presentationTechnicalSummary,
             presentationSaving, presentationPreviewLoading,
@@ -2401,7 +2480,7 @@ createApp({
             modelSourceLabel, assetSourceLabel, promoteModel,
             openClearTypeModel, closeClearTypeModel, clearTypeDefaultModel,
             saveRepresentationContainer, openContainerBatch, closeContainerBatch, applyContainerBatch,
-            enterEditMode, cancelEditMode, saveEdit, loadAssets, loadArtstudioIdentity, refreshMyAssets, switchBindMode, onFilterChange,
+            selectUETypeAsset, enterEditMode, cancelEditMode, saveEdit, loadAssets, loadArtstudioIdentity, refreshMyAssets, switchBindMode, onFilterChange,
             openArtstudioLogin, closeArtstudioLogin, submitArtstudioLogin, refreshLoginCaptcha, disconnectArtstudio,
             openAssetUpload, closeAssetUpload, onAssetUploadFileChange, submitAssetUpload,
             onCategoryChange, onSearch, onPageChange,

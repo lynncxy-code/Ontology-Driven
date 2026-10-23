@@ -687,6 +687,33 @@ class ProjectStore:
                     # 不是激活项目 → 还原 _current，避免污染激活态
                     self._current = saved
 
+    def transact_project(self, pid, updater):
+        """Atomically read, update and persist a project by id.
+
+        The updater receives a detached copy. Failed writes therefore cannot
+        leave a cross-project merge in the in-memory active dataset.
+        """
+        with self._lock:
+            project = self._current if self._active_id == pid else self._read_project(pid)
+            if project is None:
+                raise ValueError(f"project not found: {pid}")
+            working = copy.deepcopy(project)
+            result = updater(working)
+            previous = self._current
+            dirty_before = self._dirty
+            try:
+                self._current = working
+                self._save_current()
+            except Exception:
+                self._current = previous
+                self._dirty = dirty_before
+                raise
+            finally:
+                if self._active_id != pid:
+                    self._current = previous
+                    self._dirty = dirty_before
+            return result
+
     def snapshot_dataset_to_trash(self, ds_id, dataset_meta):
         """把「只在内存里的数据集」（从未激活成项目文件）也快照进回收站。
         构造一份最小 project shell 以便 restore_project 能通过标准路径写回。"""
@@ -1671,10 +1698,26 @@ class ProjectStore:
 # 默认 JSON（行为零变化）；ONTOTWIN_STORE=pg 时切到 PostgreSQL 后端。
 # 通过重绑本模块的 ProjectStore 名，app.py 的 `from project_store import ProjectStore`
 # 自动拿到对应实现，无需改 app.py。
+# 显式要求 pg 却加载失败时直接报错：静默回退会读到 data/projects/*.json 里的
+# 旧数据（激活项目、UE 绑定整体"回到过去"），比服务起不来更难排查。
+# 紧急情况下可设 ONTOTWIN_STORE_ALLOW_JSON_FALLBACK=1 恢复旧的回退行为。
 import os as _os
+ProjectStoreJSON = ProjectStore
+
 if _os.environ.get("ONTOTWIN_STORE", "json").lower() == "pg":
+    import sys as _sys
     try:
-        from project_store_pg import ProjectStorePG as ProjectStore  # noqa: F811
+        if "project_store_pg" not in _sys.modules or hasattr(_sys.modules["project_store_pg"], "ProjectStorePG"):
+            import project_store_pg
+            ProjectStore = project_store_pg.ProjectStorePG  # noqa: F811
     except Exception as _e:
         import sys as _sys
-        print(f"[project_store] PG 后端加载失败，回退 JSON 版: {_e}", file=_sys.stderr)
+        if _os.environ.get("ONTOTWIN_STORE_ALLOW_JSON_FALLBACK", "").strip().lower() in {"1", "true", "yes"}:
+            print(f"[project_store] PG 后端加载失败，按 ONTOTWIN_STORE_ALLOW_JSON_FALLBACK 回退 JSON 版: {_e}",
+                  file=_sys.stderr)
+        else:
+            raise RuntimeError(
+                f"ONTOTWIN_STORE=pg 但 PostgreSQL 后端加载失败：{_e}。"
+                "请检查 psycopg 依赖与 DATABASE_URL；如确需临时使用 JSON 存储，"
+                "设置 ONTOTWIN_STORE_ALLOW_JSON_FALLBACK=1。"
+            ) from _e

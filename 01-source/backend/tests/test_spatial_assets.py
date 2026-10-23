@@ -3,6 +3,9 @@ import os
 import sys
 import tempfile
 import unittest
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import patch
 
 from flask import Flask
 
@@ -294,6 +297,73 @@ class SpatialAssetTestCase(unittest.TestCase):
         listing = self.client.get("/api/v2/spatial-frames?kind=cad")
         self.assertEqual(200, listing.status_code, listing.get_json())
         self.assertEqual(frame_id, listing.get_json()["frames"][0]["id"])
+
+    def test_cad_type_scan_reads_server_source_and_reuses_cache(self):
+        created = self.client.post(
+            "/api/v2/spatial-frames/cad-assets",
+            data={"file": (io.BytesIO(minimal_dxf()), "W18_3F_OntoTwin_clean.dxf")},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(201, created.status_code, created.get_json())
+        frame_id = created.get_json()["frame"]["id"]
+        result = {
+            "summary": {
+                "total_inserts": 153,
+                "unique_block_names": 153,
+                "filtered_system_blocks": 0,
+                "filtered_xref_blocks": 0,
+                "candidates": 153,
+            },
+            "candidates": [{"block_name": "Desk", "default_checked": True}],
+            "filtered_log": [],
+            "dxf_encoding": "cp936",
+        }
+        with patch("parser_dxf.extract_block_candidates", return_value=result) as scan:
+            first = self.client.post(f"/api/v2/spatial-frames/{frame_id}/type-scan")
+            self.assertEqual(200, first.status_code, first.get_json())
+            self.assertFalse(first.get_json()["cached"])
+            self.assertEqual(result, first.get_json()["result"])
+
+            second = self.client.post(f"/api/v2/spatial-frames/{frame_id}/type-scan")
+            self.assertEqual(200, second.status_code, second.get_json())
+            self.assertTrue(second.get_json()["cached"])
+            self.assertEqual(result, second.get_json()["result"])
+            self.assertEqual(1, scan.call_count)
+
+        stored = self.store.get_active_copy()["frames"][0]
+        self.assertNotIn("type_scan", stored)
+        from spatial_assets.storage import SpatialAssetStorage
+        cache = SpatialAssetStorage(os.path.join(self.temp.name, "project_assets")).read_type_scan_cache(
+            "spatial_assets", frame_id, stored["cad"]["sha256"])
+        self.assertEqual(153, cache["result"]["summary"]["candidates"])
+
+    def test_type_scan_singleflight_cache_is_disposable_and_project_scoped(self):
+        from spatial_assets.service import SpatialFrameService, SpatialFrameConflictError
+        created = self.client.post('/api/v2/spatial-frames/cad-assets',
+            data={'file':(io.BytesIO(minimal_dxf()),'scan.dxf')}, content_type='multipart/form-data').get_json()['frame']
+        service = SpatialFrameService(self.store, os.path.join(self.temp.name, 'project_assets'))
+        entered, release = threading.Event(), threading.Event()
+        def parse(*args, **kwargs):
+            entered.set()
+            self.assertTrue(release.wait(5))
+            return {'candidates':[], 'summary':{'candidates':0}}
+        before = self.store.get_active_copy()
+        with patch('parser_dxf.extract_block_candidates', side_effect=parse) as parser:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                first = pool.submit(service.scan_cad_types, created['id'])
+                self.assertTrue(entered.wait(5))
+                second = pool.submit(service.scan_cad_types, created['id'])
+                release.set()
+                self.assertFalse(first.result()['cached'])
+                self.assertTrue(second.result()['cached'])
+            self.assertEqual(parser.call_count, 1)
+            self.assertEqual(self.store.get_active_copy(), before)
+            cache = service.storage.type_scan_cache_path('spatial_assets', created['id'], created['cad']['sha256'])
+            os.remove(cache)  # private TemporaryDirectory only, not customer data
+            self.assertFalse(service.scan_cad_types(created['id'])['cached'])
+            self.assertEqual(parser.call_count, 2)
+            with self.assertRaises(SpatialFrameConflictError):
+                service.scan_cad_types(created['id'], expected_project_id='other')
 
     def test_cad_publish_requires_three_non_collinear_anchors(self):
         created = self.client.post(

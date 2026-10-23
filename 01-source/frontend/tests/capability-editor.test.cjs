@@ -25,6 +25,7 @@ ctx.axios = {post: async (url, data) => {
 ctx.loadTypes = async () => {};
 vm.createContext(ctx);
 vm.runInContext(section('        const capabilityInterfaces =', '        const sortedObjectTypes =')
+    + section('        function defaultCapabilityTab(', '        function selectBehaviorResource(')
     + section('        function isInjected(', '        function enterEditMode(')
     + section('        function cancelCapabilityChanges()', '        async function enablePresentationInterface()')
     + '\nconst hasVisual=computed(()=>isInjected("I3D_Visual")); const hasBehavioral=computed(()=>isInjected("I3D_Behavioral"));'
@@ -46,7 +47,7 @@ vm.runInContext(section('        const capabilityInterfaces =', '        const s
     ui.toggleCapability('I3D_Behavioral');
     await ui.saveCapabilityChanges();
     assert.equal(ctx.requests.length,1);
-    assert.equal(ctx.activeCapabilityTab.value,'visual');
+    assert.equal(ctx.activeCapabilityTab.value,'model');
     assert.equal(ui.capabilityChangeCount.value,0);
     ui.toggleCapability('I3D_Behavioral');
     assert.ok(!ctx.selected.value.injected_interfaces.includes('I3D_Behavioral'));

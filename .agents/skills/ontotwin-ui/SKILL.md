@@ -221,3 +221,7 @@ hover 用 `--bg-3` 灰底，选中用左 2px `--ink` 边框，不用蓝底高亮
 - **可逆性**：commit 成功用 `showCommitSuccess` 显示横幅但不隐藏编辑区。
 - **画布**：`ResizeObserver` 已挂在画布容器上，布局变化自动重算。
 - **面板宽度**：`.panel-area` = `flex:4; min 400 / max 560`。
+
+## 8. 多页面项目的视觉审计与规范沉淀
+
+当收到截图、流程或视觉描述并要求审计、统一或积累设计时，先按 [references/design-audit-prompt.md](references/design-audit-prompt.md) 提取证据，再决定是否提出规范变更。审计输出必须区分观察事实、既有决策和待确认提案；没有截图证据的状态不得臆测。只有用户确认的提案才能回写本技能的 token、组件配方或“已定决策”，避免把单页偏差变成全站规则。

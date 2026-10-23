@@ -39,11 +39,17 @@ class UeBindingIndexTest(unittest.TestCase):
             active_file=os.path.join(self.tmp, "active.json"),
             trash_store=ts,
         )
-        # 清空全局索引，避免 test 顺序污染
+        # 清空全局索引与节流状态，避免 test 顺序污染
         ub._ue_index.clear()
+        ub._ue_conflicts.clear()
+        ub._discovered_ue.clear()
+        ub._last_rebuild.update(at=0.0, attempted_at=0.0, ok=False, error="")
 
     def tearDown(self):
         ub._ue_index.clear()
+        ub._ue_conflicts.clear()
+        ub._discovered_ue.clear()
+        ub._last_rebuild.update(at=0.0, attempted_at=0.0, ok=False, error="")
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     # ── 基础 CRUD ──
@@ -52,6 +58,20 @@ class UeBindingIndexTest(unittest.TestCase):
         self.assertEqual(ub.index_lookup("ueproj_A"), "p1")
         ub.index_unset("ueproj_A")
         self.assertIsNone(ub.index_lookup("ueproj_A"))
+
+    def test_ue_request_is_discoverable_without_binding(self):
+        pid = self.ps.create_project("Discovery Target", project_id="p_discovery")
+        self.ps.activate(pid)
+        request = ue_request("ueproj_NewFactory", body={"ue_project_name": "NewFactory"})
+        resolved_pid, ok, info = ub.resolve_project_for_ue(self.ps, request)
+        self.assertIsNone(resolved_pid)
+        self.assertFalse(ok)
+        self.assertEqual("unbound", info.get("binding_state"))
+        items = ub.discovered_ue_projects(self.ps)
+        self.assertEqual(1, len(items))
+        self.assertEqual("ueproj_NewFactory", items[0]["ue_project_id"])
+        self.assertEqual("unbound", items[0]["binding_state"])
+        self.assertEqual("NewFactory", items[0]["ue_project_name"])
 
     def test_index_forget_project_clears_multiple(self):
         ub.index_set("ueA", "p1")
@@ -209,6 +229,92 @@ class UeBindingIndexTest(unittest.TestCase):
         self.assertEqual(info["error"], "clear_previous_binding_failed")
         # 索引未变
         self.assertEqual(ub.index_lookup("ue_delta"), p1["id"])
+
+    # ── 新增机制测试：自愈、防抢占、指定项目绑定与状态区分 ──
+
+    def test_resolve_heals_unindexed_project(self):
+        """持久层有绑定但内存索引为空（如重启先于数据库）时，lookup 应触发自愈重建。"""
+        p1 = self.ps.create_project(
+            "P1",
+            dataset={"id": "p1", "name": "P1", "bound_ue_project_id": "ue_heal", "bound_ue_project_name": "Heal"},
+        )
+        ub._ue_index.clear()
+        self.assertIsNone(ub.index_lookup("ue_heal"))
+
+        pid, ok, info = ub.resolve_project_for_ue(self.ps, ue_request("ue_heal"))
+        self.assertTrue(ok)
+        self.assertEqual(pid, p1["id"])
+        self.assertEqual(info["mode"], "matched")
+        self.assertEqual(ub.index_lookup("ue_heal"), p1["id"])
+
+    def test_resolve_unbound_reports_unbound_state(self):
+        """未绑定的 UE-ID 在保留旧 error 码的同时带 binding_state=unbound。"""
+        pid, ok, info = ub.resolve_project_for_ue(self.ps, ue_request("ue_unknown"))
+        self.assertFalse(ok)
+        self.assertEqual(info["error"], "ue_project_mismatch")
+        self.assertEqual(info.get("binding_state"), "unbound")
+
+    def test_binding_status_endpoint_contract(self):
+        """binding_status 辅助函数在未绑定时返回 200 mode=unbound，供 UE F10 按钮启用。"""
+        body, code = ub.binding_status(self.ps, ue_request("ue_unbound"))
+        self.assertEqual(code, 200)
+        self.assertEqual(body.get("mode"), "unbound")
+        self.assertFalse(body.get("can_write"))
+
+        p1 = self.ps.create_project("P1", dataset={"id": "p1", "name": "P1"})
+        ub.bind_active_dataset(self.ps, "ue_bound", "ue_bound")
+        body, code = ub.binding_status(self.ps, ue_request("ue_bound"))
+        self.assertEqual(code, 200)
+        self.assertEqual(body.get("mode"), "matched")
+        self.assertTrue(body.get("can_write"))
+
+    def test_bind_steal_protection(self):
+        """目标项目已绑有其他 UE 时，未传 force 应拒绝覆盖，防止不同工程抢占同一个项目。"""
+        p1 = self.ps.create_project("P1", dataset={"id": "p1", "name": "P1"})
+        ok, info = ub.bind_active_dataset(self.ps, "ue_original", "ue_original")
+        self.assertTrue(ok)
+
+        # 另一个 UE 尝试绑定该激活项目
+        ok, info = ub.bind_active_dataset(self.ps, "ue_thief", "ue_thief")
+        self.assertFalse(ok)
+        self.assertEqual(info["error"], "project_already_bound")
+
+        # 显式加 force 则允许覆盖
+        ok, info = ub.bind_active_dataset(self.ps, "ue_thief", "ue_thief", force=True)
+        self.assertTrue(ok)
+        self.assertEqual(ub.index_lookup("ue_thief"), p1["id"])
+        self.assertIsNone(ub.index_lookup("ue_original"))
+
+    def test_bind_target_project_id(self):
+        """UE 可以在非激活状态下按 target_project_id 明确重绑指定项目。"""
+        p1 = self.ps.create_project("P1", dataset={"id": "p1", "name": "P1"})
+        self.ps.deactivate()
+        p2 = self.ps.create_project("P2", dataset={"id": "p2", "name": "P2"})
+
+        # 当前激活的是 P2，但指定 target_project_id 为 P1
+        ok, info = ub.bind_active_dataset(self.ps, "ue_rebind", "ue_rebind", target_project_id=p1["id"])
+        self.assertTrue(ok)
+        self.assertEqual(info["project_id"], p1["id"])
+        self.assertEqual(ub.index_lookup("ue_rebind"), p1["id"])
+
+    def test_write_guard_checks_active(self):
+        """写操作检查：UE 绑定的项目必须是当前激活项目。"""
+        p1 = self.ps.create_project("P1", dataset={"id": "p1", "name": "P1"})
+        ub.bind_active_dataset(self.ps, "ue_worker", "ue_worker")
+        self.ps.deactivate()
+        p2 = self.ps.create_project("P2", dataset={"id": "p2", "name": "P2"})
+
+        # P2 激活，但 UE 绑在 P1 → 拒绝写入
+        ok, info, status = ub.check_request_can_write_active(self.ps, ue_request("ue_worker"))
+        self.assertFalse(ok)
+        self.assertEqual(status, 409)
+        self.assertEqual(info["error"], "ue_project_not_active")
+
+        # 切回 P1 激活 → 允许写入
+        self.ps.activate(p1["id"])
+        ok, info, status = ub.check_request_can_write_active(self.ps, ue_request("ue_worker"))
+        self.assertTrue(ok)
+        self.assertEqual(status, 200)
 
 
 if __name__ == "__main__":

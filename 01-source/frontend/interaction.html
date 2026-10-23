@@ -69,6 +69,9 @@
         .row-main{min-width:0}
         .row-name{display:block;font-size:var(--t-sm);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .row-meta{display:block;font-size:var(--t-xs);color:var(--ink-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .row-status{display:inline-flex;align-items:center;gap:var(--s1);flex:none;padding:var(--s1) var(--s2);border:1px solid var(--line-2);border-radius:var(--r-sm);background:var(--bg-3);color:var(--ink-2);font-size:var(--t-sm);font-weight:500;line-height:1.4;white-space:nowrap}
+        .row-status.is-positive{color:var(--ok);background:var(--ok-bg);border-color:var(--ok-line)}
+        .row-status svg{width:12px;height:12px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
         .dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex:none}
         .dot-ok{background:var(--ok)}.dot-info{background:var(--info)}.dot-muted{background:var(--ink-3)}.dot-warn{background:var(--warn)}.dot-err{background:var(--danger)}
         .empty{padding:var(--s5) var(--s3);text-align:center;color:var(--ink-3);font-size:var(--t-sm);line-height:1.6}
@@ -297,7 +300,10 @@
                 <div class="type-list">
                     <button v-for="item in filteredTypes" :key="item.rid" class="type-row" :class="{active:item.rid===selectedTypeRid}" @click="selectType(item.rid)">
                         <span class="row-main"><span class="row-name">{{ item.name }}</span><span class="row-meta">{{ item.rid }}</span></span>
-                        <span class="dot" :class="item.injected_interfaces.includes('I3D_Overlay')?'dot-ok':'dot-muted'"></span>
+                        <span class="row-status" :class="{'is-positive':item.injected_interfaces.includes('I3D_Overlay')}">
+                            <svg viewBox="0 0 16 16" aria-hidden="true"><path v-if="item.injected_interfaces.includes('I3D_Overlay')" d="m3 8 3 3 7-7"/><circle v-else cx="8" cy="8" r="4.5"/></svg>
+                            {{ item.injected_interfaces.includes('I3D_Overlay') ? '已挂载' : '未挂载' }}
+                        </span>
                     </button>
                     <div v-if="!filteredTypes.length" class="empty">没有可配置的类型</div>
                 </div>
@@ -307,11 +313,14 @@
                 <div class="instance-list">
                     <label v-for="item in context.instances" :key="item.id" class="instance-row" :class="{active:item.id===selectedInstanceId}">
                         <input v-if="scope==='batch'" type="checkbox" :value="item.id" v-model="batchIds">
-                        <button v-else class="row-main" style="border:0;background:transparent;padding:0;text-align:left;flex:1" @click="selectInstance(item.id)">
+                        <button v-else class="row-main" style="border:0;background:transparent;padding:0;text-align:left;flex:1" :aria-label="item.display_name + '，' + item.id + '，' + (item.online ? '在线' : '离线')" @click="selectInstance(item.id)">
                             <span class="row-name">{{ item.display_name }}</span><span class="row-meta">{{ item.id }}</span>
                         </button>
                         <span v-if="scope==='batch'" class="row-main" style="flex:1"><span class="row-name">{{ item.display_name }}</span><span class="row-meta">{{ item.id }}</span></span>
-                        <span class="dot" :class="item.online?'dot-ok':'dot-muted'"></span>
+                        <span class="row-status" :class="{'is-positive':item.online}">
+                            <svg viewBox="0 0 16 16" aria-hidden="true"><path v-if="item.online" d="m3 8 3 3 7-7"/><circle v-else cx="8" cy="8" r="4.5"/></svg>
+                            {{ item.online ? '在线' : '离线' }}
+                        </span>
                     </label>
                     <div v-if="!context.instances.length" class="empty">该类型还没有实例，类型配置仍可保存。</div>
                 </div>

@@ -50,6 +50,7 @@ Treat High, Balanced, and Performance as requested quality. Allow runtime downgr
 - Read [web-configuration.md](references/web-configuration.md) for the OntoTwin information-panel editor, inheritance, quality selection, and conditional metric fields.
 - Read [data-contract.md](references/data-contract.md) before proposing gauge or trend rendering or changing runtime payloads.
 - Read [qa-checklist.md](references/qa-checklist.md) for implementation review and acceptance.
+- Read [design-audit-prompt.md](references/design-audit-prompt.md) when auditing screenshots/flows or accumulating a multi-page liquid-glass design language; keep observed facts, approved decisions, and proposed changes separate.
 
 ## Output expectations
 

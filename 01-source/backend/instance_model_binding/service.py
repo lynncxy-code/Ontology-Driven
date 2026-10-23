@@ -5,6 +5,11 @@ import datetime as dt
 import time
 
 try:
+    from ue_asset_catalog.service import UEAssetCatalogService, AssetCatalogError
+except ModuleNotFoundError:
+    from ..ue_asset_catalog.service import UEAssetCatalogService, AssetCatalogError
+
+try:
     from representation_container.service import resolve_effective_container
 except ModuleNotFoundError:
     from ..representation_container.service import resolve_effective_container
@@ -168,6 +173,7 @@ class InstanceModelBindingService:
         self.asset_catalog = asset_catalog or {}
         self.artstudio = artstudio_client
         self.on_object_types_changed = on_object_types_changed
+        self.ue_asset_catalog = None
 
     @staticmethod
     def _has_capability(object_type):
@@ -282,6 +288,13 @@ class InstanceModelBindingService:
         }
 
     def _validate_selection(self, payload):
+        if payload.get("source") == "ue_catalog":
+            try:
+                if self.ue_asset_catalog is None:
+                    self.ue_asset_catalog = UEAssetCatalogService(self.project_store)
+                return self.ue_asset_catalog.validate_selection(payload)
+            except AssetCatalogError as exc:
+                raise InstanceModelBindingError(exc.code, str(exc), exc.status) from exc
         file_number = str(payload.get("file_number") or "").strip()
         requested_path = str(payload.get("ue_asset_path") or "").strip()
         candidate = file_number or requested_path
@@ -366,6 +379,11 @@ class InstanceModelBindingService:
         def update(working):
             if expected_project_id != str(working.get("id") or ""):
                 raise ActiveProjectChangedError()
+            if payload.get("source") == "ue_catalog":
+                try:
+                    self.ue_asset_catalog.validate_selection(payload, working)
+                except AssetCatalogError as exc:
+                    raise InstanceModelBindingError(exc.code, str(exc), exc.status) from exc
             instance = (working.get("instances") or {}).get(instance_id)
             if not instance:
                 raise InstanceModelBindingError(

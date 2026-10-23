@@ -233,10 +233,15 @@ def _dimension_score(cad_size, asset_size):
 
 
 class UEAssetCatalogService:
+    _locks_guard = threading.Lock()
+    _root_locks = {}
+
     def __init__(self, project_store, catalog_root=None):
         self.project_store = project_store
         self.catalog_root = catalog_root or os.environ.get("ONTOTWIN_UE_ASSET_CATALOG_DIR") or _DEFAULT_ROOT
-        self._lock = threading.RLock()
+        with self._locks_guard:
+            self._lock = self._root_locks.setdefault(os.path.normcase(os.path.realpath(self.catalog_root)), threading.RLock())
+        self._selection_cache = {}
         os.makedirs(self.catalog_root, exist_ok=True)
 
     def _path(self, ue_project_id):
@@ -376,6 +381,10 @@ class UEAssetCatalogService:
             if scan_request_id:
                 if not scan_request or scan_request_id != str(scan_request.get("request_id") or ""):
                     raise AssetCatalogError("scan_request_mismatch", "按需扫描请求已失效，请从 OntoTwin 重新发起", 409)
+                folder = scan_request["folder_path"]
+                roots = [_normalized_folder_path(item) for item in payload.get("roots", [])]
+                if roots != [folder] or any(not _asset_is_inside_folder(item, folder) for item in assets):
+                    raise AssetCatalogError("scan_scope_mismatch", "扫描结果超出所选目录", 409)
                 scan_request.update({
                     "status": "completed",
                     "completed_at": _utc_now(),
@@ -383,6 +392,14 @@ class UEAssetCatalogService:
                     "catalog_roots": [str(item).strip() for item in (payload.get("roots") or []) if str(item).strip()],
                     "error": "",
                 })
+                assets = sorted([item for item in existing.get("assets", [])
+                                 if not _asset_is_inside_folder(item, folder)] + assets,
+                                key=lambda item: item["object_path"])
+                if len(assets) > _MAX_ASSETS:
+                    raise AssetCatalogError("assets_too_many", "合并后的目录超过资产数量限制", 413)
+            revision_seed = json.dumps([(item["object_path"], item["asset_kind"],
+                                         item.get("runtime_loadable"), item.get("generated_class_path"),
+                                         item.get("size_cm")) for item in assets], sort_keys=True)
             value = {
                 "schema_version": 2,
                 "ue_project_id": ue_project_id,
@@ -395,6 +412,8 @@ class UEAssetCatalogService:
                 "available_folders": existing.get("available_folders") or [],
                 "folders_synced_at": existing.get("folders_synced_at") or "",
             }
+            if scan_request_id:
+                value["roots"] = sorted(set(existing.get("roots", []) + value["roots"]))
             if scan_request:
                 value["scan_request"] = scan_request
             self._write(ue_project_id, value)
@@ -441,10 +460,12 @@ class UEAssetCatalogService:
     def create_scan_request(self, payload):
         if not isinstance(payload, dict):
             raise AssetCatalogError("invalid_request", "请求体必须是对象")
+        if "expected_project_id" in payload:
+            self.validate_active_context(payload)
         ue_project_id = self._resolve_id(payload.get("ue_project_id"))
         folder_path = _validated_game_folder(payload.get("folder_path"))
         with self._lock:
-            value = self._read(ue_project_id)
+            value = self._read(ue_project_id, required=False) or self._empty_catalog(ue_project_id)
             scan_request = {
                 "request_id": uuid.uuid4().hex,
                 "folder_path": folder_path,
@@ -536,7 +557,81 @@ class UEAssetCatalogService:
     def get_catalog(self, ue_project_id=None):
         ue_project_id = self._resolve_id(ue_project_id)
         with self._lock:
-            return self._public_catalog(self._read(ue_project_id))
+            value = self._read(ue_project_id, required=False) or self._empty_catalog(ue_project_id)
+            if not value.get("available_folders"):
+                value["available_folders"] = ["/Game"]
+            return self._public_catalog(value)
+
+    def validate_active_context(self, payload, project=None):
+        project = project if project is not None else self.project_store.get_active_copy()
+        expected = str(payload.get("expected_project_id") or "")
+        ue_id = str(payload.get("ue_project_id") or "")
+        bound = str(((project or {}).get("dataset") or {}).get("bound_ue_project_id") or "")
+        if not expected or expected != str((project or {}).get("id") or ""):
+            raise AssetCatalogError("active_project_changed", "当前项目已切换，请刷新后重新选择模型。", 409)
+        if not ue_id or ue_id != bound:
+            raise AssetCatalogError("ue_project_changed", "绑定的 UE 工程已变化，请重新读取资产清单。", 409)
+        return ue_id
+
+    def validate_selection(self, payload, project=None):
+        ue_id = self.validate_active_context(payload, project)
+        path = str(payload.get("file_number") or "").strip()
+        # Cache only compact binding metadata; never copy thumbnail payloads
+        # or the entire catalog inside the ProjectStore transaction.
+        with self._lock:
+            try:
+                stat = os.stat(self._path(ue_id))
+                stamp = (stat.st_mtime_ns, stat.st_size)
+            except OSError:
+                raise AssetCatalogError("asset_catalog_missing", "请先同步工程资产目录", 409)
+            cached = self._selection_cache.get(ue_id)
+            if cached is None or cached[0] != stamp:
+                catalog = self._read(ue_id)
+                entries = {item["object_path"]: self._decorate_availability({
+                    key: value for key, value in item.items() if key != "thumbnail_data_url"
+                }) for item in catalog.get("assets", [])}
+                cached = (stamp, catalog.get("catalog_revision"), entries)
+                self._selection_cache[ue_id] = cached
+            revision, asset = cached[1], cached[2].get(path)
+        if not payload.get("catalog_revision") or payload["catalog_revision"] != revision:
+            raise AssetCatalogError("asset_catalog_changed", "资产清单已更新，请重新读取并选择模型。", 409)
+        if not asset:
+            raise AssetCatalogError("asset_not_in_catalog", "当前工程的资产清单中没有这个模型，请重新选择。", 409)
+        if not asset.get("runtime_supported"):
+            raise AssetCatalogError("asset_not_supported", "这个模型或蓝图生成类暂不支持绑定。", 422)
+        requested_path = str(payload.get("ue_asset_path") or path).strip()
+        if requested_path != path:
+            raise AssetCatalogError("asset_path_mismatch", "模型路径与所选资产不一致，请重新选择。", 422)
+        return {
+            "asset_id": path, "ue_asset_path": path, "source": "ue_cooked",
+            "label": asset.get("display_name") or asset["asset_name"],
+        }
+
+    def bind_type(self, payload):
+        # Warm the compact index before taking ProjectStore's write lock, then
+        # revalidate context/revision inside the transaction (TOCTOU protection).
+        self.validate_selection(payload)
+        result = {}
+
+        def update(project):
+            selection = self.validate_selection(payload, project)
+            rid = payload.get("object_type_rid")
+            target = (project.get("object_types") or {}).get(rid)
+            if target is None:
+                raise AssetCatalogError("object_type_not_found", "当前项目中没有这个类型，请刷新后重试。", 404)
+            if "I3D_Representable" not in (target.get("injected_interfaces") or []):
+                raise AssetCatalogError("capability_required", "请先为该类型启用三维表现能力。", 409)
+            target["asset_id"] = selection["asset_id"]
+            target["ue_asset_path"] = selection["ue_asset_path"]
+            result.update({
+                "valid": True, "object_type_rid": rid,
+                "file_number": selection["asset_id"], "ue_asset_path": selection["ue_asset_path"],
+                "name": selection["label"], "_source": "ue_cooked",
+                "warning": "用于打包程序前，请确认该模型目录已纳入 UE 打包范围。",
+            })
+
+        self.project_store.transact_active(update)
+        return result
 
     @staticmethod
     def _memory_key(item):

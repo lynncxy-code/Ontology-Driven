@@ -18,8 +18,14 @@ fixtures:
 import os
 import shutil
 import tempfile
+import sys
+from pathlib import Path
 
 import pytest
+
+_SOURCE_ROOT = Path(__file__).resolve().parents[2]
+if str(_SOURCE_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SOURCE_ROOT))
 
 
 @pytest.fixture
@@ -29,19 +35,50 @@ def tmp_data():
     shutil.rmtree(d, ignore_errors=True)
 
 
+@pytest.fixture(autouse=True)
+def isolated_default_trash(tmp_path, monkeypatch):
+    """Cover ALL default file stores, including unittest and PG->JSON fallback."""
+    import trash_store
+    isolated = trash_store.TrashStore(str(tmp_path / "trash"))
+    monkeypatch.setattr(trash_store, "get_default_store", lambda: isolated)
+    import project_store
+    for module in {project_store, sys.modules.get('backend.project_store')} - {None}:
+        monkeypatch.setattr(module, '_DATA_DIR', str(tmp_path))
+        monkeypatch.setattr(module, '_PROJECTS_DIR', str(tmp_path / 'projects'))
+        monkeypatch.setattr(module, '_ACTIVE_FILE', str(tmp_path / 'active.json'))
+    try:
+        from db import pg
+    except ImportError:
+        return
+    test_url = os.environ.get('ONTOTWIN_TEST_PG_URL')
+    if test_url:
+        monkeypatch.setattr(pg, 'DATABASE_URL', test_url)
+    else:
+        def disabled_db():
+            raise RuntimeError('PG tests require explicit ONTOTWIN_TEST_PG_URL; real database access disabled')
+        monkeypatch.setattr(pg, 'get_conn', disabled_db)
+
+
 @pytest.fixture
 def store(tmp_data, monkeypatch):
     # 先把 project_store 的存储路径全局指向隔离目录，再构造 ProjectStore()。
     # ProjectStore.__init__ 以这些模块全局作为默认值，故 monkeypatch 后即隔离。
     import project_store as ps
+    import trash_store
 
     projects_dir = os.path.join(tmp_data, "projects")
     active_file = os.path.join(tmp_data, "active.json")
+    monkeypatch.setenv("ONTOTWIN_STORE", "json")
     monkeypatch.setattr(ps, "_DATA_DIR", tmp_data)
     monkeypatch.setattr(ps, "_PROJECTS_DIR", projects_dir)
     monkeypatch.setattr(ps, "_ACTIVE_FILE", active_file)
+    monkeypatch.setattr(
+        trash_store,
+        "get_default_store",
+        lambda: trash_store.TrashStore(os.path.join(tmp_data, "trash")),
+    )
 
-    s = ps.ProjectStore()  # 读取上面 patch 过的全局默认值 → 落在 tmp_data
+    s = ps.ProjectStore(projects_dir=projects_dir, active_file=active_file)  # 读取上面 patch 过的全局默认值 → 落在 tmp_data
     s.create_project(
         "测试厂",
         object_types={"PE16A": {"rid": "PE16A", "name": "溶铜槽"}},

@@ -87,6 +87,15 @@ def register_spatial_asset_routes(app, project_store, asset_root=None):
         except SpatialFrameNotFoundError as exc:
             return jsonify({"error": "spatial_frame_not_found", "message": str(exc)}), 404
 
+    @blueprint.post("/api/v2/spatial-frames/<frame_id>/type-scan")
+    def scan_cad_types(frame_id):
+        data = request.get_json(silent=True) or {}
+        return execute(lambda: service.scan_cad_types(
+            frame_id,
+            force=bool(data.get("force")),
+            expected_project_id=data.get("expected_project_id"),
+        ))
+
     @blueprint.put("/api/v2/spatial-frames/<frame_id>/draft")
     def save_draft(frame_id):
         data = request.get_json(silent=True) or {}

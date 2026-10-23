@@ -1,11 +1,11 @@
 services:
   backend:
-    build: ./backend
+    build: ./01-source/backend
     ports:
       - "5000:5000"
     volumes:
-      - ./backend:/app
-      - ./frontend:/frontend
+      - ./01-source/backend:/app
+      - ./01-source/frontend:/frontend
       # 3.3 后端预取：把 UE 固定 Models 目录挂进来，后端从 ArtStudio 下载 glb 落到这里，
       # UE 直接读本地文件（绕开 UE HTTP 的代理/并发/连接坑）。换机改 MODELS_HOST_DIR 即可。
       - ${MODELS_HOST_DIR:-D:/SCC/DigitalFactoryBase_SCC/Models}:/models
@@ -51,7 +51,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       # 首次初始化自动建表（仅在数据卷为空时执行一次）
-      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      - ./01-source/backend/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ontotwin -d ontotwin"]
       interval: 5s

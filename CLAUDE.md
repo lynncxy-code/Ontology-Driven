@@ -10,27 +10,27 @@ docker compose up -d --build
 docker compose down
 docker compose logs -f
 
-cd backend
+cd 01-source/backend
 python app.py
 
-python backend/verify_parse.py
-python backend/diag_layers.py
-python backend/diag_bounds.py
+python 01-source/backend/verify_parse.py
+python 01-source/backend/diag_layers.py
+python 01-source/backend/diag_bounds.py
 ```
 
 - 服务统一使用 5000 端口；Flask 同时托管静态前端和 `/api/...`。
-- 新增 Python 依赖前先征得用户确认，并更新 `backend/requirements.txt`。
+- 新增 Python 依赖前先征得用户确认，并更新 `01-source/backend/requirements.txt`。
 - 前端无构建步骤，项目没有统一 lint 或 JavaScript 测试链。
 
 ## 架构边界
 
-- `backend/app.py` 是 Flask 入口。新功能放独立模块，不继续扩大该文件。
-- `backend/project_store.py` 是项目数据的单一事实来源；系统只认当前激活项目。
-- `backend/mapping_store.py` 管理本体类型、三维能力接口、映射规则和模拟器。
-- `backend/ontology_parser.py` 负责本体 CSV 导入。
-- `backend/parser_dxf.py`、`coord_filter_rules.py`、`coord_transform.py` 组成 CAD 坐标标定链路。
-- `frontend/` 是由 Flask 直接托管的无构建多页面。
-- `ue_project/Plugins/OntoTwinSync/` 是 UE5.6 同步插件源码。
+- `01-source/backend/app.py` 是 Flask 入口。新功能放独立模块，不继续扩大该文件。
+- `01-source/backend/project_store.py` 是项目数据的单一事实来源；系统只认当前激活项目。
+- `01-source/backend/mapping_store.py` 管理本体类型、三维能力接口、映射规则和模拟器。
+- `01-source/backend/ontology_parser.py` 负责本体 CSV 导入。
+- `01-source/backend/parser_dxf.py`、`coord_filter_rules.py`、`coord_transform.py` 组成 CAD 坐标标定链路。
+- `01-source/frontend/` 是由 Flask 直接托管的无构建多页面。
+- `01-source/ue_project/Plugins/OntoTwinSync/` 是 UE5.6 同步插件源码。
 
 ## 工作原则
 

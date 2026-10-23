@@ -32,8 +32,9 @@ DerivedDataCache/
 
 # ue_project 整体忽略，仅追踪 Plugins 下的插件源码
 # （Binaries/Intermediate 已被上方通用规则覆盖）
-ue_project/*
-!ue_project/Plugins/
+ue_project/
+01-source/ue_project/*
+!01-source/ue_project/Plugins/
 
 # 大型二进制资产（模型、贴图、训练数据）— 不再提交，避免仓库膨胀
 *.dxf
@@ -46,14 +47,14 @@ ue_project/*
 .claude/worktrees/
 
 # 运行时实例数据（不进 git；mapping_rules.json 作为配置仍跟踪）
-backend/data/scenes/
-backend/data/projects/
-backend/data/active.json
-backend/data/.artstudio_session.json
-backend/data/.artstudio_session.json.tmp
-backend/data/backups/
-backend/data/project_assets/
-backend/data/trash/
+01-source/backend/data/scenes/
+01-source/backend/data/projects/
+01-source/backend/data/active.json
+01-source/backend/data/.artstudio_session.json
+01-source/backend/data/.artstudio_session.json.tmp
+01-source/backend/data/backups/
+01-source/backend/data/project_assets/
+01-source/backend/data/trash/
 
 # Local task and test artifacts
 .tmp/
@@ -67,16 +68,34 @@ backend/data/trash/
 .codex_staging/
 .deploy/
 artifacts/
-ssc2_backups/
-backend/customer_edit_backups/
-backend/offline_exports/
-backend/data/ue_asset_catalogs/
-backend/tools/*_backup*.json
-backend/tools/*_result.json
-backend/tools/*_review.csv
-backend/tools/*_review.json
-backend/tools/*_export_*.json
-scripts/patches/
+04-archive/ssc2_backups/
+01-source/backend/customer_edit_backups/
+01-source/backend/offline_exports/
+01-source/backend/data/ue_asset_catalogs/
+01-source/backend/tools/*_backup*.json
+01-source/backend/tools/*_result.json
+01-source/backend/tools/*_review.csv
+01-source/backend/tools/*_review.json
+01-source/backend/tools/*_export_*.json
+01-source/scripts/patches/
+
+# 整理后的本地工作输出、发布成品与历史归档，不进入 GitHub
+03-workspace/
+04-archive/
+02-releases/*
+!02-releases/README.md
+
+# 验证过程、临时交付包与客户专项审计素材
+conversations/
+docs/conversations/
+01-source/tools/delivery-package-*/
+01-source/tools/webrtc-test/
+01-source/backend/tools/requested_assets_*.json
+01-source/backend/tools/requested_assets_*.csv
+*.bak-*
+*.log
+*.tmp
+问题反馈_*.xlsx
 
 # Codex one-off inspection and workspace artifacts. Existing tracked files
 # under this directory remain tracked by Git.

@@ -20,6 +20,28 @@ try {
     exit 1
 }
 
+# ── 检查环境配置 (.env & MODELS_HOST_DIR) ───────────────────────
+if (-not (Test-Path -LiteralPath (Join-Path $ROOT ".env"))) {
+    if (Test-Path -LiteralPath (Join-Path $ROOT ".env.example")) {
+        Write-Host " [提示] 未检测到 .env 文件，已从 .env.example 自动创建默认配置" -ForegroundColor Yellow
+        Copy-Item (Join-Path $ROOT ".env.example") (Join-Path $ROOT ".env")
+    }
+}
+if (Test-Path -LiteralPath (Join-Path $ROOT ".env")) {
+    $envLines = Get-Content (Join-Path $ROOT ".env")
+    foreach ($line in $envLines) {
+        if ($line -match '^\s*MODELS_HOST_DIR\s*=\s*(.+)$') {
+            $mDir = $matches[1].Trim().Trim('"').Trim("'")
+            if ($mDir -and -not (Test-Path -LiteralPath $mDir)) {
+                try {
+                    New-Item -ItemType Directory -Path $mDir -Force | Out-Null
+                    Write-Host "       已自动创建宿主机模型目录: $mDir" -ForegroundColor DarkGray
+                } catch { }
+            }
+        }
+    }
+}
+
 # ── 启动 Docker Compose ──────────────────────────────────────────
 Write-Host ""
 Write-Host " [2/3] 启动容器 (docker compose up)..." -ForegroundColor Yellow
@@ -42,10 +64,16 @@ $ready = $false
 for ($i = 1; $i -le $maxWait; $i++) {
     Start-Sleep -Seconds 1
     try {
-        $resp = Invoke-WebRequest -Uri "http://localhost:5000/" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+        $resp = Invoke-WebRequest -Uri "http://localhost:5000/api/v2/ue/diagnostics" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
         $ready = $true
         break
-    } catch { }
+    } catch {
+        try {
+            $resp = Invoke-WebRequest -Uri "http://localhost:5000/" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+            $ready = $true
+            break
+        } catch { }
+    }
     Write-Host "       等待中... ($i/$maxWait)" -ForegroundColor DarkGray
 }
 

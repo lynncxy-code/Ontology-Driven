@@ -1,0 +1,8 @@
+{
+  "environment": "business",
+  "version": "WEB-20261023-P3",
+  "updated_at": "2026-10-23T06:02:39.7726254+00:00",
+  "time_zone": "Asia/Shanghai",
+  "backend": "现用业务进程，版本尚未固化",
+  "note": "此处显示前端发布信息，不代表 UE 已加载相同版本的插件。"
+}

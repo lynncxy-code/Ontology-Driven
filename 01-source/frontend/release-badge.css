@@ -1,0 +1,24 @@
+.release-badge { position: relative; flex: 0 0 auto; font-size: 12px; line-height: 1.5; color: #5c5c5c; }
+.release-badge__trigger { font: inherit; white-space: nowrap; cursor: pointer; padding: 4px 8px; border: 1px solid #e8e8e8; border-radius: 6px; background: #fafafa; color: #5c5c5c; }
+.release-badge__trigger:hover { background: #f3f3f3; color: #1a1a1a; }
+.release-badge__trigger:focus-visible { outline: 2px solid #1a1a1a; outline-offset: 2px; }
+.main-wrapper > .topbar { z-index: 101; }
+.release-badge__panel {
+    position: fixed;
+    top: 40px;
+    right: 24px;
+    width: min(320px, calc(100vw - 48px));
+    max-height: calc(100vh - 64px);
+    overflow: auto;
+    padding: 16px;
+    border: 1px solid #e8e8e8;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 4px 16px rgba(20,20,20,.08);
+    overflow-wrap: anywhere;
+}
+.release-badge__panel[hidden] { display: none; }
+.release-badge__panel h2 { font-size: 14px; font-weight: 600; color: #1a1a1a; margin-bottom: 12px; }
+.release-badge__panel dt { color: #5c5c5c; margin-top: 8px; }
+.release-badge__panel dd { margin: 0; color: #1a1a1a; }
+.release-badge__note { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e8e8e8; }

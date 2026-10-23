@@ -7,6 +7,7 @@
 #include "InputCoreTypes.h"
 #include "SceneInteraction/TwinCameraVisibility.h"
 #include "SceneInteraction/TwinRoamingTypes.h"
+#include "SceneInteraction/TwinDeferredUiRequests.h"
 #include "TwinInteractionManagerComponent.generated.h"
 
 class APlayerController;
@@ -116,6 +117,8 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Scene Interaction")
     void ToggleHudInteraction();
+
+    void RequestUiAction(ETwinUiRequest Action);
 
     UFUNCTION(BlueprintCallable, Category="Scene Interaction")
     void CycleSkin();
@@ -318,6 +321,12 @@ private:
     bool bBackendOnline = false;
     bool bRuntimeRequestInFlight = false;
     bool bShuttingDown = false;
+    FTwinDeferredUiRequests DeferredUiRequests;
+    void ProcessUiRequests();
+    bool bHudRefreshRequested = true;
+    bool bFlushingHud = false;
+    float HudRefreshElapsed = 0.0f;
+    FVector2D LastHudViewportSize = FVector2D(-1.0f, -1.0f);
     bool bRoamingActive = false;
     bool bHudInteraction = false;
     bool bRoamingMouseLook = false;

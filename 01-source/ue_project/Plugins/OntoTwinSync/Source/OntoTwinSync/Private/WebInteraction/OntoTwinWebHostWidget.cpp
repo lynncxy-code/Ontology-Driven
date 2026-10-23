@@ -112,7 +112,15 @@ FReply UOntoTwinWebHostWidget::NativeOnPreviewKeyDown(
     const FGeometry& InGeometry,
     const FKeyEvent& InKeyEvent)
 {
-    if (OwnerComponent && OwnerComponent->HandleHostShortcut(InKeyEvent.GetKey()))
+    const FKey Key = InKeyEvent.GetKey();
+    if (InKeyEvent.IsRepeat()
+        && (Key == EKeys::Tab || Key == EKeys::F7 || Key == EKeys::Escape))
+    {
+        // Do not let a held shortcut generate a second transition while the
+        // first request is still being consumed by the world tick.
+        return FReply::Handled();
+    }
+    if (OwnerComponent && OwnerComponent->HandleHostShortcut(Key))
     {
         return FReply::Handled();
     }
@@ -232,12 +240,12 @@ bool UOntoTwinWebHostWidget::HandleBeforeNavigation(
 
 FReply UOntoTwinWebHostWidget::HandleBackClicked()
 {
-    if (OwnerComponent) OwnerComponent->Back();
+    if (OwnerComponent) OwnerComponent->RequestBackFromHost();
     return FReply::Handled();
 }
 
 FReply UOntoTwinWebHostWidget::HandleCloseClicked()
 {
-    if (OwnerComponent) OwnerComponent->Close();
+    if (OwnerComponent) OwnerComponent->RequestCloseFromHost();
     return FReply::Handled();
 }

@@ -1,4 +1,5 @@
 #include "OntoTwinSyncEditor.h"
+#include "OntoTwinCalibrationSnapshot.h"
 
 #include "Editor.h"
 #include "EditorUtilitySubsystem.h"
@@ -32,6 +33,7 @@ void FOntoTwinSyncEditorModule::StartupModule()
 
 	if (!IsRunningCommandlet() && !IsRunningGame())
 	{
+		OntoTwinCalibrationSnapshot::Register();
 		UToolMenus::RegisterStartupCallback(
 			FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FOntoTwinSyncEditorModule::RegisterMenus));
 	}
@@ -41,6 +43,8 @@ void FOntoTwinSyncEditorModule::ShutdownModule()
 {
 	if (UObjectInitialized())
 	{
+		if (!IsRunningCommandlet() && !IsRunningGame())
+			OntoTwinCalibrationSnapshot::Unregister();
 		UToolMenus::UnRegisterStartupCallback(this);
 		UToolMenus::UnregisterOwner(this);
 	}
@@ -53,17 +57,22 @@ void FOntoTwinSyncEditorModule::RegisterMenus()
 	FToolMenuOwnerScoped OwnerScoped(this);
 	UToolMenu* ToolsMenu = UToolMenus::Get()->ExtendMenu(TEXT("LevelEditor.MainMenu.Tools"));
 	FToolMenuSection& Section = ToolsMenu->FindOrAddSection(TEXT("OntoTwin"));
+	Section.AddEntry(FToolMenuEntry::InitMenuEntry(
+		TEXT("OntoTwinCalibrationSnapshot"),
+		LOCTEXT("CalibrationSnapshot", "OntoTwin 标定快照"),
+		LOCTEXT("CalibrationSnapshotTip", "采集参考点并导出带点号截图与坐标，在孪生器中配对 CAD 位置。"),
+		FSlateIcon(), FUIAction(FExecuteAction::CreateStatic(&OntoTwinCalibrationSnapshot::Open))));
 
 	Section.AddEntry(FToolMenuEntry::InitMenuEntry(
 		TEXT("OntoTwinPluginVersions"),
 		LOCTEXT("PluginVersions", "OntoTwin 插件版本与更新"),
 		LOCTEXT("PluginVersionsTip", "比较运行构建、项目源码和本机母本；关闭 UE 后安全更新。"),
-		FSlateIcon(), FUIAction(FExecuteAction::CreateRaw(this, &FOntoTwinSyncEditorModule::OpenDeliveryTools, false))));
+		FSlateIcon(), FUIAction(FExecuteAction::CreateRaw(this, &FOntoTwinSyncEditorModule::OpenPluginVersion))));
 	Section.AddEntry(FToolMenuEntry::InitMenuEntry(
 		TEXT("OntoTwinExportProject"),
 		LOCTEXT("ExportProject", "OntoTwin 导出交付工程"),
 		LOCTEXT("ExportProjectTip", "导出可继续编辑的独立工程、数据集包和版本清单，不改变原工程。"),
-		FSlateIcon(), FUIAction(FExecuteAction::CreateRaw(this, &FOntoTwinSyncEditorModule::OpenDeliveryTools, true))));
+		FSlateIcon(), FUIAction(FExecuteAction::CreateRaw(this, &FOntoTwinSyncEditorModule::OpenDeliveryProject))));
 	Section.AddEntry(FToolMenuEntry::InitMenuEntry(
 		TEXT("OntoTwinMouseWorldCoordinates"),
 		LOCTEXT("MouseWorldCoordinatesLabel", "OntoTwin Mouse World Coordinates"),

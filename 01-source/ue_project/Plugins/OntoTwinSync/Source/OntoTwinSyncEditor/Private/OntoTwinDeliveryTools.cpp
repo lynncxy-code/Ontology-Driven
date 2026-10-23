@@ -11,7 +11,9 @@
 #include "Serialization/JsonSerializer.h"
 #include "HAL/FileManager.h"
 
-void FOntoTwinSyncEditorModule::OpenDeliveryTools(bool bExport)
+namespace
+{
+void LaunchOntoTwinTool(const TCHAR* Mode)
 {
 	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("OntoTwinSync"));
 	if (!Plugin) return;
@@ -28,7 +30,7 @@ void FOntoTwinSyncEditorModule::OpenDeliveryTools(bool bExport)
 	Context->SetStringField(TEXT("engine"), FPaths::ConvertRelativePathToFull(FPaths::EngineDir()));
 	Context->SetStringField(TEXT("loaded_hash"), OntoTwinLoadedSourceHash());
 	Context->SetNumberField(TEXT("editor_pid"), FPlatformProcess::GetCurrentProcessId());
-	Context->SetStringField(TEXT("mode"), bExport ? TEXT("export") : TEXT("version"));
+	Context->SetStringField(TEXT("mode"), Mode);
 	if (UWorld* World = GEditor->GetEditorWorldContext().World())
 	{
 		int32 Count = 0;
@@ -47,8 +49,19 @@ void FOntoTwinSyncEditorModule::OpenDeliveryTools(bool bExport)
 	FString Json;
 	FJsonSerializer::Serialize(Context, TJsonWriterFactory<>::Create(&Json));
 	if (!FFileHelper::SaveStringToFile(Json, *ContextFile, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)) return;
-	const FString Args = FString::Printf(TEXT("\"%s\" --context \"%s\""), *Script, *ContextFile);
+	const FString Args = FString::Printf(TEXT("\"%s\" --context \"%s\" --mode %s"), *Script, *ContextFile, Mode);
 	FProcHandle Process = FPlatformProcess::CreateProc(*Python, *Args, true, false, false, nullptr, 0, nullptr, nullptr);
 	if (Process.IsValid()) FPlatformProcess::CloseProc(Process);
 	else FMessageDialog::Open(EAppMsgType::Ok, FText::FromString(TEXT("无法启动交付工具。请检查 UE 内置 Python。")));
+}
+}
+
+void FOntoTwinSyncEditorModule::OpenPluginVersion()
+{
+	LaunchOntoTwinTool(TEXT("version"));
+}
+
+void FOntoTwinSyncEditorModule::OpenDeliveryProject()
+{
+	LaunchOntoTwinTool(TEXT("export"));
 }

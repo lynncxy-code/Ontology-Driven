@@ -211,11 +211,18 @@ void ATwinSceneManager::BeginPlay()
             BackendBaseUrl = BackendBaseUrlOverride;
         }
     }
-    else if (BackendBaseUrl.Equals(TEXT("http://127.0.0.1:5000"), ESearchCase::IgnoreCase))
+    BackendBaseUrl.TrimStartAndEndInline();
+    BackendBaseUrl.RemoveFromEnd(TEXT("/"));
+
+    // Ensure loopback addresses bypass any HTTP proxies in libcurl
+    FString CurrentNoProxy = FPlatformMisc::GetEnvironmentVariable(TEXT("NO_PROXY"));
+    if (CurrentNoProxy.IsEmpty())
     {
-        // Docker Desktop can leave an installed-release portproxy on IPv4 loopback.
-        // localhost prefers Docker's working IPv6 loopback in PIE and packaged builds.
-        BackendBaseUrl = TEXT("http://localhost:5000");
+        FPlatformMisc::SetEnvironmentVar(TEXT("NO_PROXY"), TEXT("localhost,127.0.0.1"));
+    }
+    else if (!CurrentNoProxy.Contains(TEXT("127.0.0.1")) || !CurrentNoProxy.Contains(TEXT("localhost")))
+    {
+        FPlatformMisc::SetEnvironmentVar(TEXT("NO_PROXY"), *(CurrentNoProxy + TEXT(",localhost,127.0.0.1")));
     }
 
     Super::BeginPlay();
@@ -224,11 +231,10 @@ void ATwinSceneManager::BeginPlay()
 
     InitializeDisplaySchemes();
 
-    // The packaged runtime must establish the UE project -> active dataset
-    // binding before the first snapshot request.  This used to be editor-only
-    // and was never called from BeginPlay, so Shipping builds could start
-    // polling before the runtime identity was bound.
-    BindCurrentUEProjectToActiveDataset();
+    // The packaged runtime must establish or verify the UE project -> active dataset
+    // binding before the first snapshot request. Check binding status first; if unbound,
+    // it will automatically bind to the active dataset.
+    CheckInitialBindingStatus();
 
     FString RealtimeEnabledOverride;
     if (FParse::Value(
@@ -1609,6 +1615,10 @@ void ATwinSceneManager::AddUEProjectHeaders(TSharedRef<IHttpRequest, ESPMode::Th
 {
     HttpRequest->SetHeader(TEXT("X-OntoTwin-UE-Project-Id"), UEProjectId);
     HttpRequest->SetHeader(TEXT("X-OntoTwin-UE-Project-Name"), UEProjectName);
+    const UWorld* World = GetWorld();
+    HttpRequest->SetHeader(TEXT("X-OntoTwin-UE-Context"),
+        World && World->WorldType == EWorldType::PIE ? TEXT("pie") :
+        (World && World->WorldType == EWorldType::Editor ? TEXT("editor") : TEXT("runtime")));
 }
 
 void ATwinSceneManager::SetPollTimerInterval(float IntervalSeconds, float FirstDelaySeconds)
@@ -1719,13 +1729,26 @@ void ATwinSceneManager::DismissModelLoadingWidget()
 
 void ATwinSceneManager::BindCurrentUEProjectToActiveDataset()
 {
-    if (bRuntimeProjectBound)
+    bRuntimeBindingConflict = false;
+    BindCurrentUEProjectToActiveDatasetInternal(false);
+}
+
+void ATwinSceneManager::BindCurrentUEProjectToActiveDatasetInternal(bool bForce)
+{
+    if (bRuntimeBindingRequestInFlight)
     {
         return;
     }
     TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
     Body->SetStringField(TEXT("ue_project_id"), UEProjectId);
     Body->SetStringField(TEXT("ue_project_name"), UEProjectName);
+    if (!BoundProjectId.IsEmpty())
+    {
+        Body->SetStringField(TEXT("target_project_id"), BoundProjectId);
+    }
+    // Automatic recovery must never take over a project owned by another UE.
+    // The explicit editor action below is the only path allowed to force.
+    Body->SetBoolField(TEXT("force"), bForce);
 
     FString BodyStr;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&BodyStr);
@@ -1737,38 +1760,202 @@ void ATwinSceneManager::BindCurrentUEProjectToActiveDataset()
     HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
     AddUEProjectHeaders(HttpRequest);
     HttpRequest->SetContentAsString(BodyStr);
+
+    bRuntimeBindingRequestInFlight = true;
+    const TWeakObjectPtr<ATwinSceneManager> WeakThis(this);
+    HttpRequest->OnProcessRequestComplete().BindLambda([WeakThis, bForce](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bOk)
+    {
+        ATwinSceneManager* SceneManager = WeakThis.Get();
+        if (!SceneManager) return;
+        SceneManager->bRuntimeBindingRequestInFlight = false;
+
+        const int32 Code = Resp.IsValid() ? Resp->GetResponseCode() : -1;
+        const bool bSuccess = bOk && Resp.IsValid() && Code == 200;
+
+        TSharedPtr<FJsonObject> Root;
+        if (Resp.IsValid())
+        {
+            TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Resp->GetContentAsString());
+            FJsonSerializer::Deserialize(Reader, Root);
+        }
+
+        if (bSuccess)
+        {
+            SceneManager->RuntimeBindingRetryAttempt = 0;
+            SceneManager->bRuntimeBindingConflict = false;
+            SceneManager->bRuntimeProjectBound = true;
+            SceneManager->bRuntimeCanSave = false;
+            SceneManager->RuntimeBindingMode = TEXT("matched");
+            if (Root.IsValid())
+            {
+                Root->TryGetStringField(TEXT("project_id"), SceneManager->BoundProjectId);
+            }
+            UE_LOG(LogTemp, Log, TEXT("[UE绑定] 绑定当前 UE 工程到数据集成功 (project_id=%s, code=%d)"),
+                   *SceneManager->BoundProjectId, Code);
+            SceneManager->SyncUEAssetCatalog();
+            SceneManager->CheckRuntimeBindingStatus();
+            SceneManager->UpdateRuntimeEditorPanel();
+        }
+        else
+        {
+            FString ErrorMsg;
+            if (Root.IsValid())
+            {
+                Root->TryGetStringField(TEXT("message"), ErrorMsg);
+            }
+            UE_LOG(LogTemp, Warning, TEXT("[UE绑定] 绑定当前 UE 工程到激活数据集失败 (code=%d): %s"), Code, *ErrorMsg);
+            if (Code == 404 && !SceneManager->BoundProjectId.IsEmpty() && !bForce)
+            {
+                // A serialized target from another deployment is stale. Do not
+                // keep retrying it or silently bind a different project.
+                SceneManager->BoundProjectId.Empty();
+                SceneManager->bRuntimeBindingConflict = true;
+                SceneManager->RuntimeBindingMode = TEXT("unbound");
+                SceneManager->bRuntimeCanSave = false;
+                SceneManager->UpdateRuntimeEditorPanel();
+                UE_LOG(LogTemp, Warning, TEXT("[UE绑定] 原目标项目不存在，已清除运行时目标；请在 Web UI 重新选择项目。"));
+            }
+            else if (Code == 409 && !bForce)
+            {
+                SceneManager->bRuntimeBindingConflict = true;
+                SceneManager->RuntimeBindingMode = TEXT("conflict");
+                SceneManager->bRuntimeCanSave = false;
+                SceneManager->UpdateRuntimeEditorPanel();
+                UE_LOG(LogTemp, Warning, TEXT("[UE绑定] 目标项目已被其他 UE 工程占用，自动恢复已暂停。请使用手动强制绑定。"));
+            }
+            else if (Code == -1)
+            {
+                // The packaged app can reach BeginPlay before Docker/backend is
+                // ready. Retry gracefully with a 2-second timer.
+                SceneManager->ScheduleBindingStatusCheck(2.0f);
+            }
+            else
+            {
+                if (Code == 400 || Code == 404 || Code == 409)
+                    SceneManager->bRuntimeBindingConflict = true;
+                UE_LOG(LogTemp, Warning,
+                    TEXT("[UE绑定] 绑定被后端拒绝。请在 Web UI 确认目标项目已激活后，点击“绑定当前UE工程到激活数据集”重试。"));
+            }
+            SceneManager->ScheduleBindingStatusCheck(SceneManager->bRuntimeBindingConflict ? 60.0f : 2.0f);
+        }
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 8.0f, bSuccess ? FColor::Green : FColor::Red,
+                bSuccess
+                    ? FString::Printf(TEXT("已绑定当前 UE 工程到数据集: %s"), *SceneManager->BoundProjectId)
+                    : FString::Printf(TEXT("UE 工程绑定失败 (HTTP %d)，请查看 Output Log"), Code));
+        }
+    });
+    HttpRequest->ProcessRequest();
+}
+
+void ATwinSceneManager::ForceBindCurrentUEProjectToActiveDataset()
+{
+    bRuntimeProjectBound = false;
+    bRuntimeBindingConflict = false;
+    RuntimeBindingRetryAttempt = 0;
+    BoundProjectId.Empty();
+    BindCurrentUEProjectToActiveDatasetInternal(true);
+}
+
+void ATwinSceneManager::ScheduleBindingStatusCheck(float DelaySeconds)
+{
+    if (!GetWorld()) return;
+    if (GetWorldTimerManager().IsTimerActive(RuntimeProjectBindingRetryTimerHandle)) return;
+    const float Delay = FMath::Clamp(DelaySeconds * FMath::Pow(2.0f,
+        static_cast<float>(FMath::Min(RuntimeBindingRetryAttempt++, 5))), 2.0f, 60.0f);
+    GetWorldTimerManager().SetTimer(
+        RuntimeProjectBindingRetryTimerHandle,
+        FTimerDelegate::CreateWeakLambda(this, [this]()
+        {
+            CheckInitialBindingStatus();
+        }),
+        Delay, false);
+}
+
+void ATwinSceneManager::CheckInitialBindingStatus()
+{
+    if (bRuntimeBindingRequestInFlight)
+    {
+        return;
+    }
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = FHttpModule::Get().CreateRequest();
+    HttpRequest->SetURL(FString::Printf(TEXT("%s/api/v2/ue/binding_status"), *BackendBaseUrl));
+    HttpRequest->SetVerb(TEXT("GET"));
+    HttpRequest->SetHeader(TEXT("Accept"), TEXT("application/json"));
+    AddUEProjectHeaders(HttpRequest);
+
+    bRuntimeBindingRequestInFlight = true;
     const TWeakObjectPtr<ATwinSceneManager> WeakThis(this);
     HttpRequest->OnProcessRequestComplete().BindLambda([WeakThis](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bOk)
     {
         ATwinSceneManager* SceneManager = WeakThis.Get();
         if (!SceneManager) return;
+        SceneManager->bRuntimeBindingRequestInFlight = false;
+
         const int32 Code = Resp.IsValid() ? Resp->GetResponseCode() : -1;
-        const bool bSuccess = bOk && Resp.IsValid() && Code == 200;
-        if (bSuccess)
+        TSharedPtr<FJsonObject> Root;
+        if (Resp.IsValid())
         {
-            SceneManager->bRuntimeProjectBound = true;
-            UE_LOG(LogTemp, Log, TEXT("[UE绑定] 绑定当前 UE 工程到激活数据集成功 (code=%d)"), Code);
-            SceneManager->SyncUEAssetCatalog();
+            TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Resp->GetContentAsString());
+            FJsonSerializer::Deserialize(Reader, Root);
+        }
+
+        FString Mode;
+        if (Root.IsValid())
+        {
+            Root->TryGetStringField(TEXT("mode"), Mode);
+        }
+
+        if (bOk && Resp.IsValid() && Code == 200)
+        {
+            if (Mode == TEXT("matched"))
+            {
+                SceneManager->bRuntimeProjectBound = true;
+                SceneManager->RuntimeBindingRetryAttempt = 0;
+                SceneManager->bRuntimeBindingConflict = false;
+                SceneManager->bRuntimeCanSave = false;
+                Root->TryGetBoolField(TEXT("can_write"), SceneManager->bRuntimeCanSave);
+                SceneManager->RuntimeBindingMode = TEXT("matched");
+                if (Root.IsValid())
+                {
+                    Root->TryGetStringField(TEXT("project_id"), SceneManager->BoundProjectId);
+                }
+                UE_LOG(LogTemp, Log, TEXT("[UE绑定] UE 工程已与后端项目绑定 (project_id=%s)"), *SceneManager->BoundProjectId);
+                SceneManager->SyncUEAssetCatalog();
+                SceneManager->UpdateRuntimeEditorPanel();
+            }
+            else if (Mode == TEXT("unbound"))
+            {
+                SceneManager->bRuntimeProjectBound = false;
+                SceneManager->RuntimeBindingMode = TEXT("unbound");
+                SceneManager->bRuntimeCanSave = false;
+                UE_LOG(LogTemp, Log, TEXT("[UE绑定] UE 工程尚未绑定，正在自动绑定到激活项目..."));
+                if (!SceneManager->bRuntimeBindingConflict)
+                {
+                    SceneManager->BindCurrentUEProjectToActiveDatasetInternal(false);
+                }
+                else SceneManager->ScheduleBindingStatusCheck(60.0f);
+            }
+            else
+            {
+                SceneManager->RuntimeBindingMode = Mode;
+                UE_LOG(LogTemp, Warning, TEXT("[UE绑定] 收到未知绑定模式: %s"), *Mode);
+            }
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("[UE绑定] 绑定当前 UE 工程到激活数据集失败 (code=%d)"), Code);
-            // The packaged app can reach BeginPlay before Docker/backend is
-            // ready. Keep retrying so the first snapshot request eventually
-            // runs against the bound active dataset.
-            SceneManager->GetWorldTimerManager().SetTimer(
-                SceneManager->RuntimeProjectBindingRetryTimerHandle,
-                FTimerDelegate::CreateWeakLambda(SceneManager, [SceneManager]()
-                {
-                    SceneManager->BindCurrentUEProjectToActiveDataset();
-                }),
-                1.0f,
-                false);
-        }
-        if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(-1, 8.0f, bSuccess ? FColor::Green : FColor::Red,
-                bSuccess ? TEXT("已绑定当前 UE 工程到激活数据集") : TEXT("UE 工程绑定失败，请查看 Output Log"));
+            if (Code == -1)
+            {
+                UE_LOG(LogTemp, Display, TEXT("[UE绑定] 后端尚未就绪，将在 2 秒后重试检查绑定..."));
+                SceneManager->ScheduleBindingStatusCheck(2.0f);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("[UE绑定] 检查绑定状态失败 (Code=%d)，将在 5 秒后重试..."), Code);
+                SceneManager->ScheduleBindingStatusCheck(5.0f);
+            }
         }
     });
     HttpRequest->ProcessRequest();
@@ -1781,6 +1968,12 @@ void ATwinSceneManager::BindCurrentUEProjectToActiveDataset()
 void ATwinSceneManager::PollBackend()
 {
     if (bRequestInFlight) return;
+    if (!bRuntimeProjectBound)
+    {
+        if (!bRuntimeBindingRequestInFlight)
+            ScheduleBindingStatusCheck(bRuntimeBindingConflict ? 60.0f : 2.0f);
+        return;
+    }
 
     if (!bInitialModelBaselineReady)
     {
@@ -1834,6 +2027,21 @@ void ATwinSceneManager::OnPollResponse(
     int32 ResponseCode = Response.IsValid() ? Response->GetResponseCode() : -1;
     if (!bWasSuccessful || !Response.IsValid() || ResponseCode != 200)
     {
+        if (ResponseCode == 403 || ResponseCode == 410)
+        {
+            // The backend may lose its in-memory UE-ID index after a restart,
+            // even though the editor session is still alive.  Do not gate the
+            // recovery on the old local flag: once a snapshot is rejected, the
+            // source of truth is the backend and we must re-check/re-bind.
+            UE_LOG(LogTemp, Warning,
+                   TEXT("[孪生管理器] 收到 HTTP %d (项目未绑定或已切换)，重置绑定状态并重新检查绑定..."),
+                   ResponseCode);
+            bRuntimeProjectBound = false;
+            bRuntimeCanSave = false;
+            RuntimeBindingMode = TEXT("unbound");
+            UpdateRuntimeEditorPanel();
+            ScheduleBindingStatusCheck(2.0f);
+        }
         UE_LOG(LogTemp, Warning,
                TEXT("[孪生管理器] ❌ 请求失败 | Code=%d | bSuccessful=%s"),
                ResponseCode, bWasSuccessful ? TEXT("true") : TEXT("false"));
@@ -1953,7 +2161,35 @@ void ATwinSceneManager::OnIncrementalPollResponse(
     const int32 ResponseCode = Response.IsValid() ? Response->GetResponseCode() : -1;
     if (!bWasSuccessful || !Response.IsValid() || ResponseCode != 200)
     {
-        if (Response.IsValid() && (ResponseCode == 400 || ResponseCode == 404 || ResponseCode == 501))
+        if (ResponseCode == 403 || ResponseCode == 410)
+        {
+            // See the full-snapshot path above.  Incremental polling must
+            // recover in the same way when the backend/container is replaced.
+            UE_LOG(LogTemp, Warning,
+                   TEXT("[孪生管理器] 增量快照收到 HTTP %d (项目未绑定或已切换)，重置绑定状态并重新检查绑定..."),
+                   ResponseCode);
+            bRuntimeProjectBound = false;
+            bRuntimeCanSave = false;
+            RuntimeBindingMode = TEXT("unbound");
+            IncrementalSnapshotCursor.Empty();
+            UpdateRuntimeEditorPanel();
+            ScheduleBindingStatusCheck(2.0f);
+            return;
+        }
+
+        if (Response.IsValid() && (ResponseCode == 400 || ResponseCode == 404))
+        {
+            // Cursor expired or invalidated on backend (e.g. backend restarted).
+            // Clear cursor so next request gets a reset delta, without permanently disabling incremental mode!
+            ConsecutiveFailures = 0;
+            IncrementalSnapshotCursor.Empty();
+            UE_LOG(LogTemp, Log, TEXT("[孪生管理器] 增量游标已失效 (HTTP %d)，重置游标重新获取全量基线"), ResponseCode);
+            // Wait for the regular poll timer; do not recursively flood an unavailable endpoint.
+            if (ResponseCode == 404) FallBackToFullSnapshots(TEXT("incremental endpoint missing"));
+            return;
+        }
+
+        if (Response.IsValid() && ResponseCode == 501)
         {
             ConsecutiveFailures = 0;
             FallBackToFullSnapshots(FString::Printf(TEXT("HTTP %d"), ResponseCode));
@@ -3578,8 +3814,16 @@ void ATwinSceneManager::CheckRuntimeBindingStatus()
             {
                 if (Mode == TEXT("matched"))
                 {
+                    Self->bRuntimeProjectBound = true;
                     Self->RuntimeBindingMode = TEXT("matched");
-                    Self->bRuntimeCanSave = true;
+                    Self->bRuntimeCanSave = false;
+                    Root->TryGetBoolField(TEXT("can_write"), Self->bRuntimeCanSave);
+                    Self->bRuntimeBindingConflict = false;
+                    Self->RuntimeBindingRetryAttempt = 0;
+                    if (Root.IsValid())
+                    {
+                        Root->TryGetStringField(TEXT("project_id"), Self->BoundProjectId);
+                    }
                     Self->RuntimeStatusMessage = TEXT("UE 工程绑定匹配");
                 }
                 else if (Mode == TEXT("unbound"))
@@ -3638,6 +3882,11 @@ void ATwinSceneManager::BindCurrentRuntimeProject()
     TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
     Body->SetStringField(TEXT("ue_project_id"), UEProjectId);
     Body->SetStringField(TEXT("ue_project_name"), UEProjectName);
+    if (!BoundProjectId.IsEmpty())
+    {
+        Body->SetStringField(TEXT("target_project_id"), BoundProjectId);
+    }
+    Body->SetBoolField(TEXT("force"), false);
 
     FString BodyStr;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&BodyStr);
@@ -3665,9 +3914,20 @@ void ATwinSceneManager::BindCurrentRuntimeProject()
             const int32 Code = Resp.IsValid() ? Resp->GetResponseCode() : -1;
             if (bOk && Resp.IsValid() && Code == 200)
             {
+                Self->bRuntimeProjectBound = true;
                 Self->RuntimeBindingMode = TEXT("matched");
-                Self->bRuntimeCanSave = true;
+                Self->bRuntimeCanSave = false;
+                TSharedPtr<FJsonObject> RespJson;
+                if (Resp.IsValid())
+                {
+                    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Resp->GetContentAsString());
+                    if (FJsonSerializer::Deserialize(Reader, RespJson) && RespJson.IsValid())
+                    {
+                        RespJson->TryGetStringField(TEXT("project_id"), Self->BoundProjectId);
+                    }
+                }
                 Self->RuntimeStatusMessage = TEXT("当前数据集已绑定到此 UE 工程");
+                Self->CheckRuntimeBindingStatus();
                 if (Self->RuntimeEditorPanel && IsValid(Self->RuntimeEditorPanel))
                 {
                     Self->RuntimeEditorPanel->ShowToast(
@@ -6574,6 +6834,13 @@ bool ATwinSceneManager::CapturePreviewMaterialBaseline(
             return Fail(FString::Printf(TEXT("render_parts[%d] 缺少 asset_path"), PartIndex));
         }
 
+        if (!Instance->GetRenderPartRelativeTransform(
+                PartIndex, PartBaseline.RelativeTransform))
+        {
+            return Fail(FString::Printf(
+                TEXT("无法读取 render_parts[%d] 相对变换"), PartIndex));
+        }
+
         const TArray<TSharedPtr<FJsonValue>>* MaterialValues = nullptr;
         if (!(*PartObject)->TryGetArrayField(TEXT("material_paths"), MaterialValues)
             || !MaterialValues)
@@ -6612,8 +6879,19 @@ bool ATwinSceneManager::CapturePreviewMaterialBaseline(
 void ATwinSceneManager::CommitPreviewChanges()
 {
 #if WITH_EDITOR
-    // ── 1. diff：找出被手动挪动过的预览 Actor ────────────────────────────
-    struct FChange { FString Id; FTransform Cur; };
+    // ── 1. diff：母 Actor 与 assembly 子部件都参与比较 ────────────────
+    struct FPartChange
+    {
+        FPreviewMaterialPartBaseline Baseline;
+        FTransform Current;
+    };
+    struct FChange
+    {
+        FString Id;
+        FTransform Cur;
+        TArray<FPartChange> Parts;
+        bool bRootChanged = false;
+    };
     TArray<FChange> Changes;
 
     for (ATwinInstance* A : PreviewActors)
@@ -6624,9 +6902,33 @@ void ATwinSceneManager::CommitPreviewChanges()
         if (!Base) continue;
 
         const FTransform Cur = A->GetActorTransform();
-        if (Cur.Equals(*Base, 0.01f)) continue;   // 没动过（容差 0.01）
+        FChange Change;
+        Change.Id = Id;
+        Change.Cur = Cur;
+        Change.bRootChanged = !Cur.Equals(*Base, 0.01f);
 
-        Changes.Add({Id, Cur});
+        const FPreviewMaterialInstanceBaseline* PartBaseline =
+            PreviewMaterialBaseline.Find(Id);
+        if (PartBaseline)
+        {
+            for (const FPreviewMaterialPartBaseline& BaselinePart : PartBaseline->Parts)
+            {
+                FTransform CurrentPart;
+                if (!A->GetRenderPartRelativeTransform(BaselinePart.PartIndex, CurrentPart))
+                {
+                    continue;
+                }
+                if (!CurrentPart.Equals(BaselinePart.RelativeTransform, 0.01f))
+                {
+                    Change.Parts.Add({BaselinePart, CurrentPart});
+                }
+            }
+        }
+
+        if (Change.bRootChanged || Change.Parts.Num() > 0)
+        {
+            Changes.Add(MoveTemp(Change));
+        }
     }
 
     if (Changes.Num() == 0)
@@ -6639,8 +6941,13 @@ void ATwinSceneManager::CommitPreviewChanges()
         return;
     }
 
-    // ── 2. 逐条 POST /api/v2/state/writeback ────────────────────────────
-    PendingWritebacks = Changes.Num();
+    // ── 2. 母 Actor 与子部件分别调用各自的原子回写端点 ────────────────
+    PendingWritebacks = 0;
+    for (const FChange& Change : Changes)
+    {
+        PendingWritebacks += (Change.bRootChanged ? 1 : 0) +
+            (Change.Parts.Num() > 0 ? 1 : 0);
+    }
     SucceededWritebacks = 0;
 
     if (GEngine)
@@ -6651,6 +6958,98 @@ void ATwinSceneManager::CommitPreviewChanges()
 
     for (const FChange& C : Changes)
     {
+        if (C.Parts.Num() > 0)
+        {
+            TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
+            Body->SetStringField(TEXT("instance_id"), C.Id);
+            const FPreviewMaterialInstanceBaseline* Baseline =
+                PreviewMaterialBaseline.Find(C.Id);
+            Body->SetStringField(TEXT("expected_assembly_signature"),
+                Baseline ? Baseline->AssemblySignature : FString());
+            TArray<TSharedPtr<FJsonValue>> Parts;
+            for (const FPartChange& PartChange : C.Parts)
+            {
+                auto TransformToJson = [](const FTransform& Transform)
+                {
+                    const FVector L = Transform.GetLocation();
+                    const FRotator R = Transform.Rotator();
+                    const FVector S = Transform.GetScale3D();
+                    TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
+                    Obj->SetNumberField(TEXT("tx"), L.X); Obj->SetNumberField(TEXT("ty"), L.Y);
+                    Obj->SetNumberField(TEXT("tz"), L.Z); Obj->SetNumberField(TEXT("rx"), R.Roll);
+                    Obj->SetNumberField(TEXT("ry"), R.Pitch); Obj->SetNumberField(TEXT("rz"), R.Yaw);
+                    Obj->SetNumberField(TEXT("sx"), S.X); Obj->SetNumberField(TEXT("sy"), S.Y);
+                    Obj->SetNumberField(TEXT("sz"), S.Z);
+                    return Obj;
+                };
+                TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
+                Obj->SetNumberField(TEXT("part_index"), PartChange.Baseline.PartIndex);
+                Obj->SetStringField(TEXT("asset_path"), PartChange.Baseline.AssetPath);
+                Obj->SetStringField(TEXT("source_actor_guid"), PartChange.Baseline.SourceActorGuid);
+                Obj->SetStringField(TEXT("source_component_name"), PartChange.Baseline.SourceComponentName);
+                Obj->SetObjectField(TEXT("expected_transform"), TransformToJson(PartChange.Baseline.RelativeTransform));
+                Obj->SetObjectField(TEXT("transform"), TransformToJson(PartChange.Current));
+                Parts.Add(MakeShared<FJsonValueObject>(Obj));
+            }
+            TArray<TSharedPtr<FJsonValue>> ChangesArray;
+            TSharedPtr<FJsonObject> ChangeObj = MakeShared<FJsonObject>();
+            ChangeObj->SetStringField(TEXT("instance_id"), C.Id);
+            ChangeObj->SetStringField(TEXT("expected_assembly_signature"),
+                Baseline ? Baseline->AssemblySignature : FString());
+            ChangeObj->SetArrayField(TEXT("parts"), Parts);
+            ChangesArray.Add(MakeShared<FJsonValueObject>(ChangeObj));
+            Body->SetArrayField(TEXT("changes"), ChangesArray);
+
+            FString BodyStr;
+            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&BodyStr);
+            FJsonSerializer::Serialize(Body.ToSharedRef(), Writer);
+            TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest =
+                FHttpModule::Get().CreateRequest();
+            HttpRequest->SetURL(FString::Printf(TEXT("%s/api/v2/state/render-part-writeback"), *BackendBaseUrl));
+            HttpRequest->SetVerb(TEXT("POST"));
+            HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+            AddUEProjectHeaders(HttpRequest);
+            HttpRequest->SetContentAsString(BodyStr);
+            TWeakObjectPtr<ATwinSceneManager> WeakThis(this);
+            const FString Id = C.Id;
+            const TArray<FPartChange> CommittedParts = C.Parts;
+            HttpRequest->OnProcessRequestComplete().BindLambda(
+                [WeakThis, Id, CommittedParts](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bOk)
+                {
+                    ATwinSceneManager* Self = WeakThis.Get(); if (!Self) return;
+                    Self->PendingWritebacks--;
+                    if (bOk && Resp.IsValid() && Resp->GetResponseCode() == 200)
+                    {
+                        Self->SucceededWritebacks++;
+                        if (FPreviewMaterialInstanceBaseline* Baseline =
+                                Self->PreviewMaterialBaseline.Find(Id))
+                        {
+                            for (const FPartChange& CommittedPart : CommittedParts)
+                            {
+                                for (FPreviewMaterialPartBaseline& Part : Baseline->Parts)
+                                {
+                                    if (Part.PartIndex == CommittedPart.Baseline.PartIndex
+                                        && Part.AssetPath == CommittedPart.Baseline.AssetPath)
+                                    {
+                                        Part.RelativeTransform = CommittedPart.Current;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green,
+                            FString::Printf(TEXT("部件变更提交成功: %s"), *Id));
+                    }
+                    else if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 8.f, FColor::Red,
+                        FString::Printf(TEXT("部件回写失败: %s（详见 Output Log）"), *Id));
+                });
+            HttpRequest->ProcessRequest();
+            if (!C.bRootChanged)
+            {
+                continue;
+            }
+        }
+
         TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
         Body->SetStringField(TEXT("instance_id"), C.Id);
 

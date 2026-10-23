@@ -5,6 +5,10 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Dom/JsonObject.h"
 #include "Engine/Blueprint.h"
+#include "Engine/BlueprintGeneratedClass.h"
+#include "EngineUtils.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/SkinnedMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/LevelScriptActor.h"
 #include "Engine/SkeletalMesh.h"
@@ -135,7 +139,7 @@ void UOntoTwinUEAssetCatalogSyncComponent::BeginPlay()
 {
     Super::BeginPlay();
     PublishFolderIndex();
-    if (bSyncOnBeginPlay)
+    if (bSyncOnBeginPlay || AssetRoots.IsEmpty())
     {
         SyncCatalog();
     }
@@ -459,13 +463,19 @@ void UOntoTwinUEAssetCatalogSyncComponent::SyncCatalogForRoots(
             EffectiveRoots.Add(Root);
         }
     }
-    if (EffectiveRoots.IsEmpty())
+    const bool bSceneOnly = RequestedRoots.IsEmpty() && ScanRequestId.IsEmpty();
+    if (EffectiveRoots.IsEmpty() && !bSceneOnly)
     {
-        const FString Error = TEXT("没有有效扫描根目录");
-        UE_LOG(LogTemp, Error, TEXT("[UE资产目录] %s"), *Error);
         if (!ScanRequestId.IsEmpty())
         {
+            const FString Error = TEXT("没有有效扫描根目录");
+            UE_LOG(LogTemp, Error, TEXT("[UE资产目录] %s"), *Error);
             ReportScanRequestFailure(ScanRequestId, Error);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Display,
+                TEXT("[UE资产目录] 未配置有效扫描根目录，跳过资产目录同步（可在 TwinSceneManager.AssetRoots 中添加目录如 /Game）"));
         }
         return;
     }
@@ -512,7 +522,7 @@ void UOntoTwinUEAssetCatalogSyncComponent::SyncCatalogForRoots(
             Filter.PackagePaths.Add(FName(*Root));
         }
     }
-    if (Filter.PackagePaths.IsEmpty())
+    if (Filter.PackagePaths.IsEmpty() && !bSceneOnly)
     {
         UE_LOG(LogTemp, Error, TEXT("[UE资产目录] 没有有效扫描根目录"));
         return;
@@ -523,11 +533,42 @@ void UOntoTwinUEAssetCatalogSyncComponent::SyncCatalogForRoots(
     {
         Filter.ClassPaths.Add(USkeletalMesh::StaticClass()->GetClassPathName());
         Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+        Filter.ClassPaths.Add(UBlueprintGeneratedClass::StaticClass()->GetClassPathName());
     }
 
     FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
     TArray<FAssetData> AssetDataList;
-    AssetRegistryModule.Get().GetAssets(Filter, AssetDataList, true);
+    if (bSceneOnly)
+    {
+        TSet<FSoftObjectPath> UsedAssets;
+        for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+        {
+            TInlineComponentArray<UStaticMeshComponent*> Meshes(*It);
+            for (const UStaticMeshComponent* Component : Meshes)
+                if (Component->GetStaticMesh()) UsedAssets.Add(FSoftObjectPath(Component->GetStaticMesh()));
+            TInlineComponentArray<USkinnedMeshComponent*> Skins(*It);
+            for (const USkinnedMeshComponent* Component : Skins)
+                if (Component->GetSkinnedAsset()) UsedAssets.Add(FSoftObjectPath(Component->GetSkinnedAsset()));
+            if (const UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(It->GetClass()))
+            {
+                FString Path = BPClass->GetPathName();
+#if WITH_EDITOR
+                if (GIsEditor) Path.RemoveFromEnd(TEXT("_C"));
+#endif
+                UsedAssets.Add(FSoftObjectPath(Path));
+            }
+        }
+        for (const FSoftObjectPath& Path : UsedAssets)
+        {
+            const FAssetData Data = AssetRegistryModule.Get().GetAssetByObjectPath(Path);
+            if (Data.IsValid()) AssetDataList.Add(Data);
+        }
+    }
+    else
+    {
+        // In packaged builds the registry contains only cooked assets.
+        AssetRegistryModule.Get().GetAssets(Filter, AssetDataList, true);
+    }
     AssetDataList.Sort([](const FAssetData& Left, const FAssetData& Right)
     {
         return Left.GetSoftObjectPath().ToString() < Right.GetSoftObjectPath().ToString();
@@ -540,14 +581,15 @@ void UOntoTwinUEAssetCatalogSyncComponent::SyncCatalogForRoots(
         const FString AssetKind = AssetData.AssetClassPath.GetAssetName().ToString();
         const bool bStaticMesh = AssetKind.Equals(TEXT("StaticMesh"), ESearchCase::IgnoreCase);
         const bool bSkeletalMesh = AssetKind.Equals(TEXT("SkeletalMesh"), ESearchCase::IgnoreCase);
-        const bool bBlueprint = AssetKind.Equals(TEXT("Blueprint"), ESearchCase::IgnoreCase);
+        const bool bGeneratedClass = AssetKind.Equals(TEXT("BlueprintGeneratedClass"), ESearchCase::IgnoreCase);
+        const bool bBlueprint = bGeneratedClass || AssetKind.Equals(TEXT("Blueprint"), ESearchCase::IgnoreCase);
         TSharedPtr<FJsonObject> AssetJson = MakeShared<FJsonObject>();
         AssetJson->SetStringField(TEXT("object_path"), AssetData.GetSoftObjectPath().ToString());
         AssetJson->SetStringField(TEXT("package_name"), AssetData.PackageName.ToString());
         AssetJson->SetStringField(TEXT("asset_name"), AssetData.AssetName.ToString());
         AssetJson->SetStringField(TEXT("display_name"), AssetData.AssetName.ToString());
         AssetJson->SetStringField(TEXT("folder_path"), AssetData.PackagePath.ToString());
-        AssetJson->SetStringField(TEXT("asset_kind"), AssetKind);
+        AssetJson->SetStringField(TEXT("asset_kind"), bBlueprint ? TEXT("Blueprint") : AssetKind);
 
         bool bRuntimeLoadable = bStaticMesh || bSkeletalMesh;
         FString RuntimeReason = bStaticMesh
@@ -556,7 +598,7 @@ void UOntoTwinUEAssetCatalogSyncComponent::SyncCatalogForRoots(
         if (bBlueprint)
         {
             FString GeneratedClassExportPath;
-            FString GeneratedClassPath;
+            FString GeneratedClassPath = bGeneratedClass ? AssetData.GetSoftObjectPath().ToString() : FString();
             if (AssetData.GetTagValue(FName(TEXT("GeneratedClass")), GeneratedClassExportPath))
             {
                 GeneratedClassPath = FPackageName::ExportTextPathToObjectPath(GeneratedClassExportPath);
@@ -579,6 +621,11 @@ void UOntoTwinUEAssetCatalogSyncComponent::SyncCatalogForRoots(
             {
                 AssetJson->SetStringField(TEXT("generated_class_path"), GeneratedClassPath);
             }
+        }
+        if (!GIsEditor && (bStaticMesh || bSkeletalMesh) && !AssetData.GetAsset())
+        {
+            bRuntimeLoadable = false;
+            RuntimeReason = TEXT("模型未 Cook 或无法加载");
         }
         AssetJson->SetBoolField(TEXT("runtime_loadable"), bRuntimeLoadable);
         AssetJson->SetStringField(TEXT("runtime_reason"), RuntimeReason);

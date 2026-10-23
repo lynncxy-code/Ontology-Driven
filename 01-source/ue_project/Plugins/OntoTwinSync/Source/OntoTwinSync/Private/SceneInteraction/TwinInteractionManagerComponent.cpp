@@ -31,6 +31,7 @@
 #include "Dom/JsonValue.h"
 #include "Engine/AssetManager.h"
 #include "Engine/Engine.h"
+#include "CoreGlobals.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/Level.h"
 #include "Engine/Light.h"
@@ -393,6 +394,7 @@ void UTwinInteractionManagerComponent::BeginPlay()
 void UTwinInteractionManagerComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     bShuttingDown = true;
+    DeferredUiRequests.Pending.Reset();
     ATwinInstance::OnRepresentationVisualReady.Remove(RepresentationVisualReadyHandle);
     RepresentationVisualReadyHandle.Reset();
     ExitRoaming();
@@ -409,7 +411,7 @@ void UTwinInteractionManagerComponent::TickComponent(
     FActorComponentTickFunction* ThisTickFunction)
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-    if (!SceneManager) return;
+    if (!IsValid(SceneManager) || bShuttingDown) return;
     if (!PlayerController)
     {
         PlayerController = UGameplayStatics::GetPlayerController(this, 0);
@@ -420,6 +422,7 @@ void UTwinInteractionManagerComponent::TickComponent(
         }
     }
 
+    ProcessUiRequests();
     PollAccumulator += DeltaTime;
     if (PollAccumulator >= RuntimePollInterval)
     {
@@ -439,7 +442,7 @@ void UTwinInteractionManagerComponent::TickComponent(
     // Input components while possessing a different pawn.
     if (PlayerController && PlayerController->WasInputKeyJustPressed(ToggleRoamingKey))
     {
-        ToggleRoaming();
+        RequestUiAction(ETwinUiRequest::ToggleRoaming);
     }
 
     // V must survive possession and host-project InputComponent replacement just
@@ -478,7 +481,10 @@ void UTwinInteractionManagerComponent::TickComponent(
     }
     UpdateCrosshairTarget();
     UpdateMinimapMarker(DeltaTime);
+    HudRefreshElapsed += DeltaTime;
+    bFlushingHud = true;
     RefreshHud();
+    bFlushingHud = false;
 }
 
 void UTwinInteractionManagerComponent::AddProjectHeaders(
@@ -625,9 +631,15 @@ bool UTwinInteractionManagerComponent::ParseRuntimeConfig(
     {
         OutConfig.DefaultCameraMode = ETwinRoamingCameraMode::God;
     }
+    else if (DefaultCameraMode == TEXT("near_follow"))
+    {
+        OutConfig.DefaultCameraMode = ETwinRoamingCameraMode::NearFollow;
+    }
     else
     {
         OutConfig.DefaultCameraMode = ETwinRoamingCameraMode::God;
+        if (!DefaultCameraMode.IsEmpty())
+            UE_LOG(LogTemp, Warning, TEXT("OntoTwin unknown default_mode='%s'; fallback=god"), *DefaultCameraMode);
     }
     const TSharedPtr<FJsonObject> FirstPerson = GetObject(Camera, TEXT("first_person"));
     OutConfig.FirstPersonCamera.EyeHeightCm = NumberOr(
@@ -2721,11 +2733,55 @@ ETwinRoamingCameraMode UTwinInteractionManagerComponent::GetCameraMode() const
 
 void UTwinInteractionManagerComponent::ToggleHudInteraction()
 {
-    const bool bGlobalAvailable = SceneManager
-        && !SceneManager->IsRuntimeEditModeActive();
-    if ((bRoamingActive || bGlobalAvailable) && !IsCameraTransitioning())
+    RequestUiAction(ETwinUiRequest::ToggleHud);
+}
+
+void UTwinInteractionManagerComponent::RequestUiAction(ETwinUiRequest Action)
+{
+    if (!bShuttingDown) DeferredUiRequests.Enqueue(Action, GFrameCounter);
+}
+
+void UTwinInteractionManagerComponent::ProcessUiRequests()
+{
+    if (!IsValid(PlayerController)) return;
+    for (const auto& Request : DeferredUiRequests.TakeReady(GFrameCounter))
     {
-        SetHudInteraction(!bHudInteraction);
+        UOntoTwinWebInteractionComponent* Web = SceneManager->WebInteractionManager;
+        const bool bHudRequest = Request.Action == ETwinUiRequest::ToggleHud
+            || Request.Action == ETwinUiRequest::OpenHudFromWeb;
+        if (bHudRequest && IsCameraTransitioning())
+        {
+            // Retain intent until blending finishes; never close the web and then
+            // silently fail to open the requested Dock.
+            DeferredUiRequests.Pending.Add({Request.Action, GFrameCounter});
+            continue;
+        }
+        UE_LOG(LogTemp, Verbose, TEXT("OntoTwin UI request action=%d queued_frame=%llu frame=%llu"),
+            static_cast<int32>(Request.Action), Request.Frame, GFrameCounter);
+        switch (Request.Action)
+        {
+        case ETwinUiRequest::OpenHudFromWeb:
+            if (IsValid(Web)) Web->Close();
+            SetHudInteraction(true);
+            break;
+        case ETwinUiRequest::ToggleHud:
+            if (bRoamingActive || !SceneManager->IsRuntimeEditModeActive())
+            {
+                if (IsValid(Web) && Web->IsWebOpen()) Web->Close();
+                SetHudInteraction(!bHudInteraction);
+            }
+            break;
+        case ETwinUiRequest::ToggleRoaming:
+            if (IsValid(Web)) Web->Close();
+            ToggleRoaming();
+            break;
+        case ETwinUiRequest::WebBack:
+            if (IsValid(Web)) Web->Back();
+            break;
+        case ETwinUiRequest::WebClose:
+            if (IsValid(Web)) Web->Close();
+            break;
+        }
     }
 }
 
@@ -2734,13 +2790,14 @@ void UTwinInteractionManagerComponent::SetHudInteraction(bool bOpen)
     const bool bGlobalAvailable = SceneManager
         && !SceneManager->IsRuntimeEditModeActive();
     const bool bNextOpen = bOpen && (bRoamingActive || bGlobalAvailable);
-    if (bNextOpen && !bHudInteraction && !bRoamingActive && PlayerController)
+    const bool bStateChanged = bNextOpen != bHudInteraction;
+    if (bStateChanged && bNextOpen && !bHudInteraction && !bRoamingActive && PlayerController)
     {
         bGlobalHudPreviousMouseCursor = PlayerController->bShowMouseCursor;
         bGlobalHudInputCaptured = true;
     }
     bHudInteraction = bNextOpen;
-    if (bRoamingActive && bHudInteraction)
+    if (bStateChanged && bRoamingActive && bHudInteraction)
     {
         bRoamingMouseLook = false;
     }
@@ -3253,8 +3310,26 @@ void UTwinInteractionManagerComponent::DestroyHud()
 
 void UTwinInteractionManagerComponent::RefreshHud()
 {
-    if (RoamingHUD)
+    if (!bFlushingHud)
     {
+        bHudRefreshRequested = true;
+        return;
+    }
+
+    const bool bRefreshState = bHudRefreshRequested || HudRefreshElapsed >= 0.2f;
+    if (bRefreshState)
+    {
+        bHudRefreshRequested = false;
+        HudRefreshElapsed = 0.0f;
+    }
+
+    // Widget state is refreshed at a bounded rate. The crosshair remains on
+    // the frame path because camera transitions and target feedback are
+    // intentionally latency-sensitive.
+    if (bRefreshState)
+    {
+        if (RoamingHUD)
+        {
         if (PlayerController)
         {
             int32 ViewportX = 0;
@@ -3266,9 +3341,9 @@ void UTwinInteractionManagerComponent::RefreshHud()
                 FVector2D(ViewportX / ViewportScale, ViewportY / ViewportScale));
         }
         RoamingHUD->RefreshFromManager();
-    }
-    if (RuntimeDock)
-    {
+        }
+        if (RuntimeDock)
+        {
         if (PlayerController)
         {
             int32 ViewportX = 0;
@@ -3280,9 +3355,9 @@ void UTwinInteractionManagerComponent::RefreshHud()
                 FVector2D(ViewportX / ViewportScale, ViewportY / ViewportScale));
         }
         RuntimeDock->RefreshFromManager();
-    }
-    if (NarrationHUD && PlayerController)
-    {
+        }
+        if (NarrationHUD && PlayerController)
+        {
         int32 ViewportX = 0;
         int32 ViewportY = 0;
         PlayerController->GetViewportSize(ViewportX, ViewportY);
@@ -3290,7 +3365,9 @@ void UTwinInteractionManagerComponent::RefreshHud()
             0.01f, UWidgetLayoutLibrary::GetViewportScale(this));
         NarrationHUD->SetDesiredSizeInViewport(
             FVector2D(ViewportX / ViewportScale, ViewportY / ViewportScale));
+        }
     }
+
     if (CrosshairHUD)
     {
         if (PlayerController)

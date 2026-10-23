@@ -198,7 +198,10 @@ void UOntoTwinWebInteractionComponent::TickComponent(
     if (HostWidget && HostWidget->GetVisibility() == ESlateVisibility::Visible
         && PlayerController && PlayerController->WasInputKeyJustPressed(EKeys::Escape))
     {
-        Back();
+        // Escape can arrive from the component tick while Slate is still
+        // dispatching the same input edge. Let the interaction manager consume
+        // it on the next world frame instead of mutating navigation here.
+        HandleHostShortcut(EKeys::Escape);
     }
 }
 
@@ -1140,9 +1143,12 @@ void UOntoTwinWebInteractionComponent::Back()
 
 void UOntoTwinWebInteractionComponent::Close()
 {
-    if (HostWidget) HostWidget->SetVisibility(ESlateVisibility::Collapsed);
+    if (HostWidget && IsValid(HostWidget))
+    {
+        HostWidget->SetVisibility(ESlateVisibility::Collapsed);
+    }
     RestoreInput();
-    SendToPage(TEXT("visibility_changed"), FString(), nullptr);
+    if (!bShuttingDown) SendToPage(TEXT("visibility_changed"), FString(), nullptr);
 }
 
 bool UOntoTwinWebInteractionComponent::HandleHostShortcut(const FKey& Key)
@@ -1150,25 +1156,36 @@ bool UOntoTwinWebInteractionComponent::HandleHostShortcut(const FKey& Key)
     if (!SceneManager || !SceneManager->InteractionManager) return false;
     if (Key == EKeys::Tab)
     {
-        Close();
-        if (!SceneManager->InteractionManager->IsHudInteractionOpen())
-        {
-            SceneManager->InteractionManager->ToggleHudInteraction();
-        }
+        SceneManager->InteractionManager->RequestUiAction(ETwinUiRequest::OpenHudFromWeb);
         return true;
     }
     if (Key == EKeys::F7)
     {
-        Close();
-        SceneManager->InteractionManager->ToggleRoaming();
+        SceneManager->InteractionManager->RequestUiAction(ETwinUiRequest::ToggleRoaming);
         return true;
     }
     if (Key == EKeys::Escape)
     {
-        Back();
+        SceneManager->InteractionManager->RequestUiAction(ETwinUiRequest::WebBack);
         return true;
     }
     return false;
+}
+
+void UOntoTwinWebInteractionComponent::RequestBackFromHost()
+{
+    if (SceneManager && SceneManager->InteractionManager)
+    {
+        SceneManager->InteractionManager->RequestUiAction(ETwinUiRequest::WebBack);
+    }
+}
+
+void UOntoTwinWebInteractionComponent::RequestCloseFromHost()
+{
+    if (SceneManager && SceneManager->InteractionManager)
+    {
+        SceneManager->InteractionManager->RequestUiAction(ETwinUiRequest::WebClose);
+    }
 }
 
 void UOntoTwinWebInteractionComponent::ResetHome()
@@ -1441,7 +1458,10 @@ void UOntoTwinWebInteractionComponent::SelectAndFocusInstance(const FString& Ins
     if (ATwinInstance* Instance = SceneManager->FindManagedInstance(InstanceId))
     {
         SceneManager->SelectOverlayFromSceneInteraction(Instance);
-        if (!CurrentFrame.bKeepCamera) SceneManager->FocusManagedInstance(Instance);
+        // KeepCamera suppresses automatic framing when entering a highlighted
+        // business scope. An explicit instance selection must still focus it,
+        // without clearing the inherited highlight or visibility scope.
+        SceneManager->FocusManagedInstance(Instance);
     }
 }
 

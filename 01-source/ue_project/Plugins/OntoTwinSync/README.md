@@ -99,11 +99,15 @@ Web“UE 运行状态”会显示小地图当前状态。若显示“缺少地�
    - 孪生体蓝图类：选你的 `BP_TwinInstance`（不选则用 C++ 基类）
 5. 点 Play：实例自动出现；前端改状态（位置/材质/动画），UE 0.5 秒内跟随
 
-### 多工厂 / 多 UE 工程
+### 多工厂 / 多 UE 工程与数据库绑定 (2.3+ PG 架构)
 
-后端实例按 `scene_id` 分文件持久化（`backend/data/scenes/{scene}.json`），重启不丢。
-多个 UE 工程对接同一后端时，各自在 `TwinSceneManager` 的**场景ID**里填不同的场景名，
-即可各拉各的场景、互不串台。一个场景文件自带渲染配置，可整包拷到另一台后端/工程直接用。
+现代 OntoTwin 使用 PostgreSQL 作为单一真实数据源（`ONTOTWIN_STORE=pg`）。
+- **工程身份识别**：插件通过请求头 `X-OntoTwin-UE-Project-Id` 自动标识 UE 工程。
+- **数据集绑定**：每个 UE 工程绑定到 OntoTwin 的指定数据集（`ds_xxx`）。
+  - 新建或迁移工程首次连接时，在 Web 端激活目标数据集，然后在 UE 的 `TwinSceneManager` 点击“**绑定当前UE工程到激活数据集**”（或按 F10 在运行时面板中点击绑定）。
+  - 若需要切换或抢占绑定，点击“**强制重新绑定当前UE工程到激活数据集**”。
+- **多关卡/分区隔离**：同一工程下如有多个流送关卡，可在 `TwinSceneManager` 中填写 `SceneId`（对应分区 Zone ID），实现不同子区域的实例过滤与增量隔离。
+- **健康诊断**：访问 `http://localhost:5000/api/v2/ue/diagnostics` 可随时查看当前 PG 连通性、绑定索引与冲突自愈建议。
 
 ## 1.x legacy 组件什么时候用
 

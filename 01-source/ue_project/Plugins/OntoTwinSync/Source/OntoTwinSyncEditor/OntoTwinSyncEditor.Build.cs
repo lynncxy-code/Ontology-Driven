@@ -23,6 +23,10 @@ public class OntoTwinSyncEditor : ModuleRules
 			"OntoTwinSync",
 			"Slate",
 			"SlateCore",
+			"InputCore",
+			"DesktopPlatform",
+			"RenderCore",
+			"RHI",
 			"ToolMenus",
 			"UMGEditor"
 		});

@@ -6,6 +6,7 @@
 #include "BeltMaterialComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/TextRenderComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicMotionTest, "OntoTwin.Presentation.BasicModelMotion",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -110,6 +111,84 @@ bool FBasicMotionTest::RunTest(const FString& Parameters)
         Twin->ExecutePresentationRoute(TEXT("visual"), TEXT("safe.visible"), TEXT("status_indicator"));
         TestTrue(TEXT("Belt reset restores original material"), Model->GetMaterial(0) == OriginalMaterial);
     }
+    World->DestroyWorld(false);
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPresentationFallbackPositionTest, "OntoTwin.Presentation.FallbackPreservesPosition",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FPresentationFallbackPositionTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+    auto* Twin = World->SpawnActor<ATwinInstance>();
+    Twin->InitializeTwin(TEXT("fallback-position"), TEXT("/Engine/BasicShapes/Cube.Cube"), TEXT(""), TEXT(""), TEXT("primary"));
+    Twin->DispatchBeginPlay();
+    const FTransform Initial(FRotator(10,30,20), FVector(1234,5678,90), FVector(2,3,4));
+    Twin->SetActorTransform(Initial);
+    TestFalse(TEXT("Unknown route is not claimed as applied"), Twin->ExecutePresentationRoute(TEXT("animation"), TEXT("missing.animation"), TEXT("motion"), TEXT("project")));
+    TestTrue(TEXT("Uninitialized legacy baseline never teleports to zero"), Twin->GetActorTransform().Equals(Initial,.01));
+    Twin->PlayPresentationAnimation(TEXT("translate"));
+    static_cast<AActor*>(Twin)->Tick(.5f);
+    TestFalse(TEXT("Test precondition: legacy motion actually runs"), Twin->GetActorTransform().Equals(Initial,.01));
+    const FTransform Latest(FRotator(5,120,0), FVector(9000,8000,700), FVector(2,3,4));
+    Twin->SetActorTransform(Latest);
+    Twin->ExecutePresentationRoute(TEXT("animation"), TEXT("missing.animation"), TEXT("motion"), TEXT("project"));
+    static_cast<AActor*>(Twin)->Tick(.5f);
+    TestTrue(TEXT("Failed route stops legacy animation without restoring stale location"), Twin->GetActorTransform().Equals(Latest,.01));
+    Twin->PlayPresentationAnimation(TEXT("translate"));
+    auto Channels = MakeShared<FJsonObject>();
+    auto Route = MakeShared<FJsonObject>();
+    Route->SetStringField(TEXT("behavior_id"), TEXT("safe.idle"));
+    Channels->SetObjectField(TEXT("animation"), Route);
+    auto Resolution = MakeShared<FJsonObject>(); Resolution->SetObjectField(TEXT("channels"), Channels);
+    auto Presentation = MakeShared<FJsonObject>(); Presentation->SetObjectField(TEXT("resolution"), Resolution);
+    auto Interfaces = MakeShared<FJsonObject>(); Interfaces->SetObjectField(TEXT("I3D_Presentation"), Presentation);
+    auto Snapshot = MakeShared<FJsonObject>(); Snapshot->SetObjectField(TEXT("interfaces"), Interfaces);
+    Twin->ApplySnapshot(Snapshot);
+    static_cast<AActor*>(Twin)->Tick(.5f);
+    TestTrue(TEXT("Authoritative clear stops legacy motion without moving actor"), Twin->GetActorTransform().Equals(Latest,.01));
+    World->DestroyWorld(false);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPlainLabelTest, "OntoTwin.Presentation.TypeOwnedPlainLabel",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FPlainLabelTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+    auto* Twin = World->SpawnActor<ATwinInstance>();
+    Twin->InitializeTwin(TEXT("type-label"), TEXT("/Engine/BasicShapes/Cube.Cube"), TEXT(""), TEXT(""), TEXT("primary"));
+    auto* Label = Twin->FindComponentByClass<UTextRenderComponent>();
+    TestNotNull(TEXT("Plain label component exists"), Label);
+    if (!Label) { World->DestroyWorld(false); return false; }
+    TestFalse(TEXT("Default hidden"), Label->IsVisible());
+    auto Interfaces = MakeShared<FJsonObject>();
+    auto Visual = MakeShared<FJsonObject>();
+    Visual->SetStringField(TEXT("ui_label_content"), TEXT("Device A"));
+    Interfaces->SetObjectField(TEXT("I3D_Visual"), Visual);
+    auto Snapshot = MakeShared<FJsonObject>();
+    Snapshot->SetObjectField(TEXT("interfaces"), Interfaces);
+    Twin->ApplySnapshot(Snapshot);
+    TestTrue(TEXT("Visual-only type can display a label"), Label->IsVisible());
+    TestEqual(TEXT("Type-resolved text applied"), Label->Text.ToString(), FString(TEXT("Device A")));
+    auto Overlay = MakeShared<FJsonObject>();
+    Overlay->SetBoolField(TEXT("enabled"), true);
+    Overlay->SetStringField(TEXT("display_mode"), TEXT("selected"));
+    Interfaces->SetObjectField(TEXT("I3D_Overlay"), Overlay);
+    Twin->ApplySnapshot(Snapshot);
+    TestTrue(TEXT("Popup configuration does not suppress plain label"), Label->IsVisible());
+    Visual->SetStringField(TEXT("ui_label_content"), TEXT(""));
+    Twin->ApplySnapshot(Snapshot);
+    TestFalse(TEXT("Turning type label off clears visible label"), Label->IsVisible());
+    TestTrue(TEXT("Old text removed"), Label->Text.IsEmpty());
+    Interfaces->RemoveField(TEXT("I3D_Overlay"));
+    Twin->ApplySnapshot(Snapshot);
+    TestFalse(TEXT("Removing popup never resurrects cleared text"), Label->IsVisible());
+    Visual->SetStringField(TEXT("ui_label_content"), TEXT("Device B"));
+    Twin->ApplySnapshot(Snapshot);
+    Interfaces->RemoveField(TEXT("I3D_Visual"));
+    Twin->ApplySnapshot(Snapshot);
+    TestFalse(TEXT("Removing capability clears label"), Label->IsVisible());
     World->DestroyWorld(false);
     return true;
 }

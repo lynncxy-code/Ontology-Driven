@@ -118,15 +118,19 @@ bool UTwinCameraModeComponent::ActivateMode(
     FString& OutError,
     bool bInstant)
 {
+    UE_LOG(LogTemp, Verbose, TEXT("OntoTwin camera request mode=%d instant=%d current=%d"),
+        static_cast<int32>(NewMode), bInstant ? 1 : 0, static_cast<int32>(Mode));
     ATwinRoamingCharacter* Character = Cast<ATwinRoamingCharacter>(GetOwner());
     if (!PlayerController || !Character || !GetWorld())
     {
         OutError = TEXT("Player controller or roaming character is unavailable");
+        UE_LOG(LogTemp, Warning, TEXT("OntoTwin camera request rejected: %s"), *OutError);
         return false;
     }
     if (IsTransitioning())
     {
         OutError = TEXT("Camera transition is already in progress");
+        UE_LOG(LogTemp, Warning, TEXT("OntoTwin camera request rejected: %s"), *OutError);
         return false;
     }
     if (NewMode == Mode
@@ -138,6 +142,7 @@ bool UTwinCameraModeComponent::ActivateMode(
 
     if (NewMode == ETwinRoamingCameraMode::God && !EnsureGodPawn(StartAnchor, OutError))
     {
+        UE_LOG(LogTemp, Warning, TEXT("OntoTwin camera request rejected: %s"), *OutError);
         return false;
     }
     if (NewMode == ETwinRoamingCameraMode::God)
@@ -166,6 +171,8 @@ bool UTwinCameraModeComponent::ActivateMode(
             ApplyPersonControlRotation(PlayerController, NewMode);
             ClearGodViewVisibility(PlayerController);
         }
+        UE_LOG(LogTemp, Log, TEXT("OntoTwin camera activated mode=%d instant=1"),
+            static_cast<int32>(NewMode));
         return true;
     }
 
@@ -205,6 +212,8 @@ bool UTwinCameraModeComponent::ActivateMode(
         &UTwinCameraModeComponent::FinishViewTargetTransition,
         GlobalCameraBlendSeconds,
         false);
+    UE_LOG(LogTemp, Log, TEXT("OntoTwin camera blend started previous=%d next=%d duration=%.2f"),
+        static_cast<int32>(PreviousMode), static_cast<int32>(NewMode), GlobalCameraBlendSeconds);
     return true;
 }
 
@@ -227,6 +236,8 @@ void UTwinCameraModeComponent::FinishViewTargetTransition()
     }
     bViewTargetTransitioning = false;
     TransitionController = nullptr;
+    UE_LOG(LogTemp, Log, TEXT("OntoTwin camera blend finished mode=%d"),
+        static_cast<int32>(PendingMode));
 }
 
 bool UTwinCameraModeComponent::ActivateNear(APlayerController* PlayerController, bool bInstant)

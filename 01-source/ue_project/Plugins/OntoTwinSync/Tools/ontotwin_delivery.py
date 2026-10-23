@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import re
 import shutil
 import subprocess
 import threading
@@ -59,14 +60,18 @@ def source_hash(plugin):
 def plugin_info(plugin):
     root = Path(plugin)
     descriptor = read_json(root / "OntoTwinSync.uplugin")
+    source_files = [p for p in (root / "Source").rglob("*") if p.is_file()]
     resource_files = []
     for name in ("Content", "Resources", "Config", "Tools"):
         if (root / name).is_dir():
             resource_files.extend((p, p.relative_to(root)) for p, _ in inventory(root / name))
     resource_files.sort(key=lambda item: item[1].as_posix())
+    tracked_files = source_files + [root / "OntoTwinSync.uplugin"] + [p for p, _ in resource_files]
+    updated_at = max((p.stat().st_mtime for p in tracked_files), default=0)
     resource_hash = hashlib.sha256("".join(f"{rel.as_posix()}\0{digest(p)}\n" for p, rel in resource_files).encode("utf-8")).hexdigest()
     return {"path": str(root.absolute()), "resolved_path": str(root.resolve()), "resource_hash": resource_hash,
             "version": descriptor.get("VersionName", "未标记"), "source_hash": source_hash(root),
+            "last_updated": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(updated_at)) if updated_at else "未知",
             "shared": root.absolute() != root.resolve()}
 
 
@@ -163,33 +168,116 @@ def fetch_package(base, dataset_id, ue_id):
     return data
 
 
+def _additional_plugin_entries(project, descriptor):
+    """Materialize UE's external plugin roots under the delivery Plugins folder."""
+    raw_roots = descriptor.get("AdditionalPluginDirectories") or []
+    if isinstance(raw_roots, str):
+        raw_roots = [raw_roots]
+    if not isinstance(raw_roots, list):
+        raise ValueError("工程的 AdditionalPluginDirectories 格式不正确")
+    entries = []
+    roots = []
+    for raw in raw_roots:
+        value = str(raw or "").strip()
+        if not value:
+            continue
+        candidate = Path(value)
+        if not candidate.is_absolute():
+            candidate = project.parent / candidate
+        try:
+            candidate = candidate.resolve(strict=True)
+        except FileNotFoundError as exc:
+            raise ValueError(f"外部插件目录不存在：{value}") from exc
+        if not candidate.is_dir():
+            raise ValueError(f"外部插件路径不是目录：{candidate}")
+        # A project-local directory is already covered by the normal project scan.
+        if inside(candidate, project.parent / "Plugins"):
+            continue
+        direct_plugin = any(p.is_file() and p.suffix.lower() == ".uplugin" for p in candidate.iterdir())
+        prefix = Path("Plugins") / candidate.name if direct_plugin else Path("Plugins")
+        for source, relative in inventory(candidate):
+            entries.append((source, prefix / relative))
+        roots.append(candidate)
+    return entries, roots
+
+
+def _merge_entries(local_entries, extra_entries):
+    merged = []
+    seen = {}
+    plugins = {}
+    for source, relative in [*local_entries, *extra_entries]:
+        if relative.suffix.lower() == ".uplugin":
+            name = relative.stem.casefold()
+            if name in plugins:
+                raise ValueError(f"交付目录存在重复插件：{relative.stem}（{plugins[name]} 与 {source}）")
+            plugins[name] = source
+        key = relative.as_posix().casefold()
+        if key in seen:
+            raise ValueError(f"交付目录存在重复插件文件：{relative}（来源：{seen[key]} 与 {source}）")
+        seen[key] = source
+        merged.append((source, relative))
+    return merged
+
+
+def _installed_engine_plugin_roots(entries):
+    """Find Installed:true plugin roots that UE requires in Engine/Plugins/Marketplace."""
+    roots = {}
+    for source, relative in entries:
+        if relative.suffix.lower() != ".uplugin":
+            continue
+        descriptor = read_json(source)
+        if descriptor.get("Installed") is True:
+            roots[Path(source).parent.resolve()] = relative.stem
+    return roots
+
+
+def _delivery_relative_path(source, relative, engine_plugin_roots):
+    source = Path(source).resolve()
+    for root, plugin_name in sorted(engine_plugin_roots.items(), key=lambda item: len(item[0].parts), reverse=True):
+        if source.is_relative_to(root):
+            return Path("EnginePlugins") / "Marketplace" / plugin_name / source.relative_to(root)
+    return relative
+
+
+def _write_engine_plugin_installer(output, plugin_names):
+    """Write an explicit installer for staged engine-level plugins."""
+    if any(not re.fullmatch(r'[A-Za-z0-9_]+', name) for name in plugin_names):
+        raise ValueError('Invalid engine plugin name')
+    template = Path(__file__).with_name('Install-EnginePlugins.template.ps1').read_text(encoding='utf-8')
+    path = Path(output) / 'Install-EnginePlugins.ps1'
+    path.write_text(template.replace('__PLUGIN_NAMES__', ', '.join("'" + name + "'" for name in plugin_names)), encoding='utf-8-sig')
+    return path
+
+
 def project_files(project):
     project = Path(project).resolve(strict=True)
     if project.suffix.lower() != ".uproject":
         raise ValueError("请选择 .uproject 文件")
     desc = read_json(project)
-    if desc.get("AdditionalPluginDirectories") or desc.get("AdditionalRootDirectories"):
-        raise ValueError("工程引用了额外插件/资源目录，需先迁入工程 Plugins/Content 后再导出。")
+    if desc.get("AdditionalRootDirectories"):
+        raise ValueError("工程引用了额外资源目录，需先迁入工程 Content/Art 后再导出。")
     entries = [(project, Path(project.name))]
     for name in ("Config", "Content", "Source", "Build", "Plugins", "Art"):
         folder = project.parent / name
         if folder.exists():
             entries.extend((p, Path(name) / rel) for p, rel in inventory(folder))
-    return project, desc, entries
+    external_entries, _ = _additional_plugin_entries(project, desc)
+    return project, desc, _merge_entries(entries, external_entries)
 
 
 def export_project(context, destination, base, dataset_id, ue_id, source_only=False, progress=lambda s: None):
     project, desc, entries = project_files(context["project"])
+    _, external_plugin_roots = _additional_plugin_entries(project, desc)
+    engine_plugin_roots = _installed_engine_plugin_roots(entries)
     plugin = Path(context["plugin"])
-    expected = project.parent / "Plugins" / "OntoTwinSync"
-    if expected.resolve() != plugin.resolve():
-        raise ValueError("当前插件不是工程 Plugins 下的 OntoTwinSync，无法保证独立交付。")
+    plugin_descriptors = [(src, rel) for src, rel in entries
+                          if rel.name == "OntoTwinSync.uplugin"]
+    if len(plugin_descriptors) != 1 or plugin_descriptors[0][0].parent.resolve() != plugin.resolve():
+        raise ValueError("导出范围中的 OntoTwinSync 与当前运行插件不一致，停止导出。")
     roots = {project.parent}
+    roots.update(external_plugin_roots)
     for p, _ in entries:
-        for parent in p.parents:
-            if parent == project.parent:
-                break
-            roots.add(parent.resolve())
+        roots.add(p.parent.resolve())
     output = ensure_destination(destination, roots)
     progress("检查数据集与附件…")
     package = None if source_only else fetch_package(base, dataset_id, ue_id)
@@ -204,23 +292,40 @@ def export_project(context, destination, base, dataset_id, ue_id, source_only=Fa
     records = []
     try:
         for index, (src, relative) in enumerate(entries):
-            dst = output / relative
+            delivery_relative = _delivery_relative_path(src, relative, engine_plugin_roots)
+            dst = output / delivery_relative
             dst.parent.mkdir(parents=True, exist_ok=True)
             before = src.stat()
-            shutil.copyfile(src, dst)
+            source_hash_before = digest(src)
+            is_project_descriptor = relative == Path(project.name)
+            if is_project_descriptor:
+                if read_json(src) != desc:
+                    raise ValueError("导出期间工程配置变化，请重新导出")
+                delivery_desc = dict(desc)
+                delivery_desc.pop("AdditionalPluginDirectories", None)
+                dst.write_text(json.dumps(delivery_desc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            else:
+                shutil.copyfile(src, dst)
             copied_hash = digest(dst)
-            if copied_hash != digest(src) or src.stat().st_mtime_ns != before.st_mtime_ns:
+            if src.stat().st_mtime_ns != before.st_mtime_ns:
                 raise ValueError(f"复制期间文件发生变化，请停止保存后重新导出：{relative}")
-            records.append({"path": relative.as_posix(), "size": dst.stat().st_size, "sha256": copied_hash})
+            if not is_project_descriptor and copied_hash != source_hash_before:
+                raise ValueError(f"复制期间文件发生变化，请停止保存后重新导出：{relative}")
+            record = {"path": delivery_relative.as_posix(), "size": dst.stat().st_size, "sha256": copied_hash}
+            if is_project_descriptor:
+                record["source_sha256"] = source_hash_before
+                record["transformed"] = True
+            records.append(record)
             if index % 100 == 0:
-                progress(f"复制并校验 {index + 1}/{len(entries)}：{relative}")
+                progress(f"复制并校验 {index + 1}/{len(entries)}：{delivery_relative}")
         # Catch additions/removals and late edits, not only edits during a single copy.
         _, _, final_entries = project_files(project)
-        if {str(r) for _, r in final_entries} != {str(r) for _, r in entries}:
+        if {(str(p.resolve()), str(r)) for p, r in final_entries} != {(str(p.resolve()), str(r)) for p, r in entries}:
             raise ValueError("导出期间源工程文件列表变化，请重新导出")
         progress("复核源文件未变化…")
         for (src, _), record in zip(entries, records):
-            if digest(src) != record["sha256"]:
+            expected_source_hash = record.get("source_sha256", record["sha256"])
+            if digest(src) != expected_source_hash:
                 raise ValueError(f"导出期间源文件变化：{record['path']}")
         delivery = output / "OntoTwinDelivery"
         delivery.mkdir()
@@ -228,20 +333,29 @@ def export_project(context, destination, base, dataset_id, ue_id, source_only=Fa
             (delivery / "project.otdataset").write_bytes(package)
         versions = version_report(context)
         plugin_descriptors = []
-        for _, relative in entries:
-            if relative.suffix == ".uplugin":
+        for record in records:
+            relative = Path(record["path"])
+            if relative.suffix.lower() == ".uplugin":
                 descriptor = read_json(output / relative)
                 plugin_descriptors.append({"path": relative.as_posix(), "version": descriptor.get("VersionName"),
                                            "dependencies": descriptor.get("Plugins", [])})
+        engine_plugin_names = sorted(engine_plugin_roots.values(), key=str.casefold)
+        if engine_plugin_names:
+            installer = _write_engine_plugin_installer(output, engine_plugin_names)
+            records.append({"path": installer.relative_to(output).as_posix(), "size": installer.stat().st_size,
+                            "sha256": digest(installer), "generated": True})
         manifest = {"schema": 1, "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
                     "kind": "editable-source-project", "engine_association": desc.get("EngineAssociation"),
                     "versions": versions, "dataset_id": None if source_only else dataset_id,
                     "ue_project_id": ue_id, "dataset_sha256": hashlib.sha256(package).hexdigest() if package else None,
                     "files": records, "requires_rebuild": True, "plugin_descriptors": plugin_descriptors,
+                    "engine_plugins": engine_plugin_names,
                     "notes": ["这是可编辑工程，不是已打包程序。请在目标机重编译，不承诺复制的旧 DLL 与源码一致。",
-                              "引擎级第三方插件不会自动携带，请按依赖清单安装。",
+                              ("交付包包含 EnginePlugins/Marketplace 下的引擎级插件；请关闭 UE 后运行 Install-EnginePlugins.ps1 -EngineRoot <UE根目录>，再生成工程文件。" if engine_plugin_names
+                               else "本交付未发现 Installed:true 的引擎级插件。"),
                               "外部视频网关、实时接口、绝对路径引用与商业资源授权需另行配置。"],
-                    "project_plugin_requirements": desc.get("Plugins", [])}
+                    "project_plugin_requirements": desc.get("Plugins", []),
+                    "external_plugin_directories": [str(path) for path in external_plugin_roots]}
         write_json(delivery / "manifest.json", manifest)
         (delivery / "交付说明.md").write_text(
             "# OntoTwin 可编辑工程交付\n\n"
@@ -250,6 +364,8 @@ def export_project(context, destination, base, dataset_id, ue_id, source_only=Fa
             "3. 启动兼容版本 OntoTwin 后端，在“导入数据集包”导入 project.otdataset，并确认绑定此工程的 UE 编号。\n"
             "4. 核对后端地址、视频网关和其他外部服务，验收漫游、空间跳转、底图及业务交互。\n\n"
             + ("本次明确选择仅工程，未带数据集/底图。\n" if source_only else "数据集及其附件随 project.otdataset 提供；不是仅拷 UE 插件。\n")
+            + ("外部插件目录已复制到本工程 Plugins，并已移除交付副本中的 AdditionalPluginDirectories。\n" if external_plugin_roots else "")
+            + (("引擎级插件已隔离到 EnginePlugins/Marketplace；请先运行 Install-EnginePlugins.ps1，再打开工程。\n") if engine_plugin_names else "")
             + "\n所有工程内目录链接已展开为真实文件。版本及逐文件校验见 manifest.json。\n", encoding="utf-8")
         marker.unlink()
         progress(f"导出完成：{output}（目标机需编译与验收）")
@@ -343,13 +459,13 @@ def rebuild(context, progress=lambda s: None):
     progress("编译成功。请重新打开 UE，再从工具菜单检查版本（本窗口运行标识仍是启动时快照）。")
 
 
-def launch_gui(context):
+def _window_base(context, title, subtitle, size="720x520"):
     import tkinter as tk
-    from tkinter import ttk, filedialog, messagebox
+    from tkinter import ttk
     root = tk.Tk()
-    root.title("OntoTwin · 插件版本与交付")
-    root.geometry("920x760")
-    root.minsize(820, 650)
+    root.title(title)
+    root.geometry(size)
+    root.minsize(620, 420)
     style = ttk.Style(root)
     style.theme_use("clam")
     style.configure(".", font=("Microsoft YaHei UI", 10))
@@ -357,161 +473,171 @@ def launch_gui(context):
     style.configure("TLabel", background="#f5f5f5", foreground="#222222")
     outer = ttk.Frame(root, padding=18)
     outer.pack(fill="both", expand=True)
-    ttk.Label(outer, text="插件版本与更新 / 导出交付工程", font=("Microsoft YaHei UI", 16, "bold")).pack(anchor="w")
-    ttk.Label(outer, text="当前工程：" + context["project"], wraplength=860).pack(anchor="w", pady=(8, 12))
-    config_file = Path(context["project"]).parent / "Saved" / "OntoTwinDelivery" / "preferences.json"
-    settings = read_json(config_file) if config_file.exists() else {}
-    inferred = Path(context["plugin"]).resolve()
-    default_mother = str(inferred) if (inferred.parent.parent.parent / "backend").is_dir() else ""
-    mother = tk.StringVar(value=settings.get("mother", default_mother))
-    base = tk.StringVar(value=context.get("backend") or "http://localhost:5000")
-    ue_id = tk.StringVar(value=context.get("ue_id", ""))
-    selected = tk.StringVar()
-    output = tk.StringVar(value=str(Path(context["project"]).parent.parent / (Path(context["project"]).stem + "_delivery_" + time.strftime("%Y%m%d_%H%M%S"))))
-    source_only = tk.BooleanVar(value=False)
-    events = queue.Queue()
-    busy = [False]
-    ds_records = []
+    ttk.Label(outer, text=title, font=("Microsoft YaHei UI", 16, "bold")).pack(anchor="w")
+    ttk.Label(outer, text=subtitle, wraplength=680).pack(anchor="w", pady=(6, 12))
+    ttk.Label(outer, text="当前工程：" + context["project"], wraplength=680).pack(anchor="w", pady=(0, 12))
+    return root, outer
 
-    def row(label, variable, browse=False):
-        frame = ttk.Frame(outer)
-        frame.pack(fill="x", pady=4)
-        ttk.Label(frame, text=label, width=17).pack(side="left")
-        ttk.Entry(frame, textvariable=variable).pack(side="left", fill="x", expand=True)
-        if browse:
-            def choose():
-                path = filedialog.askdirectory(parent=root)
-                if path:
-                    variable.set(path)
-            ttk.Button(frame, text="选择", command=choose).pack(side="right", padx=(8, 0))
-    row("本机母本插件目录", mother, True)
-    row("后端地址", base)
-    row("当前 UE 项目编号", ue_id)
-    ds_row = ttk.Frame(outer)
-    ds_row.pack(fill="x", pady=4)
-    ttk.Label(ds_row, text="交付数据集", width=17).pack(side="left")
-    ds_combo = ttk.Combobox(ds_row, textvariable=selected, state="readonly")
-    ds_combo.pack(side="left", fill="x", expand=True)
-    row("输出新目录", output)
-    ttk.Checkbutton(outer, text="仅导出 UE 工程（明确不带数据集、CAD 与图片底图）", variable=source_only).pack(anchor="w", pady=6)
-    ttk.Label(outer, text="导出是独立可编辑工程，不是打包程序。先保存所有资产，导出期间不要保存或改动文件。\n母本仅指所选本机目录；差异不代表谁更新。不自动拉取 main，也不热替换运行中的 DLL。", wraplength=860).pack(anchor="w", pady=6)
-    buttons = ttk.Frame(outer)
-    buttons.pack(fill="x", pady=8)
-    report = tk.Text(outer, wrap="word", background="#ffffff", foreground="#222222", relief="flat", padx=12, pady=10, font=("Microsoft YaHei UI", 10))
-    report.pack(fill="both", expand=True)
-    report.configure(state="disabled")
-    status = tk.StringVar(value="就绪")
-    ttk.Label(outer, textvariable=status, wraplength=860).pack(anchor="w", pady=(8, 0))
 
-    def log(text):
+def _start_job(root, report, status, events, busy, work):
+    if busy[0]:
+        return
+    busy[0] = True
+    status.set("处理中…")
+    def worker():
+        try:
+            work()
+        except Exception as exc:
+            events.put(("error", str(exc)))
+        finally:
+            events.put(("done", None))
+    threading.Thread(target=worker, daemon=False).start()
+
+
+def _attach_job_loop(root, report, status, events, busy):
+    def log(message):
         report.configure(state="normal")
-        report.insert("end", text + "\n")
+        report.insert("end", message + "\n")
         report.see("end")
         report.configure(state="disabled")
-
-    def run(work):
-        if busy[0]:
-            return
-        busy[0] = True
-        status.set("处理中…")
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        write_json(config_file, {"mother": mother.get().strip()})
-        def worker():
-            try:
-                work()
-            except Exception as exc:
-                events.put(("error", str(exc)))
-            finally:
-                events.put(("done", None))
-        threading.Thread(target=worker, daemon=False).start()
-
-    def emit(text):
-        events.put(("log", text))
-
-    def check():
-        path = mother.get().strip()
-        def work():
-            r = version_report(context, path or None)
-            c = r["current"]
-            emit(f"\n本工程：{c['version']} · 源码 {c['source_hash'][:12]} · 资源 {c['resource_hash'][:12]}\n实际运行构建：{r['loaded_hash'][:12] or '未知'}\n{r['runtime_status']}\n插件来源：{'共享母本（链接）' if c['shared'] else '独立目录'}\n真实路径：{c['resolved_path']}")
-            if r["mother"]:
-                m = r["mother"]
-                emit(f"本机母本：{m['version']} · 源码 {m['source_hash'][:12]} · 资源 {m['resource_hash'][:12]}\n{r['mother_status']}")
-            else:
-                emit(r["mother_status"])
-            emit("注：源码编号随 Source / uplugin 内容改变；资产变化以交付清单逐文件校验为准。运行标识是打开本窗口时的 UE 快照。")
-        run(work)
-
-    def load_datasets():
-        address, identity = base.get().strip(), ue_id.get().strip()
-        def work():
-            records = [d for d in datasets(address) if d.get("id") != "demo"]
-            events.put(("datasets", (records, identity)))
-        run(work)
-
-    def export():
-        args = (output.get().strip(), base.get().strip(), selected.get().split(" | ")[0], ue_id.get().strip(), source_only.get())
-        if not args[0] or (not args[4] and not args[2]):
-            messagebox.showwarning("未准备好", "请填写输出目录，并读取/选择绑定数据集。", parent=root)
-            return
-        if messagebox.askokcancel("确认交付范围", "已保存工程？\n\n将复制整个工程的 Content、Config、Source、Build、Plugins、Art，展开目录链接。\n不会修改原工程；不会自动安装引擎级插件或外部视频服务。\n\n输出：" + args[0], parent=root):
-            run(lambda: export_project(context, *args, progress=emit))
-
-    def update():
-        path = mother.get().strip()
-        if not path:
-            messagebox.showwarning("选择母本", "请先选择母本插件目录。", parent=root)
-            return
-        if messagebox.askokcancel("更新独立插件副本", "请先关闭所有 UE 编辑器，可保留本窗口。\n\n所选母本将替换此工程插件（含本地改动）。旧目录会完整备份，不复制 DLL；更新后必须重新编译。\n若是共享母本，无需复制。", parent=root):
-            run(lambda: update_copy(context["plugin"], path, emit))
-
-    def compile_update():
-        if messagebox.askokcancel("编译工程插件", "请先关闭所有 UE 编辑器。\n\n将使用当前 UE 安装编译本工程，需要 Visual Studio C++ 工具链；不会打开编辑器或改变数据集。", parent=root):
-            run(lambda: rebuild(context, emit))
-
-    ttk.Button(buttons, text="检查版本", command=check).pack(side="left", padx=(0, 8))
-    ttk.Button(buttons, text="读取数据集", command=load_datasets).pack(side="left", padx=(0, 8))
-    ttk.Button(buttons, text="更新独立副本", command=update).pack(side="left", padx=(0, 8))
-    ttk.Button(buttons, text="编译更新", command=compile_update).pack(side="left", padx=(0, 8))
-    ttk.Button(buttons, text="导出交付工程", command=export).pack(side="left")
-
     def poll():
         try:
             while True:
                 kind, value = events.get_nowait()
                 if kind == "log":
-                    log(value)
-                    status.set(value)
+                    log(value); status.set(value)
                 elif kind == "error":
-                    log("未完成：" + value)
-                    status.set("未完成，请查看原因")
+                    log("未完成：" + value); status.set("未完成，请查看原因")
                 elif kind == "done":
                     busy[0] = False
                 elif kind == "datasets":
-                    records, identity = value
-                    ds_records[:] = records
-                    labels = [f"{d['id']} | {d.get('name', '')} | UE: {d.get('bound_ue_project_id') or '未绑定'}" for d in records]
-                    ds_combo["values"] = labels
-                    matches = [i for i, d in enumerate(records) if identity and d.get("bound_ue_project_id") == identity]
-                    selected.set(labels[matches[0]] if len(matches) == 1 else "")
-                    log("已读取数据集；" + ("已按 UE 编号匹配，未改变平台激活状态。" if len(matches) == 1 else "没有唯一匹配，请确认 UE 编号和绑定关系。"))
+                    yield_value = value
+                    root._ontotwin_datasets = yield_value
+                    root.event_generate("<<OntoTwinDatasets>>", when="tail")
         except queue.Empty:
             pass
         root.after(150, poll)
-
-    def close():
-        if busy[0]:
-            messagebox.showinfo("正在处理", "为保证文件完整，请等本次操作结束后关闭。", parent=root)
-        else:
-            root.destroy()
-    root.protocol("WM_DELETE_WINDOW", close)
     poll()
-    check()
+    return log
+
+
+def launch_version_gui(context):
+    import tkinter as tk
+    from tkinter import ttk, filedialog, messagebox
+    root, outer = _window_base(context, "OntoTwin · 插件版本", "只查看和更新当前工程的 OntoTwin 插件。导出交付请从工具菜单单独打开。")
+    config_file = Path(context["project"]).parent / "Saved" / "OntoTwinDelivery" / "preferences.json"
+    settings = read_json(config_file) if config_file.exists() else {}
+    inferred = Path(context["plugin"]).resolve()
+    default_mother = str(inferred) if (inferred.parent.parent.parent / "backend").is_dir() else ""
+    mother = tk.StringVar(value=settings.get("mother", default_mother))
+    events, busy = queue.Queue(), [False]
+    def row(label, variable, browse=False):
+        frame = ttk.Frame(outer); frame.pack(fill="x", pady=5)
+        ttk.Label(frame, text=label, width=16).pack(side="left")
+        ttk.Entry(frame, textvariable=variable).pack(side="left", fill="x", expand=True)
+        if browse:
+            ttk.Button(frame, text="选择目录", command=lambda: variable.set(filedialog.askdirectory(parent=root) or variable.get())).pack(side="right", padx=(8, 0))
+    row("本机母本", mother, True)
+    report = tk.Text(outer, height=13, wrap="word", background="#ffffff", relief="flat", padx=12, pady=10)
+    report.pack(fill="both", expand=True, pady=(10, 6)); report.configure(state="disabled")
+    status = tk.StringVar(value="就绪")
+    ttk.Label(outer, textvariable=status, wraplength=680).pack(anchor="w")
+    log = _attach_job_loop(root, report, status, events, busy)
+    def run(work):
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        write_json(config_file, {"mother": mother.get().strip()})
+        _start_job(root, report, status, events, busy, work)
+    def check():
+        def work():
+            r = version_report(context, mother.get().strip() or None); c = r["current"]
+            events.put(("log", f"当前插件：{c['version']}\n最后更新：{c['last_updated']}\n运行状态：{r['runtime_status']}\n插件来源：{'共享母本' if c['shared'] else '独立副本'}\n源码编号：{c['source_hash'][:12]}\n资源编号：{c['resource_hash'][:12]}\n母本状态：{r['mother_status']}"))
+            if r["mother"]:
+                events.put(("log", f"本机母本最后更新：{r['mother']['last_updated']}"))
+        run(work)
+    def update():
+        if not mother.get().strip():
+            messagebox.showwarning("需要母本", "请先选择本机母本插件目录。", parent=root); return
+        if messagebox.askokcancel("同步插件", "请先关闭所有 UE 编辑器。\n将把母本同步到当前工程，并保留旧副本备份。", parent=root):
+            run(lambda: update_copy(context["plugin"], mother.get().strip(), lambda m: events.put(("log", m))))
+    def compile_update():
+        if messagebox.askokcancel("重新编译", "请先关闭所有 UE 编辑器，再重新编译当前工程插件。", parent=root):
+            run(lambda: rebuild(context, lambda m: events.put(("log", m))))
+    buttons = ttk.Frame(outer); buttons.pack(fill="x", pady=(8, 0))
+    ttk.Button(buttons, text="检查版本", command=check).pack(side="left", padx=(0, 8))
+    ttk.Button(buttons, text="同步母本", command=update).pack(side="left", padx=(0, 8))
+    ttk.Button(buttons, text="重新编译", command=compile_update).pack(side="left")
+    root.protocol("WM_DELETE_WINDOW", lambda: root.destroy() if not busy[0] else messagebox.showinfo("正在处理", "请等待当前操作结束。", parent=root))
+    check(); root.mainloop()
+
+
+def launch_export_gui(context):
+    import tkinter as tk
+    from tkinter import ttk, filedialog, messagebox
+    root, outer = _window_base(context, "OntoTwin · 导出交付工程", "把当前工程和已绑定数据集导出成一份可换机继续编辑的副本。")
+    base = tk.StringVar(value=context.get("backend") or "http://localhost:5000")
+    ue_id = tk.StringVar(value=context.get("ue_id", "")); selected = tk.StringVar()
+    output = tk.StringVar(value=str(Path(context["project"]).parent.parent / (Path(context["project"]).stem + "_delivery_" + time.strftime("%Y%m%d_%H%M%S"))))
+    events, busy, records = queue.Queue(), [False], []
+    def row(label, variable, browse=False):
+        frame = ttk.Frame(outer); frame.pack(fill="x", pady=5)
+        ttk.Label(frame, text=label, width=16).pack(side="left")
+        ttk.Entry(frame, textvariable=variable).pack(side="left", fill="x", expand=True)
+        if browse:
+            ttk.Button(frame, text="选择目录", command=lambda: variable.set(filedialog.askdirectory(parent=root) or variable.get())).pack(side="right", padx=(8, 0))
+    row("后端地址", base); row("UE 项目编号", ue_id); row("输出目录", output, True)
+    frame = ttk.Frame(outer); frame.pack(fill="x", pady=5)
+    ttk.Label(frame, text="数据集", width=16).pack(side="left")
+    combo = ttk.Combobox(frame, textvariable=selected, state="readonly"); combo.pack(side="left", fill="x", expand=True)
+    report = tk.Text(outer, height=10, wrap="word", background="#ffffff", relief="flat", padx=12, pady=10)
+    report.pack(fill="both", expand=True, pady=(10, 6)); report.configure(state="disabled")
+    status = tk.StringVar(value="先点击“读取数据集”")
+    ttk.Label(outer, textvariable=status, wraplength=680).pack(anchor="w")
+    log = _attach_job_loop(root, report, status, events, busy)
+    def run(work): _start_job(root, report, status, events, busy, work)
+    def load():
+        def work():
+            found = [d for d in datasets(base.get().strip()) if d.get("id") != "demo"]
+            labels = [f"{d['id']} | {d.get('name', '')} | UE: {d.get('bound_ue_project_id') or '未绑定'}" for d in found]
+            events.put(("datasets", (found, labels)))
+        run(work)
+    def export():
+        if not selected.get() or not output.get().strip():
+            messagebox.showwarning("信息不完整", "请先读取并选择数据集，再确认输出目录。", parent=root); return
+        if messagebox.askokcancel("开始导出", "请先保存工程，并在导出期间不要修改文件。\n输出目录必须是全新的目录。", parent=root):
+            dataset_id = selected.get().split(" | ")[0]
+            run(lambda: export_project(context, output.get().strip(), base.get().strip(), dataset_id, ue_id.get().strip(), False, lambda m: events.put(("log", m))))
+    def on_datasets(_=None):
+        found, labels = getattr(root, "_ontotwin_datasets", ([], [])); records[:] = found; combo["values"] = labels
+        matches = [i for i, d in enumerate(found) if ue_id.get().strip() and d.get("bound_ue_project_id") == ue_id.get().strip()]
+        if len(matches) == 1:
+            combo.current(matches[0]); status.set("已按 UE 项目编号匹配数据集")
+            d = found[matches[0]]
+            log(f"已读取数据集：{d.get('name') or '未命名'}\n数据集 ID：{d.get('id', '未知')}\n绑定 UE：{d.get('bound_ue_project_id') or '未绑定'}\n不会改变平台当前激活项。")
+        elif labels:
+            status.set("请选择与当前 UE 项目编号绑定的数据集")
+            log(f"已读取 {len(found)} 个数据集；尚未自动选定。请从下拉框选择后再导出。")
+        else:
+            status.set("没有可用数据集")
+            log("未读取到可用数据集。")
+    root.bind("<<OntoTwinDatasets>>", on_datasets)
+    buttons = ttk.Frame(outer); buttons.pack(fill="x", pady=(8, 0))
+    ttk.Button(buttons, text="读取数据集", command=load).pack(side="left", padx=(0, 8))
+    ttk.Button(buttons, text="开始导出", command=export).pack(side="left")
+    root.protocol("WM_DELETE_WINDOW", lambda: root.destroy() if not busy[0] else messagebox.showinfo("正在处理", "请等待当前操作结束。", parent=root))
     root.mainloop()
+
+
+def launch_gui(context, mode=None):
+    selected_mode = mode or context.get("mode") or "version"
+    if selected_mode == "export":
+        launch_export_gui(context)
+    else:
+        launch_version_gui(context)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--context", required=True)
+    parser.add_argument("--mode", choices=("version", "export"), default=None)
     args = parser.parse_args()
-    launch_gui(read_json(args.context))
+    launch_gui(read_json(args.context), args.mode)

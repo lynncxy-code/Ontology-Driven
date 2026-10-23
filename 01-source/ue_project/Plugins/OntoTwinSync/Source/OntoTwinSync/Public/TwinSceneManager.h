@@ -63,6 +63,7 @@ struct FPreviewMaterialPartBaseline
     FString AssetPath;
     FString SourceActorGuid;
     FString SourceComponentName;
+    FTransform RelativeTransform;
     TArray<FString> DatabaseMaterialPaths;
     TArray<FString> ComponentMaterialPaths;
     TArray<FString> SavedMeshMaterialPaths;
@@ -206,7 +207,8 @@ public:
     UOntoTwinWebInteractionComponent* WebInteractionManager;
 
     /** UE 项目资产目录同步工具；发布目录树并响应 Web 端按需扫描，供 CAD 类型审核选择与推荐。 */
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="连接|资产目录")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="连接|资产目录",
+              meta=(ShowOnlyInnerProperties))
     UOntoTwinUEAssetCatalogSyncComponent* AssetCatalogSync;
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -398,6 +400,14 @@ public:
     UFUNCTION(CallInEditor, Category="连接",
               meta=(DisplayName="绑定当前UE工程到激活数据集"))
     void BindCurrentUEProjectToActiveDataset();
+
+    /** 强制重新把当前 UE 工程绑定到当前激活数据集（清除已有冲突并接管） */
+    UFUNCTION(CallInEditor, Category="连接",
+              meta=(DisplayName="强制重新绑定当前UE工程到激活数据集"))
+    void ForceBindCurrentUEProjectToActiveDataset();
+
+    /** 检查当前 UE 工程在后端的绑定状态，若未绑定则自动自愈绑定 */
+    void CheckInitialBindingStatus();
 
     /** 手动把当前 UE 工程资产目录同步到 OntoTwin。 */
     UFUNCTION(CallInEditor, BlueprintCallable, Category="连接|资产目录",
@@ -639,6 +649,11 @@ private:
     /** Shipping startup binding may race backend/container readiness. */
     bool bRuntimeProjectBound = false;
     FTimerHandle RuntimeProjectBindingRetryTimerHandle;
+    int32 RuntimeBindingRetryAttempt = 0;
+    bool bRuntimeBindingConflict = false;
+    /** 当前绑定的 OntoTwin 项目 ID (如 ds_xxx) */
+    UPROPERTY(Transient, VisibleAnywhere, Category="连接", meta=(DisplayName="已绑定项目ID"))
+    FString BoundProjectId;
     bool bRuntimeCanSave = false;
     bool bRuntimeDragging = false;
     bool bRuntimeCameraLookSuppressed = false;
@@ -745,6 +760,9 @@ private:
 
     /** 4.1 增量快照响应回调。 */
     void OnIncrementalPollResponse(FHttpRequestPtr HttpRequest, FHttpResponsePtr Response, bool bWasSuccessful);
+
+    void BindCurrentUEProjectToActiveDatasetInternal(bool bForce);
+    void ScheduleBindingStatusCheck(float DelaySeconds);
 
     /** 新接口不兼容时，仅在当前会话退回旧全量接口。 */
     void FallBackToFullSnapshots(const FString& Reason);

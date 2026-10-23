@@ -3,12 +3,58 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
 import zipfile
 
 import ontotwin_delivery as d
+
+
+@unittest.skipUnless(os.name == "nt" and shutil.which("powershell.exe"), "requires Windows PowerShell 5.1")
+class EngineInstallerExecutionTests(unittest.TestCase):
+    def test_generated_installer_new_marketplace_suffix_and_rollback(self):
+        for existing, fail in ((False, False), (True, False), (True, True)):
+            with self.subTest(existing=existing, fail=fail), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                source = root / 'package/EnginePlugins/Marketplace/WebUI'
+                source.mkdir(parents=True)
+                (source / 'WebUI.uplugin').write_text('{}')
+                (source / 'version.txt').write_text('new')
+                engine = root / 'engine'
+                (engine / 'Engine').mkdir(parents=True)
+                old = engine / 'Engine/Plugins/Marketplace/WebUIhashV15'
+                if existing:
+                    old.mkdir(parents=True)
+                    (old / 'WebUI.uplugin').write_text('{}')
+                    (old / 'version.txt').write_text('old')
+                script = d._write_engine_plugin_installer(root / 'package', ['WebUI'])
+                self.assertTrue(script.read_bytes().startswith(b'\xef\xbb\xbf'))
+                # Only simulate the process probe and a failed move in private
+                # temporary directories; never touch a real installed engine.
+                harness = root / 'run.ps1'
+                injection = '''function Move-Item { param($LiteralPath, $Destination)
+                    if ($LiteralPath -like '*\\staged\\WebUI') { throw 'simulated disk failure' }
+                    Microsoft.PowerShell.Management\\Move-Item @PSBoundParameters
+                }''' if fail else ''
+                harness.write_text("function Get-Process { param($Name,$ErrorAction) }\n" + injection
+                                   + "\n& '" + str(script).replace("'", "''") + "' -EngineRoot '"
+                                   + str(engine).replace("'", "''") + "'\n", encoding='utf-8-sig')
+                run = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy',
+                                      'Bypass', '-File', str(harness)], capture_output=True, timeout=30)
+                target = engine / 'Engine/Plugins/Marketplace/WebUI'
+                if fail:
+                    self.assertNotEqual(run.returncode, 0)
+                    self.assertEqual((old / 'version.txt').read_text(), 'old')
+                    self.assertFalse(target.exists())
+                else:
+                    self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+                    self.assertEqual((target / 'version.txt').read_text(), 'new')
+                    self.assertFalse(old.exists())
+                    if existing:
+                        backups = list((engine / 'OntoTwinPluginBackups').rglob('version.txt'))
+                        self.assertTrue(any(p.read_text() == 'old' for p in backups))
 
 
 class DeliveryTests(unittest.TestCase):
@@ -30,6 +76,7 @@ class DeliveryTests(unittest.TestCase):
 
     def test_loaded_identity_not_descriptor(self):
         self.assertIn("一致", d.version_report(self.context)["runtime_status"])
+        self.assertNotEqual("未知", d.version_report(self.context)["current"]["last_updated"])
         (self.plugin / "Source" / "test.cpp").write_text("changed", encoding="utf-8")
         self.assertIn("需编译", d.version_report(self.context)["runtime_status"])
 
@@ -48,6 +95,26 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(before, d.source_hash(self.plugin))
         self.assertTrue(manifest["requires_rebuild"])
         for record in manifest["files"]:
+            self.assertEqual(record["sha256"], d.digest(dest / record["path"]))
+
+    def test_installed_plugin_is_staged_for_engine_marketplace(self):
+        webui = self.project.parent / "Plugins" / "WebUI"
+        (webui / "Source").mkdir(parents=True)
+        (webui / "Source" / "webui.cpp").write_text("engine plugin", encoding="utf-8")
+        (webui / "WebUI.uplugin").write_text(json.dumps({
+            "VersionName": "1.0",
+            "Installed": True,
+        }), encoding="utf-8")
+        dest = self.root / "delivery"
+        result = d.export_project(self.context, dest, "", "", "", source_only=True)
+        self.assertFalse((dest / "Plugins" / "WebUI").exists())
+        self.assertTrue((dest / "EnginePlugins/Marketplace/WebUI/WebUI.uplugin").exists())
+        self.assertTrue((dest / "EnginePlugins/Marketplace/WebUI/Source/webui.cpp").exists())
+        self.assertEqual(["WebUI"], result["engine_plugins"])
+        installer = dest / "Install-EnginePlugins.ps1"
+        self.assertTrue(installer.exists())
+        self.assertIn("Engine\\Plugins\\Marketplace", installer.read_text(encoding="utf-8"))
+        for record in result["files"]:
             self.assertEqual(record["sha256"], d.digest(dest / record["path"]))
 
     def test_refuse_existing_or_nested_output(self):
@@ -126,9 +193,46 @@ class DeliveryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "凭据"):
             d.export_project(self.context, self.root / "delivery", "", "", "", source_only=True)
 
-    def test_external_plugin_directory_blocks(self):
-        self.project.write_text('{"AdditionalPluginDirectories":["elsewhere"]}', encoding="utf-8")
-        with self.assertRaisesRegex(ValueError, "额外"):
+    def test_external_plugin_directory_is_materialized(self):
+        external = self.root / "external_plugins"
+        self.make_plugin(external / "ExternalPlugin")
+        (external / "ExternalPlugin/OntoTwinSync.uplugin").rename(external / "ExternalPlugin/ExternalPlugin.uplugin")
+        self.project.write_text(json.dumps({
+            "EngineAssociation": "5.6",
+            "AdditionalPluginDirectories": [str(external)],
+        }), encoding="utf-8")
+        _, _, entries = d.project_files(self.project)
+        self.assertIn("Plugins/ExternalPlugin/Source/test.cpp", {relative.as_posix() for _, relative in entries})
+        dest = self.root / "delivery"
+        d.export_project(self.context, dest, "", "", "", source_only=True)
+        self.assertTrue((dest / "Plugins/ExternalPlugin/Source/test.cpp").exists())
+        delivered_desc = json.loads((dest / self.project.name).read_text(encoding="utf-8"))
+        self.assertNotIn("AdditionalPluginDirectories", delivered_desc)
+        self.assertIn("AdditionalPluginDirectories", d.read_json(self.project))
+
+    def test_current_plugin_can_live_in_external_root(self):
+        external = self.root / "mother"
+        external.mkdir()
+        moved = external / "OntoTwinSync"
+        self.plugin.rename(moved)
+        self.context["plugin"] = str(moved)
+        self.project.write_text(json.dumps({"AdditionalPluginDirectories": ["../mother"]}), encoding="utf-8")
+        dest = self.root / "delivery"
+        result = d.export_project(self.context, dest, "", "", "", source_only=True)
+        self.assertTrue((dest / "Plugins/OntoTwinSync/OntoTwinSync.uplugin").exists())
+        for record in result["files"]:
+            self.assertEqual(record["sha256"], d.digest(dest / record["path"]))
+
+    def test_missing_external_root_blocks_before_export(self):
+        self.project.write_text('{"AdditionalPluginDirectories":["missing"]}', encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "不存在"):
+            d.project_files(self.project)
+
+    def test_duplicate_external_plugin_blocks(self):
+        external = self.root / "mother"
+        self.make_plugin(external / "OntoTwinSync")
+        self.project.write_text(json.dumps({"AdditionalPluginDirectories": [str(external)]}), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "重复"):
             d.project_files(self.project)
 
     def test_update_closed_editor_backup_outside_plugins(self):

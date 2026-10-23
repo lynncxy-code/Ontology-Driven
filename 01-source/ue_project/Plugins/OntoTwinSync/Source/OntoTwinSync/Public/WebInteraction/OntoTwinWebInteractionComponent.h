@@ -142,6 +142,8 @@ public:
     void HandlePageLoadError();
     void HandleUrlChanged(const FString& Url);
     bool HandleHostShortcut(const FKey& Key);
+    void RequestBackFromHost();
+    void RequestCloseFromHost();
 
 private:
     friend class FOntoTwinBusinessHighlightTest;

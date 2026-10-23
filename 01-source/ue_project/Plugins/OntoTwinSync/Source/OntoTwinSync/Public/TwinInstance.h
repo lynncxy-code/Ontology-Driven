@@ -257,6 +257,9 @@ public:
     /** 读取部件 StaticMesh 资产已保存的默认材质槽路径。 */
     bool GetSavedRenderPartMaterialPaths(int32 PartIndex, TArray<FString>& OutPaths) const;
 
+    /** 读取复合部件相对母 Actor 的当前变换；供编辑器预览差异回写使用。 */
+    bool GetRenderPartRelativeTransform(int32 PartIndex, FTransform& OutTransform) const;
+
     /** assembly_v1 预览审计：仅在全部网格与材质加载成功时保留导出签名。 */
     const FString& GetCurrentAssemblySignature() const { return CurrentAssemblySignature; }
 
@@ -454,6 +457,7 @@ private:
     void ApplySpatialFromSnapshot(const TSharedPtr<FJsonObject>& SpatialObj);
     void ApplyPresentationFromSnapshot(const TSharedPtr<FJsonObject>& PresentationObj);
     void ApplyVisualFromSnapshot(const TSharedPtr<FJsonObject>& VisualObj);
+    void ApplyPlainLabelFromSnapshot(const TSharedPtr<FJsonObject>& LabelObj);
     void ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& BehaviorObj);
     void ApplyRepresentableFromSnapshot(
         const TSharedPtr<FJsonObject>& RepObj,

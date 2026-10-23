@@ -603,6 +603,13 @@ void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool 
         ApplyBehavioralFromSnapshot(*BehaviorObj);
     }
 
+    if (!bIsDelta && !(*InterfacesObj)->HasField(TEXT("I3D_Visual")) && !(*InterfacesObj)->HasField(TEXT("I3D_Behavioral")))
+    {
+        TSharedPtr<FJsonObject> EmptyLabel = MakeShared<FJsonObject>();
+        EmptyLabel->SetStringField(TEXT("ui_label_content"), TEXT(""));
+        ApplyPlainLabelFromSnapshot(EmptyLabel);
+    }
+
     const TSharedPtr<FJsonObject>* OverlayObj;
     if ((*InterfacesObj)->TryGetObjectField(TEXT("I3D_Overlay"), OverlayObj))
     {
@@ -622,6 +629,10 @@ void ATwinInstance::ApplyPresentationFromSnapshot(const TSharedPtr<FJsonObject>&
     }
 
     bPresentationAuthoritative = true;
+    // Presentation owns display motion. Do not let a legacy actor animation
+    // keep writing an old world-space baseline on subsequent ticks.
+    bAnimRunning = false;
+    AnimTimer = 0.0f;
     double RevisionNumber = 0.0;
     if (PresentationObj->TryGetNumberField(TEXT("presentation_revision"), RevisionNumber))
     {
@@ -765,7 +776,11 @@ bool ATwinInstance::ExecutePresentationRoute(
     // execute legacy fields; they degrade to an inert safe state instead.
     if (Channel == TEXT("animation"))
     {
-        PlayPresentationAnimation(TEXT("idle"));
+        // Failure must be inert, not a request to restore a legacy baseline
+        // (which may be zero or predate the latest realtime spatial update).
+        bAnimRunning = false;
+        AnimTimer = 0.0f;
+        CurrentAnimState = TEXT("idle");
         return false;
     }
     if (Channel == TEXT("visual"))
@@ -1303,6 +1318,23 @@ bool ATwinInstance::GetSavedRenderPartMaterialPaths(
         const UMaterialInterface* Material = StaticMaterial.MaterialInterface;
         OutPaths.Add(Material ? Material->GetPathName() : FString());
     }
+    return true;
+}
+
+bool ATwinInstance::GetRenderPartRelativeTransform(
+    int32 PartIndex,
+    FTransform& OutTransform) const
+{
+    if (!RenderPartComponents.IsValidIndex(PartIndex))
+    {
+        return false;
+    }
+    const UStaticMeshComponent* PartComponent = RenderPartComponents[PartIndex];
+    if (!PartComponent || !IsValid(PartComponent))
+    {
+        return false;
+    }
+    OutTransform = PartComponent->GetRelativeTransform();
     return true;
 }
 
@@ -2639,6 +2671,7 @@ void ATwinInstance::ApplyVisualVisibility(bool bVisible)
 
 void ATwinInstance::ApplyVisualFromSnapshot(const TSharedPtr<FJsonObject>& VisualObj)
 {
+    ApplyPlainLabelFromSnapshot(VisualObj);
     // ── 材质变体 (material_variant) ──────────────────────────────────────
     FString MaterialVariant;
     if (!bPresentationAuthoritative
@@ -2697,8 +2730,20 @@ void ATwinInstance::ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& B
         UE_LOG(LogTemp, Log, TEXT("[孪生体] 特效触发: %s → %s"), *InstanceId, *FxTrigger);
     }
 
+    ApplyPlainLabelFromSnapshot(BehaviorObj);
+
+    if (ActiveContainerHost.IsValid())
+    {
+        ActiveContainerHost->ForwardBehaviorState(
+            CurrentAnimState,
+            CurrentFxTrigger);
+    }
+}
+
+void ATwinInstance::ApplyPlainLabelFromSnapshot(const TSharedPtr<FJsonObject>& LabelObj)
+{
     FString LabelContent;
-    if (BehaviorObj->TryGetStringField(TEXT("ui_label_content"), LabelContent) && LabelContent != CurrentLabelContent)
+    if (LabelObj->TryGetStringField(TEXT("ui_label_content"), LabelContent) && LabelContent != CurrentLabelContent)
     {
         CurrentLabelContent = LabelContent;
 
@@ -2738,12 +2783,6 @@ void ATwinInstance::ApplyBehavioralFromSnapshot(const TSharedPtr<FJsonObject>& B
         UE_LOG(LogTemp, Log, TEXT("[孪生体] UI标签更新: %s → \"%s\""), *InstanceId, *LabelContent);
     }
 
-    if (ActiveContainerHost.IsValid())
-    {
-        ActiveContainerHost->ForwardBehaviorState(
-            CurrentAnimState,
-            CurrentFxTrigger);
-    }
 }
 
 void ATwinInstance::ApplyOverlayFromSnapshot(const TSharedPtr<FJsonObject>& OverlayObj)
@@ -2785,11 +2824,8 @@ void ATwinInstance::ApplyOverlayFromSnapshot(const TSharedPtr<FJsonObject>& Over
 
     if (LabelComponent)
     {
-        if (bOverlayEnabled)
-        {
-            LabelComponent->SetVisibility(false);
-        }
-        else if (!CurrentLabelContent.IsEmpty())
+        // Plain labels and information panels have independent type settings.
+        if (!CurrentLabelContent.IsEmpty())
         {
             LabelComponent->SetText(FText::FromString(CurrentLabelContent));
             LabelComponent->SetVisibility(true);

@@ -1581,10 +1581,18 @@ void ATwinSceneManager::UpdateAlwaysOverlays(APlayerController* PlayerController
 FString ATwinSceneManager::BuildSnapshotsUrl() const
 {
     FString Url = FString::Printf(TEXT("%s/api/v2/state/snapshots"), *BackendBaseUrl);
-    // SceneId 非空时锁定场景；留空则由后端用当前激活数据集
+    FString Separator = TEXT("?");
+    // 4.8：绑定成功后显式锁定项目；不再依赖后端全局 active_project_id。
+    if (!BoundProjectId.IsEmpty())
+    {
+        Url += FString::Printf(TEXT("%sproject_id=%s"), *Separator,
+            *FGenericPlatformHttp::UrlEncode(BoundProjectId));
+        Separator = TEXT("&");
+    }
     if (!SceneId.IsEmpty())
     {
-        Url += FString::Printf(TEXT("?scene=%s"), *SceneId);
+        Url += FString::Printf(TEXT("%sscene=%s"), *Separator,
+            *FGenericPlatformHttp::UrlEncode(SceneId));
     }
     return Url;
 }
@@ -1593,6 +1601,12 @@ FString ATwinSceneManager::BuildSnapshotChangesUrl() const
 {
     FString Url = FString::Printf(TEXT("%s/api/v2/state/snapshot_changes"), *BackendBaseUrl);
     FString Separator = TEXT("?");
+    if (!BoundProjectId.IsEmpty())
+    {
+        Url += FString::Printf(TEXT("%sproject_id=%s"), *Separator,
+            *FGenericPlatformHttp::UrlEncode(BoundProjectId));
+        Separator = TEXT("&");
+    }
     if (!SceneId.IsEmpty())
     {
         Url += FString::Printf(
@@ -1615,6 +1629,14 @@ void ATwinSceneManager::AddUEProjectHeaders(TSharedRef<IHttpRequest, ESPMode::Th
 {
     HttpRequest->SetHeader(TEXT("X-OntoTwin-UE-Project-Id"), UEProjectId);
     HttpRequest->SetHeader(TEXT("X-OntoTwin-UE-Project-Name"), UEProjectName);
+    if (!SceneId.IsEmpty())
+    {
+        HttpRequest->SetHeader(TEXT("X-OntoTwin-UE-Scene-Id"), SceneId);
+    }
+    if (!BoundProjectId.IsEmpty())
+    {
+        HttpRequest->SetHeader(TEXT("X-OntoTwin-Project-Id"), BoundProjectId);
+    }
     const UWorld* World = GetWorld();
     HttpRequest->SetHeader(TEXT("X-OntoTwin-UE-Context"),
         World && World->WorldType == EWorldType::PIE ? TEXT("pie") :

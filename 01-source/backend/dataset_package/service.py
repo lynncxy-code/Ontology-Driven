@@ -353,6 +353,7 @@ class DatasetPackageService:
         dataset_lookup=None,
         dataset_names=None,
         on_import=None,
+        on_project_imported=None,
         asset_root=None,
         frontend_root=None,
     ):
@@ -360,6 +361,9 @@ class DatasetPackageService:
         self.dataset_lookup = dataset_lookup or (lambda _dataset_id: None)
         self.dataset_names = dataset_names or self._store_dataset_names
         self.on_import = on_import
+        # 4.8 租户部署在导入新副本后补写组织／工厂归属；旧 JSON
+        # 部署不提供该回调，保持原有数据集包行为。
+        self.on_project_imported = on_project_imported
         self.asset_root = asset_root or attachments.DEFAULT_ASSET_ROOT
         self.frontend_root = frontend_root or os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend'))
         if not os.path.isdir(self.frontend_root) and os.path.isdir('/frontend'):
@@ -798,6 +802,8 @@ class DatasetPackageService:
         try:
             self.store.write_project(new_id, imported)
             written = True
+            if self.on_project_imported:
+                self.on_project_imported(new_id)
             if self.on_import:
                 self.on_import(copy.deepcopy(dataset))
         except Exception:

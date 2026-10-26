@@ -20,6 +20,7 @@ def register_dataset_package_routes(
     dataset_lookup=None,
     dataset_names=None,
     on_import=None,
+    on_project_imported=None,
     asset_root=None,
 ):
     blueprint = Blueprint("dataset_package_api", __name__)
@@ -28,6 +29,7 @@ def register_dataset_package_routes(
         dataset_lookup=dataset_lookup,
         dataset_names=dataset_names,
         on_import=on_import,
+        on_project_imported=on_project_imported,
         asset_root=asset_root,
     )
 

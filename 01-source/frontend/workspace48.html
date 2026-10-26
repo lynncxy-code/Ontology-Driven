@@ -98,7 +98,7 @@
     })();
   </script>
   <script>
-    (()=>{const host=document.createElement('div');host.id='release-badge';host.className='release-badge';host.setAttribute('aria-label','环境与版本');Object.assign(host.style,{position:'fixed',top:'24px',right:'120px',zIndex:'40'});document.body.appendChild(host);const script=document.createElement('script');script.src='/release-badge.js';document.head.appendChild(script)})();
+    (()=>{const host=document.createElement('div');host.id='release-badge';host.className='release-badge';host.setAttribute('aria-label','环境与版本');const top=document.querySelector('.topline');const user=top&&top.querySelector('.user-menu');if(top){top.insertBefore(host,user||null);Object.assign(host.style,{position:'relative',top:'auto',right:'auto',zIndex:'2',marginLeft:'auto',marginRight:'12px'})}else{Object.assign(host.style,{position:'fixed',top:'24px',right:'28px',zIndex:'40'});document.body.appendChild(host)}const script=document.createElement('script');script.src='/release-badge.js';document.head.appendChild(script)})();
   </script>
 </body>
 </html>

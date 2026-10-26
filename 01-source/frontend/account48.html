@@ -95,7 +95,7 @@
     })();
   </script>
   <script>
-    (()=>{const host=document.createElement('div');host.id='release-badge';host.className='release-badge';host.setAttribute('aria-label','环境与版本');Object.assign(host.style,{position:'fixed',top:'24px',right:'120px',zIndex:'40'});document.body.appendChild(host);const script=document.createElement('script');script.src='/release-badge.js';document.head.appendChild(script)})();
+    (()=>{const host=document.createElement('div');host.id='release-badge';host.className='release-badge';host.setAttribute('aria-label','环境与版本');Object.assign(host.style,{position:'fixed',top:'24px',right:'28px',zIndex:'40'});document.body.appendChild(host);const place=()=>{const target=document.querySelector('.step.active .topline')||document.querySelector('.topline');if(!target||target.contains(host))return;const anchor=target.querySelector('.quiet');target.insertBefore(host,anchor||null);Object.assign(host.style,{position:'relative',top:'auto',right:'auto',zIndex:'2',marginLeft:'auto',marginRight:'12px'})};place();new MutationObserver(place).observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});const ticker=setInterval(place,200);setTimeout(()=>clearInterval(ticker),5000);const script=document.createElement('script');script.src='/release-badge.js';document.head.appendChild(script)})();
   </script>
 </body>
 </html>

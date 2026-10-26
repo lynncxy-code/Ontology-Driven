@@ -1,0 +1,20 @@
+# Release builds use the repository root as context (see
+# 02-releases/windows-all-in-one/Build-ReleaseBundle.ps1). Keep the context
+# small and prevent development data, caches and credentials entering images.
+*
+!01-source/
+!01-source/backend/
+!01-source/backend/**
+!01-source/frontend/
+!01-source/frontend/**
+!02-releases/
+!02-releases/windows-all-in-one/
+!02-releases/windows-all-in-one/requirements.release.txt
+!02-releases/training-platform/
+!02-releases/training-platform/check_frontend.py
+!wheels/
+!wheels/**
+
+01-source/backend/data/
+01-source/backend/**/__pycache__/
+01-source/frontend/**/*.bak*

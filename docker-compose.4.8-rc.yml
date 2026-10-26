@@ -33,8 +33,6 @@ services:
       POSTGRES_USER: ontotwin
       POSTGRES_PASSWORD: ontotwin
       POSTGRES_DB: ontotwin
-    ports:
-      - "55432:5432"
     volumes:
       - ontotwin48_rc_pgdata:/var/lib/postgresql/data
     healthcheck:

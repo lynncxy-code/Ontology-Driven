@@ -1,5 +1,5 @@
 (function () {
-  if (location.pathname === '/account' || location.pathname === '/organization') return;
+  if (location.pathname === '/account') return;
 
   const inFrame = window.self !== window.top;
   const nativeFetch = window.fetch.bind(window);
@@ -115,7 +115,7 @@
     const currentOrg = (me.organizations || []).find(o => o.organization_id === (me.context && me.context.organization_id));
     wrap.innerHTML = '<button class="ot48-account-trigger" aria-label="账号菜单">' + initials + '</button>' +
       '<div class="ot48-account-panel"><div class="ot48-account-identity"><strong>' + esc(me.user.display_name || me.user.login_name) + '</strong><span id="ot48ContextLabel">' + esc(currentOrg?.name || '未选择组织') + '</span></div>' +
-      '<button class="ot48-account-item" data-action="switch">切换组织／工厂</button><button class="ot48-account-item" data-action="settings">组织管理</button><button class="ot48-account-item" data-action="version">版本信息</button><button class="ot48-account-item" data-action="logout">退出登录</button><div class="ot48-account-version" id="ot48Version"></div></div>';
+      '<button class="ot48-account-item" data-action="switch">切换组织／工厂</button><button class="ot48-account-item" data-action="settings">组织管理</button><button class="ot48-account-item" data-action="version">环境与版本信息</button><button class="ot48-account-item" data-action="logout">退出登录</button><div class="ot48-account-version" id="ot48Version"></div></div>';
     document.body.appendChild(wrap);
     const trigger = wrap.querySelector('.ot48-account-trigger');
     trigger.onclick = () => wrap.classList.toggle('open');
@@ -129,10 +129,23 @@
     };
     wrap.querySelector('[data-action="version"]').onclick = async () => {
       const e = wrap.querySelector('#ot48Version');
+      if (e.dataset.loaded === 'true') { e.hidden = !e.hidden; return; }
       try {
-        const d = await fetch('/api/v4.8/health').then(r => r.json());
-        e.textContent = 'OntoTwin Nexus ' + (d.version || '4.8') + ' · ' + (d.release_id || 'dev');
-      } catch (_) { e.textContent = '版本信息暂不可用'; }
+        const d = await fetch('/release-info.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null);
+        if (!d) throw new Error('release metadata unavailable');
+        const env = d.environment === 'business' ? '业务环境' : (d.environment === 'test' ? '测试环境' : '环境未标记');
+        let updated = '时间未标记';
+        if (d.updated_at) {
+          const date = new Date(d.updated_at);
+          if (Number.isFinite(date.getTime())) updated = new Intl.DateTimeFormat('sv-SE', { timeZone: d.time_zone || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false, timeZoneName: 'shortOffset' }).format(date).replace('GMT', 'UTC');
+        }
+        e.innerHTML = '<div class="ot48-version-row"><span>当前环境</span><strong>' + esc(env) + '</strong></div>' +
+          '<div class="ot48-version-row"><span>前端版本</span><strong>' + esc(d.version || '版本未标记') + '</strong></div>' +
+          '<div class="ot48-version-row"><span>前端更新时间</span><strong>' + esc(updated) + '</strong></div>' +
+          '<div class="ot48-version-row"><span>后端版本</span><strong>' + esc(d.backend || '后端版本未标记') + '</strong></div>' +
+          '<div class="ot48-version-note">' + esc(d.note || '此处显示前端发布信息，不代表 UE 已加载相同版本的插件。') + '</div>';
+        e.hidden = false; e.dataset.loaded = 'true';
+      } catch (_) { e.textContent = '版本信息暂不可用'; e.hidden = false; }
     };
   }).catch(() => {});
 })();

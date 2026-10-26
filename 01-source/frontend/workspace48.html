@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>我的数据集 · OntoTwin Nexus</title>
-  <link rel="stylesheet" href="/release-badge.css">
   <style>
     :root{font-family:Inter,"Microsoft YaHei",sans-serif;color:#202124;background:#f5f6f7}
     *{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}
@@ -25,7 +24,7 @@
       <div class="brand-foot">OntoTwin Nexus · 4.8</div>
     </aside>
     <main>
-      <div class="topline"><div class="eyebrow">第三步 / 选择项目</div><div class="user-menu"><button class="avatar" id="userMenuButton" aria-label="打开账号菜单" aria-expanded="false">管</button><div class="menu-panel" id="userMenuPanel" hidden><button id="orgManageLink">组织与成员管理</button><button id="switchContextLink">切换组织 / 工厂</button><div class="menu-divider"></div><button id="logoutLink">退出登录</button></div></div></div>
+      <div class="topline"><div class="eyebrow">第三步 / 选择项目</div></div>
       <h1 class="title">我的数据集</h1>
       <div class="context-card"><strong id="context">正在加载当前组织…</strong><span>当前组织与工厂</span></div>
       <div class="heading"><p>选择、创建或导入一个项目进入 OntoTwin 业务工作台。</p><div class="entry-actions"><button class="btn secondary" id="loadData">从数据源创建</button><button class="btn secondary" id="packageImport">导入数据集包</button><button class="btn primary" id="create">新建空数据集</button></div></div>
@@ -86,19 +85,11 @@
       async function importPackage(){if(!selectedPackage||!packageReport?.can_import)return;const name=$('#packageName').value.trim();if(!name){setStatus('#packageStatus','请输入导入后的数据集名称','error');return}const button=$('#confirmPackage');button.disabled=true;setStatus('#packageStatus','正在导入…');const form=new FormData();form.append('file',selectedPackage);form.append('target_name',name);try{const d=await legacy('/ontology/dataset-packages/import',{method:'POST',body:form,headers:{}});hideModal('packageModal');selectedPackage=null;packageReport=null;await loadProjects();setStatus('#packageStatus','');$('#packageName').value='';UIToast('数据集包已导入，尚未自动进入项目')}catch(e){setStatus('#packageStatus','导入失败：'+e.message,'error')}finally{button.disabled=false}}
       function UIToast(message){$('#error').textContent=message;setTimeout(()=>{if($('#error').textContent===message)$('#error').textContent=''},3500)}
       $('#projects').addEventListener('click',e=>{const b=e.target.closest('[data-project]');if(b)enter(b.dataset.project)});
-      $('#userMenuButton').onclick=()=>{const panel=$('#userMenuPanel');const open=panel.hidden;panel.hidden=!open;$('#userMenuButton').setAttribute('aria-expanded',String(open))};
-      $('#orgManageLink').onclick=()=>{location.href='/organization'};
-      $('#switchContextLink').onclick=()=>{location.href='/account?mode=switch'};
-      $('#logoutLink').onclick=async()=>{await fetch('/api/v4.8/auth/logout',{method:'POST',credentials:'same-origin'}).catch(()=>{});try{sessionStorage.clear()}catch(_){}location.href='/account'};
-      document.addEventListener('click',e=>{if(!e.target.closest('.user-menu')){$('#userMenuPanel').hidden=true;$('#userMenuButton').setAttribute('aria-expanded','false')}});
       $('#create').onclick=()=>{showModal('createModal');$('#createName').focus()};$('#closeCreate').onclick=()=>hideModal('createModal');$('#cancelCreate').onclick=()=>hideModal('createModal');$('#confirmCreate').onclick=createEmpty;
       $('#loadData').onclick=()=>{showModal('loadModal');setSource('registry');$('#loadName').focus()};$('#closeLoad').onclick=()=>hideModal('loadModal');$('#cancelLoad').onclick=()=>hideModal('loadModal');document.querySelectorAll('.source-tab').forEach(b=>b.onclick=()=>setSource(b.dataset.source));$('#registryLoad').onclick=loadRegistry;$('#csvLoad').onclick=loadCsv;$('#confirmLoad').onclick=confirmLoad;$('#csvDropzone').onclick=()=>$('#csvFiles').click();$('#csvFiles').onchange=e=>{selectedCsv.clear();[...e.target.files].forEach(f=>selectedCsv.set(f.name.toLowerCase(),f));renderCsvFiles()};
       $('#packageImport').onclick=()=>{showModal('packageModal');$('#packageFile').value='';$('#packageName').value='';$('#packageReport').textContent='';setStatus('#packageStatus','请选择数据集包')};$('#closePackage').onclick=()=>hideModal('packageModal');$('#cancelPackage').onclick=()=>hideModal('packageModal');$('#packageDropzone').onclick=()=>$('#packageFile').click();$('#packageFile').onchange=e=>preflightPackage(e.target.files[0]);$('#confirmPackage').onclick=importPackage;
       window.addEventListener('keydown',e=>{if(e.key==='Escape'){['createModal','loadModal','packageModal'].forEach(hideModal)}});load();
     })();
-  </script>
-  <script>
-    (()=>{const host=document.createElement('div');host.id='release-badge';host.className='release-badge';host.setAttribute('aria-label','环境与版本');const top=document.querySelector('.topline');const user=top&&top.querySelector('.user-menu');if(top){top.insertBefore(host,user||null);Object.assign(host.style,{position:'relative',top:'auto',right:'auto',zIndex:'2',marginLeft:'auto',marginRight:'12px'})}else{Object.assign(host.style,{position:'fixed',top:'24px',right:'28px',zIndex:'40'});document.body.appendChild(host)}const script=document.createElement('script');script.src='/release-badge.js';document.head.appendChild(script)})();
   </script>
 </body>
 </html>

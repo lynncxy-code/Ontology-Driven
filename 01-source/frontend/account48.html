@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OntoTwin Nexus · 登录</title>
-  <link rel="stylesheet" href="/release-badge.css">
   <style>
     :root{font-family:Inter,"Microsoft YaHei",sans-serif;color:#202124;background:#f5f6f7}
     *{box-sizing:border-box} body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}
@@ -93,9 +92,6 @@
       $('#addMember').onclick=addMember;$('#closeMember').onclick=closeMembers;$('#closeMemberFooter').onclick=closeMembers;$('#memberModal').onclick=e=>{if(e.target.id==='memberModal')closeMembers()};
       if(location.pathname==='/organization'){loadSession().then(()=>{if(state.user)manage()})}else{loadSession()}
     })();
-  </script>
-  <script>
-    (()=>{const host=document.createElement('div');host.id='release-badge';host.className='release-badge';host.setAttribute('aria-label','环境与版本');Object.assign(host.style,{position:'fixed',top:'24px',right:'28px',zIndex:'40'});document.body.appendChild(host);const place=()=>{const target=document.querySelector('.step.active .topline')||document.querySelector('.topline');if(!target||target.contains(host))return;const anchor=target.querySelector('.quiet');target.insertBefore(host,anchor||null);Object.assign(host.style,{position:'relative',top:'auto',right:'auto',zIndex:'2',marginLeft:'auto',marginRight:'12px'})};place();new MutationObserver(place).observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});const ticker=setInterval(place,200);setTimeout(()=>clearInterval(ticker),5000);const script=document.createElement('script');script.src='/release-badge.js';document.head.appendChild(script)})();
   </script>
 </body>
 </html>

@@ -97,7 +97,7 @@ def add_header(response):
     if (
         response.status_code == 200
         and response.mimetype == 'text/html'
-        and request.path not in ('/account', '/organization')
+        and request.path != '/account'
     ):
         response.direct_passthrough = False
         html = response.get_data(as_text=True)

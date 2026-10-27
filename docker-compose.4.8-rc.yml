@@ -45,9 +45,6 @@ services:
     image: neo4j:5
     environment:
       NEO4J_AUTH: neo4j/ontotwin123
-    ports:
-      - "57474:7474"
-      - "57687:7687"
     volumes:
       - ontotwin48_rc_neo4jdata:/data
     healthcheck:

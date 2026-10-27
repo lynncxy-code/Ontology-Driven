@@ -2,9 +2,11 @@ import os
 import time
 import math
 import copy
+import uuid
+import hashlib
 import mimetypes
 import requests as http_requests
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, g
 from flask_cors import CORS
 from ontology import SharedState
 from instance_labels import resolve_label, register_label_routes
@@ -56,6 +58,19 @@ mimetypes.add_type("font/woff", ".woff")
 
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
 app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
+
+@app.get('/release-info.json')
+def release_info():
+    """Expose the running image identity to the account menu."""
+    release = os.environ.get('ONTOTWIN_RELEASE_ID', '4.8-dev')
+    return jsonify({
+        'environment': os.environ.get('ONTOTWIN_ENV', 'test'),
+        'version': release,
+        'backend': release,
+        'updated_at': os.environ.get('ONTOTWIN_RELEASE_BUILT_AT', ''),
+        'time_zone': 'UTC',
+        'note': '当前信息来自正在运行的 4.8 RC 后端镜像。',
+    })
 app.json.ensure_ascii = False  # 中文字符不转义为 \uXXXX，便于 2.9.2 调试（Flask 2.2+ 用法）
 CORS(app)
 
@@ -89,6 +104,23 @@ def add_header(response):
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
+    # 4.8：业务页复用同一上下文桥。登录页本身不注入，避免登录前
+    # 发起无意义的身份请求；iframe 业务页也必须注入桥接脚本，
+    # 只是由脚本自己隐藏头像菜单，不能在服务端跳过项目上下文注入。
+    if (
+        response.status_code == 200
+        and response.mimetype == 'text/html'
+        and request.path != '/account'
+    ):
+        response.direct_passthrough = False
+        html = response.get_data(as_text=True)
+        # 不使用 defer：旧业务页的 body 内联脚本可能在解析阶段立即发起
+        # 第一个 /api/v2 请求，桥必须先于这些脚本安装 fetch 包装器。
+        marker = '<link rel="stylesheet" href="/account_context.css"><script src="/account_context.js"></script>'
+        if marker not in html:
+            html = html.replace('</head>', marker + '</head>')
+            response.set_data(html)
+            response.headers.pop('Content-Length', None)
     return response
 
 # ── Global State ────────────────────────────────────────────────
@@ -101,9 +133,35 @@ states = {
 # 2.9.4 重构：统一项目存储（取代 InstanceStore）。
 # 实例归属"当前激活项目"，与数据集/类型表一起持久化、一起加载、一起删——单一事实来源。
 from project_store import ProjectStore, ProjectMismatch
+from project_store_pg import ProjectMigrationFrozenError
 from floor_profile_service import FloorProfileError, FloorProfileService
-project_store = ProjectStore()
+from scoped_project_store import ScopedProjectStore, project_view
+_project_store_base = ProjectStore()
+project_store = ScopedProjectStore(_project_store_base)
 instance_store = project_store          # 向后兼容别名：实例操作接口一致
+
+
+@app.errorhandler(ProjectMigrationFrozenError)
+def migration_frozen_error(exc):
+    """Turn the database freeze guard into a recoverable product response."""
+    return jsonify({
+        "error": "project_migration_frozen",
+        "message": "项目正在迁移冻结，暂不能保存；请等待迁移完成后重试",
+        "project_id": exc.project_id,
+        "migration_id": exc.migration_id,
+    }), 409
+
+# OntoTwin 4.8：组织、账号、显式项目上下文和 UE 场景级绑定。
+# 模块独立注册，保持旧版 /api 路由和旧版激活态兼容；4.8 页面/UE 使用
+# /api/v4.8/*，不把浏览器会话的项目选择写入 app_singleton。
+from tenant_api import (
+    register_tenant_routes,
+    legacy_project_scope,
+    legacy_project_role,
+    legacy_project_ue_allowed,
+)
+register_tenant_routes(app, project_store)
+
 simulator = None
 if os.environ.get("ONTOTWIN_MOCK_SIMULATOR_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on"
@@ -111,8 +169,138 @@ if os.environ.get("ONTOTWIN_MOCK_SIMULATOR_ENABLED", "false").strip().lower() in
     simulator = MockInstanceSimulator(project_store)
     simulator.start()
 
-# ObjectType 接口注册表（运行时内存，作为"当前激活项目"的视图，启动后由 _init_from_project_store 同步）
-_object_types = {k: dict(v) for k, v in OBJECT_TYPES.items()}
+# ObjectType 接口注册表（兼容旧函数名，但请求内改为显式项目视图）。
+# 旧代码大量直接读 `_object_types`；这个轻量映射把读取转发到本请求的
+# project_store clone，避免两个 UE 场景交替请求时串读全局激活项目。
+class _ScopedObjectTypes(dict):
+    def _target(self):
+        try:
+            scoped_pid = getattr(g, "ontotwin_project_id", None)
+            if not scoped_pid:
+                return self
+            store = getattr(g, "ontotwin_project_store", project_store)
+        except RuntimeError:
+            return self
+        try:
+            value = store.get_object_types()
+            if isinstance(value, dict):
+                return value
+        except Exception:
+            pass
+        return self
+
+    def __getitem__(self, key): return self._target()[key] if self._target() is not self else super().__getitem__(key)
+    def __iter__(self): return iter(self._target()) if self._target() is not self else super().__iter__()
+    def __len__(self): return len(self._target()) if self._target() is not self else super().__len__()
+    def __contains__(self, key): return key in self._target() if self._target() is not self else super().__contains__(key)
+    def get(self, key, default=None): return self._target().get(key, default) if self._target() is not self else super().get(key, default)
+    def keys(self): return self._target().keys() if self._target() is not self else super().keys()
+    def items(self): return self._target().items() if self._target() is not self else super().items()
+    def values(self): return self._target().values() if self._target() is not self else super().values()
+
+
+_object_types = _ScopedObjectTypes({k: dict(v) for k, v in OBJECT_TYPES.items()})
+
+
+def _set_object_types(value):
+    """Replace the current request's type view without mutating global state."""
+    value = {k: dict(v) for k, v in (value or {}).items()}
+    try:
+        scoped_store = getattr(g, "ontotwin_project_store", project_store)
+        scoped_pid = getattr(g, "ontotwin_project_id", None)
+    except RuntimeError:
+        scoped_store = project_store
+        scoped_pid = None
+    store = scoped_store
+    if scoped_pid:
+        store.set_object_types(value)
+    else:
+        _object_types.clear()
+        _object_types.update(value)
+
+
+_V2_PROJECTLESS_EXACT = {
+    "/api/v2/ontology/datasets", "/api/v2/ue/bind_active_project",
+    "/api/v2/ue/binding_status", "/api/v2/ue/discovered", "/api/v2/scenes",
+    "/api/v2/coord/preview", "/api/v2/coord/types/scan",
+    "/api/v2/coord/types/check_conflicts", "/api/v2/coord/types/check_coverage",
+    "/api/v2/cad/parse", "/api/v2/cad/latest", "/api/v2/cad/status",
+    "/api/v2/presentation-library/status", "/api/v2/presentation-catalog",
+    "/api/v2/presentation-library/catalog", "/api/v2/transforms",
+    # 预览型数据源读取发生在“我的数据集”尚未选定项目之前；最终发布
+    # 仍必须携带显式 project_id。把预检和预览放在项目上下文之外，
+    # 避免用户还没创建项目就被旧路由拦成 project_id_required。
+    "/api/v2/ontology/import_csv", "/api/v2/ontology/graph_from_registry",
+    "/api/v2/ontology/fetch_api",
+    "/api/v2/ontology/dataset-packages/preflight",
+    "/api/v2/ontology/dataset-packages/import",
+}
+
+
+def _explicit_project_id():
+    value = request.headers.get("X-OntoTwin-Project-Id")
+    value = value or request.args.get("project_id") or request.form.get("project_id")
+    if not value:
+        body = request.get_json(silent=True)
+        if isinstance(body, dict):
+            value = body.get("project_id")
+    return str(value).strip() if value else ""
+
+
+@app.before_request
+def _bind_explicit_v2_project():
+    """Bind every stateful legacy request to its explicit project id.
+
+    Requests without a 4.8 session remain compatible with old unit fixtures;
+    once a browser session or UE identity is present, silently falling back to
+    ``active_project_id`` is rejected so two tabs/scenes cannot cross-write.
+    """
+    if not request.path.startswith("/api/v2/"):
+        return None
+    pid = _explicit_project_id()
+    session_cookie = request.cookies.get("ontotwin_session") or request.headers.get("X-OntoTwin-Session")
+    ue_id = request.headers.get("X-OntoTwin-UE-Project-Id") or ""
+    # PostgreSQL is the 4.8 runtime.  The old JSON compatibility path may be
+    # used by unit fixtures, but a live PG request must never become anonymous
+    # merely because it used a legacy /api/v2 route.  UE calls are identified
+    # separately and still require the explicit project/scene binding checks.
+    if os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() == "pg" and not session_cookie and not ue_id:
+        return jsonify({
+            "error": "auth_required",
+            "message": "4.8 业务请求必须先登录",
+        }), 401
+    # Projectless preview/list routes may still opt into a request-scoped
+    # project when the browser supplies one.  This keeps the legacy route
+    # usable before project creation while making its active view explicit
+    # once a 4.8 project has been selected.
+    if request.path in _V2_PROJECTLESS_EXACT and not pid:
+        return None
+    scene_id = request.headers.get("X-OntoTwin-UE-Scene-Id") or request.args.get("scene_id") or request.args.get("scene") or ""
+    if not pid:
+        if session_cookie or ue_id:
+            return jsonify({
+                "error": "project_id_required",
+                "message": "4.8 业务请求必须显式携带 project_id",
+            }), 400
+        return None
+    if ue_id and not legacy_project_ue_allowed(pid, ue_id, scene_id):
+        return jsonify({"error": "ue_project_mismatch", "message": "project_id 与 UE 场景绑定不一致"}), 403
+    if session_cookie:
+        role = legacy_project_role(pid)
+        if role == "none":
+            return jsonify({"error": "forbidden", "message": "无权访问该项目"}), 403
+        if request.method not in {"GET", "HEAD", "OPTIONS"}:
+            # 旧路由也必须遵守项目级 edit 授权；组织 editor 只代表
+            # 有资格建项目，不代表可以写入本工厂所有项目。
+            write_role = legacy_project_role(pid, minimum="edit")
+            if write_role == "none":
+                return jsonify({"error": "forbidden", "message": "当前项目没有编辑权限"}), 403
+    try:
+        g.ontotwin_project_store = project_view(project_store, pid)
+    except KeyError:
+        return jsonify({"error": "project_not_found", "project_id": pid}), 404
+    g.ontotwin_project_id = pid
+    return None
 
 # ═══════════════════════════════════════════════════════════════
 # 页面路由
@@ -122,9 +310,29 @@ _object_types = {k: dict(v) for k, v in OBJECT_TYPES.items()}
 def index():
     return app.send_static_file('index.html')
 
+@app.route('/account')
+def serve_account():
+    """4.8 登录、初始化及组织／工厂选择入口。"""
+    return app.send_static_file('account48.html')
+
+@app.route('/organization')
+def serve_organization():
+    """兼容原型链接；正式入口仍从头像菜单回到账号页。"""
+    return app.send_static_file('account48.html')
+
 @app.route('/nexus')
 def serve_nexus():
+    return app.send_static_file('nexus48.html')
+
+@app.route('/nexus-legacy')
+def serve_nexus_legacy():
+    """旧版 Nexus 外壳回退入口；内部业务页面保持同源可用。"""
     return app.send_static_file('nexus.html')
+
+@app.route('/workspace48')
+def serve_workspace48():
+    """4.8 登录后的真实项目选择工作台；旧 /nexus 保持兼容。"""
+    return app.send_static_file('workspace48.html')
 
 @app.route('/presentation_library')
 def serve_presentation_library():
@@ -392,10 +600,10 @@ def _commit_publish(data, items, source_file, force):
         "graph_data": {"nodes": nodes, "links": [], "categories": []}
     }
     _datasets.append(new_ds)
-    _active_dataset_id = ds_id
+    _set_active_dataset_view(ds_id)
     # A new project must not inherit capability configuration from the project
     # that happened to be active when it was published.
-    _object_types = _project_dataset_to_object_types(new_ds, existing_types={})
+    _set_object_types(_project_dataset_to_object_types(new_ds, existing_types={}))
     # 持久化为一个项目(含类型表+graph),并设为激活 → 后续 coord 投产落入此项目
     project_store.create_project(name, object_types=_object_types,
                                  project_id=ds_id, dataset=new_ds)
@@ -408,7 +616,7 @@ def _commit_publish(data, items, source_file, force):
         "dataset_name": name,
         "written_count": len(nodes),
         "asset_mapping_updated": mapping_n,
-        "active_dataset_id": _active_dataset_id,
+        "active_dataset_id": _active_dataset_view(),
         "hint": "若其他标签页正在浏览语义图谱总览，请手动刷新查看新数据集"
     })
 
@@ -420,6 +628,7 @@ def _commit_merge(data, items, source_file, force):
     opts = data.get("merge_options") or {}
     target_id = opts.get("target_dataset_id")
     strategy = data.get("conflict_strategy", "skip")  # skip | overwrite
+    active_id = globals().get("_active_dataset_view", lambda: _active_dataset_id)()
     if not target_id:
         return jsonify({"error": "merge 模式必须提供 target_dataset_id"}), 400
     if target_id == "demo":
@@ -445,7 +654,7 @@ def _commit_merge(data, items, source_file, force):
     collide = new_rid_set & existing_rids
 
     # 副作用预检：仅当 target == active（合并会刷新 _object_types）
-    if target_id == _active_dataset_id and collide:
+    if target_id == active_id and collide:
         # 被覆盖的 rid 中，被实例引用且 strategy=overwrite 的需要警告
         if strategy == "overwrite":
             dangling = _detect_dangling_refs(list(collide))
@@ -530,8 +739,8 @@ def _commit_merge(data, items, source_file, force):
             if shared_target is not None:
                 shared_target.clear()
                 shared_target.update(copy.deepcopy(target_ds))
-            if target_id == _active_dataset_id:
-                _object_types = merged_types
+            if target_id == active_id:
+                _set_object_types(merged_types)
     except ValueError as exc:
         return jsonify({'error': 'merge_conflict', 'message': str(exc)}), 409
 
@@ -548,7 +757,7 @@ def _commit_merge(data, items, source_file, force):
         "asset_bindings_applied": asset_bindings_applied,
         "asset_bindings_updated": asset_bindings_updated,
         "asset_mapping_updated": mapping_n,
-        "active_dataset_id": _active_dataset_id,
+        "active_dataset_id": _active_dataset_view(),
         "hint": "保留原类型结构时，人工确认模型仍会独立写入；若其他标签页正在浏览语义图谱总览，请手动刷新查看更新"
     })
 
@@ -620,7 +829,7 @@ def coord_types_check_coverage():
         "covered": len(covered),
         "missing": len(missing),
         "missing_samples": missing[:10],
-        "active_dataset_id": _active_dataset_id,
+        "active_dataset_id": _active_dataset_view(),
     })
 
 
@@ -644,7 +853,7 @@ def _find_rid_in_other_datasets(rid):
     """返回该 rid 所在的（非激活）数据集列表，用于三态校验。"""
     hits = []
     for ds in _datasets:
-        if ds["id"] == _active_dataset_id:
+        if ds["id"] == _active_dataset_view():
             continue
         graph = ds.get("graph_data") or {}
         # Demo 走 OBJECT_TYPES 常量
@@ -3562,6 +3771,31 @@ _datasets = [
 _active_dataset_id = "demo"
 
 
+def _active_dataset_view():
+    try:
+        # 4.8 显式项目上下文就是当前项目的运行视图；不能再退回进程级
+        # app_singleton.active_project_id / Demo，否则新建项目在旧页面会
+        # 永远显示成“未激活”。
+        return (
+            getattr(g, "ontotwin_request_active_dataset_id", None)
+            or getattr(g, "ontotwin_project_id", None)
+            or _active_dataset_id
+        )
+    except RuntimeError:
+        return _active_dataset_id
+
+
+def _set_active_dataset_view(value):
+    global _active_dataset_id
+    try:
+        if getattr(g, "ontotwin_project_id", None):
+            g.ontotwin_request_active_dataset_id = value
+            return
+    except RuntimeError:
+        pass
+    _active_dataset_id = value
+
+
 # ── 同步视图 ↔ ProjectStore ────────────────────────────────────────────────
 # _datasets / _active_dataset_id / _object_types 是"当前激活项目"的内存视图；
 # ProjectStore 是唯一事实来源(持久化+实例归属)。下面两个 helper 负责双向同步。
@@ -3569,16 +3803,17 @@ _active_dataset_id = "demo"
 def _persist_active_project():
     """把当前 _object_types + 激活数据集 写回 ProjectStore 的激活项目并落盘。
     数据集层任何变更(发布/合并/激活/绑资产)后调用。demo 不持久化。"""
-    if _active_dataset_id == "demo":
+    if _active_dataset_view() == "demo":
         return
-    ds = next((d for d in _datasets if d.get("id") == _active_dataset_id), None)
-    if project_store.get_active_id() != _active_dataset_id:
+    active_id = _active_dataset_view()
+    ds = next((d for d in _datasets if d.get("id") == active_id), None)
+    if project_store.get_active_id() != active_id:
         # 目标项目可能还没有文件 → 建一个(create_project 会设为激活)
-        if not project_store.activate(_active_dataset_id):
+        if not project_store.activate(active_id):
             project_store.create_project(
-                ds.get("name") if ds else _active_dataset_id,
+                ds.get("name") if ds else active_id,
                 object_types=_object_types,
-                project_id=_active_dataset_id,
+                project_id=active_id,
                 dataset=ds)
             return
     project_store.set_object_types(_object_types)
@@ -3600,9 +3835,9 @@ def _init_from_project_store():
             index_by_id[ds["id"]] = len(_datasets) - 1
     active_id = project_store.get_active_id()
     if active_id:
-        _active_dataset_id = active_id
+        _set_active_dataset_view(active_id)
         # 即使激活项目类型表为空，也必须覆盖默认内置类型，避免空项目回退到 Demo 类型库。
-        _object_types = project_store.get_object_types()
+        _set_object_types(project_store.get_object_types())
         print(f"[project] 恢复激活项目={active_id}，类型={len(_object_types)}，实例={len(project_store.get_all_ids())}")
 
 
@@ -3730,12 +3965,40 @@ def get_custom_graph():
 
 @app.route('/api/v2/ontology/datasets', methods=['GET'])
 def list_datasets():
-    """获取所有已保存的数据集列表，包含内置 Demo"""
+    """获取所有已保存的数据集列表，包含内置 Demo。
+
+    4.8 的项目先由 tenant API 创建，数据库里的 ``project.dataset`` 可以
+    暂时为空；旧版数据集列表不能因此把整个项目隐藏。这里以项目表为
+    权威目录，缺少语义图数据时返回空图占位，后续业务页仍使用同一个
+    project_id 继续写入。
+    """
+    global _datasets
+    visible_projects = legacy_project_scope()
     project_meta = {p["id"]: p for p in project_store.list_projects()}
+
+    # 与 4.8 /api/v4.8/projects 对齐：新建项目即使尚未导入图谱，也要
+    # 立刻出现在旧业务页的列表中；同时避免必须重启后端才能刷新缓存。
+    known_ids = {item.get("id") for item in _datasets if item.get("id")}
+    for pid, meta in project_meta.items():
+        if not pid or pid == "demo" or pid in known_ids:
+            continue
+        _datasets.append({
+            "id": pid,
+            "name": meta.get("name") or pid,
+            "created_at": meta.get("created_at") or "",
+            "node_count": 0,
+            "link_count": 0,
+            "graph_data": {"nodes": [], "links": [], "categories": []},
+            "bound_ue_project_id": meta.get("bound_ue_project_id", ""),
+            "bound_ue_project_name": meta.get("bound_ue_project_name", ""),
+        })
+
     result = []
     for ds in _datasets:
         dataset_id = ds.get("id")
         if not dataset_id:
+            continue
+        if visible_projects is not None and dataset_id != "demo" and dataset_id not in visible_projects:
             continue
         meta = project_meta.get(dataset_id, {})
         graph = ds.get("graph_data")
@@ -3760,7 +4023,7 @@ def list_datasets():
             "unzoned_instance_count": meta.get("unzoned_instance_count", 0),
             "bound_ue_project_id": ds.get("bound_ue_project_id") or meta.get("bound_ue_project_id", ""),
             "bound_ue_project_name": ds.get("bound_ue_project_name") or meta.get("bound_ue_project_name", ""),
-            "is_active": dataset_id == _active_dataset_id
+            "is_active": dataset_id == _active_dataset_view()
         })
     return jsonify(result)
 
@@ -3774,11 +4037,33 @@ def bind_active_ue_project():
     ue = request_ue_project(request)
     body = request.get_json(silent=True) or {}
     force = str(request.args.get("force") or body.get("force") or "").lower() in ("1", "true", "yes")
+    scene_key = (ue.get("scene_id") or body.get("scene_id") or "").strip()
     target_project_id = str(
         request.args.get("target_project_id") or body.get("target_project_id") or ""
     ).strip() or None
+    if scene_key and target_project_id and not force:
+        # Check the new scene key before touching the legacy dataset field.
+        # Otherwise a rejected scene claim could still rewrite the compatibility
+        # binding on the target project.
+        from db import pg
+        with pg.get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT b.binding_id,b.project_id FROM project_scene_binding b
+                       JOIN ue_scene s ON s.scene_id=b.scene_id
+                      WHERE b.ue_project_id=%s AND s.stable_key=%s AND b.status='active'""",
+                    (ue["id"], scene_key),
+                )
+                scene_conflict = cur.fetchone()
+        if scene_conflict and scene_conflict[1] != target_project_id:
+            return jsonify({"error": "scene_binding_conflict", "binding_id": scene_conflict[0], "project_id": scene_conflict[1]}), 409
+    # A scene-aware 4.8 binding allows one UE .uproject to host several levels.
+    # The legacy dataset field cannot represent that, so its old mutual
+    # exclusion is bypassed only for this compatibility bridge; the new table
+    # still enforces one binding per (UE project, scene).
     ok, info = bind_active_dataset(
-        project_store, ue["id"], ue["name"], force=force, target_project_id=target_project_id
+        project_store, ue["id"], ue["name"],
+        force=(force or bool(scene_key)), target_project_id=target_project_id
     )
     if not ok:
         # 互斥/抢占冲突返 409，目标项目不存在返 404，其他参数错返 400
@@ -3788,12 +4073,61 @@ def bind_active_ue_project():
             "target_project_not_found": 404,
         }.get(info.get("error"), 400)
         return jsonify(info), code
+    # 4.8 bridge for existing UE builds: the old bind button has no browser
+    # session, so it also materializes the configured SceneId into the new
+    # scene-level binding table.  The legacy dataset binding is retained only
+    # for old plugins; all subsequent explicit snapshot requests are checked
+    # against this row.
+    if scene_key:
+        from db import pg
+        project_id = info.get("project_id")
+        try:
+            with pg.get_conn() as conn:
+                with conn.transaction():
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT organization_id,factory_id FROM project WHERE id=%s AND deleted_at IS NULL", (project_id,))
+                        owner = cur.fetchone()
+                        if not owner:
+                            return jsonify({"error": "project_not_found", "project_id": project_id}), 404
+                        cur.execute(
+                            """INSERT INTO ue_project(ue_project_id,stable_key,display_name,last_seen_at)
+                               VALUES(%s,%s,%s,now())
+                               ON CONFLICT(ue_project_id) DO UPDATE SET display_name=EXCLUDED.display_name,last_seen_at=now()""",
+                            (ue["id"], ue["id"], ue["name"] or ue["id"]),
+                        )
+                        scene_id = f"{ue['id']}::{scene_key}"
+                        cur.execute(
+                            """INSERT INTO ue_scene(scene_id,ue_project_id,stable_key,display_name)
+                               VALUES(%s,%s,%s,%s)
+                               ON CONFLICT(scene_id) DO UPDATE SET display_name=EXCLUDED.display_name""",
+                            (scene_id, ue["id"], scene_key, scene_key),
+                        )
+                        cur.execute(
+                            """SELECT binding_id,project_id FROM project_scene_binding
+                               WHERE ue_project_id=%s AND scene_id=%s AND status='active'""",
+                            (ue["id"], scene_id),
+                        )
+                        scene_conflict = cur.fetchone()
+                        if scene_conflict and scene_conflict[1] != project_id and not force:
+                            return jsonify({"error": "scene_binding_conflict", "binding_id": scene_conflict[0], "project_id": scene_conflict[1]}), 409
+                        cur.execute("UPDATE project_scene_binding SET status='replaced',updated_at=now() WHERE project_id=%s AND status='active'", (project_id,))
+                        binding_id = scene_conflict[0] if scene_conflict and scene_conflict[1] == project_id else f"bind_{uuid.uuid4().hex}"
+                        if scene_conflict and scene_conflict[1] == project_id:
+                            cur.execute("UPDATE project_scene_binding SET ue_project_id=%s,scene_id=%s,status='active',updated_at=now(),revision=revision+1 WHERE binding_id=%s", (ue["id"], scene_id, binding_id))
+                        else:
+                            cur.execute(
+                                """INSERT INTO project_scene_binding(binding_id,project_id,organization_id,factory_id,ue_project_id,scene_id,status)
+                                   VALUES(%s,%s,%s,%s,%s,%s,'active')""",
+                                (binding_id, project_id, owner[0], owner[1], ue["id"], scene_id),
+                            )
+        except Exception as exc:
+            return jsonify({"error": "scene_binding_failed", "message": str(exc), "project_id": project_id}), 409
     ds = info["dataset"]
     for i, item in enumerate(_datasets):
         if item.get("id") == ds.get("id"):
             _datasets[i] = ds
             break
-    return jsonify({"status": "ok", "project_id": info.get("project_id"), "dataset": ds})
+    return jsonify({"status": "ok", "project_id": info.get("project_id"), "scene_id": (f"{ue['id']}::{scene_key}" if scene_key else ""), "dataset": ds})
 
 @app.route('/api/v2/ue/binding_status', methods=['GET'])
 def ue_binding_status():
@@ -3856,8 +4190,8 @@ def create_empty_dataset():
 
     activated = False
     if data.get("activate"):
-        _active_dataset_id = ds_id
-        _object_types = _project_dataset_to_object_types(new_ds)  # 空集 → {}
+        _set_active_dataset_view(ds_id)
+        _set_object_types(_project_dataset_to_object_types(new_ds))  # 空集 → {}
         _persist_active_project()   # 与 activate_dataset 一致：建/切项目文件（否则数据集只活在内存）
         activated = True
 
@@ -3871,16 +4205,28 @@ def create_empty_dataset():
 
 @app.route('/api/v2/ontology/publish', methods=['POST'])
 def publish_custom_graph():
-    """将当前导入的自定义数据作为新数据集追加到列表。不再视口第一个元素。"""
+    """将预览中的自定义图谱保存到明确的项目。
+
+    旧版页面没有 project_id 时仍保留兼容行为；4.8 页面必须先创建项目，
+    再用显式 project_id 调用本路由，把图谱写回该项目，而不是写入一个
+    进程级“当前激活数据集”。
+    """
     global _custom_graph_data, _datasets
-    if not _custom_graph_data:
+    body = request.get_json(silent=True) or {}
+    if isinstance(body.get("graph_data"), dict):
+        graph_data = body["graph_data"]
+    else:
+        graph_data = _custom_graph_data
+    if not isinstance(graph_data, dict):
         return jsonify({"error": "没有可发布的数据，请先从 CSV 或 API 导入"}), 400
+    _custom_graph_data = graph_data
 
     import datetime
     data = request.json or {}
     name = data.get("name", "").strip() or "自定义数据集"
     created_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    ds_id = f"ds_{int(datetime.datetime.now().timestamp())}"
+    explicit_project_id = getattr(g, "ontotwin_project_id", None)
+    ds_id = explicit_project_id or f"ds_{int(datetime.datetime.now().timestamp() * 1000)}"
 
     new_ds = {
         "id": ds_id,
@@ -3888,9 +4234,22 @@ def publish_custom_graph():
         "created_at": created_at,
         "node_count": len(_custom_graph_data["nodes"]),
         "link_count": len(_custom_graph_data["links"]),
-        "graph_data": _custom_graph_data
+        "graph_data": graph_data
     }
-    _datasets.append(new_ds)
+    existing_index = next((i for i, item in enumerate(_datasets) if item.get("id") == ds_id), None)
+    if existing_index is None:
+        _datasets.append(new_ds)
+    else:
+        _datasets[existing_index] = new_ds
+
+    if explicit_project_id:
+        # project_view() 已在 before_request 中绑定到本请求的项目；set_dataset
+        # 会落 PostgreSQL，并同步对象类型，后续重启仍可从项目恢复。
+        scoped_store = getattr(g, "ontotwin_project_store", project_store)
+        scoped_store.set_dataset(new_ds)
+        _set_object_types(_project_dataset_to_object_types(new_ds, existing_types={}))
+        return jsonify({"status": "ok", "dataset_id": ds_id, "project_id": ds_id, "name": name})
+
     return jsonify({"status": "ok", "dataset_id": ds_id, "name": name})
 
 
@@ -3941,23 +4300,27 @@ def activate_dataset():
     ds = next((d for d in _datasets if d["id"] == ds_id), None)
     if not ds:
         return jsonify({"error": f"找不到数据集: {ds_id}"}), 404
+    visible_projects = legacy_project_scope()
+    if visible_projects is not None and ds_id != "demo" and ds_id not in visible_projects:
+        return jsonify({"error": "无权访问该数据集"}), 403
 
     if ds_id == "demo":
-        _active_dataset_id = ds_id
-        _object_types = _project_dataset_to_object_types(ds)
+        _set_active_dataset_view(ds_id)
+        _set_object_types(_project_dataset_to_object_types(ds))
         project_store.deactivate()            # demo 无项目 → 不服务实例
     else:
         # Existing-project activation is read-only. Re-projecting graph nodes and
         # persisting them here used to erase type-level capability configuration.
-        _object_types, _created = activate_or_create_project(
+        activated_types, _created = activate_or_create_project(
             project_store,
             ds,
             lambda target: _project_dataset_to_object_types(
                 target, existing_types={}
             ),
         )
-        _active_dataset_id = ds_id
-    return jsonify({"status": "ok", "active": _active_dataset_id})
+        _set_object_types(activated_types)
+        _set_active_dataset_view(ds_id)
+    return jsonify({"status": "ok", "active": _active_dataset_view()})
 
 
 def _normalize_graph_data(graph):
@@ -3998,6 +4361,9 @@ def _normalize_graph_data(graph):
 @app.route('/api/v2/ontology/datasets/<ds_id>/graph', methods=['GET'])
 def get_dataset_graph(ds_id):
     """获取指定数据集的图谱数据（用于前端预览）"""
+    visible_projects = legacy_project_scope()
+    if visible_projects is not None and ds_id != "demo" and ds_id not in visible_projects:
+        return jsonify({"error": "无权访问该数据集"}), 403
     ds = next((d for d in _datasets if d["id"] == ds_id), None)
     if not ds:
         return jsonify({"error": f"找不到数据集: {ds_id}"}), 404
@@ -4014,6 +4380,12 @@ def delete_dataset(ds_id):
     global _datasets, _active_dataset_id, _object_types
     if ds_id == "demo":
         return jsonify({"error": "内置数据集无法删除"}), 400
+
+    role = legacy_project_role(ds_id)
+    if role == "none":
+        return jsonify({"error": "无权访问该数据集"}), 403
+    if role is not None and role != "admin":
+        return jsonify({"error": "只有组织管理员可以删除整个项目"}), 403
 
     ds_index = next((i for i, d in enumerate(_datasets) if d["id"] == ds_id), None)
     if ds_index is None:
@@ -4033,11 +4405,11 @@ def delete_dataset(ds_id):
         print(f"[ue_binding] 索引清理 {ds_id} 失败: {_e}")
 
     # 如果删除的是当前激活项，重置为 demo
-    if _active_dataset_id == ds_id:
-        _active_dataset_id = "demo"
-        _object_types = {k: dict(v) for k, v in OBJECT_TYPES.items()}
+    if _active_dataset_view() == ds_id:
+        _set_active_dataset_view("demo")
+        _set_object_types({k: dict(v) for k, v in OBJECT_TYPES.items()})
 
-    return jsonify({"status": "ok", "active": _active_dataset_id})
+    return jsonify({"status": "ok", "active": _active_dataset_view()})
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -5389,7 +5761,7 @@ if _ue_try_rebuild_index(project_store, force=True):
 
 def _refresh_object_types_after_overlay_save():
     global _object_types
-    _object_types = project_store.get_object_types()
+    _set_object_types(project_store.get_object_types())
 
 
 register_label_routes(app, lambda: _object_types, _persist_active_project)
@@ -5429,6 +5801,69 @@ def _dataset_package_imported(dataset):
     _datasets.append(dataset)
 
 
+def _dataset_package_project_imported(project_id):
+    """Attach a newly imported package project to the current 4.8 context.
+
+    Dataset-package preflight/import is intentionally projectless: the user
+    has not selected an existing project yet.  The request still carries the
+    selected organization/factory headers from the workspace, so the new
+    project must be assigned here before it can appear in the tenant list.
+    """
+    org_id = (request.headers.get("X-OntoTwin-Organization-Id") or "").strip()
+    factory_id = (request.headers.get("X-OntoTwin-Factory-Id") or "").strip()
+    token = request.cookies.get("ontotwin_session") or request.headers.get("X-OntoTwin-Session")
+    if not org_id or not factory_id or not token:
+        # JSON/legacy deployments may import without tenant ownership.
+        return
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    from db import pg
+    with pg.get_conn() as conn:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT s.user_id,o.environment_id
+                         FROM user_session s
+                         JOIN organization o ON o.organization_id=%s
+                        WHERE s.session_hash=%s AND s.invalidated_at IS NULL
+                          AND s.expires_at>now()""",
+                    (org_id, token_hash),
+                )
+                session_row = cur.fetchone()
+                if not session_row:
+                    raise RuntimeError("导入会话已失效，请重新登录")
+                user_id, environment_id = session_row
+                cur.execute(
+                    """SELECT 1 FROM organization_member
+                        WHERE organization_id=%s AND user_id=%s
+                          AND status='active' AND removed_at IS NULL""",
+                    (org_id, user_id),
+                )
+                if not cur.fetchone():
+                    raise RuntimeError("当前账号无权导入到该组织")
+                cur.execute(
+                    """SELECT 1 FROM factory_member
+                        WHERE factory_id=%s AND user_id=%s
+                          AND status='active' AND removed_at IS NULL""",
+                    (factory_id, user_id),
+                )
+                if not cur.fetchone():
+                    raise RuntimeError("当前账号无权导入到该工厂")
+                cur.execute(
+                    """UPDATE project
+                          SET environment_id=%s,organization_id=%s,factory_id=%s,updated_at=now()
+                        WHERE id=%s AND deleted_at IS NULL""",
+                    (environment_id, org_id, factory_id, project_id),
+                )
+                if cur.rowcount != 1:
+                    raise RuntimeError("导入项目未找到，无法建立归属")
+                cur.execute(
+                    """INSERT INTO project_permission(project_id,user_id,permission,granted_by)
+                        VALUES(%s,%s,'edit',%s)
+                        ON CONFLICT(project_id,user_id) DO UPDATE SET permission='edit',revoked_at=NULL""",
+                    (project_id, user_id, user_id),
+                )
+
+
 from dataset_package import register_dataset_package_routes
 dataset_package_service = register_dataset_package_routes(
     app,
@@ -5436,6 +5871,7 @@ dataset_package_service = register_dataset_package_routes(
     dataset_lookup=_dataset_package_lookup,
     dataset_names=_dataset_package_names,
     on_import=_dataset_package_imported,
+    on_project_imported=_dataset_package_project_imported,
 )
 
 from zone_management import register_zone_management_routes

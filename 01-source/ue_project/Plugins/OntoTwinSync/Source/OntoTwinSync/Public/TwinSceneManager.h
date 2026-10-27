@@ -123,9 +123,8 @@ public:
     FString UEProjectName;
 
     /**
-     * 场景 ID：只拉取该场景的实例。
-     * 留空 = 跟随后端当前激活的数据集（单工程常用）。
-     * 多个 UE 工程对接同一后端时，各填各的场景名以互不干扰。
+     * 场景 ID：与 4.8 场景级绑定表中的 stable_key 对应，只拉取该关卡绑定的项目。
+     * 留空仅保留旧版单项目兼容行为；新工程应为每个 UE Level 配置稳定 ID。
      */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接",
               meta=(DisplayName="场景ID(留空=跟随后端)"))
@@ -735,7 +734,7 @@ private:
 
     // ── 内部方法 ─────────────────────────────────────────────────────────
 
-    /** 拼接快照接口 URL（SceneId 非空时追加 ?scene= 查询参数） */
+    /** 拼接快照接口 URL（显式 project_id；SceneId 非空时追加 scene 查询参数） */
     FString BuildSnapshotsUrl() const;
 
     /** 拼接 4.1 增量快照 URL（可携带不透明 cursor）。 */

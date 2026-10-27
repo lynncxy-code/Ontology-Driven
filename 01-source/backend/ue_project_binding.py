@@ -45,6 +45,7 @@ def request_ue_project(request):
     return {
         "id": (request.headers.get(UE_ID_HEADER) or data.get("ue_project_id") or request.args.get("ue_project_id") or "").strip(),
         "name": (request.headers.get(UE_NAME_HEADER) or data.get("ue_project_name") or request.args.get("ue_project_name") or "").strip(),
+        "scene_id": (request.headers.get("X-OntoTwin-UE-Scene-Id") or data.get("scene_id") or request.args.get("scene_id") or request.args.get("scene") or "").strip(),
     }
 
 
@@ -320,6 +321,57 @@ def resolve_project_for_ue(store, request):
     # the web picker useful without introducing a second registration protocol.
     observe_ue_project(request)
     ue_id = incoming.get("id") or ""
+
+    # 4.8 explicit context.  The Flask request guard has already checked the
+    # scene-level binding (or browser membership); keeping the resolver aware
+    # of the same header lets all legacy handlers use their existing code path
+    # without looking at process-global active state.
+    explicit_pid = (
+        request.headers.get("X-OntoTwin-Project-Id")
+        or request.args.get("project_id")
+        or (request.get_json(silent=True) or {}).get("project_id")
+        or ""
+    ).strip()
+    if explicit_pid and ue_id:
+        return explicit_pid, True, {
+            "mode": "explicit",
+            "binding_state": "bound",
+            "project_id": explicit_pid,
+            "request_ue_project_id": ue_id,
+            "request_ue_project_name": incoming.get("name"),
+            "scene_id": incoming.get("scene_id") or "",
+        }
+
+    # Scene-level binding is authoritative for 4.8.  It is queried directly so
+    # a UE project with two levels can resolve two different projects even
+    # though the legacy dataset field can store only one UE id.
+    scene_id = incoming.get("scene_id") or ""
+    if ue_id and scene_id:
+        try:
+            from db import pg
+            with pg.get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """SELECT b.project_id FROM project_scene_binding b
+                            JOIN ue_project u ON u.ue_project_id=b.ue_project_id
+                            JOIN ue_scene s ON s.scene_id=b.scene_id
+                           WHERE (u.ue_project_id=%s OR u.stable_key=%s)
+                             AND (s.scene_id=%s OR s.stable_key=%s)
+                             AND b.status='active'""",
+                        (ue_id, ue_id, scene_id, scene_id),
+                    )
+                    row = cur.fetchone()
+            if row:
+                return str(row[0]), True, {
+                    "mode": "scene-matched",
+                    "binding_state": "bound",
+                    "project_id": str(row[0]),
+                    "request_ue_project_id": ue_id,
+                    "request_ue_project_name": incoming.get("name"),
+                    "scene_id": scene_id,
+                }
+        except Exception:
+            pass
 
     if not ue_id:
         if is_browser_request(request):

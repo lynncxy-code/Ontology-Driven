@@ -1,0 +1,5 @@
+FROM postgres:16
+
+# Keep the RC schema in sync with the source schema without mounting the
+# working tree into the acceptance database container.
+COPY 01-source/backend/db/schema.sql /docker-entrypoint-initdb.d/schema.sql

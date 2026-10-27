@@ -9,7 +9,7 @@ ProjectStorePG —— PostgreSQL 后端（OntoTwin 3.4）
 落盘/装载改成向 PG 分表(project/object_type/instance/zone) 拆解与重组。
 
 启用：环境变量 ONTOTWIN_STORE=pg（见 project_store.py 底部开关）。
-默认仍是 JSON 版，PG 为可选，互不影响。
+生产默认使用 PG；JSON 仅需通过 ONTOTWIN_STORE=json 显式打开，用作测试夹具。
 
 ⚠️ 需要一个可连的 PostgreSQL（docker compose 的 db 服务或本地 PG）。
 """
@@ -37,6 +37,23 @@ from project_store import (
     migrate_project_schema,
 )
 from db import pg
+
+
+class ProjectMigrationFrozenError(RuntimeError):
+    """项目处于 4.8 迁移冻结窗口时拒绝旧版写入。"""
+
+    def __init__(self, project_id, migration_id=None):
+        self.project_id = project_id
+        self.migration_id = migration_id
+        super().__init__(f"project is frozen by migration: {project_id}")
+
+
+def _guard_project_mutation(cur, project_id):
+    cur.execute("""SELECT ms.migration_id FROM migration_scope ms JOIN migration_batch mb ON mb.migration_id=ms.migration_id
+                   WHERE ms.project_id=%s AND mb.status IN ('frozen','running','rolling_back') LIMIT 1""", (project_id,))
+    row = cur.fetchone()
+    if row:
+        raise ProjectMigrationFrozenError(project_id, row[0])
 
 
 def _env_float(name, default):
@@ -109,6 +126,25 @@ class ProjectStorePG(ProjectStore):
             print(f"[project_store_pg] init_schema 跳过: {e}")
         self._load_active()
 
+    def for_request(self, project_id):
+        """Load one project without changing the process-wide active project.
+
+        Legacy service methods operate on ``self._current``.  A request clone
+        gives those methods the old API surface while all reads/writes target
+        the explicit project selected by the request.  The clone has its own
+        lock and never writes ``app_singleton.active_project_id``.
+        """
+        project = self._read_project(str(project_id))
+        if project is None:
+            raise KeyError(str(project_id))
+        clone = object.__new__(type(self))
+        clone._lock = threading.RLock()
+        clone._active_id = str(project_id)
+        clone._current = project
+        clone._dirty = False
+        clone._request_scoped = True
+        return clone
+
     # ── 激活态 ───────────────────────────────────────────────
     def _load_active(self):
         self._active_id = None
@@ -131,6 +167,8 @@ class ProjectStorePG(ProjectStore):
             self._current = None
 
     def _save_active(self):
+        if getattr(self, "_request_scoped", False):
+            return
         with pg.get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -267,6 +305,21 @@ class ProjectStorePG(ProjectStore):
         with (nullcontext(connection) if connection is not None else pg.get_conn()) as conn:
             with conn.transaction():
                 with conn.cursor() as cur:
+                    # 4.8 迁移冻结是数据库状态，不依赖浏览器/进程内 active。
+                    # 所有旧版 ProjectStore 写入最终都经过这里，因而在迁移窗口内
+                    # 不会把旧内存快照重新写回 PostgreSQL。
+                    cur.execute(
+                        """SELECT ms.migration_id
+                             FROM migration_scope ms
+                             JOIN migration_batch mb ON mb.migration_id = ms.migration_id
+                            WHERE ms.project_id = %s
+                              AND mb.status IN ('frozen', 'running', 'rolling_back')
+                            LIMIT 1""",
+                        (pid,),
+                    )
+                    frozen = cur.fetchone()
+                    if frozen:
+                        raise ProjectMigrationFrozenError(pid, frozen[0])
                     # 1) 项目行（低频嵌套块直接 JSONB）
                     cur.execute(
                         """INSERT INTO project
@@ -578,6 +631,7 @@ class ProjectStorePG(ProjectStore):
         if kind == "project":
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
+                    _guard_project_mutation(cur, data["pid"])
                     cur.execute(
                         "UPDATE project SET deleted_at = NULL WHERE id = %s AND deleted_at IS NOT NULL RETURNING id",
                         (data["pid"],),
@@ -589,6 +643,7 @@ class ProjectStorePG(ProjectStore):
             pid, iid = data["pid"], data["iid"]
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
+                    _guard_project_mutation(cur, pid)
                     cur.execute(
                         "UPDATE instance SET deleted_at = NULL WHERE project_id = %s AND id = %s AND deleted_at IS NOT NULL RETURNING id",
                         (pid, iid),
@@ -603,6 +658,7 @@ class ProjectStorePG(ProjectStore):
             pid, st_us, et_us = data["pid"], data["start"], data["end"]
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
+                    _guard_project_mutation(cur, pid)
                     # 微秒精度：st/et 已是微秒整数，除 1e6 得秒（含小数）
                     cur.execute(
                         """UPDATE instance SET deleted_at = NULL
@@ -628,6 +684,7 @@ class ProjectStorePG(ProjectStore):
         if kind == "project":
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
+                    _guard_project_mutation(cur, data["pid"])
                     cur.execute(
                         "DELETE FROM project WHERE id = %s AND deleted_at IS NOT NULL RETURNING id",
                         (data["pid"],),
@@ -637,6 +694,7 @@ class ProjectStorePG(ProjectStore):
             pid, iid = data["pid"], data["iid"]
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
+                    _guard_project_mutation(cur, pid)
                     cur.execute(
                         "DELETE FROM instance WHERE project_id = %s AND id = %s AND deleted_at IS NOT NULL RETURNING id",
                         (pid, iid),
@@ -646,6 +704,7 @@ class ProjectStorePG(ProjectStore):
             pid, st_us, et_us = data["pid"], data["start"], data["end"]
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
+                    _guard_project_mutation(cur, pid)
                     cur.execute(
                         """DELETE FROM instance
                            WHERE project_id = %s
@@ -661,6 +720,9 @@ class ProjectStorePG(ProjectStore):
         n = 0
         with pg.get_conn() as conn:
             with conn.cursor() as cur:
+                cur.execute("SELECT DISTINCT p.id FROM project p LEFT JOIN instance i ON i.project_id=p.id WHERE p.deleted_at IS NOT NULL OR i.deleted_at IS NOT NULL")
+                for (pid,) in cur.fetchall():
+                    _guard_project_mutation(cur, pid)
                 cur.execute("DELETE FROM instance WHERE deleted_at IS NOT NULL")
                 n += cur.rowcount or 0
                 cur.execute("DELETE FROM project WHERE deleted_at IS NOT NULL")
@@ -708,12 +770,23 @@ class ProjectStorePG(ProjectStore):
                 cur.execute(
                     """SELECT id, name, created_at, dataset
                        FROM project
-                       WHERE deleted_at IS NULL AND dataset IS NOT NULL"""
+                       WHERE deleted_at IS NULL"""
                 )
                 for pid, name, created_at, raw_dataset in cur.fetchall():
+                    # 4.8 新建项目可以尚未导入语义图数据；仍返回一个空图
+                    # 占位，保证旧业务列表与 /api/v4.8/projects 使用同一
+                    # 项目目录，重启后也不会退回只显示 Demo。
                     dataset = _as_graph_dataset(pid, name, created_at, raw_dataset)
-                    if dataset:
-                        out.append(dataset)
+                    if not dataset:
+                        dataset = {
+                            "id": pid,
+                            "name": name or pid,
+                            "created_at": created_at,
+                            "node_count": 0,
+                            "link_count": 0,
+                            "graph_data": {"nodes": [], "links": [], "categories": []},
+                        }
+                    out.append(dataset)
         return out
 
     # ── 新建 / 删除 ──────────────────────────────────────────
@@ -754,6 +827,7 @@ class ProjectStorePG(ProjectStore):
                     )
                     existed = cur.fetchone() is not None
                     if existed:
+                        _guard_project_mutation(cur, pid)
                         cur.execute(
                             "UPDATE project SET deleted_at = now() WHERE id = %s", (pid,)
                         )

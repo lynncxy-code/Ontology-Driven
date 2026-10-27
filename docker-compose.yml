@@ -27,6 +27,7 @@ services:
       # 3.4 PostgreSQL 真源（容器内用服务名 db 连）
       - DATABASE_URL=postgresql://ontotwin:ontotwin@db:5432/ontotwin
       - ONTOTWIN_STORE=pg
+      - ONTOTWIN_RELEASE_ID=${ONTOTWIN_RELEASE_ID:-4.8-dev}
       # 实体空间位置是真源数据；仅在专门的演示环境显式开启模拟位移。
       - ONTOTWIN_MOCK_SIMULATOR_ENABLED=${ONTOTWIN_MOCK_SIMULATOR_ENABLED:-false}
       # 3.7.x 视频面板：逗号分隔。HTTP 来源还必须同时列入 HTTP_EXCEPTIONS。

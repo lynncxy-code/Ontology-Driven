@@ -40,6 +40,8 @@
             display: flex;
             position: relative;
         }
+        /* 4.8 进入项目后只展示当前图谱；数据集生命周期操作在工作台入口页。 */
+        body.embedded-mode #workbench-panel { display: none !important; }
 
         /* ── ECharts 区域 ────────────────────────────── */
         #graph-container {
@@ -1050,7 +1052,7 @@
     <header class="nexus-titlebar">
         <div class="nexus-titlebar__main">
             <h1 class="nexus-titlebar__title">语义图谱总览</h1>
-            <p class="nexus-titlebar__subtitle">浏览本体类型库的结构，切换当前生效的数据集</p>
+            <p class="nexus-titlebar__subtitle">浏览当前项目的语义图谱预览</p>
         </div>
     </header>
 
@@ -1060,7 +1062,7 @@
         <!-- 返回数据集列表悬浮按钮 (预览图谱时可见) -->
         <button id="btn-back-to-workbench" onclick="exitGraphView()" style="display: none; position: absolute; top: 14px; left: 16px; z-index: 25; background: #111111; color: #ffffff; border: none; border-radius: 6px; padding: 8px 16px; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); align-items: center; gap: 6px;">
             <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-            返回数据集列表
+            返回我的数据集
         </button>
         <button class="business-graph-toggle" id="business-graph-toggle" type="button" aria-pressed="false">查看完整业务本体</button>
 
@@ -2175,7 +2177,13 @@
         }
 
         function exitGraphView() {
-            // 返回工作台，默认选中“我的数据集”
+            // 4.8 项目工作台中，数据集管理统一在“我的数据集”入口；
+            // 不再把用户带回图二内部的旧数据集标签页。
+            if (params.get('nexus') === 'true') {
+                window.top.location.href = '/workspace48';
+                return;
+            }
+            // 兼容旧的直接访问路径
             switchTab('datasets');
         }
 
@@ -3019,10 +3027,29 @@
             }
         };
 
-        // 启动：先隐藏 loading 遮罩，然后默认展示"我的数据集"面板
-        setupEquipmentMappingPanel();
-        document.getElementById('loading').style.display = 'none';
-        switchTab('datasets');
+        // 启动：进入 4.8 项目后直接展示当前项目图谱；数据集创建、导入、
+        // 导入包等生命周期操作统一在 /workspace48。没有项目上下文时，
+        // 保留旧直接访问路径的兼容工作台。
+        (async function bootstrapOntologyPage() {
+            setupEquipmentMappingPanel();
+            document.getElementById('loading').style.display = 'none';
+            const embeddedProject = params.get('nexus') === 'true'
+                && sessionStorage.getItem('ontotwin_project_id');
+            if (embeddedProject) {
+                try {
+                    await loadDatasets();
+                    await initGraph();
+                } catch (error) {
+                    console.error('项目图谱初始化失败', error);
+                    document.getElementById('loading').innerText = '当前项目图谱加载失败';
+                    document.getElementById('loading').style.display = 'flex';
+                    const backBtn = document.getElementById('btn-back-to-workbench');
+                    if (backBtn) backBtn.style.display = 'flex';
+                }
+                return;
+            }
+            switchTab('datasets');
+        })();
     </script>
     <div class="ui-toast-wrap" id="ui-toast-wrap"></div>
 </body>

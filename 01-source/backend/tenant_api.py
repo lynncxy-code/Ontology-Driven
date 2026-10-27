@@ -528,7 +528,7 @@ def register_tenant_routes(app, project_store=None):
             with conn.transaction():
                 with conn.cursor() as cur:
                     cur.execute(
-                        """SELECT user_id,password_hash,enabled,failed_count,locked_until,password_revision,display_name
+                        """SELECT user_id,password_hash,enabled,failed_count,locked_until,password_revision,display_name,must_change_password
                            FROM user_account WHERE login_name=%s ORDER BY created_at LIMIT 1""",
                         (login_name,),
                     )
@@ -559,7 +559,7 @@ def register_tenant_routes(app, project_store=None):
                         (row[0],),
                     )
                     orgs = [{"organization_id": r[0], "name": r[1], "role": r[2]} for r in cur.fetchall()]
-        response = _json({"user": {"user_id": row[0], "login_name": login_name, "display_name": row[6]}, "organizations": orgs})
+        response = _json({"user": {"user_id": row[0], "login_name": login_name, "display_name": row[6], "must_change_password": bool(row[7])}, "organizations": orgs, "must_change_password": bool(row[7])})
         return _set_cookie(response, token)
 
     @app.post("/api/v4.8/auth/logout")
@@ -590,7 +590,7 @@ def register_tenant_routes(app, project_store=None):
                     row = cur.fetchone()
                     if not row or not check_password_hash(row[0], old_password):
                         raise ApiError(401, "当前密码错误", "invalid_credentials")
-                    cur.execute("UPDATE user_account SET password_hash=%s,password_revision=password_revision+1,failed_count=0,locked_until=NULL WHERE user_id=%s", (generate_password_hash(new_password), session["user_id"]))
+                    cur.execute("UPDATE user_account SET password_hash=%s,password_revision=password_revision+1,must_change_password=FALSE,failed_count=0,locked_until=NULL WHERE user_id=%s", (generate_password_hash(new_password), session["user_id"]))
                     cur.execute("UPDATE user_session SET invalidated_at=now() WHERE user_id=%s", (session["user_id"],))
         return _clear_cookie(_json({"ok": True, "reauth_required": True}))
 
@@ -613,6 +613,8 @@ def register_tenant_routes(app, project_store=None):
         with pg.get_conn() as conn:
             with conn.cursor() as cur:
                 session = _load_session(cur)
+                cur.execute("SELECT must_change_password FROM user_account WHERE user_id=%s", (session["user_id"],))
+                must_change = bool((cur.fetchone() or [False])[0])
                 cur.execute(
                     """SELECT o.organization_id,o.name,om.role
                        FROM organization_member om JOIN organization o ON o.organization_id=om.organization_id
@@ -620,7 +622,7 @@ def register_tenant_routes(app, project_store=None):
                     (session["user_id"],),
                 )
                 orgs = [{"organization_id": r[0], "name": r[1], "role": r[2]} for r in cur.fetchall()]
-        return _json({"user": {k: session[k] for k in ("user_id", "login_name", "display_name")}, "context": session, "organizations": orgs})
+        return _json({"user": {k: session[k] for k in ("user_id", "login_name", "display_name")}, "must_change_password": must_change, "context": session, "organizations": orgs})
 
     @app.get("/api/v4.8/organizations")
     @_api
@@ -832,7 +834,7 @@ def register_tenant_routes(app, project_store=None):
                         if len(password) < 12:
                             raise ApiError(400, "初始密码至少 12 位", "weak_password")
                         user_id = _id("usr")
-                        cur.execute("INSERT INTO user_account(user_id,environment_id,login_name,display_name,password_hash) VALUES(%s,%s,%s,%s,%s)", (user_id, env_id, login_name, body.get("display_name") or login_name, generate_password_hash(password)))
+                        cur.execute("INSERT INTO user_account(user_id,environment_id,login_name,display_name,password_hash,must_change_password) VALUES(%s,%s,%s,%s,%s,TRUE)", (user_id, env_id, login_name, body.get("display_name") or login_name, generate_password_hash(password)))
                     cur.execute("""INSERT INTO organization_member(organization_id,user_id,role) VALUES(%s,%s,%s)
                        ON CONFLICT(organization_id,user_id) DO UPDATE SET role=EXCLUDED.role,status='active',removed_at=NULL""", (org_id, user_id, role))
                     for factory_id in body.get("factory_ids") or []:
@@ -843,6 +845,132 @@ def register_tenant_routes(app, project_store=None):
                            ON CONFLICT(factory_id,user_id) DO UPDATE SET status='active',removed_at=NULL""", (factory_id, user_id))
                     _audit(cur, session["user_id"], org_id, None, None, "member.upsert", user_id, detail={"role": role})
         return _json({"user_id": user_id, "organization_id": org_id, "role": role}), 201
+
+    @app.get("/api/v4.8/organizations/<org_id>/members")
+    @_api
+    def list_members(org_id):
+        """Return active organization members and their factory assignments."""
+        _require_pg()
+        with pg.get_conn() as conn:
+            with conn.cursor() as cur:
+                session = _load_session(cur)
+                if not _org_role(cur, session["user_id"], org_id):
+                    raise ApiError(403, "无权访问该组织", "forbidden")
+                cur.execute(
+                    """SELECT u.user_id,u.login_name,u.display_name,u.enabled,
+                              u.created_at,om.role,
+                              f.factory_id,f.name
+                         FROM organization_member om
+                         JOIN user_account u ON u.user_id=om.user_id
+                         LEFT JOIN factory_member fm
+                           ON fm.user_id=u.user_id AND fm.status='active' AND fm.removed_at IS NULL
+                         LEFT JOIN factory f
+                           ON f.factory_id=fm.factory_id AND f.organization_id=om.organization_id AND f.status='active'
+                        WHERE om.organization_id=%s AND om.status='active' AND om.removed_at IS NULL
+                        ORDER BY u.display_name,u.login_name,f.name""",
+                    (org_id,),
+                )
+                members = {}
+                for row in cur.fetchall():
+                    member = members.setdefault(row[0], {
+                        "user_id": row[0],
+                        "login_name": row[1],
+                        "display_name": row[2],
+                        "enabled": bool(row[3]),
+                        "created_at": row[4].isoformat() if hasattr(row[4], "isoformat") else row[4],
+                        "role": row[5],
+                        "factories": [],
+                    })
+                    if row[6]:
+                        member["factories"].append({"factory_id": row[6], "name": row[7]})
+        return _json({"items": list(members.values())})
+
+    @app.patch("/api/v4.8/organizations/<org_id>/members/<user_id>")
+    @_api
+    def update_member(org_id, user_id):
+        """Update a member role and its factory assignments."""
+        _require_pg()
+        body = _body()
+        role = body.get("role")
+        factory_ids = body.get("factory_ids")
+        if role is not None and role not in ROLE_ORDER:
+            raise ApiError(400, "角色必须为 admin、editor 或 viewer", "invalid_role")
+        if factory_ids is not None and not isinstance(factory_ids, list):
+            raise ApiError(400, "factory_ids 必须是数组", "invalid_factory_ids")
+        with pg.get_conn() as conn:
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    session = _load_session(cur)
+                    if _org_role(cur, session["user_id"], org_id) != "admin":
+                        raise ApiError(403, "只有组织管理员可以管理成员", "forbidden")
+                    cur.execute(
+                        "SELECT role FROM organization_member WHERE organization_id=%s AND user_id=%s AND status='active' AND removed_at IS NULL FOR UPDATE",
+                        (org_id, user_id),
+                    )
+                    current = cur.fetchone()
+                    if not current:
+                        raise ApiError(404, "成员不存在", "member_not_found")
+                    if role is not None and current[0] == "admin" and role != "admin":
+                        cur.execute("SELECT count(*) FROM organization_member WHERE organization_id=%s AND role='admin' AND status='active' AND removed_at IS NULL", (org_id,))
+                        if int(cur.fetchone()[0] or 0) <= 1:
+                            raise ApiError(400, "组织至少需要保留一名管理员", "last_admin")
+                    if role is not None:
+                        cur.execute("UPDATE organization_member SET role=%s WHERE organization_id=%s AND user_id=%s", (role, org_id, user_id))
+                    if factory_ids is not None:
+                        cur.execute(
+                            """SELECT factory_id FROM factory WHERE organization_id=%s AND status='active'""",
+                            (org_id,),
+                        )
+                        valid = {row[0] for row in cur.fetchall()}
+                        invalid = [fid for fid in factory_ids if fid not in valid]
+                        if invalid:
+                            raise ApiError(400, "存在不属于该组织的工厂", "invalid_factory")
+                        cur.execute(
+                            """UPDATE factory_member SET status='removed',removed_at=now()
+                                WHERE user_id=%s AND factory_id IN
+                                  (SELECT factory_id FROM factory WHERE organization_id=%s)""",
+                            (user_id, org_id),
+                        )
+                        for factory_id in factory_ids:
+                            cur.execute(
+                                """INSERT INTO factory_member(factory_id,user_id,status,removed_at)
+                                   VALUES(%s,%s,'active',NULL)
+                                   ON CONFLICT(factory_id,user_id) DO UPDATE
+                                     SET status='active',removed_at=NULL""",
+                                (factory_id, user_id),
+                            )
+                        if factory_ids is not None:
+                            cur.execute("""UPDATE project_permission pp SET revoked_at=now()
+                                FROM project p WHERE pp.project_id=p.id AND pp.user_id=%s AND p.organization_id=%s
+                                  AND p.factory_id NOT IN (SELECT unnest(%s::text[])) AND pp.revoked_at IS NULL""", (user_id, org_id, factory_ids))
+                    _audit(cur, session["user_id"], org_id, None, None, "member.update", user_id, detail={"role": role, "factory_ids": factory_ids})
+        return _json({"user_id": user_id, "organization_id": org_id, "role": role})
+
+    @app.delete("/api/v4.8/organizations/<org_id>/members/<user_id>")
+    @_api
+    def remove_member(org_id, user_id):
+        _require_pg()
+        with pg.get_conn() as conn:
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    session = _load_session(cur)
+                    if _org_role(cur, session["user_id"], org_id) != "admin":
+                        raise ApiError(403, "只有组织管理员可以管理成员", "forbidden")
+                    if user_id == session["user_id"]:
+                        raise ApiError(400, "不能移除当前登录账号", "self_remove_forbidden")
+                    cur.execute("SELECT role FROM organization_member WHERE organization_id=%s AND user_id=%s AND status='active' AND removed_at IS NULL FOR UPDATE", (org_id, user_id))
+                    member = cur.fetchone()
+                    if not member:
+                        raise ApiError(404, "成员不存在", "member_not_found")
+                    if member[0] == "admin":
+                        cur.execute("SELECT count(*) FROM organization_member WHERE organization_id=%s AND role='admin' AND status='active' AND removed_at IS NULL", (org_id,))
+                        if int(cur.fetchone()[0] or 0) <= 1:
+                            raise ApiError(400, "组织至少需要保留一名管理员", "last_admin")
+                    cur.execute("UPDATE organization_member SET status='removed',removed_at=now() WHERE organization_id=%s AND user_id=%s", (org_id, user_id))
+                    cur.execute("""UPDATE factory_member SET status='removed',removed_at=now()
+                                   WHERE user_id=%s AND factory_id IN (SELECT factory_id FROM factory WHERE organization_id=%s)""", (user_id, org_id))
+                    _audit(cur, session["user_id"], org_id, None, None, "member.remove", user_id)
+        return _json({"ok": True, "user_id": user_id, "organization_id": org_id})
 
     @app.post("/api/v4.8/projects")
     @_api

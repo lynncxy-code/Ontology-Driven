@@ -48,6 +48,14 @@ class ProjectMigrationFrozenError(RuntimeError):
         super().__init__(f"project is frozen by migration: {project_id}")
 
 
+def _guard_project_mutation(cur, project_id):
+    cur.execute("""SELECT ms.migration_id FROM migration_scope ms JOIN migration_batch mb ON mb.migration_id=ms.migration_id
+                   WHERE ms.project_id=%s AND mb.status IN ('frozen','running','rolling_back') LIMIT 1""", (project_id,))
+    row = cur.fetchone()
+    if row:
+        raise ProjectMigrationFrozenError(project_id, row[0])
+
+
 def _env_float(name, default):
     try:
         return float(os.environ.get(name, default))
@@ -623,6 +631,7 @@ class ProjectStorePG(ProjectStore):
         if kind == "project":
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
+                    _guard_project_mutation(cur, data["pid"])
                     cur.execute(
                         "UPDATE project SET deleted_at = NULL WHERE id = %s AND deleted_at IS NOT NULL RETURNING id",
                         (data["pid"],),
@@ -634,6 +643,7 @@ class ProjectStorePG(ProjectStore):
             pid, iid = data["pid"], data["iid"]
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
+                    _guard_project_mutation(cur, pid)
                     cur.execute(
                         "UPDATE instance SET deleted_at = NULL WHERE project_id = %s AND id = %s AND deleted_at IS NOT NULL RETURNING id",
                         (pid, iid),
@@ -648,6 +658,7 @@ class ProjectStorePG(ProjectStore):
             pid, st_us, et_us = data["pid"], data["start"], data["end"]
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
+                    _guard_project_mutation(cur, pid)
                     # 微秒精度：st/et 已是微秒整数，除 1e6 得秒（含小数）
                     cur.execute(
                         """UPDATE instance SET deleted_at = NULL
@@ -673,6 +684,7 @@ class ProjectStorePG(ProjectStore):
         if kind == "project":
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
+                    _guard_project_mutation(cur, data["pid"])
                     cur.execute(
                         "DELETE FROM project WHERE id = %s AND deleted_at IS NOT NULL RETURNING id",
                         (data["pid"],),
@@ -682,6 +694,7 @@ class ProjectStorePG(ProjectStore):
             pid, iid = data["pid"], data["iid"]
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
+                    _guard_project_mutation(cur, pid)
                     cur.execute(
                         "DELETE FROM instance WHERE project_id = %s AND id = %s AND deleted_at IS NOT NULL RETURNING id",
                         (pid, iid),
@@ -691,6 +704,7 @@ class ProjectStorePG(ProjectStore):
             pid, st_us, et_us = data["pid"], data["start"], data["end"]
             with pg.get_conn() as conn:
                 with conn.cursor() as cur:
+                    _guard_project_mutation(cur, pid)
                     cur.execute(
                         """DELETE FROM instance
                            WHERE project_id = %s
@@ -706,6 +720,9 @@ class ProjectStorePG(ProjectStore):
         n = 0
         with pg.get_conn() as conn:
             with conn.cursor() as cur:
+                cur.execute("SELECT DISTINCT p.id FROM project p LEFT JOIN instance i ON i.project_id=p.id WHERE p.deleted_at IS NOT NULL OR i.deleted_at IS NOT NULL")
+                for (pid,) in cur.fetchall():
+                    _guard_project_mutation(cur, pid)
                 cur.execute("DELETE FROM instance WHERE deleted_at IS NOT NULL")
                 n += cur.rowcount or 0
                 cur.execute("DELETE FROM project WHERE deleted_at IS NOT NULL")
@@ -810,6 +827,7 @@ class ProjectStorePG(ProjectStore):
                     )
                     existed = cur.fetchone() is not None
                     if existed:
+                        _guard_project_mutation(cur, pid)
                         cur.execute(
                             "UPDATE project SET deleted_at = now() WHERE id = %s", (pid,)
                         )

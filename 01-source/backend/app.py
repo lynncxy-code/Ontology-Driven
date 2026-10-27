@@ -58,6 +58,19 @@ mimetypes.add_type("font/woff", ".woff")
 
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
 app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
+
+@app.get('/release-info.json')
+def release_info():
+    """Expose the running image identity to the account menu."""
+    release = os.environ.get('ONTOTWIN_RELEASE_ID', '4.8-dev')
+    return jsonify({
+        'environment': os.environ.get('ONTOTWIN_ENV', 'test'),
+        'version': release,
+        'backend': release,
+        'updated_at': os.environ.get('ONTOTWIN_RELEASE_BUILT_AT', ''),
+        'time_zone': 'UTC',
+        'note': '当前信息来自正在运行的 4.8 RC 后端镜像。',
+    })
 app.json.ensure_ascii = False  # 中文字符不转义为 \uXXXX，便于 2.9.2 调试（Flask 2.2+ 用法）
 CORS(app)
 
@@ -245,14 +258,23 @@ def _bind_explicit_v2_project():
     if not request.path.startswith("/api/v2/"):
         return None
     pid = _explicit_project_id()
+    session_cookie = request.cookies.get("ontotwin_session") or request.headers.get("X-OntoTwin-Session")
+    ue_id = request.headers.get("X-OntoTwin-UE-Project-Id") or ""
+    # PostgreSQL is the 4.8 runtime.  The old JSON compatibility path may be
+    # used by unit fixtures, but a live PG request must never become anonymous
+    # merely because it used a legacy /api/v2 route.  UE calls are identified
+    # separately and still require the explicit project/scene binding checks.
+    if os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() == "pg" and not session_cookie and not ue_id:
+        return jsonify({
+            "error": "auth_required",
+            "message": "4.8 业务请求必须先登录",
+        }), 401
     # Projectless preview/list routes may still opt into a request-scoped
     # project when the browser supplies one.  This keeps the legacy route
     # usable before project creation while making its active view explicit
     # once a 4.8 project has been selected.
     if request.path in _V2_PROJECTLESS_EXACT and not pid:
         return None
-    session_cookie = request.cookies.get("ontotwin_session") or request.headers.get("X-OntoTwin-Session")
-    ue_id = request.headers.get("X-OntoTwin-UE-Project-Id") or ""
     scene_id = request.headers.get("X-OntoTwin-UE-Scene-Id") or request.args.get("scene_id") or request.args.get("scene") or ""
     if not pid:
         if session_cookie or ue_id:

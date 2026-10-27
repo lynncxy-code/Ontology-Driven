@@ -115,13 +115,14 @@
     const currentOrg = (me.organizations || []).find(o => o.organization_id === (me.context && me.context.organization_id));
     wrap.innerHTML = '<button class="ot48-account-trigger" aria-label="账号菜单">' + initials + '</button>' +
       '<div class="ot48-account-panel"><div class="ot48-account-identity"><strong>' + esc(me.user.display_name || me.user.login_name) + '</strong><span id="ot48ContextLabel">' + esc(currentOrg?.name || '未选择组织') + '</span></div>' +
-      '<button class="ot48-account-item" data-action="switch">切换组织／工厂</button><button class="ot48-account-item" data-action="settings">组织管理</button><button class="ot48-account-item" data-action="version">环境与版本信息</button><button class="ot48-account-item" data-action="logout">退出登录</button><div class="ot48-account-version" id="ot48Version"></div></div>';
+      '<button class="ot48-account-item" data-action="switch">切换组织／工厂</button><button class="ot48-account-item" data-action="personal">个人设置</button><button class="ot48-account-item" data-action="settings">组织管理</button><button class="ot48-account-item" data-action="version">环境与版本信息</button><button class="ot48-account-item" data-action="logout">退出登录</button><div class="ot48-account-version" id="ot48Version"></div></div>';
     document.body.appendChild(wrap);
     const trigger = wrap.querySelector('.ot48-account-trigger');
     trigger.onclick = () => wrap.classList.toggle('open');
     document.addEventListener('click', e => { if (!wrap.contains(e.target)) wrap.classList.remove('open'); });
     wrap.querySelector('[data-action="switch"]').onclick = () => location.href = '/account?mode=switch';
     wrap.querySelector('[data-action="settings"]').onclick = () => location.href = '/organization?mode=manage';
+    wrap.querySelector('[data-action="personal"]').onclick = () => location.href = '/account?mode=personal';
     wrap.querySelector('[data-action="logout"]').onclick = async () => {
       await fetch('/api/v4.8/auth/logout', { method: 'POST', credentials: 'same-origin' });
       try { sessionStorage.clear(); } catch (_) {}

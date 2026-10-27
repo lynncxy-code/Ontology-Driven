@@ -153,6 +153,7 @@ CREATE TABLE IF NOT EXISTS user_account (
     login_name TEXT NOT NULL,
     display_name TEXT NOT NULL,
     password_hash TEXT NOT NULL,
+    must_change_password BOOLEAN NOT NULL DEFAULT FALSE,
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
     password_revision INTEGER NOT NULL DEFAULT 1,
     failed_count INTEGER NOT NULL DEFAULT 0,
@@ -161,6 +162,8 @@ CREATE TABLE IF NOT EXISTS user_account (
     last_login_at TIMESTAMPTZ,
     UNIQUE (environment_id, login_name)
 );
+
+ALTER TABLE user_account ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS user_session (
     session_id TEXT PRIMARY KEY,

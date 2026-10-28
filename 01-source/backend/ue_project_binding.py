@@ -363,7 +363,9 @@ def resolve_project_for_ue(store, request):
                     row = cur.fetchone()
             if row:
                 return str(row[0]), True, {
-                    "mode": "scene-matched",
+                    # 兼容旧 UE 插件：它只认 "matched" / "unbound"；场景级绑定
+                    # 的额外信息已由 binding_state / scene_id / project_id 表达。
+                    "mode": "matched",
                     "binding_state": "bound",
                     "project_id": str(row[0]),
                     "request_ue_project_id": ue_id,

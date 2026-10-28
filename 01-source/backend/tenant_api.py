@@ -693,6 +693,14 @@ def register_tenant_routes(app, project_store=None):
                            WHERE session_id=%s""",
                         (org_id, factory_id, project_id, session["session_id"]),
                     )
+        if project_id and project_store is not None:
+            # 兼容旧版 UE 绑定：把「当前项目」同步到全局激活态，让不带
+            # project_id 的旧绑定接口（/api/v2/ue/bind_active_project）也能
+            # 绑到本项目，而不是报 no active project。
+            try:
+                project_store.activate(str(project_id))
+            except Exception:
+                pass
         return _json({"organization_id": org_id, "factory_id": factory_id, "project_id": project_id})
 
     @app.get("/api/v4.8/projects")

@@ -5,3 +5,8 @@
 02-releases/windows-all-in-one/**/*.sh text eol=lf
 02-releases/windows-all-in-one/hyperv/guest/control.py text eol=lf
 02-releases/windows-all-in-one/hyperv/guest/cloud-init/* text eol=lf
+
+# 前端 vendor 第三方库带 SRI integrity 属性，哈希按文件字节计算；任何换行
+# 转换（LF→CRLF）都会让哈希失配、浏览器拒绝执行脚本，导致 Vue/axios 不加载、
+# 页面显示原始 {{ }}。固定 -text 禁止换行转换，保证任何检出/构建字节一致。
+01-source/frontend/vendor/** -text

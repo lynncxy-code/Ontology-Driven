@@ -1,0 +1,4 @@
+interface:
+  display_name: "OntoTwin 产品生命周期"
+  short_description: "管理 OntoTwin 分支、环境、发布、回滚与产品验收流程"
+  default_prompt: "使用 $ontotwin-product-lifecycle 按 feature、dev、release、main 和隔离环境管理这项 OntoTwin 工作。"

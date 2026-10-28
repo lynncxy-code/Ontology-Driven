@@ -1,0 +1,4 @@
+interface:
+  display_name: "UE 超级管家"
+  short_description: "安全接入 UE5.6、验收插件并管理测试到发布交付"
+  default_prompt: "使用 $ue-super-steward 安全接入这个 OntoTwin UE5.6 工程，并按生命周期门禁完成验收。"

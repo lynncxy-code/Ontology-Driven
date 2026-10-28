@@ -13,6 +13,7 @@
 class APlayerController;
 class APawn;
 class ATwinGodViewAnchor;
+class ATwinGodViewPawn;
 class ATwinInstance;
 class ATwinMinimapAnchor;
 class ATwinRoamingCharacter;
@@ -237,6 +238,10 @@ private:
     UPROPERTY()
     ATwinGodViewAnchor* StartupViewAnchor = nullptr;
 
+    /** 首页（非 F7/F10）自由漫游相机；上帝视角锚点只是它的初始出生点。 */
+    UPROPERTY()
+    ATwinGodViewPawn* HomeGodPawn = nullptr;
+
     UPROPERTY()
     ATwinMinimapAnchor* MinimapAnchor = nullptr;
 
@@ -330,6 +335,7 @@ private:
     bool bRoamingActive = false;
     bool bHudInteraction = false;
     bool bRoamingMouseLook = false;
+    bool bHomeFlyMouseLook = false;
     bool bRestoreHudAfterRuntimeEditor = false;
     bool bPendingReload = false;
     bool bEnhancedInputReady = false;
@@ -404,6 +410,11 @@ private:
     ATwinRoamingSpawnAnchor* FindSpawnAnchor(const FString& SpawnId) const;
     ATwinGodViewAnchor* FindGodViewAnchor(const FString& CameraId) const;
     void ApplyStartupView(bool bForce = false);
+    void EnsureHomeGodPawn(ATwinGodViewAnchor* Anchor, bool bResetToAnchor);
+    void ConfigureHomeGodPawn();
+    void TickHomeFly();
+    void SetHomeFlyMouseLook(bool bActive);
+    void ApplyHomeFlyMouseInputMode();
     ATwinMinimapAnchor* FindMinimapAnchor(FString& OutState) const;
     void ApplyMinimapConfig(bool bEnabled);
     bool InitializeMinimap(FString& OutError);

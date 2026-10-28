@@ -398,6 +398,11 @@ void UTwinInteractionManagerComponent::EndPlay(const EEndPlayReason::Type EndPla
     ATwinInstance::OnRepresentationVisualReady.Remove(RepresentationVisualReadyHandle);
     RepresentationVisualReadyHandle.Reset();
     ExitRoaming();
+    if (HomeGodPawn && IsValid(HomeGodPawn))
+    {
+        HomeGodPawn->Destroy();
+    }
+    HomeGodPawn = nullptr;
     OntoTwinCameraVisibility::ClearFromPlayer(
         PlayerController, StartupViewVisibilityState);
     DestroyHud();
@@ -478,6 +483,10 @@ void UTwinInteractionManagerComponent::TickComponent(
     if (!bEnhancedInputReady)
     {
         TickFallbackInput(DeltaTime);
+    }
+    if (PlayerController && !bRoamingActive && !SceneManager->IsRuntimeEditModeActive())
+    {
+        TickHomeFly();
     }
     UpdateCrosshairTarget();
     UpdateMinimapMarker(DeltaTime);
@@ -1338,43 +1347,218 @@ void UTwinInteractionManagerComponent::ApplyStartupView(bool bForce)
     {
         StartupViewAnchor = FindGodViewAnchor(TEXT("camera.god.default"));
     }
-    if (!StartupViewAnchor) return;
 
-    TArray<AActor*> HiddenActors;
-    OntoTwinCameraVisibility::ResolveHiddenActors(
-        GetWorld(),
-        ETwinCameraVisibilityProfile::GodView,
-        StartupViewAnchor->HiddenActorNames,
-        StartupViewAnchor->HiddenLevelNames,
-        HiddenActors);
-    OntoTwinCameraVisibility::ApplyToPlayer(
-        PlayerController, HiddenActors, StartupViewVisibilityState);
-    if (PlayerController->GetViewTarget() != StartupViewAnchor)
+    if (StartupViewAnchor)
     {
-        PlayerController->SetViewTarget(StartupViewAnchor);
+        TArray<AActor*> HiddenActors;
+        OntoTwinCameraVisibility::ResolveHiddenActors(
+            GetWorld(),
+            ETwinCameraVisibilityProfile::GodView,
+            StartupViewAnchor->HiddenActorNames,
+            StartupViewAnchor->HiddenLevelNames,
+            HiddenActors);
+        OntoTwinCameraVisibility::ApplyToPlayer(
+            PlayerController, HiddenActors, StartupViewVisibilityState);
+    }
+
+    EnsureHomeGodPawn(StartupViewAnchor, bForce);
+
+    // GameModeBase 在未配置宿主专用 Pawn 时会生成一个可见的引擎球体。首页现在由
+    // HomeGodPawn 接管视角，需显式隐藏仅原生 DefaultPawn；项目 Pawn 与 OntoTwin
+    // 相机/漫游 Pawn 一律保持不动。只在自由相机真正接管后隐藏，避免无锚点时黑屏。
+    if (GetWorld() && HomeGodPawn && IsValid(HomeGodPawn)
+        && PlayerController->GetPawn() == HomeGodPawn)
+    {
+        for (TActorIterator<ADefaultPawn> It(GetWorld()); It; ++It)
+        {
+            const bool bNeedsSuppression = !It->IsHidden() || It->GetActorEnableCollision();
+            It->SetActorHiddenInGame(true);
+            It->SetActorEnableCollision(false);
+            if (bNeedsSuppression)
+            {
+                UE_LOG(LogTemp, Log,
+                    TEXT("OntoTwin startup view suppressed native DefaultPawn: actor=%s"),
+                    *It->GetName());
+            }
+        }
+    }
+
+    if (StartupViewAnchor)
+    {
         UE_LOG(LogTemp, Log,
             TEXT("OntoTwin startup view applied: camera_id=%s actor=%s"),
             *StartupViewAnchor->CameraId, *StartupViewAnchor->GetName());
     }
+}
 
-    // GameModeBase creates a visible engine sphere when no host-specific pawn
-    // class is configured. Once the startup camera becomes the view target,
-    // bOwnerNoSee no longer protects that sphere from the active camera. Hide
-    // only the exact native class; project pawns and OntoTwin camera/roaming
-    // pawns must remain untouched.
-    if (APawn* Pawn = PlayerController->GetPawn();
-        Pawn && Pawn->GetClass() == ADefaultPawn::StaticClass())
+void UTwinInteractionManagerComponent::EnsureHomeGodPawn(
+    ATwinGodViewAnchor* Anchor, bool bResetToAnchor)
+{
+    if (!PlayerController || !GetWorld())
     {
-        const bool bNeedsSuppression = !Pawn->IsHidden() || Pawn->GetActorEnableCollision();
-        Pawn->SetActorHiddenInGame(true);
-        Pawn->SetActorEnableCollision(false);
-        if (bNeedsSuppression)
+        return;
+    }
+
+    FTransform TargetTransform;
+    if (Anchor)
+    {
+        TargetTransform = Anchor->GetActorTransform();
+    }
+    else if (HomeGodPawn && IsValid(HomeGodPawn))
+    {
+        TargetTransform = HomeGodPawn->GetActorTransform();
+    }
+    else if (APawn* CurrentPawn = PlayerController->GetPawn())
+    {
+        TargetTransform = CurrentPawn->GetActorTransform();
+    }
+    else
+    {
+        TargetTransform = FTransform::Identity;
+    }
+
+    if (!HomeGodPawn || !IsValid(HomeGodPawn))
+    {
+        FActorSpawnParameters Params;
+        Params.Owner = SceneManager;
+        Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+        HomeGodPawn = GetWorld()->SpawnActor<ATwinGodViewPawn>(
+            ATwinGodViewPawn::StaticClass(), TargetTransform, Params);
+        if (!HomeGodPawn)
         {
-            UE_LOG(LogTemp, Log,
-                TEXT("OntoTwin startup view suppressed native DefaultPawn: actor=%s"),
-                *Pawn->GetName());
+            UE_LOG(LogTemp, Error, TEXT("[HomeFly] Failed to spawn home free-fly pawn"));
+            return;
+        }
+        ConfigureHomeGodPawn();
+    }
+    else if (bResetToAnchor && Anchor)
+    {
+        HomeGodPawn->SetActorTransform(
+            TargetTransform, false, nullptr, ETeleportType::TeleportPhysics);
+    }
+
+    if (PlayerController->GetPawn() != HomeGodPawn)
+    {
+        PlayerController->Possess(HomeGodPawn);
+    }
+    bHomeFlyMouseLook = false;
+}
+
+void UTwinInteractionManagerComponent::ConfigureHomeGodPawn()
+{
+    if (!HomeGodPawn) return;
+
+    // 与 F7 上帝视角保持一致：后端上帝视角配置就绪后沿用其速度/灵敏度，否则用同款默认值。
+    float MoveSpeed = 1800.0f;
+    if (AppliedRevision >= 0 && CurrentConfig.GodCamera.MoveSpeedCmS > 0.0f)
+    {
+        MoveSpeed = CurrentConfig.GodCamera.MoveSpeedCmS;
+    }
+    float LookSensitivity = 1.0f;
+    float GodLook = 0.0f;
+    if (GetGodViewLookSensitivity(GodLook))
+    {
+        LookSensitivity = GodLook;
+    }
+    HomeGodPawn->Configure(MoveSpeed, LookSensitivity);
+}
+
+void UTwinInteractionManagerComponent::SetHomeFlyMouseLook(bool bActive)
+{
+    if (!PlayerController || !HomeGodPawn || !IsValid(HomeGodPawn))
+    {
+        return;
+    }
+    if (PlayerController->GetPawn() != HomeGodPawn || bHomeFlyMouseLook == bActive)
+    {
+        return;
+    }
+    bHomeFlyMouseLook = bActive;
+    ApplyHomeFlyMouseInputMode();
+}
+
+void UTwinInteractionManagerComponent::ApplyHomeFlyMouseInputMode()
+{
+    if (!PlayerController) return;
+
+    if (bHomeFlyMouseLook)
+    {
+        PlayerController->bShowMouseCursor = false;
+        PlayerController->SetInputMode(FInputModeGameOnly());
+    }
+    else
+    {
+        const bool bPointerInteraction = bHudInteraction;
+        PlayerController->bShowMouseCursor = bPointerInteraction;
+        if (bPointerInteraction)
+        {
+            FInputModeGameAndUI InputMode;
+            InputMode.SetHideCursorDuringCapture(false);
+            InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+            PlayerController->SetInputMode(InputMode);
+        }
+        else
+        {
+            PlayerController->SetInputMode(FInputModeGameOnly());
         }
     }
+}
+
+void UTwinInteractionManagerComponent::TickHomeFly()
+{
+    if (!PlayerController || !HomeGodPawn || !IsValid(HomeGodPawn))
+    {
+        return;
+    }
+    if (PlayerController->GetPawn() != HomeGodPawn)
+    {
+        return;
+    }
+    // Web 交互（业务视图/区域）打开时键盘输入归浏览器表单所有，避免打字 W/A/S/D
+    // 顺带驱动首页相机。
+    if (SceneManager && SceneManager->WebInteractionManager
+        && SceneManager->WebInteractionManager->IsWebOpen())
+    {
+        return;
+    }
+
+    if (PlayerController->WasInputKeyJustPressed(MouseLookKey))
+    {
+        SetHomeFlyMouseLook(true);
+    }
+    if (PlayerController->WasInputKeyJustReleased(MouseLookKey))
+    {
+        SetHomeFlyMouseLook(false);
+    }
+    if (bHomeFlyMouseLook)
+    {
+        float MouseX = 0.0f;
+        float MouseY = 0.0f;
+        PlayerController->GetInputMouseDelta(MouseX, MouseY);
+        HomeGodPawn->Look(FVector2D(MouseX, MouseY));
+    }
+
+    FVector2D MoveInput(
+        (PlayerController->IsInputKeyDown(EKeys::D) ? 1.0f : 0.0f)
+            - (PlayerController->IsInputKeyDown(EKeys::A) ? 1.0f : 0.0f),
+        (PlayerController->IsInputKeyDown(EKeys::W) ? 1.0f : 0.0f)
+            - (PlayerController->IsInputKeyDown(EKeys::S) ? 1.0f : 0.0f));
+    MoveInput = MoveInput.GetClampedToMaxSize(1.0f);
+    if (!MoveInput.IsNearlyZero())
+    {
+        HomeGodPawn->MovePlanar(MoveInput);
+    }
+
+    const float VerticalInput =
+        (PlayerController->IsInputKeyDown(EKeys::E) ? 1.0f : 0.0f)
+        - (PlayerController->IsInputKeyDown(EKeys::Q) ? 1.0f : 0.0f);
+    if (!FMath::IsNearlyZero(VerticalInput))
+    {
+        HomeGodPawn->MoveVertical(VerticalInput);
+    }
+
+    HomeGodPawn->AdjustSpeed(
+        PlayerController->GetInputAnalogKeyState(EKeys::MouseWheelAxis));
 }
 
 void UTwinInteractionManagerComponent::RestoreStartupView()

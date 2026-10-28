@@ -357,6 +357,24 @@ class OverlayTestCase(unittest.TestCase):
             env = project["instances"][instance_id].get("render_config", {}).get("interface_overrides", {})
             self.assertNotIn("I3D_Overlay", env)
 
+    def test_context_instances_expose_effective_enabled_state(self):
+        self.store.spawn("machine_02", "machine")
+        self.store.spawn("machine_03", "machine")
+        self.service.save_type("machine", overlay_config(), 0)
+        self.service.save_instance("machine_02", {"enabled": False}, 0)
+        # An override that does not mention enabled keeps inheriting the type switch.
+        self.service.save_instance("machine_03", {"presentation": {"quality_tier": "high"}}, 0)
+
+        items = {
+            item["id"]: item
+            for item in self.service.context("machine")["instances"]
+        }
+        self.assertTrue(items["machine_01"]["enabled"])
+        self.assertFalse(items["machine_02"]["enabled"])
+        self.assertTrue(items["machine_03"]["enabled"])
+        self.assertEqual(1, items["machine_02"]["override_revision"])
+        self.assertIn("online", items["machine_01"])
+
     def test_http_revision_conflict(self):
         app = Flask(__name__)
         register_overlay_routes(app, self.store)

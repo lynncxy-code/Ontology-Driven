@@ -315,6 +315,7 @@ body.embedded-mode{background:#fafaf7}
 .floor-config-status{display:flex;align-items:center;gap:var(--s2);margin-top:var(--s2);font-size:var(--t-xs);color:var(--ink-2)}
 .floor-config-actions{display:flex;justify-content:flex-end;margin-top:var(--s2)}
 .floor-config-error{min-height:14px;margin-top:var(--s1);font-size:var(--t-xs);color:var(--danger)}
+.floor-config-error:not(:empty){margin-top:var(--s2);padding:8px 10px;border-left:2px solid var(--danger);background:var(--danger-bg);color:var(--danger);border-radius:0 var(--r-sm) var(--r-sm) 0}
 .floor-config-success{display:none;margin-top:var(--s2);padding:8px 10px;border-left:2px solid var(--ok);background:var(--bg);font-size:var(--t-xs);color:var(--ink-2)}
 .floor-config-success button{border:0;background:transparent;color:var(--ink);text-decoration:underline;cursor:pointer;font:inherit;padding:0;margin-left:var(--s2)}
 .image-persist-status{display:flex;align-items:center;gap:var(--s2);padding:8px 10px;margin-bottom:var(--s3);border-left:2px solid var(--line-2);background:var(--bg-2);font-size:var(--t-xs);color:var(--ink-2)}
@@ -581,6 +582,8 @@ body.embedded-mode{background:#fafaf7}
                 <tbody id="entityBody"></tbody>
               </table>
             </div>
+            <div class="section-title" style="margin-top:14px">已保存构件 <span class="ag-optional">服务器回显</span></div>
+            <div id="savedComponentsPanel" style="font-size:var(--t-xs);color:var(--ink-2);min-height:16px">进入本页时自动从服务器读取。</div>
             <button class="btn btn-primary btn-sm" style="margin-top:14px;width:100%" onclick="goToStep(5)">下一步：导出</button>
           </div>
           <div class="step-panel" id="step5">
@@ -651,6 +654,20 @@ body.embedded-mode{background:#fafaf7}
               <div class="image-config-grid">
                 <label>底图名称<input id="imgFrameName" maxlength="120" oninput="imgUpdateFrameField('name',this.value)" placeholder="例如：一层漫游底图"></label>
                 <label>楼层<input id="imgFrameFloor" type="number" min="1" max="10000" value="1" oninput="imgUpdateFrameField('floor',this.value)"></label>
+              </div>
+              <div id="imgOrientPanel" style="border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;margin:0 0 12px;background:var(--bg-2)">
+                <div style="font-size:var(--t-sm);font-weight:600;margin-bottom:8px">图片朝向 <span style="font-weight:400;color:var(--ink-3)">— 先转到与 UE 顶视一致，再打点</span></div>
+                <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:var(--t-xs);color:var(--ink-2)">
+                  <label style="display:flex;align-items:center;gap:5px">旋转
+                    <select id="imgRot" onchange="imgOnOrientChange()" style="padding:4px 6px;border:1px solid var(--line-2);border-radius:var(--r-sm);font-size:var(--t-xs);background:#fff">
+                      <option value="0">0°</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option>
+                    </select>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="imgFlip" onchange="imgOnOrientChange()"> 镜像翻转</label>
+                  <button class="btn btn-ghost btn-sm" style="padding:3px 8px" onclick="imgResetOrient()">复位</button>
+                  <span id="imgOrientSaveTip" style="color:var(--ink-3)"></span>
+                </div>
+                <p class="hint" style="margin:8px 0 0;font-size:var(--t-xs)">朝向为纯显示变换，不改动图片像素坐标；保存标定草稿后，标定、漫游路线与重新加载保持一致。</p>
               </div>
               <div class="floor-config-card" id="imgFloorCard">
                 <div class="floor-config-head">
@@ -961,7 +978,7 @@ async function restoreSession(){
       imgState.sourceName=im.sourceName||'restored-image';
       imgState.sourceKey=im.sourceKey||imgState.sourceName;
       imgState.imgW=im.imgW; imgState.imgH=im.imgH;
-      imgState.display=im.display||{axis_map:{x:'+x',y:'+y'},flip:false,rotation_deg:0}; setDisplayOrient(imgState.display);
+      imgState.display=im.display||{axis_map:{x:'+x',y:'+y'},flip:false,rotation_deg:0}; setDisplayOrient(imgState.display); imgSyncOrientUI();
       imgState.anchors=(im.anchors||[]).map(imgNormalizeAnchor); imgState.matrix=im.matrix||null; imgState.metrics=im.metrics||null;
       imgState.markers=im.markers||[]; imgState.currentStep=im.currentStep||1;
     }
@@ -1567,6 +1584,16 @@ function floorConfigShowSuccess(mode,message,canUndo){
   const button=el.querySelector('button');
   if(button)button.onclick=()=>undoFloorConfig(mode);
 }
+// OPT-02：错误提示醒目化——展开楼层卡片并把错误滚动到可视区，避免落到滚动条以下。
+function floorConfigSetError(mode, text) {
+  const error = document.getElementById(floorConfigPrefix(mode) + 'FloorError');
+  if (!error) return;
+  error.textContent = text || '';
+  if (text) {
+    floorConfigSetExpanded(mode, true);
+    error.scrollIntoView({ block: 'nearest' });
+  }
+}
 async function saveFloorConfig(mode){
   const prefix=floorConfigPrefix(mode);
   const floor=floorConfigSelectedFloor(mode);
@@ -1576,7 +1603,7 @@ async function saveFloorConfig(mode){
   const button=document.getElementById(prefix+'FloorSaveBtn');
   const zBase=Number(baseEl?.value);
   if(baseEl?.value===''||!Number.isFinite(zBase)){
-    if(error)error.textContent='请填写有效的规范楼层标高';
+    floorConfigSetError(mode,'请填写有效的规范楼层标高');
     baseEl?.focus();return;
   }
   const current=floorConfigEntry(mode);
@@ -1599,14 +1626,14 @@ async function saveFloorConfig(mode){
     const groundText=String(groundEl?.value??'').trim();
     const ground=groundText===''?null:Number(groundText);
     if(ground!==null&&!Number.isFinite(ground)){
-      if(error)error.textContent='请输入有效的 UE 实际地面 Z，或留空';
+      floorConfigSetError(mode,'请输入有效的 UE 实际地面 Z，或留空');
       groundEl?.focus();return;
     }
     payload.ue_ground_z_cm=ground;
   }
   FloorConfig.busy[mode]=true;
   if(button){button.disabled=true;button.textContent='保存中';}
-  if(error)error.textContent='';
+  floorConfigSetError(mode,'');
   try{
     const res=await fetch(`/api/v2/spatial/floors/${floor}`,{
       method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),
@@ -1624,7 +1651,7 @@ async function saveFloorConfig(mode){
     floorConfigSetExpanded(mode,false);
     toast('楼层空间配置已保存','ok');
   }catch(errorValue){
-    if(error)error.textContent=errorValue.message;
+    floorConfigSetError(mode,errorValue.message);
     toast('楼层配置保存失败：'+errorValue.message,'err');
   }finally{
     FloorConfig.busy[mode]=false;
@@ -2161,7 +2188,7 @@ function _applyStep(n) {
     document.querySelector(`.step-tab[data-step="${i}"]`).classList.remove('disabled');
   }
   if (n === 2) renderAuditList();
-  if (n === 4) buildEntityTable();
+  if (n === 4) { buildEntityTable(); loadSavedComponents(); }
   if (n === 3) {
     canvas.style.cursor = 'none'; // crosshair is drawn manually
     document.getElementById('alignToolbar').style.display = 'flex';
@@ -2407,24 +2434,10 @@ async function cadLoadSelectedFrame(preloaded=null) {
       if(!frameRes.ok)throw new Error(frame.message||frame.error||'底图读取失败');
     }
     if(FloorConfig.projectId!==projectId || (preloaded && preloaded.projectId!==projectId))return;
-    if(preloaded?.preview){
-      State.lastUploadedFile=preloaded.file;
-      State.previewData=preloaded.preview;
-      LAYER_COLORS={};preloaded.preview.layers.forEach(l=>LAYER_COLORS[l.name]=l.color);
-      applyPreviewData();
-    }else{
-      const sourceRes=await fetch(frame.source_url||`/api/v2/spatial-frames/${encodeURIComponent(frameId)}/source`);
-      if(!sourceRes.ok)throw new Error('原始 DXF 读取失败');
-      const blob=await sourceRes.blob();
-      if(FloorConfig.projectId!==projectId)return;
-      const file=new File([blob],frame.cad?.original_name||'drawing.dxf',{type:frame.cad?.mime_type||'application/dxf'});
-      State.lastUploadedFile=file;
-      if(!await cadParseFile(file,false))return;
-    }
-    if(FloorConfig.projectId!==projectId)return;
+
+    // BUG-08：先回显标定元数据（名称/楼层/场景/锚点/矩阵/误差/版本），再后台加载 DXF 图形，
+    // 大型底图解析不再阻塞历史标定数据的查看。
     cadAdoptFrame(frame);
-    await fetchTypeScanForFrame(frameId);
-    if(FloorConfig.projectId!==projectId || State.cadFrameId!==frameId)return;
     State.calibTarget='ue';
     State.anchors=(frame.anchors||[]).map((anchor,index)=>({
       id:String(anchor.id||`anchor-${index+1}`),
@@ -2447,6 +2460,29 @@ async function cadLoadSelectedFrame(preloaded=null) {
     if(State.metrics)renderMetrics();
     else document.getElementById('metricsPanel').style.display='none';
     draw();scheduleSave();
+
+    // 后台加载 DXF 图形（解析失败不回滚已回显的标定数据）
+    if(preloaded?.preview){
+      State.lastUploadedFile=preloaded.file;
+      State.previewData=preloaded.preview;
+      LAYER_COLORS={};preloaded.preview.layers.forEach(l=>LAYER_COLORS[l.name]=l.color);
+      applyPreviewData();
+    }else{
+      const sourceRes=await fetch(frame.source_url||`/api/v2/spatial-frames/${encodeURIComponent(frameId)}/source`);
+      if(!sourceRes.ok)throw new Error('原始 DXF 读取失败');
+      const blob=await sourceRes.blob();
+      if(FloorConfig.projectId!==projectId)return;
+      const file=new File([blob],frame.cad?.original_name||'drawing.dxf',{type:frame.cad?.mime_type||'application/dxf'});
+      State.lastUploadedFile=file;
+      try{
+        await cadParseFile(file,false);
+      }catch(error){
+        toast('DXF 图形加载失败（标定数据仍可查看）：'+error.message,'warn',5000);
+      }
+    }
+    if(FloorConfig.projectId!==projectId)return;
+    await fetchTypeScanForFrame(frameId);
+    if(FloorConfig.projectId!==projectId || State.cadFrameId!==frameId)return;
     toast('CAD 空间底图已加载','ok');
   }catch(error){toast('加载失败：'+error.message,'err');}
   finally{if(button){button.disabled=false;button.textContent='加载';}}
@@ -4108,6 +4144,52 @@ function buildEntityTable() {
   });
 }
 
+// BUG-09：从服务器回显当前 CAD 底图已保存的构件，不依赖浏览器临时审核态。
+async function loadSavedComponents() {
+  const panel = document.getElementById('savedComponentsPanel');
+  if (!panel) return;
+  if (!State.cadFrameId) {
+    panel.textContent = '尚未发布 CAD 底图，无已保存构件。';
+    return;
+  }
+  panel.textContent = '加载中…';
+  try {
+    const res = await fetch(`/api/v2/spatial-frames/${encodeURIComponent(State.cadFrameId)}/components`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || data.error || '加载失败');
+    const comps = Array.isArray(data.components) ? data.components : [];
+    if (!comps.length) {
+      panel.textContent = '当前底图尚未保存任何构件。完成标定后在「保存与导出」步保存。';
+      return;
+    }
+    const rows = comps.map(c => {
+      const type = c.type_name || c.object_type_rid || '—';
+      const equip = (c.attribs && c.attribs.EQUIP_ID) || '—';
+      const ue = Array.isArray(c.ue_xy) ? c.ue_xy : [null, null];
+      const yaw = (typeof c.rotation === 'number' && Number.isFinite(c.rotation)) ? Math.round(c.rotation) : 0;
+      const bound = c.bound_instance_id ? '已绑定' : '未绑定';
+      return `<tr>
+        <td style="font-weight:500">${escapeHTML(type)}</td>
+        <td>${escapeHTML(equip)}</td>
+        <td style="font-family:monospace;font-size:10px">${ue[0]==null?'—':Number(ue[0]).toFixed(2)}</td>
+        <td style="font-family:monospace;font-size:10px">${ue[1]==null?'—':Number(ue[1]).toFixed(2)}</td>
+        <td>${yaw}°</td>
+        <td style="font-size:10px">${escapeHTML(c.asset_path||'')}</td>
+        <td>${bound}</td>
+      </tr>`;
+    }).join('');
+    panel.innerHTML = `<div style="overflow-x:auto;max-height:220px;overflow-y:auto">
+      <table class="entity-table">
+        <thead><tr><th>类型</th><th>编号</th><th>UE X</th><th>UE Y</th><th>朝向</th><th>资产路径</th><th>状态</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="margin-top:var(--s1);color:var(--ink-3)">共 ${comps.length} 个构件</div>
+    </div>`;
+  } catch (e) {
+    panel.textContent = '已保存构件加载失败：' + e.message;
+  }
+}
+
 function highlightTableRow(id) {
   document.querySelectorAll('#entityBody tr').forEach(tr => {
     tr.classList.toggle('highlighted', tr.dataset.id === id);
@@ -4154,7 +4236,7 @@ function buildExportPreview() {
     const ue = CoordTransform.applyTransform(State.matrix, ins.position);
     entities.push({
       id: ins.id, layer: ins.layer, generate_type: 'INSTANCE',
-      data: { mesh_id: ins.asset_path, transform: { loc: [ue[0], ue[1], 0], rot: [0, 0, ins.rotation], scale: [1,1,1] }, metadata: ins.attribs }
+      data: { mesh_id: ins.asset_path, transform: { loc: [ue[0], ue[1], 0], rot: [0, 0, CoordTransform.yawToUe(State.matrix, ins.rotation)], scale: [1,1,1] }, metadata: ins.attribs }
     });
   });
   payload.polylines.forEach(p => {
@@ -4191,7 +4273,7 @@ async function exportJSON() {
       const ue = CoordTransform.applyTransform(State.matrix, ins.position);
       entities.push({
         id: ins.id, layer: ins.layer, generate_type: 'INSTANCE',
-        data: { mesh_id: ins.asset_path, transform: { loc: [ue[0], ue[1], 0], rot: [0, 0, ins.rotation], scale: [1,1,1] }, metadata: ins.attribs }
+        data: { mesh_id: ins.asset_path, transform: { loc: [ue[0], ue[1], 0], rot: [0, 0, CoordTransform.yawToUe(State.matrix, ins.rotation)], scale: [1,1,1] }, metadata: ins.attribs }
       });
     });
     payload.polylines.forEach(p => {
@@ -4245,7 +4327,7 @@ function downloadCSV() {
   State.previewData.inserts.forEach(ins => {
     if (State.layerSelected[ins.layer] === false || State.entityChecked[ins.id] === false) return;
     const ue = CoordTransform.applyTransform(State.matrix, ins.position);
-    csv += `${ins.attribs.EQUIP_ID||''},${ins.block_name},${ins.layer},${ins.position[0]},${ins.position[1]},${ue[0]},${ue[1]},0,${ins.rotation},${State.entityAssets[ins.id]||''}\n`;
+    csv += `${ins.attribs.EQUIP_ID||''},${ins.block_name},${ins.layer},${ins.position[0]},${ins.position[1]},${ue[0]},${ue[1]},0,${CoordTransform.yawToUe(State.matrix, ins.rotation)},${State.entityAssets[ins.id]||''}\n`;
     count++;
   });
   if (count === 0) {
@@ -4292,7 +4374,7 @@ function resetAll({clearDraft=true}={}) {
   imgState.imgW = 0; imgState.imgH = 0; imgState.anchors = []; imgState.matrix = null;
   imgState.metrics = null; imgState.markers = []; imgState.currentStep = 1;
   imgState.display={axis_map:{x:'+x',y:'+y'},flip:false,rotation_deg:0};
-  FloorConfig.undo={dxf:null,image:null};setDisplayOrient(imgState.display);
+  FloorConfig.undo={dxf:null,image:null};setDisplayOrient(imgState.display);imgSyncOrientUI();
   if (State.mode === 'dxf') {
     State.previewData = null; State.anchors = []; State.matrix = null; State.metrics = null; State.calibTarget = 'ue';
     State.currentStep = 1; State.highlightId = null;
@@ -4359,12 +4441,22 @@ function switchMode(mode) {
   document.getElementById('cadPanels').style.display = mode === 'dxf' ? '' : 'none';
   document.getElementById('imgPanels').style.display = mode === 'image' ? 'flex' : 'none';
   document.getElementById('btnReset').style.display = 'none';
+  // BUG-10：切换模式时恢复目标模式的显示朝向，并把底图重新居中到可视范围，
+  // 避免 CAD/图片坐标尺度不同导致底图落到画布外只剩网格/空白。
+  if (mode === 'image') {
+    setDisplayOrient(imgState.display || {axis_map:{x:'+x',y:'+y'},flip:false,rotation_deg:0});
+  } else {
+    setDisplayOrient(State.cadSavedDisplay || {});
+  }
   floorConfigSync(mode);
   if(mode==='image'){
     let step=imgState.currentStep||1;
     if(!imgCalibrationPublishable(imgState.metrics))step=1;
     else if(step>2&&!imgState.markers.length)step=2;
     imgGoToStep(step);
+    if (imgState.imageObj) fitView();
+  } else if (State.previewData) {
+    fitView();
   }
   draw();
 }
@@ -4436,6 +4528,36 @@ function imgSyncFrameForm() {
   if(name)name.value=imgState.frameName||imgState.sourceName||'';
   if(floor)floor.value=imgState.floor||1;
   if(level)level.value=imgState.ueLevel||'';
+}
+
+// NEW-01：图片朝向（旋转/镜像）——纯显示变换，不改像素坐标，随草稿保存并在漫游/重载一致。
+function imgCurrentDisplay() {
+  return {
+    axis_map: {x:'+x', y:'+y'},
+    flip: !!document.getElementById('imgFlip')?.checked,
+    rotation_deg: parseInt(document.getElementById('imgRot')?.value) || 0,
+  };
+}
+function imgSyncOrientUI() {
+  const disp = imgState.display || {axis_map:{x:'+x',y:'+y'},flip:false,rotation_deg:0};
+  const rotEl = document.getElementById('imgRot'); if (rotEl) rotEl.value = String(disp.rotation_deg || 0);
+  const flipEl = document.getElementById('imgFlip'); if (flipEl) flipEl.checked = !!disp.flip;
+}
+function imgOnOrientChange() {
+  const disp = imgCurrentDisplay();
+  imgState.display = {...disp};
+  setDisplayOrient(disp);
+  draw();
+  imgState.persistStatus = 'draft';
+  imgRenderPersistStatus();
+  scheduleSave();
+  const tip = document.getElementById('imgOrientSaveTip');
+  if (tip) tip.textContent = '随标定草稿保存';
+}
+function imgResetOrient() {
+  const rotEl = document.getElementById('imgRot'); if (rotEl) rotEl.value = '0';
+  const flipEl = document.getElementById('imgFlip'); if (flipEl) flipEl.checked = false;
+  imgOnOrientChange();
 }
 
 function imgUpdateFrameField(field,value) {
@@ -4528,6 +4650,7 @@ async function imgApplyFrame(frame) {
   imgState.sourceKey=frame.image?.sha256||frame.id;
   imgState.display={axis_map:{x:'+x',y:'+y'},flip:false,rotation_deg:0,...(frame.display||frame.to_ue?.display||{})};
   setDisplayOrient(imgState.display);
+  imgSyncOrientUI();
   imgState.imgW=Number(frame.image?.width_px||image.naturalWidth);
   imgState.imgH=Number(frame.image?.height_px||image.naturalHeight);
   imgState.anchors=(frame.anchors||[]).map((anchor,index)=>imgNormalizeAnchor({
@@ -4781,6 +4904,7 @@ async function imgSaveFrameDraft(publishAfter=false) {
       floor:imgState.floor,
       floor_id:imgState.floorId,
       ue_level:imgState.ueLevel.trim(),
+      display:imgCurrentDisplay(),
       floor_reference_anchor_id:imgState.floorReferenceAnchorId||null,
       anchors:imgState.anchors.map(anchor=>({
         id:anchor.id,

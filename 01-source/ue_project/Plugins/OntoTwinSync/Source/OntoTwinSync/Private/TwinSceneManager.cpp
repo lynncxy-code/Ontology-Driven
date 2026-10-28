@@ -1,4 +1,4 @@
-﻿// ============================================================================
+// ============================================================================
 // TwinSceneManager.cpp  (v3 — 数据库驱动，废弃固化)
 //
 // 职责：
@@ -3696,18 +3696,20 @@ void ATwinSceneManager::EndRuntimeEditorCameraLook(APlayerController* PlayerCont
 FTransform ATwinSceneManager::BuildRuntimeEditorCameraTransform(
     APlayerController* PlayerController) const
 {
-    FTransform GodViewTransform;
-    if (InteractionManager && InteractionManager->GetGodViewTransform(GodViewTransform))
-    {
-        return GodViewTransform;
-    }
-
+    // F10 从“当下视角”进入编辑模式：优先沿用当前活动相机（含首页自由漫游相机），
+    // 不再把视角强行拉回固定的上帝视角锚点。锚点与原 Pawn 仅作降级兜底。
     FVector ViewLocation = FVector::ZeroVector;
     FRotator ViewRotation = FRotator::ZeroRotator;
     if (PlayerController)
     {
         PlayerController->GetPlayerViewPoint(ViewLocation, ViewRotation);
         return FTransform(ViewRotation, ViewLocation);
+    }
+
+    FTransform GodViewTransform;
+    if (InteractionManager && InteractionManager->GetGodViewTransform(GodViewTransform))
+    {
+        return GodViewTransform;
     }
 
     return RuntimeEditorOriginalPawn && IsValid(RuntimeEditorOriginalPawn)

@@ -87,6 +87,23 @@ const CoordTransform = (() => {
     }
 
     /**
+     * 把 CAD 朝向角(度)经仿射矩阵的线性部分换算为 UE Yaw(度)。
+     * 朝向是方向向量，平移项不参与；镜像(det<0)会自然反转方向。
+     * @param {number[][]} matrix - 3×3 仿射矩阵
+     * @param {number} yawDeg - CAD 朝向角（度）
+     * @returns {number} UE Yaw（度）
+     */
+    function yawToUe(matrix, yawDeg) {
+        const radians = (Number(yawDeg || 0) * Math.PI) / 180;
+        const x = Math.cos(radians);
+        const y = Math.sin(radians);
+        const ueX = matrix[0][0] * x + matrix[0][1] * y;
+        const ueY = matrix[1][0] * x + matrix[1][1] * y;
+        if (Math.abs(ueX) < 1e-12 && Math.abs(ueY) < 1e-12) return 0;
+        return parseFloat((Math.atan2(ueY, ueX) * 180 / Math.PI).toFixed(3));
+    }
+
+    /**
      * 正规方程求解: (A^T A) x = A^T b
      */
     function solveNormalEquation(A, b, m, n) {
@@ -136,5 +153,5 @@ const CoordTransform = (() => {
         return x;
     }
 
-    return { calibrate, applyTransform };
+    return { calibrate, applyTransform, yawToUe };
 })();

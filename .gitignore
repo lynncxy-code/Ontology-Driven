@@ -110,3 +110,7 @@ docs/conversations/
 
 # review-push 的本地验证证据（review.json / test.log / lint.log / 报告）
 .review-push/
+
+# 灵云智（LingYZ）平台接入草稿包：含客户/平台专属地址与项目信息，
+# 不进入平台标准发布；待其成为可导入的正式应用包后再单独归档/建仓。
+01-source/mcp/platform-adapter/

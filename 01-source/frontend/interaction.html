@@ -313,13 +313,13 @@
                 <div class="instance-list">
                     <label v-for="item in context.instances" :key="item.id" class="instance-row" :class="{active:item.id===selectedInstanceId}">
                         <input v-if="scope==='batch'" type="checkbox" :value="item.id" v-model="batchIds">
-                        <button v-else class="row-main" style="border:0;background:transparent;padding:0;text-align:left;flex:1" :aria-label="item.display_name + '，' + item.id + '，' + (item.online ? '在线' : '离线')" @click="selectInstance(item.id)">
+                        <button v-else class="row-main" style="border:0;background:transparent;padding:0;text-align:left;flex:1" :aria-label="item.display_name + '，' + item.id + '，' + (item.enabled ? '已启用' : '未启用')" @click="selectInstance(item.id)">
                             <span class="row-name">{{ item.display_name }}</span><span class="row-meta">{{ item.id }}</span>
                         </button>
                         <span v-if="scope==='batch'" class="row-main" style="flex:1"><span class="row-name">{{ item.display_name }}</span><span class="row-meta">{{ item.id }}</span></span>
-                        <span class="row-status" :class="{'is-positive':item.online}">
-                            <svg viewBox="0 0 16 16" aria-hidden="true"><path v-if="item.online" d="m3 8 3 3 7-7"/><circle v-else cx="8" cy="8" r="4.5"/></svg>
-                            {{ item.online ? '在线' : '离线' }}
+                        <span class="row-status" :class="{'is-positive':item.enabled}">
+                            <svg viewBox="0 0 16 16" aria-hidden="true"><path v-if="item.enabled" d="m3 8 3 3 7-7"/><circle v-else cx="8" cy="8" r="4.5"/></svg>
+                            {{ item.enabled ? '已启用' : '未启用' }}
                         </span>
                     </label>
                     <div v-if="!context.instances.length" class="empty">该类型还没有实例，类型配置仍可保存。</div>

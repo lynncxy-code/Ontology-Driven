@@ -388,7 +388,7 @@ from spatial_assets.cad_parser import parse_cad
 from spatial_assets.validators import SpatialFrameValidationError
 from coord_transform import (calibrate as coord_calibrate, apply_transform as coord_apply,
                              canonical_to_ue as coord_canon_to_ue, invert_affine as coord_invert,
-                             build_ue_matrix as coord_build_ue_matrix)
+                             build_ue_matrix as coord_build_ue_matrix, yaw_to_ue as coord_yaw_to_ue)
 
 _MAPPING_FILE = os.path.join(os.path.dirname(__file__), 'block_asset_mapping.json')
 
@@ -1668,7 +1668,7 @@ def coord_export():
                 "mesh_id": ent.get('asset_path', ent.get('block_name', '')),
                 "transform": {
                     "loc": [ue[0], ue[1], 0],
-                    "rot": [0, 0, ent.get('rotation', 0)],
+                    "rot": [0, 0, coord_yaw_to_ue(matrix, ent.get('rotation', 0))],
                     "scale": [1, 1, 1]
                 },
                 "metadata": ent.get('attribs', {})

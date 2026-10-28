@@ -449,11 +449,18 @@ class OverlayService:
         now = time.time()
         for rec in instances:
             env = _envelope((rec.get("render_config") or {}).get("interface_overrides"), "I3D_Overlay")
+            override_values = env.get("values") or {}
             instance_items.append({
                 "id": rec.get("id"),
                 "display_name": rec.get("display_name") or rec.get("id"),
                 "online": (now - float(rec.get("last_seen") or 0)) < 3.0,
                 "override_revision": env["revision"],
+                # 有效启用状态：实例覆盖优先，否则继承类型默认。
+                "enabled": (
+                    bool(override_values.get("enabled"))
+                    if "enabled" in override_values
+                    else bool(type_values.get("enabled"))
+                ),
             })
         return {
             "schema_version": project.get("schema_version"),

@@ -6,7 +6,7 @@ import json
 import math
 from collections import Counter, defaultdict
 
-from coord_transform import apply_transform, invert_affine
+from coord_transform import apply_transform, invert_affine, yaw_to_ue
 from project_store import ProjectMismatch
 
 
@@ -138,7 +138,7 @@ def plan_cad_update(project, data, render_config):
             "to_ue_matrix": composed, "floor": floor, "source_xy": xy, "cad_xy": xy,
             "canonical_xy": canonical, "canonical_z": z / scale,
             "ue_xy": apply_transform(composed, canonical), "ue_z": z,
-            "rotation": _number(item.get("rotation", 0)), "attribs": copy.deepcopy(attribs),
+            "rotation": yaw_to_ue(matrix, _number(item.get("rotation", 0))), "attribs": copy.deepcopy(attribs),
             "asset_path": types[rid].get("asset_id") or "",
         })
     # Business IDs and exact source geometry are evidence; proximity is not.

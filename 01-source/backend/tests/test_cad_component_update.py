@@ -289,3 +289,33 @@ def test_upload_replace_publish_then_reimport_keeps_original_identity(cad, tmp_p
     assert next(iter(cad.get_components())) == cid
     assert cad.get_components()[cid]["bound_instance_id"] == "P-001"
     assert cad.get_active_copy()["instances"]["P-001"]["raw_state"]["translation_x"] == 999
+
+
+def test_rotation_is_transformed_with_matrix_yaw(cad):
+    """BUG-07：构件朝向随标定矩阵的线性部分换算为 UE Yaw（20° + 90° 旋转 = 110°）。"""
+    cad.transact_active(lambda w: w["frames"][0].update(
+        {"to_ue": {"matrix": [[0, -1, 10], [1, 0, 20], [0, 0, 1]]}}))
+    apply(cad, payload())
+    comp = next(iter(cad.get_components().values()))
+    assert round(comp["rotation"], 1) == 110.0
+
+
+def test_identity_matrix_preserves_rotation(cad):
+    """BUG-07：无旋转/镜像的矩阵下朝向保持不变。"""
+    apply(cad, payload())
+    comp = next(iter(cad.get_components().values()))
+    assert comp["rotation"] == 20.0
+
+
+def test_frame_components_endpoint_echoes_saved_components(cad, tmp_path):
+    """BUG-09：/components 接口按 frame_id 回显已保存构件。"""
+    app = Flask(__name__)
+    register_spatial_asset_routes(app, cad, str(tmp_path))
+    client = app.test_client()
+    apply(cad, payload())
+    resp = client.get("/api/v2/spatial-frames/frame.cad.a/components")
+    assert resp.status_code == 200
+    assert resp.json["frame_id"] == "frame.cad.a"
+    assert len(resp.json["components"]) == 1
+    assert resp.json["components"][0]["object_type_rid"] == "PE16A"
+    assert resp.json["components"][0]["source_mode"] == "dxf"

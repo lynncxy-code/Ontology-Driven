@@ -53,6 +53,10 @@ def register_spatial_asset_routes(app, project_store, asset_root=None):
     def get_frame(frame_id):
         return execute(lambda: service.get_frame(frame_id))
 
+    @blueprint.get("/api/v2/spatial-frames/<frame_id>/components")
+    def list_frame_components(frame_id):
+        return execute(lambda: service.list_frame_components(frame_id))
+
     @blueprint.get("/api/v2/spatial-frames/<frame_id>/image")
     def get_image(frame_id):
         try:

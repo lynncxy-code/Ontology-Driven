@@ -181,6 +181,22 @@ def invert_affine(matrix):
     ]
 
 
+def yaw_to_ue(matrix, canonical_yaw_deg):
+    """把 CAD 朝向角(度)经仿射矩阵的线性部分换算为 UE Yaw(度)。
+
+    朝向是方向向量，平移项不参与；缩放不影响角度，镜像(det<0)会自然反转方向。
+    与 scene_interaction/runtime_projection.py 的 _yaw_to_ue 保持一致。
+    """
+    radians = math.radians(float(canonical_yaw_deg or 0.0))
+    x = math.cos(radians)
+    y = math.sin(radians)
+    ue_x = matrix[0][0] * x + matrix[0][1] * y
+    ue_y = matrix[1][0] * x + matrix[1][1] * y
+    if abs(ue_x) < 1e-12 and abs(ue_y) < 1e-12:
+        return 0.0
+    return round(math.degrees(math.atan2(ue_y, ue_x)), 3)
+
+
 def batch_transform(matrix, entities):
     """
     批量变换实体坐标，返回带 UE 坐标的实体列表。

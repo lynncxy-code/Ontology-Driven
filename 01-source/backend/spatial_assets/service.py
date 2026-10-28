@@ -121,6 +121,22 @@ class SpatialFrameService:
             raise SpatialFrameNotFoundError("当前项目中找不到该空间底图")
         return self._public_frame(frame)
 
+    def list_frame_components(self, frame_id):
+        """回显当前底图已保存的构件（供标定工作台「构件」页加载，不依赖浏览器临时状态）。"""
+        project = self._project()
+        frame = _find_frame(project, frame_id)
+        if not frame or frame.get("kind") not in ("image", "cad"):
+            raise SpatialFrameNotFoundError("当前项目中找不到该空间底图")
+        mode = "image" if frame.get("kind") == "image" else "dxf"
+        components = project.get("components") or {}
+        items = [
+            copy.deepcopy(comp) for comp in components.values()
+            if isinstance(comp, dict)
+            and comp.get("frame_id") == frame_id
+            and comp.get("source_mode") == mode
+        ]
+        return {"project_id": project.get("id"), "frame_id": frame_id, "components": items}
+
     def create_image_frame(self, file_storage, fields, expected_project_id=None):
         project = self._project()
         if file_storage is None:
@@ -311,6 +327,8 @@ class SpatialFrameService:
         floor = positive_int(payload.get("floor", current.get("floor")), "floor", 1)
         floor_id = str(payload.get("floor_id") or current.get("floor_id") or f"floor-{floor}").strip()
         ue_level = str(payload.get("ue_level") if "ue_level" in payload else current.get("ue_level") or "").strip()
+        display_value = payload.get("display", current.get("display") or {})
+        display = copy.deepcopy(display_value if isinstance(display_value, dict) else {})
         reference_id = str(payload.get("floor_reference_anchor_id") or "").strip()
         reference = next((item for item in anchors if item["id"] == reference_id), None)
         if reference_id and not reference:
@@ -342,6 +360,7 @@ class SpatialFrameService:
             "floor": floor,
             "floor_id": floor_id,
             "ue_level": ue_level,
+            "display": display,
             "anchors": anchors,
             "floor_reference": ({
                 "canonical_z_base_mm": self._floor_z_base(project, floor, floor_id),

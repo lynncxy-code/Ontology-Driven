@@ -1137,6 +1137,7 @@ const State = {
   assetScanRequestId: '',
   assetScanStatus: 'idle',     // idle | pending | completed | failed
   assetScanPollTimer: null,
+  assetScanStartedAt: null,    // 扫描请求发起时间（显示等待时长）
   assetPickerBlock: '',
   assetPickerSelection: '',
   polyAuditChecked: {},       // 线图层 layer -> bool（默认 false：未勾选=不纳入）
@@ -2820,7 +2821,10 @@ function renderAssetRecommendationScope() {
   input.disabled = !ready || waiting;
   options.disabled = !ready || waiting;
   button.disabled = !ready || waiting;
-  button.textContent = waiting ? '等待 UE 同步' : '同步并推荐';
+  const elapsed = State.assetScanStartedAt ? Math.max(0, Math.round((Date.now() - State.assetScanStartedAt) / 1000)) : 0;
+  button.textContent = waiting
+    ? `等待 UE 同步（${elapsed}s）`
+    : (State.assetScanStatus === 'completed' ? '已同步' : (State.assetScanStatus === 'failed' ? '同步失败，重试' : '同步并推荐'));
   if (!ready) {
     note.textContent = 'UE 工程目录信息加载完成后才可指定推荐范围。';
     return;
@@ -2828,10 +2832,17 @@ function renderAssetRecommendationScope() {
   if (waiting) {
     note.textContent = State.assetRecommendationMessage
       || `已请求 UE 扫描 ${State.assetRecommendationFolder}，正在等待工程返回资产清单…`;
+    if (elapsed > 15) note.textContent += ' 若仍无结果，请确认 UE 已进入 Play（PIE）模式。';
     return;
   }
   if (State.assetScanStatus === 'failed') {
     note.textContent = State.assetRecommendationMessage || 'UE 目录同步失败，可修改目录后重试。';
+    return;
+  }
+  if (State.assetScanStatus === 'completed') {
+    const syncedCount = assetsInsideRecommendationFolder(State.assetRecommendationFolder).length;
+    note.textContent = State.assetRecommendationMessage
+      || `已同步 ${State.assetRecommendationFolder}：正在 ${syncedCount} 个可运行资产中匹配推荐。`;
     return;
   }
   if (!State.assetRecommendationFolder
@@ -2882,6 +2893,7 @@ async function applyAssetRecommendationFolder() {
   stopAssetScanPolling();
   State.assetScanRequestId = '';
   State.assetScanStatus = 'pending';
+  State.assetScanStartedAt = Date.now();
   renderAssetRecommendationScope();
   renderAuditList();
   scheduleSave();

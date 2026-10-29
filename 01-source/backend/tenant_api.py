@@ -483,8 +483,8 @@ def register_tenant_routes(app, project_store=None):
         login_name = _required(body, "login_name").lower()
         password = _required(body, "password")
         display_name = body.get("display_name") or login_name
-        if len(password) < 12:
-            raise ApiError(400, "初始密码至少 12 位", "weak_password")
+        if len(password) < 8:
+            raise ApiError(400, "初始密码至少 8 位", "weak_password")
         with pg.get_conn() as conn:
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -580,8 +580,8 @@ def register_tenant_routes(app, project_store=None):
         body = _body()
         old_password = _required(body, "old_password")
         new_password = _required(body, "new_password")
-        if len(new_password) < 12:
-            raise ApiError(400, "新密码至少 12 位", "weak_password")
+        if len(new_password) < 8:
+            raise ApiError(400, "新密码至少 8 位", "weak_password")
         with pg.get_conn() as conn:
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -839,8 +839,8 @@ def register_tenant_routes(app, project_store=None):
                         user_id = existing[0]
                     else:
                         password = _required(body, "password")
-                        if len(password) < 12:
-                            raise ApiError(400, "初始密码至少 12 位", "weak_password")
+                        if len(password) < 8:
+                            raise ApiError(400, "初始密码至少 8 位", "weak_password")
                         user_id = _id("usr")
                         cur.execute("INSERT INTO user_account(user_id,environment_id,login_name,display_name,password_hash,must_change_password) VALUES(%s,%s,%s,%s,%s,TRUE)", (user_id, env_id, login_name, body.get("display_name") or login_name, generate_password_hash(password)))
                     cur.execute("""INSERT INTO organization_member(organization_id,user_id,role) VALUES(%s,%s,%s)

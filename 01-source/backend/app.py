@@ -273,7 +273,7 @@ def _bind_explicit_v2_project():
     # project when the browser supplies one.  This keeps the legacy route
     # usable before project creation while making its active view explicit
     # once a 4.8 project has been selected.
-    if request.path in _V2_PROJECTLESS_EXACT and not pid:
+    if (request.path in _V2_PROJECTLESS_EXACT or request.path.startswith("/api/v2/ue/assets/")) and not pid:
         return None
     scene_id = request.headers.get("X-OntoTwin-UE-Scene-Id") or request.args.get("scene_id") or request.args.get("scene") or ""
     if not pid:

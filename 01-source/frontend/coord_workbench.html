@@ -453,7 +453,7 @@ body.embedded-mode{background:#fafaf7}
               <div class="asset-recommendation-scope-tools">
                 <select id="assetRecommendationFolderOptions" onchange="selectAssetRecommendationFolder(this.value)"><option value="">从已同步目录选择</option></select>
                 <input id="assetRecommendationFolder" placeholder="也可直接填写，如 /Game/项目名/Art" onkeydown="if(event.key==='Enter'){event.preventDefault();applyAssetRecommendationFolder()}">
-                <button class="btn btn-sm" id="assetRecommendationApply" onclick="applyAssetRecommendationFolder()">同步并推荐</button>
+                <button class="btn btn-sm" id="assetRecommendationApply" onclick="applyAssetRecommendationFolder()">立即推荐</button>
               </div>
               <div class="asset-recommendation-scope-note" id="assetRecommendationScopeNote">请先指定模型所在目录；系统只在该目录及子目录中匹配。</div>
             </div>
@@ -2785,11 +2785,24 @@ function selectedTargetDataset() {
     || null;
 }
 
+function formatSyncTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getMonth()+1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 function renderAssetCatalogStatus() {
   const bar = document.getElementById('assetCatalogBar');
   if (!bar) return;
   let dot = '', text = State.assetCatalogMessage || '尚未读取 UE 资产目录';
-  if (State.assetCatalogState === 'ready') dot = 'ok';
+  if (State.assetCatalogState === 'ready') {
+    dot = 'ok';
+    const n = State.assetCatalog ? (State.assetCatalog.asset_count ?? (State.assetCatalog.assets || []).length) : 0;
+    const t = formatSyncTime(State.assetCatalog?.synced_at);
+    text = t ? `已同步 ${n} 个资产 · 最后同步 ${t}` : `已同步 ${n} 个资产`;
+  }
   else if (State.assetCatalogState === 'missing') dot = 'warn';
   else if (State.assetCatalogState === 'error') dot = 'err';
   bar.querySelector('.asset-catalog-status').innerHTML = `<span class="status-dot ${dot}"></span><span>${escapeHTML(text)}</span>`;
@@ -2824,7 +2837,7 @@ function renderAssetRecommendationScope() {
   const elapsed = State.assetScanStartedAt ? Math.max(0, Math.round((Date.now() - State.assetScanStartedAt) / 1000)) : 0;
   button.textContent = waiting
     ? `等待 UE 同步（${elapsed}s）`
-    : (State.assetScanStatus === 'completed' ? '已同步' : (State.assetScanStatus === 'failed' ? '同步失败，重试' : '同步并推荐'));
+    : (State.assetScanStatus === 'completed' ? '已同步' : (State.assetScanStatus === 'failed' ? '同步失败，重试' : '立即推荐'));
   if (!ready) {
     note.textContent = 'UE 工程目录信息加载完成后才可指定推荐范围。';
     return;
@@ -2888,36 +2901,15 @@ async function applyAssetRecommendationFolder() {
   }
   State.assetRecommendationFolder = folder;
   State.assetRecommendationProject = State.assetCatalog.ue_project_id;
-  State.assetRecommendationMessage = `正在向 UE 请求扫描 ${folder}…`;
+  State.assetRecommendationMessage = '';
   State.assetRecommendations = {};
   stopAssetScanPolling();
   State.assetScanRequestId = '';
-  State.assetScanStatus = 'pending';
-  State.assetScanStartedAt = Date.now();
+  State.assetScanStatus = 'idle';
   renderAssetRecommendationScope();
   renderAuditList();
   scheduleSave();
-  try {
-    const res = await fetch('/api/v2/ue/assets/scan-requests', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        ue_project_id: State.assetCatalog.ue_project_id,
-        folder_path: folder,
-      })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || '无法创建 UE 目录同步请求');
-    State.assetScanRequestId = data.request_id || '';
-    State.assetScanStatus = 'pending';
-    State.assetRecommendationMessage = `已请求 UE 扫描 ${folder}，正在等待工程返回资产清单…`;
-    renderAssetRecommendationScope();
-    pollAssetScanRequest();
-  } catch (e) {
-    State.assetScanStatus = 'failed';
-    State.assetRecommendationMessage = '目录同步请求失败：' + e.message;
-    renderAssetRecommendationScope();
-    toast(State.assetRecommendationMessage, 'err');
-  }
+  await fetchAssetRecommendations();
 }
 
 function stopAssetScanPolling() {
@@ -3066,7 +3058,6 @@ async function refreshAssetCatalogForTarget(refreshRecommendations) {
 
 async function fetchAssetRecommendations() {
   if (!State.assetCatalog || !State.scanResult) return;
-  if (State.assetScanStatus === 'pending') return;
   const ueProjectId = State.assetCatalog.ue_project_id;
   const folder = State.assetRecommendationProject === ueProjectId
     ? normalizeAssetFolder(State.assetRecommendationFolder) : '';

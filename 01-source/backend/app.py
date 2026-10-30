@@ -159,6 +159,8 @@ from tenant_api import (
     legacy_project_scope,
     legacy_project_role,
     legacy_project_ue_allowed,
+    validate_legacy_browser_session,
+    ApiError,
 )
 register_tenant_routes(app, project_store)
 
@@ -279,6 +281,13 @@ def _bind_explicit_v2_project():
             "error": "auth_required",
             "message": "4.8 业务请求必须先登录",
         }), 401
+    if os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() == "pg" and session_cookie:
+        try:
+            validate_legacy_browser_session()
+        except ApiError as exc:
+            return jsonify({"error": exc.code, "message": exc.message}), exc.status
+        except Exception:
+            return jsonify({"error": "storage_unavailable", "message": "无法核验登录状态"}), 503
     # Projectless preview/list routes may still opt into a request-scoped
     # project when the browser supplies one.  This keeps the legacy route
     # usable before project creation while making its active view explicit

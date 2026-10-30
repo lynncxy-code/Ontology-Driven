@@ -254,67 +254,10 @@ SKILL_PATCH = r'''# UE 超级管家：OntoTwin UE 接入模式补充
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--output", type=Path, help="输出目录；默认写入 D:/OntoTwin-UE-Integration-<timestamp>")
-    parser.add_argument("--no-zip", action="store_true")
-    args = parser.parse_args()
-    repo = Path(__file__).resolve().parents[2]
-    plugin = repo / "01-source/ue_project/Plugins/OntoTwinSync"
-    gltf = repo / "04-archive/migration_bundle_20260827/Plugins/glTFRuntime"
-    runtime = repo / "02-releases/ontology-driven-1.0.0_amd64_20260928.tar"
-    descriptor = json.loads((plugin / "OntoTwinSync.uplugin").read_text(encoding="utf-8"))
-    if not plugin.is_dir() or not gltf.is_dir() or not runtime.is_file():
-        raise SystemExit("缺少插件、glTFRuntime 或离线运行包源文件")
-    stamp = time.strftime("%Y%m%d-%H%M%S")
-    output = args.output or Path(f"D:/OntoTwin-UE-Integration-{descriptor['VersionName']}-{stamp}")
-    output = output.resolve()
-    if output.exists():
-        raise SystemExit(f"输出目录已存在，为避免覆盖请换一个路径：{output}")
-    output.mkdir(parents=True)
-    copy_tree(plugin, output / "Plugins/OntoTwinSync")
-    copy_tree(gltf, output / "Plugins/glTFRuntime")
-    (output / "Runtime").mkdir(parents=True, exist_ok=True)
-    shutil.copy2(runtime, output / "Runtime/ontotwin-runtime-offline.tar")
-    write_text(output / "Tools/Install-OntoTwinPlugin.ps1", INSTALL_PS1)
-    write_text(output / "Tools/Start-OntoTwinBackend.ps1", START_PS1)
-    write_text(output / "Tools/Stop-OntoTwinBackend.ps1", STOP_PS1)
-    write_text(output / "Tools/Check-OntoTwinBackend.ps1", CHECK_PS1)
-    write_text(output / "Docs/UE资产回洗流程.md", REWASH_DOC)
-    write_text(output / "Skill-Patch/UE超级管家-接入模式补充.md", SKILL_PATCH)
-    write_text(output / "README.md", README)
-    manifest = {
-        "product": "OntoTwin UE 接入包",
-        "package_version": descriptor.get("VersionName", "unknown"),
-        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S %z"),
-        "contains_ue_project": False,
-        "contains_business_assets": False,
-        "plugin": {
-            "name": "OntoTwinSync",
-            "version": descriptor.get("VersionName"),
-            "source_hash": tree_hash(plugin),
-            "descriptor_sha256": sha256(plugin / "OntoTwinSync.uplugin"),
-        },
-        "required_compile_dependency": {
-            "name": "glTFRuntime",
-            "source_hash": tree_hash(gltf),
-            "descriptor_sha256": sha256(gltf / "glTFRuntime.uplugin"),
-        },
-        "local_backend": {
-            "mode": "offline-docker-compose",
-            "archive": "Runtime/ontotwin-runtime-offline.tar",
-            "sha256": sha256(runtime),
-            "entrypoint": "Tools/Start-OntoTwinBackend.ps1",
-            "url": "http://127.0.0.1:5000/nexus",
-        },
-    }
-    write_text(output / "manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
-    zip_path = output.parent / f"{output.name}.zip"
-    if not args.no_zip:
-        with ZipFile(zip_path, "w", compression=ZIP_DEFLATED, compresslevel=6, allowZip64=True) as archive:
-            for path in sorted(output.rglob("*")):
-                if path.is_file():
-                    archive.write(path, path.relative_to(output).as_posix())
-    print(json.dumps({"directory": str(output), "zip": None if args.no_zip else str(zip_path), "manifest": manifest}, ensure_ascii=False, indent=2))
+    # Current packages must rebuild images from the clean commit. The legacy
+    # constants above are retained only for document compatibility.
+    from integration_bundle import main as build_current
+    build_current()
     return 0
 
 

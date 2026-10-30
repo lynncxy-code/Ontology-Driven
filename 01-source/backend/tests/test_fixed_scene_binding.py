@@ -84,3 +84,10 @@ def test_context_selection_only_changes_user_session(client, store, monkeypatch)
     assert response.status_code == 200, response.json
     assert cur.execute.call_count == 1
     assert 'UPDATE user_session' in cur.execute.call_args.args[0]
+
+
+def test_projectless_discovery_requires_valid_session(client, monkeypatch):
+    monkeypatch.setenv('ONTOTWIN_STORE', 'pg')
+    fake_db(monkeypatch, [None])
+    response = client.get('/api/v2/ue/discovered', headers={'X-OntoTwin-Session':'invalid'})
+    assert response.status_code == 401

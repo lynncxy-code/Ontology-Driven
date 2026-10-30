@@ -357,6 +357,13 @@ def legacy_project_scope():
         return set()
 
 
+def validate_legacy_browser_session():
+    """Validate projectless browser requests too; a nonempty cookie is not authentication."""
+    with pg.get_conn() as conn:
+        with conn.cursor() as cur:
+            return _load_session(cur)
+
+
 def legacy_project_role(project_id, minimum="view"):
     """旧路由最小角色检查；未登录返回 ``None`` 以兼容测试夹具。
 

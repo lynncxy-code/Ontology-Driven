@@ -122,10 +122,30 @@ def observe_ue_project(request):
         _discovered_ue[ue_id] = {
             "ue_project_id": ue_id,
             "ue_project_name": incoming.get("name") or ue_id,
+            "scene_id": (incoming.get("scene_id") or "").strip(),
             "context": context or previous.get('context') or "unknown",
             "last_seen_epoch": now,
         }
     return ue_id
+
+
+def ue_scene_online(ue_id, scene_key, max_age_seconds=30):
+    """UE 工程最近一次心跳上报的场景是否正好是 scene_key（即该关卡当前在线）。
+
+    一个 UE 工程可以绑定多个关卡（每个关卡对应一个数据集）；工程在线不代表
+    所有关卡在线，只有 UE 当前打开的那张地图才算在线。
+    """
+    if not ue_id or not scene_key:
+        return False
+    with _discovered_lock:
+        record = _discovered_ue.get(ue_id)
+        if record is None:
+            return False
+        last_seen = record.get("last_seen_epoch") or 0
+        current_scene = (record.get("scene_id") or "").strip()
+    if time.time() - last_seen > max_age_seconds:
+        return False
+    return current_scene == (scene_key or "").strip()
 
 
 def discovered_ue_projects(store, max_age_seconds=_DISCOVERY_TTL_SECONDS):

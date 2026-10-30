@@ -483,15 +483,15 @@ def register_tenant_routes(app, project_store=None):
         login_name = _required(body, "login_name").lower()
         password = _required(body, "password")
         display_name = body.get("display_name") or login_name
-        if len(password) < 12:
-            raise ApiError(400, "初始密码至少 12 位", "weak_password")
+        if len(password) < 8:
+            raise ApiError(400, "初始密码至少 8 位", "weak_password")
         with pg.get_conn() as conn:
             with conn.transaction():
                 with conn.cursor() as cur:
                     # 环境一旦创建，不能靠删除账号重新打开匿名初始化入口。
                     cur.execute("SELECT count(*) FROM environment")
                     if cur.fetchone()[0]:
-                        raise ApiError(409, "本环境已经初始化", "already_bootstrapped")
+                        raise ApiError(409, "本环境已经初始化；如需新增组织，请登录后在「选择组织」页点击「新建组织」", "already_bootstrapped")
                     env_id, org_id, user_id = (_id("env"), _id("org"), _id("usr"))
                     factory_id = None
                     cur.execute("INSERT INTO environment(environment_id,display_name) VALUES(%s,%s)", (env_id, env_name))
@@ -580,8 +580,8 @@ def register_tenant_routes(app, project_store=None):
         body = _body()
         old_password = _required(body, "old_password")
         new_password = _required(body, "new_password")
-        if len(new_password) < 12:
-            raise ApiError(400, "新密码至少 12 位", "weak_password")
+        if len(new_password) < 8:
+            raise ApiError(400, "新密码至少 8 位", "weak_password")
         with pg.get_conn() as conn:
             with conn.transaction():
                 with conn.cursor() as cur:
@@ -693,6 +693,15 @@ def register_tenant_routes(app, project_store=None):
                            WHERE session_id=%s""",
                         (org_id, factory_id, project_id, session["session_id"]),
                     )
+        if project_id and project_store is not None:
+            # 兼容旧版 UE 绑定：把「当前项目」同步到全局激活态，让不带
+            # project_id 的旧绑定接口（/api/v2/ue/bind_active_project）也能
+            # 绑到本项目，而不是绑到错误或为空的激活项目。
+            # 这样 Web 端「进入项目」就是 UE 绑定的目标选择，符合用户心智模型。
+            try:
+                project_store.activate(str(project_id))
+            except Exception:
+                pass
         return _json({"organization_id": org_id, "factory_id": factory_id, "project_id": project_id})
 
     @app.get("/api/v4.8/projects")
@@ -714,12 +723,33 @@ def register_tenant_routes(app, project_store=None):
                 cur.execute(
                     """SELECT p.id,p.name,p.created_at,p.schema_version,p.status,
                               (SELECT count(*) FROM object_type o WHERE o.project_id=p.id AND o.deleted_at IS NULL),
-                              (SELECT count(*) FROM instance i WHERE i.project_id=p.id AND i.deleted_at IS NULL)
-                         FROM project p WHERE p.organization_id=%s AND p.factory_id=%s AND p.deleted_at IS NULL
+                              (SELECT count(*) FROM instance i WHERE i.project_id=p.id AND i.deleted_at IS NULL),
+                              b.ue_project_name, b.scene_name, b.bound_ue_id, b.scene_key
+                         FROM project p
+                         LEFT JOIN (
+                             SELECT b.project_id,
+                                    u.display_name AS ue_project_name,
+                                    COALESCE(NULLIF(s.level_path,''), s.display_name, s.stable_key) AS scene_name,
+                                    b.ue_project_id AS bound_ue_id,
+                                    s.stable_key AS scene_key
+                               FROM project_scene_binding b
+                               JOIN ue_project u ON u.ue_project_id = b.ue_project_id
+                               JOIN ue_scene s ON s.scene_id = b.scene_id
+                              WHERE b.status = 'active'
+                         ) b ON b.project_id = p.id
+                        WHERE p.organization_id=%s AND p.factory_id=%s AND p.deleted_at IS NULL
                         ORDER BY p.name""",
                     (org_id, factory_id),
                 )
-                rows = [{"project_id": r[0], "name": r[1], "created_at": r[2], "schema_version": r[3], "status": r[4], "type_count": r[5], "instance_count": r[6]} for r in cur.fetchall()]
+                from ue_project_binding import ue_scene_online
+                rows = [{
+                    "project_id": r[0], "name": r[1], "created_at": r[2], "schema_version": r[3],
+                    "status": r[4], "type_count": r[5], "instance_count": r[6],
+                    "ue_project_name": r[7], "scene_name": r[8],
+                    # 「UE 在线」按关卡判断：只有 UE 当前打开的那张地图（场景）才算在线。
+                    # 一个 UE 工程可绑定多个关卡/数据集，工程在线不代表所有关卡在线。
+                    "ue_online": ue_scene_online(r[9], r[10]),
+                } for r in cur.fetchall()]
         return _json({"items": rows, "current_project_id": session["project_id"]})
 
     @app.post("/api/v4.8/organizations")
@@ -732,11 +762,25 @@ def register_tenant_routes(app, project_store=None):
             with conn.transaction():
                 with conn.cursor() as cur:
                     session = _load_session(cur)
-                    current_org = session["organization_id"]
-                    role = _org_role(cur, session["user_id"], current_org)
-                    if role != "admin":
-                        raise ApiError(403, "只有组织管理员可以新建组织", "forbidden")
-                    cur.execute("SELECT environment_id FROM organization WHERE organization_id=%s", (current_org,))
+                    # 新建组织不依赖会话已选中某个组织：只要该账号在任一组织
+                    # 是管理员，就能在同一环境内继续新建组织。
+                    admin_org = session["organization_id"]
+                    if not admin_org or _org_role(cur, session["user_id"], admin_org) != "admin":
+                        cur.execute(
+                            """SELECT o.organization_id
+                                 FROM organization_member om
+                                 JOIN organization o ON o.organization_id = om.organization_id
+                                WHERE om.user_id=%s AND om.role='admin'
+                                  AND om.status='active' AND om.removed_at IS NULL
+                                  AND o.status='active'
+                                ORDER BY o.created_at LIMIT 1""",
+                            (session["user_id"],),
+                        )
+                        row = cur.fetchone()
+                        if not row:
+                            raise ApiError(403, "只有组织管理员可以新建组织", "forbidden")
+                        admin_org = row[0]
+                    cur.execute("SELECT environment_id FROM organization WHERE organization_id=%s", (admin_org,))
                     env_id = cur.fetchone()[0]
                     org_id = _id("org")
                     cur.execute("INSERT INTO organization(organization_id,environment_id,stable_group_id,name,logo_ref) VALUES(%s,%s,%s,%s,%s)", (org_id, env_id, org_id, name, body.get("logo_ref")))
@@ -831,8 +875,8 @@ def register_tenant_routes(app, project_store=None):
                         user_id = existing[0]
                     else:
                         password = _required(body, "password")
-                        if len(password) < 12:
-                            raise ApiError(400, "初始密码至少 12 位", "weak_password")
+                        if len(password) < 8:
+                            raise ApiError(400, "初始密码至少 8 位", "weak_password")
                         user_id = _id("usr")
                         cur.execute("INSERT INTO user_account(user_id,environment_id,login_name,display_name,password_hash,must_change_password) VALUES(%s,%s,%s,%s,%s,TRUE)", (user_id, env_id, login_name, body.get("display_name") or login_name, generate_password_hash(password)))
                     cur.execute("""INSERT INTO organization_member(organization_id,user_id,role) VALUES(%s,%s,%s)

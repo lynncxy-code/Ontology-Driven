@@ -4110,7 +4110,16 @@ def bind_active_ue_project():
                         scene_conflict = cur.fetchone()
                         if scene_conflict and scene_conflict[1] != project_id and not force:
                             return jsonify({"error": "scene_binding_conflict", "binding_id": scene_conflict[0], "project_id": scene_conflict[1]}), 409
-                        cur.execute("UPDATE project_scene_binding SET status='replaced',updated_at=now() WHERE project_id=%s AND status='active'", (project_id,))
+                        # 迁移/重绑前先释放两个唯一索引占用的旧行：目标项目已有的
+                        # 活动绑定（uq_project_scene_binding_project）和该场景已有的
+                        # 活动绑定（uq_project_scene_binding_scene）。只按 project_id
+                        # 清会把旧场景绑定留在原地，导致下面 INSERT 撞唯一约束。
+                        cur.execute(
+                            """UPDATE project_scene_binding SET status='replaced', updated_at=now()
+                               WHERE status='active'
+                                 AND (project_id=%s OR (ue_project_id=%s AND scene_id=%s))""",
+                            (project_id, ue["id"], scene_id),
+                        )
                         binding_id = scene_conflict[0] if scene_conflict and scene_conflict[1] == project_id else f"bind_{uuid.uuid4().hex}"
                         if scene_conflict and scene_conflict[1] == project_id:
                             cur.execute("UPDATE project_scene_binding SET ue_project_id=%s,scene_id=%s,status='active',updated_at=now(),revision=revision+1 WHERE binding_id=%s", (ue["id"], scene_id, binding_id))

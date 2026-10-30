@@ -1,4 +1,4 @@
-﻿// ============================================================================
+// ============================================================================
 // TwinSceneManager.h
 //
 // 孪生场景管理器 — 关卡级别的全局实例生命周期管理器
@@ -395,17 +395,19 @@ public:
     /** 应用外部数据监控台下发的实时流开关；HTTP 快照轮询不受影响。 */
     void ApplyRealtimeWebSocketEnabled(bool bEnabled);
 
-    /** 把当前 UE 工程身份绑定到后端当前激活数据集（数据集之后只接受该工程的 UE 请求） */
+    /** 重新把当前 UE 工程绑定到其已知目标项目（BoundProjectId）。
+     *  4.8 起绑定是显式操作：没有目标项目时不会回退到后端激活态，请在 Web 端先完成绑定。 */
     UFUNCTION(CallInEditor, Category="连接",
-              meta=(DisplayName="绑定当前UE工程到激活数据集"))
+              meta=(DisplayName="绑定当前UE工程到目标项目"))
     void BindCurrentUEProjectToActiveDataset();
 
-    /** 强制重新把当前 UE 工程绑定到当前激活数据集（清除已有冲突并接管） */
+    /** 强制重新绑定到其已知目标项目（BoundProjectId），用于冲突恢复。
+     *  不再清空目标并绑到“激活数据集”。 */
     UFUNCTION(CallInEditor, Category="连接",
-              meta=(DisplayName="强制重新绑定当前UE工程到激活数据集"))
+              meta=(DisplayName="强制重新绑定当前UE工程到目标项目"))
     void ForceBindCurrentUEProjectToActiveDataset();
 
-    /** 检查当前 UE 工程在后端的绑定状态，若未绑定则自动自愈绑定 */
+    /** 检查当前 UE 工程在后端的绑定状态；未绑定时仅周期重查，不再自动绑定到激活项目 */
     void CheckInitialBindingStatus();
 
     /** 手动把当前 UE 工程资产目录同步到 OntoTwin。 */

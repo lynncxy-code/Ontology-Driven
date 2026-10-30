@@ -1081,8 +1081,8 @@ void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
         break;
     case EOntoTwinRuntimeAccessState::Unbound:
         AccessColor = WarningColor;
-        AccessText = TEXT("尚未绑定");
-        ActionText = TEXT("绑定当前数据集");
+        AccessText = TEXT("尚未绑定（请在 Web 端绑定）");
+        ActionText = TEXT("重新检查");
         bShowAccessAction = true;
         bEnableAccessAction = SceneManager->CanBindRuntimeProject();
         break;
@@ -1147,14 +1147,9 @@ void UOntoTwinRuntimeEditorPanel::HandleAccessActionClicked()
 {
     if (!SceneManager) return;
 
-    if (SceneManager->GetRuntimeEditorAccessState() == EOntoTwinRuntimeAccessState::Unbound)
-    {
-        SceneManager->BindCurrentRuntimeProject();
-    }
-    else
-    {
-        SceneManager->RetryRuntimeBindingStatus();
-    }
+    // 4.8：绑定是显式操作（由 Web 端完成）。此按钮只负责重新检查绑定状态，
+    // 不再触发“绑定到激活数据集”的旧语义。
+    SceneManager->RetryRuntimeBindingStatus();
 }
 
 void UOntoTwinRuntimeEditorPanel::HandleDisplayNameCopyClicked()

@@ -133,6 +133,18 @@ bool IsInFolderOrChild(const FName ActorFolderName, const FString& RootFolder)
         && (ActorFolder == CleanRoot || ActorFolder.StartsWith(CleanRoot + TEXT("/")));
 }
 
+/**
+ * binding_status/resolve 的 mode 取值中，哪些已经给出了可用的 project_id。
+ * 4.8 引入场景级绑定后新增 scene-matched（关卡绑定）与 explicit（显式 project_id），
+ * 旧实现只认 matched，会把已经绑定好的关卡当成未知状态，导致轮询永不启动。
+ */
+bool IsBoundBindingMode(const FString& Mode)
+{
+    return Mode == TEXT("matched")
+        || Mode == TEXT("scene-matched")
+        || Mode == TEXT("explicit");
+}
+
 FString TruncateRuntimeLabel(const FString& Value, int32 MaxLength)
 {
     if (Value.Len() <= MaxLength || MaxLength < 6)
@@ -190,6 +202,37 @@ ATwinSceneManager::ATwinSceneManager()
     UEProjectId = FString::Printf(TEXT("ueproj_%s"), *UEProjectName);
 }
 
+// 编辑器构造脚本：每次在编辑器里选中/移动该 Actor 都会执行。
+// 强制把“UE 工程名称”刷成当前 .uproject 的工程名，覆盖地图里残留的旧序列化值；
+// UE 工程 ID 为空时才自动生成，不覆盖用户手动填写的值；
+// 场景 ID 为空时自动填当前地图路径，让细节面板在编辑器里也能看到（不用等运行）。
+void ATwinSceneManager::OnConstruction(const FTransform& Transform)
+{
+    Super::OnConstruction(Transform);
+    UEProjectName = FApp::GetProjectName();
+    if (UEProjectId.IsEmpty())
+    {
+        UEProjectId = FString::Printf(TEXT("ueproj_%s"), *UEProjectName);
+    }
+    EnsureSceneId();
+}
+
+void ATwinSceneManager::EnsureSceneId()
+{
+    if (!SceneId.IsEmpty())
+    {
+        return;
+    }
+    if (const UWorld* World = GetWorld())
+    {
+        const FString MapPackage = World->GetOutermost()->GetName();
+        if (!MapPackage.IsEmpty() && !MapPackage.Contains(TEXT("/Engine/")))
+        {
+            SceneId = MapPackage;
+        }
+    }
+}
+
 // ── BeginPlay ────────────────────────────────────────────────────────────────
 
 void ATwinSceneManager::BeginPlay()
@@ -228,6 +271,10 @@ void ATwinSceneManager::BeginPlay()
     Super::BeginPlay();
     SetActorTickEnabled(true);
     EnsureModelLoadingWidget();
+
+    // 场景 ID 自动读取：留空时使用当前地图资产路径（如 /Game/Maps/Level_A），
+    // 与 4.8 场景级绑定表的 stable_key 对应，用户一般无需手填。
+    EnsureSceneId();
 
     InitializeDisplaySchemes();
 
@@ -1751,8 +1798,10 @@ void ATwinSceneManager::DismissModelLoadingWidget()
 
 void ATwinSceneManager::BindCurrentUEProjectToActiveDataset()
 {
-    bRuntimeBindingConflict = false;
-    BindCurrentUEProjectToActiveDatasetInternal(false);
+    EnsureSceneId();
+    RuntimeStatusMessage = TEXT("请在网页数据集卡片中选择关卡绑定；网页切换项目不会换绑");
+    FPlatformProcess::LaunchURL(*(BackendBaseUrl + TEXT("/workspace48")), nullptr, nullptr);
+    CheckInitialBindingStatus();
 }
 
 void ATwinSceneManager::BindCurrentUEProjectToActiveDatasetInternal(bool bForce)
@@ -1814,6 +1863,7 @@ void ATwinSceneManager::BindCurrentUEProjectToActiveDatasetInternal(bool bForce)
             }
             UE_LOG(LogTemp, Log, TEXT("[UE绑定] 绑定当前 UE 工程到数据集成功 (project_id=%s, code=%d)"),
                    *SceneManager->BoundProjectId, Code);
+            SceneManager->RuntimeStatusMessage = FString::Printf(TEXT("绑定成功：%s"), *SceneManager->BoundProjectId);
             SceneManager->SyncUEAssetCatalog();
             SceneManager->CheckRuntimeBindingStatus();
             SceneManager->UpdateRuntimeEditorPanel();
@@ -1826,6 +1876,7 @@ void ATwinSceneManager::BindCurrentUEProjectToActiveDatasetInternal(bool bForce)
                 Root->TryGetStringField(TEXT("message"), ErrorMsg);
             }
             UE_LOG(LogTemp, Warning, TEXT("[UE绑定] 绑定当前 UE 工程到激活数据集失败 (code=%d): %s"), Code, *ErrorMsg);
+            SceneManager->RuntimeStatusMessage = FString::Printf(TEXT("绑定失败 (HTTP %d)%s"), Code, ErrorMsg.IsEmpty() ? TEXT("") : *FString::Printf(TEXT("：%s"), *ErrorMsg));
             if (Code == 404 && !SceneManager->BoundProjectId.IsEmpty() && !bForce)
             {
                 // A serialized target from another deployment is stale. Do not
@@ -1873,11 +1924,7 @@ void ATwinSceneManager::BindCurrentUEProjectToActiveDatasetInternal(bool bForce)
 
 void ATwinSceneManager::ForceBindCurrentUEProjectToActiveDataset()
 {
-    bRuntimeProjectBound = false;
-    bRuntimeBindingConflict = false;
-    RuntimeBindingRetryAttempt = 0;
-    BoundProjectId.Empty();
-    BindCurrentUEProjectToActiveDatasetInternal(true);
+    BindCurrentUEProjectToActiveDataset();
 }
 
 void ATwinSceneManager::ScheduleBindingStatusCheck(float DelaySeconds)
@@ -1907,6 +1954,7 @@ void ATwinSceneManager::CheckInitialBindingStatus()
     HttpRequest->SetVerb(TEXT("GET"));
     HttpRequest->SetHeader(TEXT("Accept"), TEXT("application/json"));
     AddUEProjectHeaders(HttpRequest);
+    HttpRequest->SetHeader(TEXT("X-OntoTwin-Project-Id"), TEXT(""));
 
     bRuntimeBindingRequestInFlight = true;
     const TWeakObjectPtr<ATwinSceneManager> WeakThis(this);
@@ -1932,19 +1980,20 @@ void ATwinSceneManager::CheckInitialBindingStatus()
 
         if (bOk && Resp.IsValid() && Code == 200)
         {
-            if (Mode == TEXT("matched"))
+            if (IsBoundBindingMode(Mode))
             {
                 SceneManager->bRuntimeProjectBound = true;
                 SceneManager->RuntimeBindingRetryAttempt = 0;
                 SceneManager->bRuntimeBindingConflict = false;
                 SceneManager->bRuntimeCanSave = false;
                 Root->TryGetBoolField(TEXT("can_write"), SceneManager->bRuntimeCanSave);
-                SceneManager->RuntimeBindingMode = TEXT("matched");
+                SceneManager->RuntimeBindingMode = Mode;
                 if (Root.IsValid())
                 {
                     Root->TryGetStringField(TEXT("project_id"), SceneManager->BoundProjectId);
                 }
-                UE_LOG(LogTemp, Log, TEXT("[UE绑定] UE 工程已与后端项目绑定 (project_id=%s)"), *SceneManager->BoundProjectId);
+                UE_LOG(LogTemp, Log, TEXT("[UE绑定] UE 工程已与后端项目绑定 (mode=%s, project_id=%s)"),
+                       *Mode, *SceneManager->BoundProjectId);
                 SceneManager->SyncUEAssetCatalog();
                 SceneManager->UpdateRuntimeEditorPanel();
             }
@@ -1953,17 +2002,17 @@ void ATwinSceneManager::CheckInitialBindingStatus()
                 SceneManager->bRuntimeProjectBound = false;
                 SceneManager->RuntimeBindingMode = TEXT("unbound");
                 SceneManager->bRuntimeCanSave = false;
-                UE_LOG(LogTemp, Log, TEXT("[UE绑定] UE 工程尚未绑定，正在自动绑定到激活项目..."));
-                if (!SceneManager->bRuntimeBindingConflict)
-                {
-                    SceneManager->BindCurrentUEProjectToActiveDatasetInternal(false);
-                }
-                else SceneManager->ScheduleBindingStatusCheck(60.0f);
+                SceneManager->RuntimeStatusMessage = TEXT("关卡尚未绑定，请在网页数据集卡片中选择关卡绑定");
+                SceneManager->UpdateRuntimeEditorPanel();
+                SceneManager->ScheduleBindingStatusCheck(5.0f);
             }
             else
             {
                 SceneManager->RuntimeBindingMode = Mode;
-                UE_LOG(LogTemp, Warning, TEXT("[UE绑定] 收到未知绑定模式: %s"), *Mode);
+                UE_LOG(LogTemp, Warning,
+                       TEXT("[UE绑定] 收到未知绑定模式: %s（本轮不启动快照轮询），5 秒后重新检查"),
+                       *Mode);
+                SceneManager->ScheduleBindingStatusCheck(5.0f);
             }
         }
         else
@@ -2180,6 +2229,11 @@ void ATwinSceneManager::OnIncrementalPollResponse(
 {
     bRequestInFlight = false;
 
+    // Remember whether this request actually carried a cursor.  A 400/404 with
+    // no cursor cannot mean "cursor expired": the endpoint rejected the request
+    // itself (missing project_id, unknown route, ...), and retrying it forever
+    // would leave the loading overlay stuck in the waiting phase.
+    const bool bHadCursor = !IncrementalSnapshotCursor.IsEmpty();
     const int32 ResponseCode = Response.IsValid() ? Response->GetResponseCode() : -1;
     if (!bWasSuccessful || !Response.IsValid() || ResponseCode != 200)
     {
@@ -2201,6 +2255,28 @@ void ATwinSceneManager::OnIncrementalPollResponse(
 
         if (Response.IsValid() && (ResponseCode == 400 || ResponseCode == 404))
         {
+            if (!bHadCursor)
+            {
+                // The request did not carry a cursor, so this is not an expired
+                // cursor. Treat it as an unusable incremental contract: fall back
+                // to the full baseline and surface the reason instead of looping.
+                FString ErrorCode;
+                TSharedPtr<FJsonObject> ErrorRoot;
+                const TSharedRef<TJsonReader<>> ErrorReader =
+                    TJsonReaderFactory<>::Create(Response->GetContentAsString());
+                if (FJsonSerializer::Deserialize(ErrorReader, ErrorRoot) && ErrorRoot.IsValid())
+                {
+                    ErrorRoot->TryGetStringField(TEXT("error"), ErrorCode);
+                }
+                ConsecutiveFailures = 0;
+                FallBackToFullSnapshots(FString::Printf(
+                    TEXT("增量接口拒绝无游标请求 (HTTP %d %s)"), ResponseCode, *ErrorCode));
+                FailInitialModelBaseline(FString::Printf(
+                    TEXT("增量模型接口被拒绝（HTTP %d %s），已回退全量加载。"),
+                    ResponseCode, ErrorCode.IsEmpty() ? TEXT("") : *ErrorCode));
+                PollBackend();
+                return;
+            }
             // Cursor expired or invalidated on backend (e.g. backend restarted).
             // Clear cursor so next request gets a reset delta, without permanently disabling incremental mode!
             ConsecutiveFailures = 0;
@@ -3802,6 +3878,7 @@ void ATwinSceneManager::CheckRuntimeBindingStatus()
     HttpRequest->SetVerb(TEXT("GET"));
     HttpRequest->SetHeader(TEXT("Accept"), TEXT("application/json"));
     AddUEProjectHeaders(HttpRequest);
+    HttpRequest->SetHeader(TEXT("X-OntoTwin-Project-Id"), TEXT(""));
 
     bRuntimeBindingRequestInFlight = true;
     RuntimeStatusMessage = TEXT("正在检查 UE 工程绑定...");
@@ -3836,10 +3913,10 @@ void ATwinSceneManager::CheckRuntimeBindingStatus()
 
             if (bOk && Resp.IsValid() && Code == 200)
             {
-                if (Mode == TEXT("matched"))
+                if (IsBoundBindingMode(Mode))
                 {
                     Self->bRuntimeProjectBound = true;
-                    Self->RuntimeBindingMode = TEXT("matched");
+                    Self->RuntimeBindingMode = Mode;
                     Self->bRuntimeCanSave = false;
                     Root->TryGetBoolField(TEXT("can_write"), Self->bRuntimeCanSave);
                     Self->bRuntimeBindingConflict = false;
@@ -3853,7 +3930,9 @@ void ATwinSceneManager::CheckRuntimeBindingStatus()
                 else if (Mode == TEXT("unbound"))
                 {
                     Self->RuntimeBindingMode = TEXT("unbound");
-                    Self->RuntimeStatusMessage = TEXT("当前数据集尚未绑定，绑定后才能保存");
+                    Self->bRuntimeProjectBound = false;
+                    Self->bRuntimeCanSave = false;
+                    Self->RuntimeStatusMessage = TEXT("关卡尚未绑定，请在网页设置关卡绑定");
                 }
                 else
                 {
@@ -3898,83 +3977,7 @@ void ATwinSceneManager::RetryRuntimeBindingStatus()
 
 void ATwinSceneManager::BindCurrentRuntimeProject()
 {
-    if (!bRuntimeEditMode || bRuntimeBindingRequestInFlight)
-    {
-        return;
-    }
-
-    TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
-    Body->SetStringField(TEXT("ue_project_id"), UEProjectId);
-    Body->SetStringField(TEXT("ue_project_name"), UEProjectName);
-    if (!BoundProjectId.IsEmpty())
-    {
-        Body->SetStringField(TEXT("target_project_id"), BoundProjectId);
-    }
-    Body->SetBoolField(TEXT("force"), false);
-
-    FString BodyStr;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&BodyStr);
-    FJsonSerializer::Serialize(Body.ToSharedRef(), Writer);
-
-    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = FHttpModule::Get().CreateRequest();
-    HttpRequest->SetURL(FString::Printf(TEXT("%s/api/v2/ue/bind_active_project"), *BackendBaseUrl));
-    HttpRequest->SetVerb(TEXT("POST"));
-    HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
-    AddUEProjectHeaders(HttpRequest);
-    HttpRequest->SetContentAsString(BodyStr);
-
-    bRuntimeBindingRequestInFlight = true;
-    RuntimeStatusMessage = TEXT("正在将当前数据集绑定到此 UE 工程...");
-    UpdateRuntimeEditorPanel();
-
-    TWeakObjectPtr<ATwinSceneManager> WeakThis(this);
-    HttpRequest->OnProcessRequestComplete().BindLambda(
-        [WeakThis](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bOk)
-        {
-            ATwinSceneManager* Self = WeakThis.Get();
-            if (!Self) return;
-
-            Self->bRuntimeBindingRequestInFlight = false;
-            const int32 Code = Resp.IsValid() ? Resp->GetResponseCode() : -1;
-            if (bOk && Resp.IsValid() && Code == 200)
-            {
-                Self->bRuntimeProjectBound = true;
-                Self->RuntimeBindingMode = TEXT("matched");
-                Self->bRuntimeCanSave = false;
-                TSharedPtr<FJsonObject> RespJson;
-                if (Resp.IsValid())
-                {
-                    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Resp->GetContentAsString());
-                    if (FJsonSerializer::Deserialize(Reader, RespJson) && RespJson.IsValid())
-                    {
-                        RespJson->TryGetStringField(TEXT("project_id"), Self->BoundProjectId);
-                    }
-                }
-                Self->RuntimeStatusMessage = TEXT("当前数据集已绑定到此 UE 工程");
-                Self->CheckRuntimeBindingStatus();
-                if (Self->RuntimeEditorPanel && IsValid(Self->RuntimeEditorPanel))
-                {
-                    Self->RuntimeEditorPanel->ShowToast(
-                        TEXT("Active dataset bound"),
-                        EOntoTwinRuntimeToastType::Success);
-                }
-            }
-            else
-            {
-                Self->bRuntimeCanSave = false;
-                Self->RuntimeBindingMode = TEXT("error");
-                Self->RuntimeStatusMessage = FString::Printf(TEXT("Bind failed (code=%d)"), Code);
-                if (Self->RuntimeEditorPanel && IsValid(Self->RuntimeEditorPanel))
-                {
-                    Self->RuntimeEditorPanel->ShowToast(
-                        TEXT("Dataset binding failed"),
-                        EOntoTwinRuntimeToastType::Error);
-                }
-            }
-            Self->UpdateRuntimeEditorPanel();
-        });
-
-    HttpRequest->ProcessRequest();
+    BindCurrentUEProjectToActiveDataset();
 }
 
 bool ATwinSceneManager::CalculateRuntimeEditLocalBounds(AActor* Actor, FBox& OutLocalBounds) const
@@ -6056,7 +6059,7 @@ EOntoTwinRuntimeAccessState ATwinSceneManager::GetRuntimeEditorAccessState() con
     {
         return EOntoTwinRuntimeAccessState::Checking;
     }
-    if (RuntimeBindingMode == TEXT("matched"))
+    if (IsBoundBindingMode(RuntimeBindingMode))
     {
         return EOntoTwinRuntimeAccessState::Ready;
     }

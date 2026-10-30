@@ -27,8 +27,8 @@ function check(template, item, label, positive) {
 
 check(templates[0], { injected_interfaces: ['I3D_Overlay'] }, '已挂载', true);
 check(templates[0], { injected_interfaces: [] }, '未挂载', false);
-check(templates[1], { online: true }, '在线', true);
-check(templates[1], { online: false }, '离线', false);
+check(templates[1], { enabled: true }, '已启用', true);
+check(templates[1], { enabled: false }, '未启用', false);
 assert.match(html, /:aria-label="item\.display_name/);
 assert.match(html, /\.row-status\{[^}]*flex:none/);
 

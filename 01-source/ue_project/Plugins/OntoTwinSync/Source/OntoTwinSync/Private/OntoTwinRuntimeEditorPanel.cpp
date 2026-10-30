@@ -1082,7 +1082,7 @@ void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
     case EOntoTwinRuntimeAccessState::Unbound:
         AccessColor = WarningColor;
         AccessText = TEXT("尚未绑定");
-        ActionText = TEXT("绑定当前数据集");
+        ActionText = TEXT("打开网页设置绑定");
         bShowAccessAction = true;
         bEnableAccessAction = SceneManager->CanBindRuntimeProject();
         break;

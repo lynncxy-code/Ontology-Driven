@@ -399,20 +399,14 @@ def legacy_project_ue_allowed(project_id, ue_project_id, scene_id=""):
                 if scene_id:
                     cur.execute(
                         """SELECT 1 FROM project_scene_binding b JOIN ue_scene s ON s.scene_id=b.scene_id
-                            WHERE b.project_id=%s AND b.ue_project_id=%s
+                            JOIN ue_project u ON u.ue_project_id=b.ue_project_id
+                            WHERE b.project_id=%s AND u.stable_key=%s
                               AND (b.scene_id=%s OR s.stable_key=%s)
                               AND b.status='active'""",
                         (project_id, ue_project_id, scene_id, scene_id),
                     )
-                    if cur.fetchone():
-                        return True
-                cur.execute(
-                    """SELECT 1 FROM project p
-                        WHERE p.id=%s AND p.deleted_at IS NULL
-                          AND COALESCE(p.dataset->>'bound_ue_project_id','')=%s""",
-                    (project_id, ue_project_id),
-                )
-                return bool(cur.fetchone())
+                    return bool(cur.fetchone())
+                return False
     except Exception:
         return False
 
@@ -491,7 +485,7 @@ def register_tenant_routes(app, project_store=None):
                     # 环境一旦创建，不能靠删除账号重新打开匿名初始化入口。
                     cur.execute("SELECT count(*) FROM environment")
                     if cur.fetchone()[0]:
-                        raise ApiError(409, "本环境已经初始化", "already_bootstrapped")
+                        raise ApiError(409, "本环境已经初始化；如需新增组织，请登录后在「选择组织」页点击「新建组织」", "already_bootstrapped")
                     env_id, org_id, user_id = (_id("env"), _id("org"), _id("usr"))
                     factory_id = None
                     cur.execute("INSERT INTO environment(environment_id,display_name) VALUES(%s,%s)", (env_id, env_name))
@@ -693,14 +687,6 @@ def register_tenant_routes(app, project_store=None):
                            WHERE session_id=%s""",
                         (org_id, factory_id, project_id, session["session_id"]),
                     )
-        if project_id and project_store is not None:
-            # 兼容旧版 UE 绑定：把「当前项目」同步到全局激活态，让不带
-            # project_id 的旧绑定接口（/api/v2/ue/bind_active_project）也能
-            # 绑到本项目，而不是报 no active project。
-            try:
-                project_store.activate(str(project_id))
-            except Exception:
-                pass
         return _json({"organization_id": org_id, "factory_id": factory_id, "project_id": project_id})
 
     @app.get("/api/v4.8/projects")
@@ -722,12 +708,33 @@ def register_tenant_routes(app, project_store=None):
                 cur.execute(
                     """SELECT p.id,p.name,p.created_at,p.schema_version,p.status,
                               (SELECT count(*) FROM object_type o WHERE o.project_id=p.id AND o.deleted_at IS NULL),
-                              (SELECT count(*) FROM instance i WHERE i.project_id=p.id AND i.deleted_at IS NULL)
-                         FROM project p WHERE p.organization_id=%s AND p.factory_id=%s AND p.deleted_at IS NULL
+                              (SELECT count(*) FROM instance i WHERE i.project_id=p.id AND i.deleted_at IS NULL),
+                              b.ue_project_name, b.scene_name, b.bound_ue_id, b.scene_key
+                         FROM project p
+                         LEFT JOIN (
+                             SELECT b.project_id,
+                                    u.display_name AS ue_project_name,
+                                    COALESCE(NULLIF(s.level_path,''), s.display_name, s.stable_key) AS scene_name,
+                                    b.ue_project_id AS bound_ue_id,
+                                    s.stable_key AS scene_key
+                               FROM project_scene_binding b
+                               JOIN ue_project u ON u.ue_project_id = b.ue_project_id
+                               JOIN ue_scene s ON s.scene_id = b.scene_id
+                              WHERE b.status = 'active'
+                         ) b ON b.project_id = p.id
+                        WHERE p.organization_id=%s AND p.factory_id=%s AND p.deleted_at IS NULL
                         ORDER BY p.name""",
                     (org_id, factory_id),
                 )
-                rows = [{"project_id": r[0], "name": r[1], "created_at": r[2], "schema_version": r[3], "status": r[4], "type_count": r[5], "instance_count": r[6]} for r in cur.fetchall()]
+                from ue_project_binding import ue_scene_online
+                rows = [{
+                    "project_id": r[0], "name": r[1], "created_at": r[2], "schema_version": r[3],
+                    "status": r[4], "type_count": r[5], "instance_count": r[6],
+                    "ue_project_name": r[7], "scene_name": r[8],
+                    # 「UE 在线」按关卡判断：只有 UE 当前打开的那张地图（场景）才算在线。
+                    # 一个 UE 工程可绑定多个关卡/数据集，工程在线不代表所有关卡在线。
+                    "ue_online": ue_scene_online(r[9], r[10]),
+                } for r in cur.fetchall()]
         return _json({"items": rows, "current_project_id": session["project_id"]})
 
     @app.post("/api/v4.8/organizations")
@@ -740,11 +747,25 @@ def register_tenant_routes(app, project_store=None):
             with conn.transaction():
                 with conn.cursor() as cur:
                     session = _load_session(cur)
-                    current_org = session["organization_id"]
-                    role = _org_role(cur, session["user_id"], current_org)
-                    if role != "admin":
-                        raise ApiError(403, "只有组织管理员可以新建组织", "forbidden")
-                    cur.execute("SELECT environment_id FROM organization WHERE organization_id=%s", (current_org,))
+                    # 新建组织不依赖会话已选中某个组织：只要该账号在任一组织
+                    # 是管理员，就能在同一环境内继续新建组织。
+                    admin_org = session["organization_id"]
+                    if not admin_org or _org_role(cur, session["user_id"], admin_org) != "admin":
+                        cur.execute(
+                            """SELECT o.organization_id
+                                 FROM organization_member om
+                                 JOIN organization o ON o.organization_id = om.organization_id
+                                WHERE om.user_id=%s AND om.role='admin'
+                                  AND om.status='active' AND om.removed_at IS NULL
+                                  AND o.status='active'
+                                ORDER BY o.created_at LIMIT 1""",
+                            (session["user_id"],),
+                        )
+                        row = cur.fetchone()
+                        if not row:
+                            raise ApiError(403, "只有组织管理员可以新建组织", "forbidden")
+                        admin_org = row[0]
+                    cur.execute("SELECT environment_id FROM organization WHERE organization_id=%s", (admin_org,))
                     env_id = cur.fetchone()[0]
                     org_id = _id("org")
                     cur.execute("INSERT INTO organization(organization_id,environment_id,stable_group_id,name,logo_ref) VALUES(%s,%s,%s,%s,%s)", (org_id, env_id, org_id, name, body.get("logo_ref")))
@@ -1134,17 +1155,21 @@ def register_tenant_routes(app, project_store=None):
                     info = _project_allowed(cur, session["user_id"], project_id, minimum="edit")
                     if not info:
                         raise ApiError(403, "无权绑定该项目", "forbidden")
-                    cur.execute("SELECT 1 FROM ue_scene WHERE scene_id=%s AND ue_project_id=%s", (scene_id, ue_project_id))
+                    cur.execute("SELECT 1 FROM ue_scene WHERE scene_id=%s AND ue_project_id=%s FOR UPDATE", (scene_id, ue_project_id))
                     if not cur.fetchone():
                         raise ApiError(400, "UE 工程与场景不匹配", "invalid_scene")
                     cur.execute("SELECT binding_id,project_id FROM project_scene_binding WHERE ue_project_id=%s AND scene_id=%s AND status='active'", (ue_project_id, scene_id))
                     conflict = cur.fetchone()
                     if conflict and conflict[1] != project_id:
-                        raise ApiError(409, "该 UE 场景已经绑定其他项目", "scene_binding_conflict", binding_id=conflict[0])
+                        if not _project_allowed(cur, session["user_id"], conflict[1], minimum="edit"):
+                            raise ApiError(403, "无权修改该关卡的原绑定", "forbidden")
+                        if body.get("replace_binding_id") != conflict[0]:
+                            raise ApiError(409, "该关卡已绑定其他数据集，请确认换绑", "scene_binding_conflict", binding_id=conflict[0], project_id=conflict[1])
+                        cur.execute("UPDATE project_scene_binding SET status='replaced',updated_at=now() WHERE binding_id=%s", (conflict[0],))
                     cur.execute("UPDATE project_scene_binding SET status='replaced',updated_at=now() WHERE project_id=%s AND status='active'", (project_id,))
                     binding_id = conflict[0] if conflict and conflict[1] == project_id else _id("bind")
                     if conflict and conflict[1] == project_id:
-                        cur.execute("UPDATE project_scene_binding SET ue_project_id=%s,scene_id=%s,updated_at=now(),revision=revision+1 WHERE binding_id=%s", (ue_project_id, scene_id, binding_id))
+                        cur.execute("UPDATE project_scene_binding SET ue_project_id=%s,scene_id=%s,status='active',updated_at=now(),revision=revision+1 WHERE binding_id=%s", (ue_project_id, scene_id, binding_id))
                     else:
                         cur.execute("""INSERT INTO project_scene_binding(binding_id,project_id,organization_id,factory_id,ue_project_id,scene_id,bound_by)
                            VALUES(%s,%s,%s,%s,%s,%s,%s)""", (binding_id, project_id, info["organization_id"], info["factory_id"], ue_project_id, scene_id, session["user_id"]))

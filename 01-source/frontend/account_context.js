@@ -1,5 +1,5 @@
 (function () {
-  if (location.pathname === '/account') return;
+  // 头像菜单全局注入（含 /account），使「切换组织/工厂、个人设置、组织管理」语义一致。
 
   const inFrame = window.self !== window.top;
   const nativeFetch = window.fetch.bind(window);

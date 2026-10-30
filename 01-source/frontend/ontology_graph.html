@@ -2427,10 +2427,11 @@
                 const linkTxt = ds.link_count != null ? ` · ${ds.link_count}关系` : '';
                 const dateTxt = ds.created_at !== 'built-in' ? `<span class="dataset-date">${escapeHtml(ds.created_at || '')}</span>` : '';
                 const ueName = (ds.bound_ue_project_name || '').trim();
+                const ueScene = (ds.bound_ue_scene || '').trim();
                 const zoneTxt = ds.id === 'demo' ? '' : (ds.zone_count > 0 ? `${ds.zone_count} 个分区` : '未分区');
                 const chips = [];
                 if (ds.project_id) chips.push(`<span class="dataset-chip dataset-chip-project"><span class="dataset-chip-label">项目 ID</span><span class="dataset-chip-value">${escapeHtml(ds.project_id)}</span></span>`);
-                if (ueName) chips.push(`<span class="dataset-chip dataset-chip-ue"><span class="dataset-chip-label">UE 项目</span><span class="dataset-chip-value">${escapeHtml(ueName)}</span></span>`);
+                if (ueName) chips.push(`<span class="dataset-chip dataset-chip-ue"><span class="dataset-chip-label">UE 绑定</span><span class="dataset-chip-value">${escapeHtml(ueName)}${ueScene ? ` · 关卡 ${escapeHtml(ueScene)}` : ''}</span></span>`);
                 if (zoneTxt) chips.push(`<span class="dataset-chip dataset-chip-zone"><span class="dataset-chip-label">分区</span><span class="dataset-chip-value">${escapeHtml(zoneTxt)}</span></span>`);
 
                 const row = document.createElement('div');

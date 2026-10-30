@@ -6,7 +6,7 @@ import uuid
 import hashlib
 import mimetypes
 import requests as http_requests
-from flask import Flask, jsonify, request, send_from_directory, g
+from flask import Flask, jsonify, request, send_from_directory, g, redirect
 from flask_cors import CORS
 from ontology import SharedState
 from instance_labels import resolve_label, register_label_routes
@@ -237,6 +237,16 @@ _V2_PROJECTLESS_EXACT = {
 }
 
 
+# UE 资产目录（/api/v2/ue/assets/*）是按「UE 工程 ID」独立落盘的扫描索引
+# （backend/data/ue_asset_catalogs/），不属于任何项目的 ProjectStore 数据，
+# 而且写入发生在项目绑定之前：TwinSceneManager 上的资产目录组件在 BeginPlay
+# 就同步目录，此时还没有 BoundProjectId 可发。若在此要求显式 project_id，
+# UE 侧固定收到 400 project_id_required，Web 端也就永远读不到目录。
+# 这里只放行「带 UE 身份、且没带 project_id」的请求；一旦 UE 开始上报
+# project_id，仍走下面的工程／场景绑定校验，不会跳过 ue_project_mismatch。
+_V2_UE_ASSET_PREFIX = "/api/v2/ue/assets/"
+
+
 def _explicit_project_id():
     value = request.headers.get("X-OntoTwin-Project-Id")
     value = value or request.args.get("project_id") or request.form.get("project_id")
@@ -257,7 +267,7 @@ def _bind_explicit_v2_project():
     """
     if not request.path.startswith("/api/v2/"):
         return None
-    pid = _explicit_project_id()
+    pid = "" if request.path == "/api/v2/ue/binding_status" else _explicit_project_id()
     session_cookie = request.cookies.get("ontotwin_session") or request.headers.get("X-OntoTwin-Session")
     ue_id = request.headers.get("X-OntoTwin-UE-Project-Id") or ""
     # PostgreSQL is the 4.8 runtime.  The old JSON compatibility path may be
@@ -273,9 +283,11 @@ def _bind_explicit_v2_project():
     # project when the browser supplies one.  This keeps the legacy route
     # usable before project creation while making its active view explicit
     # once a 4.8 project has been selected.
-    if (request.path in _V2_PROJECTLESS_EXACT or request.path.startswith("/api/v2/ue/assets/")) and not pid:
+    if request.path in _V2_PROJECTLESS_EXACT and not pid:
         return None
     scene_id = request.headers.get("X-OntoTwin-UE-Scene-Id") or request.args.get("scene_id") or request.args.get("scene") or ""
+    if ue_id and not pid and request.path.startswith(_V2_UE_ASSET_PREFIX):
+        return None
     if not pid:
         if session_cookie or ue_id:
             return jsonify({
@@ -301,6 +313,36 @@ def _bind_explicit_v2_project():
         return jsonify({"error": "project_not_found", "project_id": pid}), 404
     g.ontotwin_project_id = pid
     return None
+
+
+# ── 页面级登录守门（仅 UX 重定向，数据鉴权仍在 API 层）──────────────
+# 未登录访问业务页面（/nexus、/workspace48、/ontology_graph 等）时
+# 重定向到 /account，避免把工作台外壳裸出给未登录用户。
+_PUBLIC_PAGE_PATHS = {"/", "/account", "/organization", "/release-info.json"}
+
+
+@app.before_request
+def _redirect_unauthenticated_pages():
+    if request.method != "GET":
+        return None
+    path = request.path
+    # API 有自己的 401 语义，不在这里重定向。
+    if path.startswith("/api/") or path in _PUBLIC_PAGE_PATHS:
+        return None
+    # 静态资源（assets/vendor 及带扩展名的文件）放行。
+    if path.startswith("/assets/") or path.startswith("/vendor/"):
+        return None
+    leaf = path.rsplit("/", 1)[-1]
+    if "." in leaf and not leaf.endswith(".html"):
+        return None
+    # JSON 兼容模式没有 4.8 登录态，跳过页面守门（保持旧行为）。
+    if os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() != "pg":
+        return None
+    # 只做“有没有登录凭证”的轻量判断；过期/伪造凭证交给 /auth/me 与 API 兜底。
+    if not (request.cookies.get("ontotwin_session") or request.headers.get("X-OntoTwin-Session")):
+        return redirect("/account")
+    return None
+
 
 # ═══════════════════════════════════════════════════════════════
 # 页面路由
@@ -3993,6 +4035,22 @@ def list_datasets():
             "bound_ue_project_name": meta.get("bound_ue_project_name", ""),
         })
 
+    # 4.8 场景级绑定：每个项目绑定的关卡（scene stable_key），供前端展示“UE工程+关卡”。
+    scene_by_project = {}
+    try:
+        from db import pg
+        with pg.get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT b.project_id, s.stable_key FROM project_scene_binding b
+                       JOIN ue_scene s ON s.scene_id = b.scene_id
+                      WHERE b.status='active'""",
+                )
+                for pid, stable_key in cur.fetchall():
+                    scene_by_project[str(pid)] = stable_key
+    except Exception:
+        scene_by_project = {}
+
     result = []
     for ds in _datasets:
         dataset_id = ds.get("id")
@@ -4023,6 +4081,7 @@ def list_datasets():
             "unzoned_instance_count": meta.get("unzoned_instance_count", 0),
             "bound_ue_project_id": ds.get("bound_ue_project_id") or meta.get("bound_ue_project_id", ""),
             "bound_ue_project_name": ds.get("bound_ue_project_name") or meta.get("bound_ue_project_name", ""),
+            "bound_ue_scene": scene_by_project.get(dataset_id, ""),
             "is_active": dataset_id == _active_dataset_view()
         })
     return jsonify(result)
@@ -4033,6 +4092,8 @@ def bind_active_ue_project():
     互斥：同一 UE-ID 已绑到其他项目 → 409；带 ?force=1 可强制迁移。
     防抢占：激活项目已绑另一个 UE-ID → 409 project_already_bound；同样需 force。
     可选 target_project_id：按指定项目绑定（UE 重绑上次成功的项目），不依赖激活态。"""
+    if os.environ.get("ONTOTWIN_STORE", "pg").lower() == "pg":
+        return jsonify({"error": "explicit_binding_required", "message": "请登录网页，在数据集卡片的关卡绑定中选择目标；进入项目不会自动换绑。"}), 409
     global _datasets
     ue = request_ue_project(request)
     body = request.get_json(silent=True) or {}
@@ -4110,7 +4171,16 @@ def bind_active_ue_project():
                         scene_conflict = cur.fetchone()
                         if scene_conflict and scene_conflict[1] != project_id and not force:
                             return jsonify({"error": "scene_binding_conflict", "binding_id": scene_conflict[0], "project_id": scene_conflict[1]}), 409
-                        cur.execute("UPDATE project_scene_binding SET status='replaced',updated_at=now() WHERE project_id=%s AND status='active'", (project_id,))
+                        # 迁移/重绑前先释放两个唯一索引占用的旧行：目标项目已有的
+                        # 活动绑定（uq_project_scene_binding_project）和该场景已有的
+                        # 活动绑定（uq_project_scene_binding_scene）。只按 project_id
+                        # 清会把旧场景绑定留在原地，导致下面 INSERT 撞唯一约束。
+                        cur.execute(
+                            """UPDATE project_scene_binding SET status='replaced', updated_at=now()
+                               WHERE status='active'
+                                 AND (project_id=%s OR (ue_project_id=%s AND scene_id=%s))""",
+                            (project_id, ue["id"], scene_id),
+                        )
                         binding_id = scene_conflict[0] if scene_conflict and scene_conflict[1] == project_id else f"bind_{uuid.uuid4().hex}"
                         if scene_conflict and scene_conflict[1] == project_id:
                             cur.execute("UPDATE project_scene_binding SET ue_project_id=%s,scene_id=%s,status='active',updated_at=now(),revision=revision+1 WHERE binding_id=%s", (ue["id"], scene_id, binding_id))

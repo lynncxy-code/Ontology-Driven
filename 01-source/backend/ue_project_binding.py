@@ -28,6 +28,7 @@ X-OntoTwin-UE-Project-Id / X-OntoTwin-UE-Project-Name。
 """
 
 import datetime
+import os
 import threading
 import time
 from contextlib import nullcontext
@@ -122,10 +123,30 @@ def observe_ue_project(request):
         _discovered_ue[ue_id] = {
             "ue_project_id": ue_id,
             "ue_project_name": incoming.get("name") or ue_id,
+            "scene_id": (incoming.get("scene_id") or "").strip(),
             "context": context or previous.get('context') or "unknown",
             "last_seen_epoch": now,
         }
     return ue_id
+
+
+def ue_scene_online(ue_id, scene_key, max_age_seconds=30):
+    """UE 工程最近一次心跳上报的场景是否正好是 scene_key（即该关卡当前在线）。
+
+    一个 UE 工程可以绑定多个关卡（每个关卡对应一个数据集）；工程在线不代表
+    所有关卡在线，只有 UE 当前打开的那张地图才算在线。
+    """
+    if not ue_id or not scene_key:
+        return False
+    with _discovered_lock:
+        record = _discovered_ue.get(ue_id)
+        if record is None:
+            return False
+        last_seen = record.get("last_seen_epoch") or 0
+        current_scene = (record.get("scene_id") or "").strip()
+    if time.time() - last_seen > max_age_seconds:
+        return False
+    return current_scene == (scene_key or "").strip()
 
 
 def discovered_ue_projects(store, max_age_seconds=_DISCOVERY_TTL_SECONDS):
@@ -162,6 +183,7 @@ def discovered_ue_projects(store, max_age_seconds=_DISCOVERY_TTL_SECONDS):
         result.append({
             "ue_project_id": ue_id,
             "ue_project_name": value.get("ue_project_name") or ue_id,
+            "scene_id": value.get("scene_id") or "",
             "context": value.get("context") or "unknown",
             "last_seen_at": datetime.datetime.fromtimestamp(
                 seen, datetime.timezone.utc
@@ -332,7 +354,7 @@ def resolve_project_for_ue(store, request):
         or (request.get_json(silent=True) or {}).get("project_id")
         or ""
     ).strip()
-    if explicit_pid and ue_id:
+    if explicit_pid and ue_id and getattr(request, "path", "") != "/api/v2/ue/binding_status":
         return explicit_pid, True, {
             "mode": "explicit",
             "binding_state": "bound",
@@ -346,6 +368,7 @@ def resolve_project_for_ue(store, request):
     # a UE project with two levels can resolve two different projects even
     # though the legacy dataset field can store only one UE id.
     scene_id = incoming.get("scene_id") or ""
+    pg_mode = os.environ.get("ONTOTWIN_STORE", "json").lower() == "pg"
     if ue_id and scene_id:
         try:
             from db import pg
@@ -373,7 +396,11 @@ def resolve_project_for_ue(store, request):
                     "scene_id": scene_id,
                 }
         except Exception:
-            pass
+            if pg_mode:
+                return None, False, {"error": "binding_storage_unavailable", "message": "无法核对关卡绑定，已停止读取数据"}
+
+    if pg_mode and ue_id:
+        return None, False, {"binding_state": "unbound", "message": "该关卡未绑定，请在网页数据集卡片中选择关卡绑定", "scene_id": scene_id}
 
     if not ue_id:
         if is_browser_request(request):
@@ -457,7 +484,7 @@ def binding_status(store, request):
     if ok:
         if pid is not None:
             body["is_active"] = pid == active_id
-            body["can_write"] = pid == active_id
+            body["can_write"] = (bool(incoming.get("scene_id")) if os.environ.get("ONTOTWIN_STORE", "json").lower() == "pg" else pid == active_id)
         body["status"] = "ok"
         return body, 200
     if info.get("binding_state") == "unbound":

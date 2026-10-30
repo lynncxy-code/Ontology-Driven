@@ -1,4 +1,4 @@
-﻿// ============================================================================
+// ============================================================================
 // TwinSceneManager.h
 //
 // 孪生场景管理器 — 关卡级别的全局实例生命周期管理器
@@ -112,22 +112,23 @@ public:
               meta=(DisplayName="后端基础URL"))
     FString BackendBaseUrl = TEXT("http://localhost:5000");
 
-    /** UE 工程稳定身份。默认使用 ueproj_<工程名>；后端用它强绑定数据集，防止工程串台。 */
+    /** UE 工程稳定身份。默认使用 ueproj_<工程名>；后端用它强绑定数据集，防止工程串台。特殊场景可覆盖。 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接",
               meta=(DisplayName="UE工程ID"))
     FString UEProjectId;
 
-    /** UE 工程显示名。默认取当前 .uproject 的工程名。 */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接",
+    /** UE 工程显示名。自动读取当前 .uproject 的工程名，只读展示，不提供手工输入。 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="连接",
               meta=(DisplayName="UE工程名称"))
     FString UEProjectName;
 
     /**
      * 场景 ID：与 4.8 场景级绑定表中的 stable_key 对应，只拉取该关卡绑定的项目。
-     * 留空仅保留旧版单项目兼容行为；新工程应为每个 UE Level 配置稳定 ID。
+     * 留空时自动使用当前地图资产路径（如 /Game/Maps/Level_A）；一般无需手填，
+     * 仅在需要固定身份的极端情况才覆盖。
      */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="连接",
-              meta=(DisplayName="场景ID(留空=跟随后端)"))
+              meta=(DisplayName="场景ID(留空=自动当前地图)"))
     FString SceneId = TEXT("");
 
     /** 轮询间隔（秒） */
@@ -395,17 +396,21 @@ public:
     /** 应用外部数据监控台下发的实时流开关；HTTP 快照轮询不受影响。 */
     void ApplyRealtimeWebSocketEnabled(bool bEnabled);
 
-    /** 把当前 UE 工程身份绑定到后端当前激活数据集（数据集之后只接受该工程的 UE 请求） */
+    /** 编辑器构造脚本：自动刷新 UE 工程名称/ID（自动读，覆盖地图里的旧序列化值）。 */
+    virtual void OnConstruction(const FTransform& Transform) override;
+
+    /** 场景 ID 为空时自动填充当前地图资产路径（如 /Game/Maps/Level_A）。编辑器和运行时都可用。 */
+    void EnsureSceneId();
+
+    /** 打开网页，明确选择数据集与关卡后绑定。 */
     UFUNCTION(CallInEditor, Category="连接",
-              meta=(DisplayName="绑定当前UE工程到激活数据集"))
+              meta=(DisplayName="打开网页设置关卡绑定"))
     void BindCurrentUEProjectToActiveDataset();
 
-    /** 强制重新把当前 UE 工程绑定到当前激活数据集（清除已有冲突并接管） */
-    UFUNCTION(CallInEditor, Category="连接",
-              meta=(DisplayName="强制重新绑定当前UE工程到激活数据集"))
+    /** 保留函数名以兼容旧 Blueprint 引用；与 BindCurrentUEProjectToActiveDataset 行为一致（不再显示编辑器按钮）。 */
     void ForceBindCurrentUEProjectToActiveDataset();
 
-    /** 检查当前 UE 工程在后端的绑定状态，若未绑定则自动自愈绑定 */
+    /** 检查当前 UE 工程在后端的绑定状态，未绑定时等待用户在网页明确选择 */
     void CheckInitialBindingStatus();
 
     /** 手动把当前 UE 工程资产目录同步到 OntoTwin。 */
@@ -666,7 +671,9 @@ private:
     float RuntimeLastToggleInputTime = -1000.0f;
     FString RuntimePreviousAnimState;
     FString RuntimeBindingMode = TEXT("unknown");
-    FString RuntimeStatusMessage = TEXT("F10：场景编辑");
+    /** 绑定/运行时状态反馈：编辑器细节面板可见，点击“绑定”后立即更新，便于确认操作是否生效。 */
+    UPROPERTY(Transient, VisibleAnywhere, Category="连接", meta=(DisplayName="绑定状态"))
+    FString RuntimeStatusMessage = TEXT("未检查绑定");
     FTransform RuntimeEditBaseline = FTransform::Identity;
     FTransform RuntimeDragStartTransform = FTransform::Identity;
     FBox RuntimeEditLocalBounds = FBox(ForceInit);

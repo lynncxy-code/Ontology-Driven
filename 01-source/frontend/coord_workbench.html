@@ -2873,6 +2873,10 @@ function selectAssetRecommendationFolder(folder) {
   if (input && folder) input.value = folder;
 }
 
+// UE 按需扫描的上限等待时间：超时即解除 pending，否则 UE 不在线（或扫描卡住）时
+// 按钮会永远停在被禁用的「等待 UE 同步」，用户没有任何出口。
+const ASSET_SCAN_TIMEOUT_MS = 120000;
+
 async function applyAssetRecommendationFolder() {
   if (!State.assetCatalog) return;
   const input = document.getElementById('assetRecommendationFolder');
@@ -2885,6 +2889,7 @@ async function applyAssetRecommendationFolder() {
     stopAssetScanPolling();
     State.assetScanRequestId = '';
     State.assetScanStatus = 'idle';
+    State.assetScanStartedAt = 0;
     renderAssetRecommendationScope();
     renderAuditList();
     scheduleSave();
@@ -2922,6 +2927,15 @@ async function pollAssetScanRequest() {
   const requestId = State.assetScanRequestId;
   const ueProjectId = State.assetRecommendationProject;
   if (!requestId || !ueProjectId || State.assetScanStatus !== 'pending') return;
+  if (State.assetScanStartedAt && Date.now() - State.assetScanStartedAt > ASSET_SCAN_TIMEOUT_MS) {
+    State.assetScanStatus = 'failed';
+    State.assetScanStartedAt = 0;
+    State.assetRecommendationMessage = 'UE 长时间未返回扫描结果，已停止等待；可调整目录后重新点“同步并推荐”。';
+    renderAssetRecommendationScope();
+    renderAuditList();
+    toast(State.assetRecommendationMessage, 'warn');
+    return;
+  }
   try {
     const res = await fetch(`/api/v2/ue/assets/scan-requests?ue_project_id=${encodeURIComponent(ueProjectId)}`);
     const data = await res.json();
@@ -2932,6 +2946,7 @@ async function pollAssetScanRequest() {
     }
     if (data.status === 'completed') {
       State.assetScanStatus = 'completed';
+      State.assetScanStartedAt = 0;
       State.assetRecommendationMessage = `UE 已返回 ${data.asset_count || 0} 个资产，正在生成推荐…`;
       renderAssetRecommendationScope();
       await refreshAssetCatalogForTarget(false);
@@ -2941,6 +2956,7 @@ async function pollAssetScanRequest() {
     }
     if (data.status === 'failed') {
       State.assetScanStatus = 'failed';
+      State.assetScanStartedAt = 0;
       State.assetRecommendationMessage = data.error || 'UE 无法扫描该目录';
       renderAssetRecommendationScope();
       renderAuditList();
@@ -2952,6 +2968,15 @@ async function pollAssetScanRequest() {
     State.assetScanPollTimer = setTimeout(pollAssetScanRequest, 1500);
   } catch (e) {
     if (requestId !== State.assetScanRequestId) return;
+    if (State.assetScanStartedAt && Date.now() - State.assetScanStartedAt > ASSET_SCAN_TIMEOUT_MS) {
+      State.assetScanStatus = 'failed';
+      State.assetScanStartedAt = 0;
+      State.assetRecommendationMessage = `无法连接后端或 UE 未响应（${e.message}），已停止等待。`;
+      renderAssetRecommendationScope();
+      renderAuditList();
+      toast(State.assetRecommendationMessage, 'err');
+      return;
+    }
     State.assetRecommendationMessage = '等待 UE 连接：' + e.message;
     renderAssetRecommendationScope();
     State.assetScanPollTimer = setTimeout(pollAssetScanRequest, 2500);
@@ -2967,6 +2992,7 @@ async function onMergeTargetChange() {
   State.assetRecommendationMessage = '';
   State.assetScanRequestId = '';
   State.assetScanStatus = 'idle';
+  State.assetScanStartedAt = 0;
   await refreshAssetCatalogForTarget(true);
   renderAuditList();
 }
@@ -2994,7 +3020,12 @@ async function refreshAssetCatalogForTarget(refreshRecommendations) {
   renderAssetCatalogStatus();
   renderAssetRecommendationScope();
   try {
-    const res = await fetch(`/api/v2/ue/assets/catalog?ue_project_id=${encodeURIComponent(ueProjectId)}`);
+    // 4.8：显式带上目标数据集（项目）上下文。页面若是在没有 4.8 会话上下文的
+    // 新标签页里直接打开，请求头里没有 X-OntoTwin-Project-Id，后端会先回
+    // 400 project_id_required，资产目录就永远读不到。
+    const projectId = target?.id || '';
+    const projectQuery = projectId ? `&project_id=${encodeURIComponent(projectId)}` : '';
+    const res = await fetch(`/api/v2/ue/assets/catalog?ue_project_id=${encodeURIComponent(ueProjectId)}${projectQuery}`);
     const contentType = (res.headers.get('content-type') || '').toLowerCase();
     if (!contentType.includes('application/json')) {
       throw new Error(`后端资产目录接口未加载（HTTP ${res.status}），请重启 OntoTwin 后端`);
@@ -3020,6 +3051,7 @@ async function refreshAssetCatalogForTarget(refreshRecommendations) {
       State.assetRecommendations = {};
       State.assetScanRequestId = '';
       State.assetScanStatus = 'idle';
+      State.assetScanStartedAt = 0;
     }
     const serverScan = data.scan_request || {};
     if (serverScan.status === 'pending' && serverScan.request_id) {
@@ -3027,6 +3059,7 @@ async function refreshAssetCatalogForTarget(refreshRecommendations) {
       State.assetRecommendationProject = data.ue_project_id;
       State.assetScanRequestId = serverScan.request_id;
       State.assetScanStatus = 'pending';
+      if (!State.assetScanStartedAt) State.assetScanStartedAt = Date.now();
       State.assetRecommendationMessage = `等待 UE 扫描 ${State.assetRecommendationFolder}；请保持对应 UE 工程打开。`;
       pollAssetScanRequest();
     } else if (serverScan.request_id && serverScan.request_id === State.assetScanRequestId) {
@@ -5037,6 +5070,8 @@ canvas._mdHandler = function(e) {
     if (State.currentStep === 3) { 
       const [wx,wy] = s2w(e.offsetX, e.offsetY); 
       const [adjWx, adjWy] = AlignAssist.getAdjustedCoord(wx, wy);
+      if (State.originPickMode) { setOriginByPick(adjWx, adjWy); return; }
+      if (cadSnapshotController?.pick(adjWx, adjWy)) return;
       addAnchor(adjWx, adjWy); 
     }
   } else {

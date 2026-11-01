@@ -77,11 +77,14 @@ def main():
     subprocess.run(['docker','save','-o',str(output/'Runtime/images.tar'),*images.values()],check=True)
     for name, source in sources.items():
         copy_plugin(source, output/'Plugins'/name)
-    for name in ('Backend.ps1','Install-OntoTwinPlugin.ps1'):
+    for name in ('Backend.ps1','DockerCommand.ps1','Install-OntoTwinPlugin.ps1'):
         write(output/'Tools'/name,(TEMPLATES/name).read_text('utf-8'))
     shutil.copy2(TEMPLATES/'compose.yaml', output/'Runtime/compose.yaml')
     for action in ('Start','Stop','Check'):
         write(output/'Tools'/f'{action}-OntoTwinBackend.ps1',f"[CmdletBinding()]\nparam([int]$Port=5000,[switch]$NoBrowser)\n& (Join-Path $PSScriptRoot 'Backend.ps1') -Action {action.lower()} -Port $Port -NoBrowser:$NoBrowser\n")
+    for label, action in [('启动后台','Start'),('停止后台','Stop'),('检查后台','Check')]:
+        # ASCII content; Chinese only in the filename, so cmd's codepage is irrelevant.
+        (output/(label+'.cmd')).write_bytes((f'@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Tools\\{action}-OntoTwinBackend.ps1"\r\nif errorlevel 1 (pause & exit /b 1)\r\npause\r\n').encode('ascii'))
     shutil.copy2(REPO/'01-source/scripts/install_ontotwin_character_pack_core.ps1',output/'Tools/install_ontotwin_character_pack_core.ps1')
     write(output/'Tools/Install-CoreCharacters.ps1', "[CmdletBinding()]\nparam([Parameter(Mandatory=$true)][string]$ProjectPath)\n& (Join-Path $PSScriptRoot 'install_ontotwin_character_pack_core.ps1') -ProjectPath $ProjectPath -SourcePluginPath (Join-Path $PSScriptRoot '../Plugins/OntoTwinCharacterPack_Core')\n")
     from build_ontotwin_integration_package import REWASH_DOC, SKILL_PATCH

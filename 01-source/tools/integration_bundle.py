@@ -63,6 +63,12 @@ def main():
     for name, source in sources.items():
         if not (source/(name+'.uplugin')).is_file():
             raise SystemExit(f'Missing plugin dependency: {name}: {source}')
+    webui_path_source=sources['WebUI']/'Source/WebBrowserUtils/Private/WebBrowserUtils.cpp'
+    if 'FPaths::ConvertRelativePathToFull(Plugin->GetBaseDir())' not in webui_path_source.read_text('utf-8-sig'):
+        raise SystemExit('WebUI must include the project-plugin path fix; the engine-only vendor build cannot be shipped in a project integration package.')
+    for required in ('Binaries/Win64/TracerWebHelper.exe','Binaries/Win64/UnrealEditor-WebBrowserUtils.dll','Binaries/ThirdParty/CEF3/Win64/libcef.dll'):
+        if not (sources['WebUI']/required).is_file():
+            raise SystemExit(f'Missing WebUI runtime dependency: {required}')
     output = args.output.resolve()
     if output.exists() or (output.parent / (output.name + '.zip')).exists():
         raise SystemExit('Output already exists; use a new versioned directory.')

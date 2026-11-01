@@ -57,8 +57,12 @@ function Get-CleanAssetManagerConfig([string]$Text) {
     return [Regex]::Replace($Text, $pattern, "")
 }
 
-Assert-UnrealEditorClosed
 $resolvedProject = Resolve-ExistingFile $ProjectPath "UE project file"
+$idleCheck=Join-Path $PSScriptRoot 'assert_ontotwin_project_idle.ps1'
+if (Test-Path -LiteralPath $idleCheck) {
+    . $idleCheck
+    Assert-OntoTwinProjectIdle $resolvedProject
+} else { Assert-UnrealEditorClosed }
 $projectRoot = Split-Path -Parent $resolvedProject
 
 if ([string]::IsNullOrWhiteSpace($SourcePluginPath)) {

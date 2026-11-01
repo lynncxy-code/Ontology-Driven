@@ -86,6 +86,7 @@ def main():
         # ASCII content; Chinese only in the filename, so cmd's codepage is irrelevant.
         (output/(label+'.cmd')).write_bytes((f'@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Tools\\{action}-OntoTwinBackend.ps1"\r\nif errorlevel 1 (pause & exit /b 1)\r\npause\r\n').encode('ascii'))
     shutil.copy2(REPO/'01-source/scripts/install_ontotwin_character_pack_core.ps1',output/'Tools/install_ontotwin_character_pack_core.ps1')
+    write(output/'Tools/assert_ontotwin_project_idle.ps1',(REPO/'01-source/scripts/assert_ontotwin_project_idle.ps1').read_text('utf-8'))
     write(output/'Tools/Install-CoreCharacters.ps1', "[CmdletBinding()]\nparam([Parameter(Mandatory=$true)][string]$ProjectPath)\n& (Join-Path $PSScriptRoot 'install_ontotwin_character_pack_core.ps1') -ProjectPath $ProjectPath -SourcePluginPath (Join-Path $PSScriptRoot '../Plugins/OntoTwinCharacterPack_Core')\n")
     from build_ontotwin_integration_package import REWASH_DOC, SKILL_PATCH
     write(output/'Docs/UE资产回洗流程.md',REWASH_DOC)

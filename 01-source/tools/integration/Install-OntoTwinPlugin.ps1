@@ -1,9 +1,10 @@
 [CmdletBinding()]
 param([Parameter(Mandatory=$true)][string]$ProjectPath)
 $ErrorActionPreference='Stop'
-if (Get-Process UnrealEditor,UnrealEditor-Cmd -ErrorAction SilentlyContinue) { throw '请关闭 UE 编辑器后安装。' }
 $projectFile=(Resolve-Path -LiteralPath $ProjectPath).Path
 if ([IO.Path]::GetExtension($projectFile) -ne '.uproject') { throw '请选择 .uproject 文件。' }
+. (Join-Path $PSScriptRoot 'assert_ontotwin_project_idle.ps1')
+Assert-OntoTwinProjectIdle $projectFile
 $projectRoot=Split-Path -Parent $projectFile
 $descriptor=Get-Content -LiteralPath $projectFile -Raw -Encoding UTF8 | ConvertFrom-Json
 if ($descriptor.EngineAssociation -ne '5.6') { throw '本包验证版本为 UE 5.6；自编引擎或其他版本需要重新编译验收。' }

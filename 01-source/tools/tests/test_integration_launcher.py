@@ -128,3 +128,18 @@ def test_page_integrity_matches_shipped_vendor():
         for path in tags:
             actual='sha384-'+base64.b64encode(hashlib.sha384((frontend/path.lstrip('/')).read_bytes()).digest()).decode()
             assert f'integrity="{actual}"' in html
+
+
+@pytest.mark.parametrize('case,expected', [('target',1),('shared_dll',1),('other',0)])
+@pytest.mark.parametrize('shell',[s for s in SHELLS if s and Path(s).exists()])
+def test_only_idle_target_can_be_installed(tmp_path,case,expected,shell):
+    helper=TEMPLATES.parents[1]/'scripts/assert_ontotwin_project_idle.ps1'
+    script=tmp_path/'guard.ps1'
+    command='UnrealEditor.exe D:/target/Test.uproject' if case=='target' else 'UnrealEditor.exe D:/other/Other.uproject'
+    module='D:/target/Plugins/a.dll' if case=='shared_dll' else 'D:/other/Plugins/a.dll'
+    script.write_text("$ErrorActionPreference='Stop'\n"+helper.read_text('utf-8')+
+        f"\nfunction Get-CimInstance {{ return [pscustomobject]@{{ProcessId=123;CommandLine='{command}'}} }}\n"
+        +f"function Get-Process {{ return [pscustomobject]@{{Modules=@([pscustomobject]@{{FileName='{module}'}})}} }}\n"
+        +"Assert-OntoTwinProjectIdle 'D:\\target\\Test.uproject'\n",encoding='utf-8-sig')
+    result=subprocess.run([shell,'-NoProfile','-ExecutionPolicy','Bypass','-File',str(script)],capture_output=True,timeout=15)
+    assert (result.returncode!=0)==bool(expected),result.stderr

@@ -741,7 +741,7 @@ private:
 
     // ── 内部方法 ─────────────────────────────────────────────────────────
 
-    /** 拼接快照接口 URL（显式 project_id；SceneId 非空时追加 scene 查询参数） */
+    /** 拼接快照接口 URL（显式 project_id；SceneId 非空时追加 scene_id，不能当作分区过滤） */
     FString BuildSnapshotsUrl() const;
 
     /** 拼接 4.1 增量快照 URL（可携带不透明 cursor）。 */

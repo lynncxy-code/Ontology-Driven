@@ -278,9 +278,8 @@ void ATwinSceneManager::BeginPlay()
 
     InitializeDisplaySchemes();
 
-    // The packaged runtime must establish or verify the UE project -> active dataset
-    // binding before the first snapshot request. Check binding status first; if unbound,
-    // it will automatically bind to the active dataset.
+    // Verify the explicit level binding before the first snapshot request.
+    // An unbound level stays blocked until the user binds it in the web console.
     CheckInitialBindingStatus();
 
     FString RealtimeEnabledOverride;
@@ -1636,9 +1635,10 @@ FString ATwinSceneManager::BuildSnapshotsUrl() const
             *FGenericPlatformHttp::UrlEncode(BoundProjectId));
         Separator = TEXT("&");
     }
+    // scene_id identifies the bound level; legacy scene/zone filters instance partitions.
     if (!SceneId.IsEmpty())
     {
-        Url += FString::Printf(TEXT("%sscene=%s"), *Separator,
+        Url += FString::Printf(TEXT("%sscene_id=%s"), *Separator,
             *FGenericPlatformHttp::UrlEncode(SceneId));
     }
     return Url;
@@ -1654,10 +1654,11 @@ FString ATwinSceneManager::BuildSnapshotChangesUrl() const
             *FGenericPlatformHttp::UrlEncode(BoundProjectId));
         Separator = TEXT("&");
     }
+    // scene_id identifies the bound level; legacy scene/zone filters instance partitions.
     if (!SceneId.IsEmpty())
     {
         Url += FString::Printf(
-            TEXT("%sscene=%s"),
+            TEXT("%sscene_id=%s"),
             *Separator,
             *FGenericPlatformHttp::UrlEncode(SceneId));
         Separator = TEXT("&");

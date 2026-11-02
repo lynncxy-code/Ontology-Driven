@@ -7,6 +7,8 @@
 !01-source/backend/**
 !01-source/frontend/
 !01-source/frontend/**
+!01-source/tools/
+!01-source/tools/check_frontend.py
 !02-releases/
 !02-releases/windows-all-in-one/
 !02-releases/windows-all-in-one/requirements.release.txt

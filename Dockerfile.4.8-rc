@@ -9,6 +9,8 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # runtime therefore does not depend on a host checkout or source mounts.
 COPY 01-source/backend/ /app/
 COPY 01-source/frontend/ /frontend/
+COPY 01-source/tools/check_frontend.py /opt/ontotwin/check_frontend.py
+RUN python /opt/ontotwin/check_frontend.py /frontend
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 5000

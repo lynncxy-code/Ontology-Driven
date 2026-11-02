@@ -54,6 +54,12 @@ def test_bound_scene_remains_writable_when_another_page_selects_project(client, 
 def test_scene_db_error_fails_closed(client, store, monkeypatch):
     import ue_project_binding as binding
     import app
+    from db import pg
+
+    def unavailable():
+        raise RuntimeError('simulated binding database outage')
+
+    monkeypatch.setattr(pg, 'get_conn', unavailable)
     monkeypatch.setenv('ONTOTWIN_STORE', 'pg')
     with app.app.test_request_context('/api/v2/ue/binding_status', headers={
         'X-OntoTwin-UE-Project-Id':'ue_test', 'X-OntoTwin-UE-Scene-Id':'/Game/Factory'}):

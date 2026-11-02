@@ -2150,7 +2150,10 @@ def presentation_library_status():
     """Describe the finite industrial library without claiming UE runtime state."""
     return jsonify({
         "available": True,
-        "interface_rid": "I3D_Presentation",
+        "interface_rid": "I3D_Behavioral",
+        "legacy_interface_rid": "I3D_Presentation",
+        "catalog_version": CATALOG_VERSION,
+        "resource_count": len(list_presentation_resources()),
         "behavior_libraries": [
             {"id": key, "label": label}
             for key, label in PRESENTATION_BEHAVIOR_LIBRARIES.items()
@@ -2394,10 +2397,10 @@ def inject_interfaces():
     if rid not in _object_types:
         return jsonify({"error": f"ObjectType '{rid}' not found"}), 404
 
-    # 校验：若要挂载子接口，必须先有 I3D_Representable
+    # 外观与动态行为可独立挂载，与页面勾选及卸载规则保持一致。
     current = set(_object_types[rid].get("injected_interfaces", []))
     adding = set(interfaces)
-    child_ifaces = {"I3D_Presentation", "I3D_Spatial", "I3D_Visual", "I3D_Behavioral", "I3D_Overlay"}
+    child_ifaces = {"I3D_Presentation", "I3D_Spatial", "I3D_Overlay"}
     if adding & child_ifaces and "I3D_Representable" not in (current | adding):
         return jsonify({"error": "子能力接口需要先挂载 I3D_Representable"}), 400
 

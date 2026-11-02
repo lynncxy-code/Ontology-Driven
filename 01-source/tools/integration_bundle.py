@@ -50,6 +50,8 @@ def main():
     args = parser.parse_args()
     if run('git', 'status', '--porcelain'):
         raise SystemExit('Working tree must be clean; commit reviewed source before packaging.')
+    from check_frontend import validate
+    validate(REPO / '01-source/frontend')
     commit = run('git', 'rev-parse', 'HEAD')
     plugin_root = REPO / '01-source/ue_project/Plugins'
     core = plugin_root / 'OntoTwinSync'

@@ -43,6 +43,9 @@ class ONTOTWINSYNC_API UTwinInteractionManagerComponent : public UActorComponent
     GENERATED_BODY()
 
 public:
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FOntoTwinStartupPawnProtectionTest;
+#endif
     UTwinInteractionManagerComponent();
 
     virtual void BeginPlay() override;

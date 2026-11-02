@@ -1371,6 +1371,12 @@ void UTwinInteractionManagerComponent::ApplyStartupView(bool bForce)
     {
         for (TActorIterator<ADefaultPawn> It(GetWorld()); It; ++It)
         {
+            // Keep the accepted native-only guard: the iterator also includes
+            // project/Blueprint subclasses, whose visibility belongs to the host.
+            if (It->GetClass() != ADefaultPawn::StaticClass())
+            {
+                continue;
+            }
             const bool bNeedsSuppression = !It->IsHidden() || It->GetActorEnableCollision();
             It->SetActorHiddenInGame(true);
             It->SetActorEnableCollision(false);

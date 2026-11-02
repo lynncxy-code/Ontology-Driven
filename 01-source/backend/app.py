@@ -4057,12 +4057,18 @@ def list_datasets():
         with pg.get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """SELECT b.project_id, s.stable_key FROM project_scene_binding b
-                       JOIN ue_scene s ON s.scene_id = b.scene_id
-                      WHERE b.status='active'""",
+                    """SELECT b.project_id, u.ue_project_id, u.display_name, s.stable_key
+                         FROM project_scene_binding b
+                         JOIN ue_project u ON u.ue_project_id = b.ue_project_id
+                         JOIN ue_scene s ON s.scene_id = b.scene_id
+                        WHERE b.status='active'""",
                 )
-                for pid, stable_key in cur.fetchall():
-                    scene_by_project[str(pid)] = stable_key
+                for pid, ue_id, ue_name, stable_key in cur.fetchall():
+                    scene_by_project[str(pid)] = {
+                        "ue_project_id": ue_id,
+                        "ue_project_name": ue_name,
+                        "scene": stable_key,
+                    }
     except Exception:
         scene_by_project = {}
 
@@ -4094,9 +4100,9 @@ def list_datasets():
             "instance_count": meta.get("instance_count"),
             "zone_count": meta.get("zone_count", 0),
             "unzoned_instance_count": meta.get("unzoned_instance_count", 0),
-            "bound_ue_project_id": ds.get("bound_ue_project_id") or meta.get("bound_ue_project_id", ""),
-            "bound_ue_project_name": ds.get("bound_ue_project_name") or meta.get("bound_ue_project_name", ""),
-            "bound_ue_scene": scene_by_project.get(dataset_id, ""),
+            "bound_ue_project_id": ds.get("bound_ue_project_id") or meta.get("bound_ue_project_id", "") or (scene_by_project.get(dataset_id) or {}).get("ue_project_id", ""),
+            "bound_ue_project_name": ds.get("bound_ue_project_name") or meta.get("bound_ue_project_name", "") or (scene_by_project.get(dataset_id) or {}).get("ue_project_name", ""),
+            "bound_ue_scene": (scene_by_project.get(dataset_id) or {}).get("scene", ""),
             "is_active": dataset_id == _active_dataset_view()
         })
     return jsonify(result)

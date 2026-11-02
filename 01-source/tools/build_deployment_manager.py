@@ -20,7 +20,7 @@ def main():
     if git('status', '--porcelain'):
         raise SystemExit('Commit the reviewed source before building the manager.')
     output = args.output.absolute()
-    archive = output.with_suffix('.zip')
+    archive = output.parent / (output.name + '.zip')
     if output.exists() or archive.exists():
         raise SystemExit('Use a new output name; existing artifacts are immutable.')
     shutil.copytree(ROOT / '01-source/tools/deployment', output,

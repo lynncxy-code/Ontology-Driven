@@ -722,7 +722,7 @@ def register_tenant_routes(app, project_store=None):
                              SELECT b.project_id,
                                     u.display_name AS ue_project_name,
                                     COALESCE(NULLIF(s.level_path,''), s.display_name, s.stable_key) AS scene_name,
-                                    b.ue_project_id AS bound_ue_id,
+                                    u.stable_key AS bound_ue_id,
                                     s.stable_key AS scene_key
                                FROM project_scene_binding b
                                JOIN ue_project u ON u.ue_project_id = b.ue_project_id

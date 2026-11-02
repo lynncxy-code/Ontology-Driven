@@ -100,11 +100,15 @@ def main():
     write(output/'Docs/UE资产回洗流程.md',REWASH_DOC)
     write(output/'Skill-Patch/UE超级管家-接入模式补充.md',SKILL_PATCH)
     shutil.copy2(TEMPLATES/'README.md',output/'README.md')
+    deployment = REPO/'01-source/tools/deployment'
+    shutil.copytree(deployment, output/'Tools/Deployment', ignore=shutil.ignore_patterns('__pycache__','test_*.py','acceptance.py'))
+    (output/'部署管理.cmd').write_bytes(b'@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Tools\\Deployment\\Launch-Manager.ps1"\r\nif errorlevel 1 pause\r\n')
     manifest={'package_version':version,'release_id':release,'source_commit':commit,
         'generated_at':datetime.now(timezone.utc).isoformat(),'contains_ue_project':False,
         'contains_customer_data':False,'status':'release-candidate','ue_version':'5.6',
         'plugin_source_hash':fingerprint,'images':metadata,'images_archive_sha256':digest(output/'Runtime/images.tar'),
-        'plugins':{name:{'source_hash':source_hash(source),'version':json.loads((source/(name+'.uplugin')).read_text('utf-8-sig')).get('VersionName')} for name,source in sources.items()}}
+        'plugins':{name:{'source_hash':source_hash(source),'version':json.loads((source/(name+'.uplugin')).read_text('utf-8-sig')).get('VersionName')} for name,source in sources.items()},
+        'deployment_manager': {'version': '0.1.0', 'update_input': 'full-integration-zip', 'schema_upgrade': 'identical-only'}}
     write(output/'manifest.json',json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
     checksums={p.relative_to(output).as_posix():digest(p) for p in sorted(output.rglob('*')) if p.is_file()}
     write(output/'SHA256SUMS.json',json.dumps(checksums,ensure_ascii=False,indent=2)+'\n')

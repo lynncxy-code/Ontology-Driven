@@ -524,7 +524,7 @@ def _attach_job_loop(root, report, status, events, busy):
 def launch_version_gui(context):
     import tkinter as tk
     from tkinter import ttk, filedialog, messagebox
-    root, outer = _window_base(context, "OntoTwin · 插件版本", "只查看和更新当前工程的 OntoTwin 插件。导出交付请从工具菜单单独打开。")
+    root, outer = _window_base(context, "OntoTwin · 插件版本", "整套前后端与插件升级请打开“部署管理”。本页的母本同步仅适用于单插件开发。")
     config_file = Path(context["project"]).parent / "Saved" / "OntoTwinDelivery" / "preferences.json"
     settings = read_json(config_file) if config_file.exists() else {}
     inferred = Path(context["plugin"]).resolve()
@@ -562,7 +562,21 @@ def launch_version_gui(context):
     def compile_update():
         if messagebox.askokcancel("重新编译", "请先关闭所有 UE 编辑器，再重新编译当前工程插件。", parent=root):
             run(lambda: rebuild(context, lambda m: events.put(("log", m))))
+    def open_deployment():
+        preferences = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "OntoTwin/deployment-manager.json"
+        saved = read_json(preferences) if preferences.exists() else {}
+        launcher = Path(saved.get("launcher", ""))
+        if not launcher.is_file():
+            selected = filedialog.askopenfilename(parent=root, title="选择部署管理器中的 Launch-Manager.ps1", filetypes=[("部署管理启动脚本", "Launch-Manager.ps1")])
+            if not selected:
+                return
+            launcher = Path(selected)
+        arguments = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(launcher)]
+        if context.get("engine"):
+            arguments.extend(["-EngineRoot", context["engine"]])
+        subprocess.Popen(arguments, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     buttons = ttk.Frame(outer); buttons.pack(fill="x", pady=(8, 0))
+    ttk.Button(buttons, text="部署管理 / 导入更新包", command=open_deployment).pack(side="left", padx=(0, 8))
     ttk.Button(buttons, text="检查版本", command=check).pack(side="left", padx=(0, 8))
     ttk.Button(buttons, text="同步母本", command=update).pack(side="left", padx=(0, 8))
     ttk.Button(buttons, text="重新编译", command=compile_update).pack(side="left")

@@ -1919,7 +1919,7 @@ function fitView() {
     const b = State.previewData.bounds;
     const dw = b.max[0]-b.min[0] || 1;
     const dh = b.max[1]-b.min[1] || 1;
-    camScale = Math.max(0.00001, Math.min(cw / dw, ch / dh) * 0.85);
+    camScale = SpatialCanvas.fitImage({imageWidth:dw,imageHeight:dh,canvasWidth:cw,canvasHeight:ch,displayMatrix:DisplayM,padding:0.85}).scale;
     camX = (b.min[0]+b.max[0]) / 2;
     camY = (b.min[1]+b.max[1]) / 2;
   } else if (State.mode === 'image' && imgState.imageObj) {
@@ -2273,13 +2273,38 @@ function cadUpdateFrameField(field,value) {
   cadMarkDirty();
 }
 
+// Invalidate all pending CAD UI work when its owning context is replaced.
+let cadRequestEpoch=0;
+let cadPreviewRequest=0, cadComponentsRequest=0, cadFrameListRequest=0, cadTypeScanRequest=0;
+function cadRequestContext() {
+  return {epoch:cadRequestEpoch,projectId:FloorConfig.projectId,mode:State.mode};
+}
+function cadContextIsCurrent(context) {
+  return context.epoch===cadRequestEpoch && context.projectId===FloorConfig.projectId && context.mode===State.mode;
+}
+function invalidateCadRequests() {
+  cadRequestEpoch++;
+  const selected=document.getElementById('cadFrameSelect')?.value;
+  const load=document.getElementById('cadLoadFrameBtn');
+  if(load){load.disabled=!selected;load.textContent='加载';}
+  const replace=document.getElementById('cadReplaceSourceBtn');
+  if(replace){replace.disabled=!selected;replace.textContent='上传新版';}
+  const upload=document.querySelector('#cadPanels .upload-zone');
+  if(upload){upload.style.pointerEvents='';upload.style.opacity='';}
+  const panel=document.getElementById('savedComponentsPanel');
+  if(panel)panel.textContent='';
+}
+
 async function cadRefreshFrameList(selectedId='') {
   const select=document.getElementById('cadFrameSelect');
   const button=document.getElementById('cadLoadFrameBtn');
   if(!select||!button)return;
+  const context=cadRequestContext(), request=++cadFrameListRequest;
+  const isCurrent=()=>cadContextIsCurrent(context)&&request===cadFrameListRequest;
   try{
     const res=await fetch('/api/v2/spatial-frames?kind=cad');
     const data=await res.json();
+    if(!isCurrent())return;
     if(!res.ok)throw new Error(data.message||data.error||'加载失败');
     const frames=data.frames||[];
     select.innerHTML='';
@@ -2295,8 +2320,9 @@ async function cadRefreshFrameList(selectedId='') {
     select.value=selectedId||State.cadFrameId||frames[0].id;
     button.disabled=!select.value;
     document.getElementById('cadReplaceSourceBtn').disabled=!select.value;
-    select.onchange=()=>{button.disabled=!select.value;document.getElementById('cadReplaceSourceBtn').disabled=!select.value;};
+    select.onchange=()=>{invalidateCadRequests();button.disabled=!select.value;document.getElementById('cadReplaceSourceBtn').disabled=!select.value;};
   }catch(error){
+    if(!isCurrent())return;
     select.innerHTML='<option value="">底图列表加载失败</option>';button.disabled=true;
     document.getElementById('cadReplaceSourceBtn').disabled=true;
     console.warn('CAD 空间底图列表加载失败',error);
@@ -2319,16 +2345,21 @@ function cadAdoptFrame(frame) {
 }
 
 async function cadParseFile(file,allowMock=false) {
+  const context=cadRequestContext(), frameId=State.cadFrameId, request=++cadPreviewRequest;
+  const isCurrent=()=>cadContextIsCurrent(context)&&frameId===State.cadFrameId&&request===cadPreviewRequest;
   let usedMock=false;
   try{
     const fd=new FormData();fd.append('file',file);
     const resp=await fetch('/api/v2/coord/preview',{method:'POST',body:fd});
+    if(!isCurrent())return false;
     const data=await resp.json();
+    if(!isCurrent())return false;
     if(!resp.ok||data.error)throw new Error(data.error||`HTTP ${resp.status}`);
     State.previewData=data;
     LAYER_COLORS={};data.layers.forEach(l=>LAYER_COLORS[l.name]=l.color);
     applyPreviewData();
   }catch(error){
+    if(!isCurrent())return false;
     if(!allowMock)throw error;
     console.warn('preview API 不可用，使用 Mock 数据:',error.message);
     usedMock=true;State.previewData=MOCK_PREVIEW;LAYER_COLORS={};
@@ -2337,16 +2368,18 @@ async function cadParseFile(file,allowMock=false) {
   return !usedMock;
 }
 
-async function cadCreateFrameAsset(file) {
+async function cadCreateFrameAsset(file,context=cadRequestContext()) {
   const form=new FormData();form.append('file',file);
   form.append('name',file.name||`cad-${Date.now()}.dxf`);
   form.append('floor','1');form.append('floor_id','floor-1');
-  form.append('expected_project_id',FloorConfig.projectId);
+  form.append('expected_project_id',context.projectId);
   const res=await fetch('/api/v2/spatial-frames/cad-assets',{method:'POST',body:form});
   const data=await res.json();
+  if(!cadContextIsCurrent(context))return null;
   if(!res.ok)throw new Error(data.message||data.error||'项目草稿创建失败');
   cadAdoptFrame(data.frame);
   await cadRefreshFrameList(data.frame.id);
+  if(!cadContextIsCurrent(context))return null;
   toast('DXF 已保存为项目标定草稿','ok');
   return data.frame;
 }
@@ -2355,7 +2388,7 @@ let cadReplacementTarget=null;
 function cadChooseReplacement() {
   const id=document.getElementById('cadFrameSelect').value;
   if(!id){toast('请先选择要更新的底图','warn');return;}
-  cadReplacementTarget={id,projectId:FloorConfig.projectId};
+  cadReplacementTarget={id,projectId:FloorConfig.projectId,context:cadRequestContext()};
   const input=document.getElementById('cadReplaceSourceInput');
   input.value='';input.click();
 }
@@ -2363,11 +2396,16 @@ function cadChooseReplacement() {
 async function cadReplaceSource(event) {
   const file=event.target.files?.[0], target=cadReplacementTarget;
   if(!file||!target)return;
+  if(!cadContextIsCurrent(target.context)||document.getElementById('cadFrameSelect').value!==target.id)return;
+  invalidateCadRequests();
+  const context=cadRequestContext();
+  const isCurrent=()=>cadContextIsCurrent(context)&&document.getElementById('cadFrameSelect').value===target.id;
   const button=document.getElementById('cadReplaceSourceBtn');
   button.disabled=true;button.textContent='检查中';
   try{
     const frameRes=await fetch(`/api/v2/spatial-frames/${encodeURIComponent(target.id)}`);
     const frame=await frameRes.json();
+    if(!isCurrent())return;
     if(!frameRes.ok)throw new Error(frame.message||frame.error||'底图读取失败');
     // The upload endpoint validates and returns the preview before committing.
     // Send the large source once; do not download/re-upload it for parsing.
@@ -2379,6 +2417,7 @@ async function cadReplaceSource(event) {
         + '<br>此步只保存图纸草稿，构件、实例绑定和现场位置不变。当前未保存的编辑会在加载新版时被替换。',
       confirmText:'保存新版草稿'
     }))return;
+    if(!isCurrent())return;
     button.textContent='保存中';
     const form=new FormData();form.append('file',file);
     form.append('include_preview','1');
@@ -2387,17 +2426,21 @@ async function cadReplaceSource(event) {
     form.append('expected_draft_revision',String(frame.draft_revision||0));
     const response=await fetch('/api/v2/spatial-frames/cad-assets',{method:'POST',body:form});
     const data=await response.json();
+    if(!isCurrent())return;
     if(!response.ok)throw new Error(data.message||data.error||'新版草稿保存失败');
     toast('新版草稿已保存，请复核标定并重新发布','ok',4200);
     await cadRefreshFrameList(target.id);
+    if(!isCurrent())return;
     await cadLoadSelectedFrame({frame:data.frame,preview:data.preview,file,projectId:target.projectId});
-  }catch(error){toast('更新底图失败：'+error.message,'err',5000);}
-  finally{button.disabled=!document.getElementById('cadFrameSelect').value;button.textContent='上传新版';}
+  }catch(error){if(isCurrent())toast('更新底图失败：'+error.message,'err',5000);}
+  finally{if(isCurrent()){button.disabled=!document.getElementById('cadFrameSelect').value;button.textContent='上传新版';}}
 }
 
 async function handleUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
+  invalidateCadRequests();
+  const context=cadRequestContext();
   const uploadZone=document.querySelector('#cadPanels .upload-zone');
   uploadZone.style.pointerEvents='none';uploadZone.style.opacity='.55';
   State.lastUploadedFile = file;
@@ -2407,17 +2450,19 @@ async function handleUpload(e) {
   State.cadSavedOrigin=null;State.cadSavedDisplay=null;cadSyncFrameForm();floorConfigSync('dxf');cadRenderPersistStatus();
   try{
     const parsed=await cadParseFile(file,false);
-    if(!parsed)return;
+    if(!parsed||!cadContextIsCurrent(context))return;
     let frame;
-    try{frame=await cadCreateFrameAsset(file);}
-    catch(error){toast('DXF 已解析，但项目草稿保存失败：'+error.message,'err',4200);return;}
+    try{frame=await cadCreateFrameAsset(file,context);}
+    catch(error){if(!cadContextIsCurrent(context))return;toast('DXF 已解析，但项目草稿保存失败：'+error.message,'err',4200);return;}
+    if(!frame||!cadContextIsCurrent(context))return;
     await fetchTypeScanForFrame(frame.id);
   }catch(error){
+    if(!cadContextIsCurrent(context))return;
     State.previewData=null; State.scanResult=null; State.scanStatus='failed'; State.scanError=error.message||''; State.anchors=[]; State.matrix=null; State.metrics=null;
     renderLayerList(); cadRenderPersistStatus();
     toast('DXF 解析失败：'+error.message+'。请检查文件后重试。','err',4200);
   }finally{
-    uploadZone.style.pointerEvents='';uploadZone.style.opacity='';
+    if(cadContextIsCurrent(context)){uploadZone.style.pointerEvents='';uploadZone.style.opacity='';}
   }
 }
 
@@ -2425,20 +2470,26 @@ async function cadLoadSelectedFrame(preloaded=null) {
   const frameId=document.getElementById('cadFrameSelect')?.value;
   if(!frameId)return;
   const button=document.getElementById('cadLoadFrameBtn');
-  const projectId=FloorConfig.projectId;
+  invalidateCadRequests();
+  const context=cadRequestContext(), projectId=context.projectId;
+  const isCurrent=()=>cadContextIsCurrent(context)&&document.getElementById('cadFrameSelect')?.value===frameId;
   if(button){button.disabled=true;button.textContent='加载中';}
   try{
     let frame=preloaded?.frame;
     if(!frame){
       const frameRes=await fetch(`/api/v2/spatial-frames/${encodeURIComponent(frameId)}`);
+      if(!isCurrent())return;
       frame=await frameRes.json();
+      if(!isCurrent())return;
       if(!frameRes.ok)throw new Error(frame.message||frame.error||'底图读取失败');
     }
-    if(FloorConfig.projectId!==projectId || (preloaded && preloaded.projectId!==projectId))return;
+    if(!isCurrent() || (preloaded && preloaded.projectId!==projectId))return;
+    if(frame.id!==frameId || (frame.project_id && frame.project_id!==projectId))throw new Error('底图上下文不匹配');
 
     // BUG-08：先回显标定元数据（名称/楼层/场景/锚点/矩阵/误差/版本），再后台加载 DXF 图形，
     // 大型底图解析不再阻塞历史标定数据的查看。
     cadAdoptFrame(frame);
+    State.previewData=null;State.scanResult=null;State.scanStatus='missing';
     State.calibTarget='ue';
     State.anchors=(frame.anchors||[]).map((anchor,index)=>({
       id:String(anchor.id||`anchor-${index+1}`),
@@ -2470,23 +2521,25 @@ async function cadLoadSelectedFrame(preloaded=null) {
       applyPreviewData();
     }else{
       const sourceRes=await fetch(frame.source_url||`/api/v2/spatial-frames/${encodeURIComponent(frameId)}/source`);
+      if(!isCurrent())return;
       if(!sourceRes.ok)throw new Error('原始 DXF 读取失败');
       const blob=await sourceRes.blob();
-      if(FloorConfig.projectId!==projectId)return;
+      if(!isCurrent())return;
       const file=new File([blob],frame.cad?.original_name||'drawing.dxf',{type:frame.cad?.mime_type||'application/dxf'});
       State.lastUploadedFile=file;
       try{
-        await cadParseFile(file,false);
+        if(!await cadParseFile(file,false))return;
       }catch(error){
+        if(!isCurrent())return;
         toast('DXF 图形加载失败（标定数据仍可查看）：'+error.message,'warn',5000);
       }
     }
-    if(FloorConfig.projectId!==projectId)return;
+    if(!isCurrent())return;
     await fetchTypeScanForFrame(frameId);
-    if(FloorConfig.projectId!==projectId || State.cadFrameId!==frameId)return;
+    if(!isCurrent() || State.cadFrameId!==frameId)return;
     toast('CAD 空间底图已加载','ok');
-  }catch(error){toast('加载失败：'+error.message,'err');}
-  finally{if(button){button.disabled=false;button.textContent='加载';}}
+  }catch(error){if(isCurrent())toast('加载失败：'+error.message,'err');}
+  finally{if(button&&isCurrent()){button.disabled=false;button.textContent='加载';}}
 }
 
 async function cadSaveFrameDraft(publishAfter=false) {
@@ -2575,6 +2628,8 @@ async function fetchTypeScanForFrame(frameId, force=false) {
   if (State.currentStep === 2) renderAuditList();
   const requestFrameId = frameId;
   const requestProjectId = FloorConfig.projectId;
+  const context=cadRequestContext(), request=++cadTypeScanRequest;
+  const isCurrent=()=>cadContextIsCurrent(context)&&request===cadTypeScanRequest&&State.cadFrameId===requestFrameId&&FloorConfig.projectId===requestProjectId;
   try {
     const resp = await fetch(`/api/v2/spatial-frames/${encodeURIComponent(frameId)}/type-scan`, {
       method: 'POST',
@@ -2585,14 +2640,15 @@ async function fetchTypeScanForFrame(frameId, force=false) {
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.message || data.error || `HTTP ${resp.status}`);
     // A slow server scan must never overwrite the newly selected frame.
-    if (State.cadFrameId !== requestFrameId || FloorConfig.projectId !== requestProjectId) return null;
+    if (!isCurrent()) return null;
     adoptTypeScanResult(data.result);
     await refreshAssetCatalogForTarget(true);
+    if (!isCurrent()) return null;
     if (State.currentStep === 2) renderAuditList();
     return data;
   } catch(err) {
     console.warn('服务器 DXF 类型审核扫描异常:', err.message);
-    if (State.cadFrameId !== requestFrameId || FloorConfig.projectId !== requestProjectId) return null;
+    if (!isCurrent()) return null;
     State.scanResult = null;
     State.scanStatus = err.message.includes('找不到') || err.message.includes('不存在') ? 'missing' : 'failed';
     State.scanError = err.message || '服务器扫描失败';
@@ -3344,6 +3400,7 @@ async function openDatasetPicker() {
     return;
   }
   projectSwitchInProgress=true;
+  invalidateCadRequests();
   try {
   const activateRes = await fetch('/api/v2/ontology/datasets/activate', {
     method: 'POST', headers: {'Content-Type':'application/json'},
@@ -3897,7 +3954,7 @@ function focusLayer(layerName) {
       const dh = (maxY - minY) || 1;
       const cw = canvas.width / devicePixelRatio;
       const ch = canvas.height / devicePixelRatio;
-      camScale = Math.max(0.00001, Math.min(cw / dw, ch / dh) * 0.85);
+      camScale = SpatialCanvas.fitImage({imageWidth:dw,imageHeight:dh,canvasWidth:cw,canvasHeight:ch,displayMatrix:DisplayM,padding:0.85}).scale;
       camX = (minX + maxX) / 2;
       camY = (minY + maxY) / 2;
     }
@@ -4188,11 +4245,16 @@ async function loadSavedComponents() {
     panel.textContent = '尚未发布 CAD 底图，无已保存构件。';
     return;
   }
+  const context=cadRequestContext(), frameId=State.cadFrameId, request=++cadComponentsRequest;
+  const isCurrent=()=>cadContextIsCurrent(context)&&frameId===State.cadFrameId&&request===cadComponentsRequest;
   panel.textContent = '加载中…';
   try {
-    const res = await fetch(`/api/v2/spatial-frames/${encodeURIComponent(State.cadFrameId)}/components`);
+    const res = await fetch(`/api/v2/spatial-frames/${encodeURIComponent(frameId)}/components`);
+    if(!isCurrent())return;
     const data = await res.json();
+    if(!isCurrent())return;
     if (!res.ok) throw new Error(data.message || data.error || '加载失败');
+    if(data.frame_id!==frameId || data.project_id!==context.projectId)throw new Error('构件所属底图或项目不匹配');
     const comps = Array.isArray(data.components) ? data.components : [];
     if (!comps.length) {
       panel.textContent = '当前底图尚未保存任何构件。完成标定后在「保存与导出」步保存。';
@@ -4222,6 +4284,7 @@ async function loadSavedComponents() {
       <div style="margin-top:var(--s1);color:var(--ink-3)">共 ${comps.length} 个构件</div>
     </div>`;
   } catch (e) {
+    if(!isCurrent())return;
     panel.textContent = '已保存构件加载失败：' + e.message;
   }
 }
@@ -4380,6 +4443,7 @@ function downloadCSV() {
 }
 
 function resetAll({clearDraft=true}={}) {
+  invalidateCadRequests();
   if(clearDraft)SessionDB.clear(FloorConfig.projectId);
   // 只清理当前页面内存状态；IndexedDB 草稿按 projectId 隔离，切换项目不能删除原项目草稿。
   clearTimeout(_saveTimer);
@@ -4470,6 +4534,7 @@ function resetAll({clearDraft=true}={}) {
 State.mode = 'dxf';
 
 function switchMode(mode) {
+  if(State.mode!==mode)invalidateCadRequests();
   if(State.mode!==mode && cadSnapshotController)cadSnapshotController.reset();
   State.mode = mode;
   document.getElementById('modeTabCad').classList.toggle('active', mode === 'dxf');

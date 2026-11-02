@@ -60,7 +60,11 @@ def launcher(tmp_path, fake_docker, request):
     (root/'manifest.json').write_text(json.dumps(manifest))
     # Production bundle writes a BOM, required for Chinese strings on PS5.1.
     for p in (root/'Tools').glob('*.ps1'): p.write_text(p.read_text('utf-8-sig'),encoding='utf-8-sig')
-    def run(action='start', port=54321):
+    # Use an OS-assigned port: a fixed port can be occupied or reserved by Docker/Hyper-V.
+    with socket.socket() as probe:
+        probe.bind(('127.0.0.1', 0))
+        test_port = probe.getsockname()[1]
+    def run(action='start', port=test_port):
         harness = root/'run.ps1'
         harness.write_text("$ErrorActionPreference='Stop'\nfunction Invoke-RestMethod { if(Test-Path (Join-Path $env:FAKE_DOCKER_ROOT 'up')) {return @{ok=$true;release_id='test-release'}}; throw 'not started' }\n"
                            +f"& '{root / 'Tools/Backend.ps1'}' -Action {action} -Port {port} -NoBrowser\n",encoding='utf-8-sig')

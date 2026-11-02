@@ -52,6 +52,8 @@ def project_view(base, project_id):
     """
     if not project_id:
         return base
+    if isinstance(base, ScopedProjectStore):
+        base = base.base
     factory = getattr(base, "for_request", None)
     if callable(factory):
         return factory(str(project_id))

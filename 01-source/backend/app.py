@@ -3861,16 +3861,19 @@ def _persist_active_project():
         return
     active_id = _active_dataset_view()
     ds = next((d for d in _datasets if d.get("id") == active_id), None)
+    # Materialize before replacing the store's dictionary. Keeping the request
+    # proxy there makes its target point back to itself and exposes global types.
+    saved_types = copy.deepcopy({rid: value for rid, value in _object_types.items()})
     if project_store.get_active_id() != active_id:
         # 目标项目可能还没有文件 → 建一个(create_project 会设为激活)
         if not project_store.activate(active_id):
             project_store.create_project(
                 ds.get("name") if ds else active_id,
-                object_types=_object_types,
+                object_types=saved_types,
                 project_id=active_id,
                 dataset=ds)
             return
-    project_store.set_object_types(_object_types)
+    project_store.set_object_types(saved_types)
     if ds is not None:
         project_store.set_dataset(ds)
 

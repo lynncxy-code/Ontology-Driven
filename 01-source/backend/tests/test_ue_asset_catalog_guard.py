@@ -66,10 +66,21 @@ def test_browser_session_without_project_is_still_rejected(client):
     assert response.get_json()["error"] == "project_id_required"
 
 
-def test_browser_with_explicit_project_reads_catalog(client, store):
+def test_browser_with_explicit_project_reads_catalog(client, store, tmp_path, monkeypatch):
     """coord_workbench 在没有 4.8 会话上下文时用 ?project_id= 显式补上下文。"""
+    import app as app_module
+
+    # 读目录需要真实存在的清单；未同步工程现在返回 404（BUG-20）。
+    monkeypatch.setattr(app_module.ue_asset_catalog_service, "catalog_root", str(tmp_path))
+    app_module.ue_asset_catalog_service.replace_catalog({
+        "ue_project_id": "ueproj-browser",
+        "roots": ["/Game"],
+        "assets": [{"object_path": "/Game/Browser/SM_B.SM_B", "asset_kind": "StaticMesh"}],
+    })
+
     response = client.get(
         "/api/v2/ue/assets/catalog?ue_project_id=ueproj-browser&project_id=p_test",
     )
     assert response.status_code == 200, response.get_json()
     assert response.get_json()["ue_project_id"] == "ueproj-browser"
+    assert response.get_json()["asset_count"] == 1

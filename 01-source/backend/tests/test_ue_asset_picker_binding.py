@@ -96,9 +96,15 @@ class CatalogPickerBindingTests(unittest.TestCase):
         self.assertEqual(self.store.get_active_copy(), expected[0])
 
     def test_scoped_scan_keeps_other_directories_and_first_scan_is_available(self):
+        # 从未同步过的工程读目录必须 404，不能伪装成“已同步 0 个资产”（BUG-20）。
+        with self.assertRaises(AssetCatalogError) as missing:
+            self.catalog.get_catalog('new-engine')
+        self.assertEqual(missing.exception.code, 'asset_catalog_missing')
+        self.assertEqual(missing.exception.status, 404)
+        self.catalog.create_scan_request({'ue_project_id':'new-engine', 'folder_path':'/Game'})
         first = self.catalog.get_catalog('new-engine')
         self.assertEqual(first['available_folders'], ['/Game'])
-        self.catalog.create_scan_request({'ue_project_id':'new-engine', 'folder_path':'/Game'})
+        self.assertEqual(first['asset_count'], 0)
         request = self.catalog.create_scan_request({**self.payload, 'folder_path':'/Game/Other'})
         result = self.catalog.replace_catalog({'ue_project_id':'ue-qa', 'roots':['/Game/Other'],
             'scan_request_id':request['request_id'], 'assets':[

@@ -557,7 +557,10 @@ class UEAssetCatalogService:
     def get_catalog(self, ue_project_id=None):
         ue_project_id = self._resolve_id(ue_project_id)
         with self._lock:
-            value = self._read(ue_project_id, required=False) or self._empty_catalog(ue_project_id)
+            # 目录文件按「UE 上报的工程 ID」落盘。查不到时必须明确报 404，
+            # 不能返回空目录：否则“工程身份对不上/从未同步”会被前端渲染成
+            # “已同步 0 个资产”，把查询错键伪装成同步成功（BUG-20）。
+            value = self._read(ue_project_id)
             if not value.get("available_folders"):
                 value["available_folders"] = ["/Game"]
             return self._public_catalog(value)

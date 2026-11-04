@@ -4020,6 +4020,51 @@ def get_custom_graph():
     return jsonify(_custom_graph_data)
 
 
+def _active_scene_bindings():
+    """project_id → 该项目绑定的 UE 工程身份（4.8 场景级绑定）。
+
+    一个 UE 工程在数据库里有两个标识：
+
+    - ``ue_project.ue_project_id``：数据库主键，``project_scene_binding`` 存的是它；
+    - ``ue_project.stable_key``：UE 客户端自己上报的工程 ID（如 ``ueproj_scc_w18``）。
+
+    资产目录按「UE 上报的身份」落盘（``data/ue_asset_catalogs/<sha256(id)>.json``），
+    UE 心跳、场景在线判定也都用上报身份。对外返回给网页的 ``bound_ue_project_id``
+    必须是 stable_key，否则网页会拿内部主键去查目录，永远读到空清单（BUG-20）。
+
+    返回::
+
+        {project_id: {"ue_project_id": 上报身份, "bound_id": 内部主键,
+                      "ue_project_name": 名称, "scene": 关卡 stable_key}}
+    """
+    bindings = {}
+    try:
+        from db import pg
+        with pg.get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT b.project_id, u.ue_project_id, u.stable_key,
+                              u.display_name, s.stable_key
+                         FROM project_scene_binding b
+                         JOIN ue_project u ON u.ue_project_id = b.ue_project_id
+                         JOIN ue_scene s ON s.scene_id = b.scene_id
+                        WHERE b.status='active'""",
+                )
+                for pid, internal_id, ue_identity, ue_name, scene_key in cur.fetchall():
+                    bindings[str(pid)] = {
+                        # 旧数据可能没有 stable_key；退回主键不改变原有行为。
+                        "ue_project_id": (ue_identity or internal_id),
+                        "bound_id": internal_id,
+                        "ue_project_name": ue_name,
+                        "scene": scene_key,
+                    }
+    except Exception as exc:
+        # PG 未就绪时退回旧 dataset 字段，不能阻断整个数据集列表。
+        print(f"[datasets] 读取 4.8 场景绑定失败: {exc}")
+        return {}
+    return bindings
+
+
 @app.route('/api/v2/ontology/datasets', methods=['GET'])
 def list_datasets():
     """获取所有已保存的数据集列表，包含内置 Demo。
@@ -4051,26 +4096,8 @@ def list_datasets():
         })
 
     # 4.8 场景级绑定：每个项目绑定的关卡（scene stable_key），供前端展示“UE工程+关卡”。
-    scene_by_project = {}
-    try:
-        from db import pg
-        with pg.get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """SELECT b.project_id, u.ue_project_id, u.display_name, s.stable_key
-                         FROM project_scene_binding b
-                         JOIN ue_project u ON u.ue_project_id = b.ue_project_id
-                         JOIN ue_scene s ON s.scene_id = b.scene_id
-                        WHERE b.status='active'""",
-                )
-                for pid, ue_id, ue_name, stable_key in cur.fetchall():
-                    scene_by_project[str(pid)] = {
-                        "ue_project_id": ue_id,
-                        "ue_project_name": ue_name,
-                        "scene": stable_key,
-                    }
-    except Exception:
-        scene_by_project = {}
+    # bound_ue_project_id 必须返回 UE 上报身份（stable_key），资产目录按它落盘（BUG-20）。
+    scene_by_project = _active_scene_bindings()
 
     result = []
     for ds in _datasets:
@@ -4080,6 +4107,7 @@ def list_datasets():
         if visible_projects is not None and dataset_id != "demo" and dataset_id not in visible_projects:
             continue
         meta = project_meta.get(dataset_id, {})
+        binding = scene_by_project.get(dataset_id) or {}
         graph = ds.get("graph_data")
         node_count = ds.get("node_count")
         link_count = ds.get("link_count")
@@ -4100,9 +4128,15 @@ def list_datasets():
             "instance_count": meta.get("instance_count"),
             "zone_count": meta.get("zone_count", 0),
             "unzoned_instance_count": meta.get("unzoned_instance_count", 0),
-            "bound_ue_project_id": ds.get("bound_ue_project_id") or meta.get("bound_ue_project_id", "") or (scene_by_project.get(dataset_id) or {}).get("ue_project_id", ""),
-            "bound_ue_project_name": ds.get("bound_ue_project_name") or meta.get("bound_ue_project_name", "") or (scene_by_project.get(dataset_id) or {}).get("ue_project_name", ""),
-            "bound_ue_scene": (scene_by_project.get(dataset_id) or {}).get("scene", ""),
+            # 4.8 场景绑定是权威：旧 dataset 字段里的绑定可能已被换绑过、
+            # 甚至还是更早的工程 ID，只有没有场景绑定时才退回旧字段。
+            "bound_ue_project_id": (binding.get("ue_project_id", "")
+                                    or ds.get("bound_ue_project_id")
+                                    or meta.get("bound_ue_project_id", "")),
+            "bound_ue_project_name": (binding.get("ue_project_name", "")
+                                      or ds.get("bound_ue_project_name")
+                                      or meta.get("bound_ue_project_name", "")),
+            "bound_ue_scene": binding.get("scene", ""),
             "is_active": dataset_id == _active_dataset_view()
         })
     return jsonify(result)

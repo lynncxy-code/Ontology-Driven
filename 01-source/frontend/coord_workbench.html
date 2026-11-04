@@ -2642,7 +2642,12 @@ async function fetchTypeScanForFrame(frameId, force=false) {
     // A slow server scan must never overwrite the newly selected frame.
     if (!isCurrent()) return null;
     adoptTypeScanResult(data.result);
-    await refreshAssetCatalogForTarget(true);
+    if (State.currentStep === 2) renderAuditList();
+    try {
+      await refreshAssetCatalogForTarget(true);
+    } catch (catalogError) {
+      console.warn('资产目录刷新失败，保留已完成的类型扫描:', catalogError.message);
+    }
     if (!isCurrent()) return null;
     if (State.currentStep === 2) renderAuditList();
     return data;
@@ -2698,6 +2703,7 @@ function renderAuditList() {
     <span>共 <b>${s.unique_block_names}</b> 种图块，已过滤 <b>${(s.filtered_system_blocks||0)+(s.filtered_xref_blocks||0)}</b> 处无关引用</span>
     <span>可建类型 <b>${cands.length}</b> 个</span>
     <span>已勾选 <b id="auditCheckedCnt">${checkedCount}</b></span>
+    ${State.scanResult.size_scan_mode === 'identity_only' ? '<span style="color:var(--ink-3)">大图已完成图块识别；未计算尺寸，不影响类型审核与手动绑定。</span>' : ''}
     ${excludedByLayer > 0 ? `<span style="color:var(--ink-3)">因图层未选已排除 <b>${excludedByLayer}</b> 个（可在第①步调整）</span>` : ''}
   `;
 

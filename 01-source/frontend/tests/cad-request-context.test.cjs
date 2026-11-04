@@ -132,6 +132,20 @@ for(const failure of [false,true])test('type scan ignores stale '+(failure?'fail
   c.State.scanStatus='current';if(failure)d.reject(Error('old failure'));else d.resolve(response({result:{old:true}}));
   assert.equal(await pending,null);assert.equal(c.scanAdopted,undefined);assert.equal(c.State.scanStatus,'current');
 });
+test('type results render before catalogue completes and survive catalogue failure',async()=>{
+  const c=harness(),catalogue=deferred();let rendered=0;
+  vm.runInContext(section('async function fetchTypeScanForFrame(', '// 兼容旧调用方'),c);
+  c.State.currentStep=2;
+  c.renderAuditList=()=>{if(c.scanAdopted)rendered++};
+  c.fetch=async()=>response({result:{candidates:[{block_name:'设备A'}]}});
+  c.refreshAssetCatalogForTarget=()=>catalogue.promise;
+  const pending=c.fetchTypeScanForFrame('frame-A');await tick();
+  assert.equal(rendered,1);
+  catalogue.reject(Error('catalogue unavailable'));
+  assert.ok(await pending);
+  assert.equal(c.scanAdopted.candidates[0].block_name,'设备A');
+  assert.notEqual(c.State.scanStatus,'failed');
+});
 for(const rotation of [0,45,90,180,270])for(const flip of [false,true])test(`CAD fit rotation ${rotation}, mirror ${flip}`,()=>{
   const c={window:{},console,State:{mode:'dxf',previewData:{bounds:{min:[150,-200],max:[10150,800]}}},canvas:{width:2000,height:1200},devicePixelRatio:2,draw(){},updateCanvasInfo(){}};
   vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(__dirname,'../spatial_canvas.js'),'utf8'),c);

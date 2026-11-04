@@ -2,12 +2,28 @@ import ezdxf
 import uuid
 import math
 import statistics
+from cad_type_source import type_scan_source
 
 from ezdxf import bbox
 
 from coord_filter_rules import (
     is_layer_blacklisted, is_block_blacklisted, classify_layer
 )
+
+
+def _collect_type_blocks(inserts, size_mode):
+    blocks = {}
+    for ins in inserts:
+        if ins.dxftype() != 'INSERT':
+            continue
+        name, layer = ins.dxf.name, ins.dxf.layer
+        info = blocks.setdefault(name, {'count': 0, 'layers': {}, 'sizes': [], 'samples': []})
+        info['count'] += 1
+        info['layers'][layer] = info['layers'].get(layer, 0) + 1
+        # Bound attempts, including empty or broken geometry (not just successes).
+        if size_mode == 'full' and len(info['samples']) < 5:
+            info['samples'].append(ins)
+    return blocks
 
 
 def extract_block_candidates(file_path, mapping=None):
@@ -27,35 +43,15 @@ def extract_block_candidates(file_path, mapping=None):
         }
     """
     mapping = mapping or {}
-    doc = ezdxf.readfile(file_path)
-    msp = doc.modelspace()
+    source = type_scan_source(file_path)
+    with source as (inserts, unit_code, encoding, size_mode):
+        blocks = _collect_type_blocks(inserts, size_mode)
 
     # DXF 单位转 cm；0=unitless 时不做尺寸推荐，避免把未知单位误当 mm。
-    unit_code = int(doc.header.get('$INSUNITS', 0) or 0)
     unit_to_cm = {
         1: 2.54, 2: 30.48, 4: 0.1, 5: 1.0, 6: 100.0,
         10: 91.44, 14: 10.0,
     }.get(unit_code)
-
-    # 收集每个 block_name 出现的图层、次数与典型包围盒。
-    blocks = {}  # name -> {count, layers: {layer: count}}
-    for ins in msp.query('INSERT'):
-        name = ins.dxf.name
-        layer = ins.dxf.layer
-        if name not in blocks:
-            blocks[name] = {'count': 0, 'layers': {}, 'sizes': []}
-        blocks[name]['count'] += 1
-        blocks[name]['layers'][layer] = blocks[name]['layers'].get(layer, 0) + 1
-        if len(blocks[name]['sizes']) < 5:
-            try:
-                extent = bbox.extents([ins], fast=True)
-                size = extent.size
-                values = [float(size.x), float(size.y), float(size.z)]
-                if all(math.isfinite(value) for value in values) and max(values) > 0:
-                    blocks[name]['sizes'].append(values)
-            except Exception:
-                # 某些代理对象或损坏块无法计算 extents；名称/分类推荐仍可继续。
-                pass
 
     candidates = []
     filtered_log = []
@@ -95,6 +91,16 @@ def extract_block_candidates(file_path, mapping=None):
             else:
                 cnt_system += info['count']
             continue
+
+        # Optional dimensions must never delay filtered blocks.
+        for ins in info['samples']:
+            try:
+                size = bbox.extents([ins], fast=True).size
+                values = [float(size.x), float(size.y), float(size.z)]
+                if all(math.isfinite(v) for v in values) and max(values) > 0:
+                    info['sizes'].append(values)
+            except Exception:
+                pass
 
         # 4) 灰色地带分类
         warn_color, warn_text, default_checked = classify_layer(primary_layer)
@@ -144,7 +150,8 @@ def extract_block_candidates(file_path, mapping=None):
         },
         'candidates': candidates,
         'filtered_log': filtered_log,
-        'dxf_encoding': doc.encoding,
+        'dxf_encoding': encoding,
+        'size_scan_mode': size_mode,
     }
 
 

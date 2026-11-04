@@ -19,6 +19,7 @@ class Docker {
   string root=Environment.GetEnvironmentVariable("FAKE_DOCKER_ROOT"), cmd=String.Join(" ",a);
   File.AppendAllText(Path.Combine(root,"calls.txt"), cmd+"\n");
   if(a[0]=="info") {Console.WriteLine("linux");return 0;}
+  if(a[0]=="ps") {if(File.Exists(Path.Combine(root,"published"))) Console.WriteLine(File.ReadAllText(Path.Combine(root,"published")));return 0;}
   if(a[0]=="compose") {
    if(a.Contains("version")) {Console.WriteLine("2.40.0"); return 0;}
    if(a.Contains("ps") && File.Exists(Path.Combine(root,"running"))) {Console.WriteLine("own-container");return 0;}
@@ -154,6 +155,13 @@ def test_tampered_archive_prevents_import(launcher):
     (root/'Runtime/images.tar').write_bytes(b'corrupt')
     assert run().returncode != 0
     assert not (root/'loaded').exists()
+
+
+def test_docker_published_port_stops_before_state_creation(launcher):
+    root, run = launcher
+    (root/'published').write_text('0.0.0.0:5500->5000/tcp')
+    assert run(port=5500).returncode != 0
+    assert not (root/'.runtime/instance.json').exists()
 
 
 def test_page_integrity_matches_shipped_vendor():

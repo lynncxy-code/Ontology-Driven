@@ -7,7 +7,11 @@ $manifest=Get-Content (Join-Path $packageRoot 'manifest.json') -Raw -Encoding UT
 $stateRoot=Join-Path $packageRoot '.runtime'
 $stateFile=Join-Path $stateRoot 'instance.json'
 function Assert-PortAvailable([int]$Candidate) {
+    # Docker Desktop/WSL forwarding may not appear as a Windows TCP listener.
+    $published=Run-Docker -Arguments @('ps','--format','{{.Ports}}') -TimeoutSeconds 20
+    if ($published -match (':'+$Candidate+'->')) { throw "端口 $Candidate 已由 Docker 服务使用。请通过 -Port 指定空闲端口重试；不会停止现有服务。" }
     $listener=New-Object System.Net.Sockets.TcpListener([Net.IPAddress]::Loopback,$Candidate)
+    $listener.ExclusiveAddressUse=$true
     try { $listener.Start() } catch { throw "端口 $Candidate 已被占用。请使用 Start-OntoTwinBackend.ps1 -Port 5500 指定空闲端口重试；不会停止现有服务。" } finally { $listener.Stop() }
 }
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw '请安装并启动 Docker Desktop（Linux containers + Compose v2）。' }

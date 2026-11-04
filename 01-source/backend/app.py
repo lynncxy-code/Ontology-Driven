@@ -799,6 +799,8 @@ def _commit_merge(data, items, source_file, force):
             if shared_target is not None:
                 shared_target.clear()
                 shared_target.update(copy.deepcopy(target_ds))
+            else:
+                _datasets.append(copy.deepcopy(target_ds))
             if target_id == active_id:
                 _set_object_types(merged_types)
     except ValueError as exc:

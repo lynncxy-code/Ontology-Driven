@@ -19,6 +19,7 @@ def test_first_merge_initializes_existing_project(client, store, monkeypatch, ac
     saved = store.read_project('first')
     assert saved['dataset']['graph_data']['nodes'][0]['rid'] == 'pump'
     assert 'pump' in saved['object_types']
+    assert next(d for d in app._datasets if d['id'] == 'first')['node_count'] == 1
     assert store.read_project('p_test') == before
     again = client.post('/api/v2/coord/types/commit', json=payload)
     assert again.status_code == 200, again.json

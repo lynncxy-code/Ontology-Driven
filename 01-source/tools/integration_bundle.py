@@ -46,6 +46,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--gltf-plugin', type=Path, required=True)
     parser.add_argument('--webui-plugin', type=Path, required=True)
+    parser.add_argument('--package-version', help='Release version; unchanged plugins retain their own versions')
     parser.add_argument('--no-zip', action='store_true')
     args = parser.parse_args()
     if run('git', 'status', '--porcelain'):
@@ -55,7 +56,10 @@ def main():
     commit = run('git', 'rev-parse', 'HEAD')
     plugin_root = REPO / '01-source/ue_project/Plugins'
     core = plugin_root / 'OntoTwinSync'
-    version = json.loads((core/'OntoTwinSync.uplugin').read_text('utf-8'))['VersionName']
+    version = args.package_version or json.loads((core/'OntoTwinSync.uplugin').read_text('utf-8'))['VersionName']
+    import re
+    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.]+)?', version):
+        raise SystemExit('Invalid package version')
     fingerprint = source_hash(core)
     binary = core/'Binaries/Win64/UnrealEditor-OntoTwinSync.dll'
     if not binary.exists() or not any(token in binary.read_bytes() for token in (fingerprint.encode(), fingerprint.encode('utf-16-le'))):

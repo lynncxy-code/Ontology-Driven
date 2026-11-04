@@ -18,7 +18,7 @@ def bridge(client, monkeypatch):
     conn.__enter__.return_value = conn
     cursor = conn.cursor.return_value.__enter__.return_value
     cursor.fetchall.return_value = [
-        ("p_test", "ueproj-bridge", "Bridge UE", "/Game/Bridge")
+        ("p_test", "ue_internal_bridge", "ueproj-bridge", "Bridge UE", "/Game/Bridge")
     ]
     monkeypatch.setattr(pg, "get_conn", lambda: conn)
     return datasets, metadata, cursor
@@ -56,17 +56,17 @@ def test_scene_binding_identity_reads_uploaded_catalog(client, bridge, tmp_path,
 
 
 @pytest.mark.parametrize("source", [0, 1])
-def test_existing_legacy_identity_is_preserved(client, bridge, source):
+def test_scene_binding_overrides_legacy_identity(client, bridge, source):
     bridge[source][0].update(bound_ue_project_id="ue-legacy", bound_ue_project_name="Legacy UE")
     row = listed(client)
-    assert row["bound_ue_project_id"] == "ue-legacy"
-    assert row["bound_ue_project_name"] == "Legacy UE"
+    assert row["bound_ue_project_id"] == "ueproj-bridge"
+    assert row["bound_ue_project_name"] == "Bridge UE"
     assert row["bound_ue_scene"] == "/Game/Bridge"
 
 
 def test_refresh_uses_current_binding_without_caching_bridge_in_dataset(client, bridge):
     assert listed(client)["bound_ue_project_id"] == "ueproj-bridge"
-    bridge[2].fetchall.return_value = [("p_test", "ue-new", "New UE", "/Game/New")]
+    bridge[2].fetchall.return_value = [("p_test", "ue_internal_new", "ue-new", "New UE", "/Game/New")]
     row = listed(client)
     assert row["bound_ue_project_id"] == "ue-new"
     assert row["bound_ue_scene"] == "/Game/New"
@@ -75,7 +75,7 @@ def test_refresh_uses_current_binding_without_caching_bridge_in_dataset(client, 
 
 def test_other_project_binding_never_fills_unbound_project(client, bridge):
     bridge[0].append({"id": "p_hidden", "name": "Hidden"})
-    bridge[2].fetchall.return_value = [("p_hidden", "ue-hidden", "Hidden UE", "/Game/Hidden")]
+    bridge[2].fetchall.return_value = [("p_hidden", "ue_internal_hidden", "ue-hidden", "Hidden UE", "/Game/Hidden")]
     response = client.get("/api/v2/ontology/datasets")
     assert response.status_code == 200
     assert [row["id"] for row in response.json] == ["p_test"]

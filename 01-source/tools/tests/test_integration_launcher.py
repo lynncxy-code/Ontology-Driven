@@ -21,6 +21,7 @@ class Docker {
   if(a[0]=="info") {Console.WriteLine("linux");return 0;}
   if(a[0]=="compose") {
    if(a.Contains("version")) {Console.WriteLine("2.40.0"); return 0;}
+   if(a.Contains("ps") && File.Exists(Path.Combine(root,"running"))) {Console.WriteLine("own-container");return 0;}
    if(a.Contains("up")) {File.WriteAllText(Path.Combine(root,"up"),"yes");return 0;}
    return 0;
   }
@@ -67,7 +68,7 @@ def launcher(tmp_path, fake_docker, request):
     def run(action='start', port=test_port):
         harness = root/'run.ps1'
         harness.write_text("$ErrorActionPreference='Stop'\nfunction Invoke-RestMethod { if(Test-Path (Join-Path $env:FAKE_DOCKER_ROOT 'up')) {return @{ok=$true;release_id='test-release'}}; throw 'not started' }\n"
-                           +f"& '{root / 'Tools/Backend.ps1'}' -Action {action} -Port {port} -NoBrowser\n",encoding='utf-8-sig')
+                           +f"& '{root / 'Tools/Backend.ps1'}' -Action {action} " + (f"-Port {port} " if port is not None else '') + "-NoBrowser\n",encoding='utf-8-sig')
         env = dict(os.environ, PATH=str(fake_docker)+os.pathsep+os.environ['PATH'],FAKE_DOCKER_ROOT=str(root))
         env.pop('PSModulePath', None)  # Each shell loads its own bundled modules.
         return subprocess.run([request.param,'-NoProfile','-ExecutionPolicy','Bypass','-File',str(harness)],env=env,capture_output=True,timeout=45)
@@ -113,6 +114,39 @@ def test_occupied_port_stops_before_import(launcher):
         assert run(port=s.getsockname()[1]).returncode != 0
     assert not (root/'loaded').exists()
     assert not (root/'up').exists()
+    assert not (root/'.runtime/instance.json').exists()
+    assert run().returncode == 0
+
+
+def test_existing_failed_configuration_can_change_port_without_losing_identity(launcher):
+    root, run = launcher
+    archive = root/'Runtime/images.tar'
+    original = archive.read_bytes()
+    archive.write_bytes(b'broken')
+    assert run().returncode != 0
+    state = json.loads((root/'.runtime/instance.json').read_text('utf-8-sig'))
+    env = (root/'.runtime/.env').read_text('utf-8-sig')
+    archive.write_bytes(original)
+    with socket.socket() as probe:
+        probe.bind(('127.0.0.1',0))
+        new_port = probe.getsockname()[1]
+    assert run(port=new_port).returncode == 0
+    changed = json.loads((root/'.runtime/instance.json').read_text('utf-8-sig'))
+    assert changed == dict(state, port=new_port)
+    assert (root/'.runtime/.env').read_text('utf-8-sig') == env.replace(f"PORT={state['port']}", f'PORT={new_port}')
+    assert list((root/'.runtime').glob('port-backup-*'))
+    assert run(port=None).returncode == 0
+    assert json.loads((root/'.runtime/instance.json').read_text('utf-8-sig')) == changed
+
+
+def test_port_change_refuses_running_environment(launcher):
+    root, run = launcher
+    assert run().returncode == 0
+    before = (root/'.runtime/instance.json').read_bytes()
+    (root/'running').touch()
+    port = json.loads(before.decode('utf-8-sig'))['port']
+    assert run(port=port+1 if port<65535 else port-1).returncode != 0
+    assert (root/'.runtime/instance.json').read_bytes() == before
 
 
 def test_tampered_archive_prevents_import(launcher):

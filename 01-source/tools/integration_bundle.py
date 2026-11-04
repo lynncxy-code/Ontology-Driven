@@ -93,7 +93,7 @@ def main():
         write(output/'Tools'/name,(TEMPLATES/name).read_text('utf-8'))
     shutil.copy2(TEMPLATES/'compose.yaml', output/'Runtime/compose.yaml')
     for action in ('Start','Stop','Check'):
-        write(output/'Tools'/f'{action}-OntoTwinBackend.ps1',f"[CmdletBinding()]\nparam([int]$Port=5000,[switch]$NoBrowser)\n& (Join-Path $PSScriptRoot 'Backend.ps1') -Action {action.lower()} -Port $Port -NoBrowser:$NoBrowser\n")
+        write(output/'Tools'/f'{action}-OntoTwinBackend.ps1',f"[CmdletBinding()]\nparam([int]$Port=5000,[switch]$NoBrowser)\n$options=@{{Action='{action.lower()}';NoBrowser=$NoBrowser}}\nif ($PSBoundParameters.ContainsKey('Port')) {{ $options.Port=$Port }}\n& (Join-Path $PSScriptRoot 'Backend.ps1') @options\n")
     for label, action in [('启动后台','Start'),('停止后台','Stop'),('检查后台','Check')]:
         # ASCII content; Chinese only in the filename, so cmd's codepage is irrelevant.
         (output/(label+'.cmd')).write_bytes((f'@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Tools\\{action}-OntoTwinBackend.ps1"\r\nif errorlevel 1 (pause & exit /b 1)\r\npause\r\n').encode('ascii'))
@@ -122,7 +122,7 @@ def main():
             for p in sorted(output.rglob('*')):
                 if p.is_file(): archive.write(p,p.relative_to(output).as_posix())
         write(zip_path.with_suffix('.zip.sha256'),digest(zip_path)+'  '+zip_path.name+'\n')
-    print(json.dumps({'directory':str(output),'release_id':release,'source_commit':commit},ensure_ascii=False))
+    print(json.dumps({'directory':str(output),'release_id':release,'source_commit':commit},ensure_ascii=True))
 
 
 if __name__ == '__main__':

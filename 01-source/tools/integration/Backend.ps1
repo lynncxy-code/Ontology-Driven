@@ -6,12 +6,17 @@ $packageRoot=Split-Path -Parent $PSScriptRoot
 $manifest=Get-Content (Join-Path $packageRoot 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $stateRoot=Join-Path $packageRoot '.runtime'
 $stateFile=Join-Path $stateRoot 'instance.json'
+function Assert-PortAvailable([int]$Candidate) {
+    $listener=New-Object System.Net.Sockets.TcpListener([Net.IPAddress]::Loopback,$Candidate)
+    try { $listener.Start() } catch { throw "端口 $Candidate 已被占用。请使用 Start-OntoTwinBackend.ps1 -Port 5500 指定空闲端口重试；不会停止现有服务。" } finally { $listener.Stop() }
+}
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw '请安装并启动 Docker Desktop（Linux containers + Compose v2）。' }
 if ((Run-Docker -Arguments @('info','--format','{{.OSType}}') -TimeoutSeconds 20) -ne 'linux') { throw '请将 Docker Desktop 切换为 Linux containers。' }
 Run-Docker -Arguments @('compose','version','--short') -TimeoutSeconds 20 | Out-Null
 if (-not (Test-Path -LiteralPath $stateFile)) {
     if ($Action -ne 'start') { throw '尚未初始化，请先运行 Start-OntoTwinBackend.ps1。' }
     if (Test-Path -LiteralPath (Join-Path $stateRoot '.env')) { throw '运行配置不完整：存在 .env 但缺少 instance.json。请恢复原配置，不能重新生成数据库密码。' }
+    Assert-PortAvailable $Port
     New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
     $instanceId='ontotwin-'+[guid]::NewGuid().ToString('N').Substring(0,12)
     $state=[ordered]@{instance_id=$instanceId;port=$Port;source_commit=$manifest.source_commit}
@@ -34,9 +39,26 @@ if ($Action -eq 'stop') { Run-Docker -Arguments ($compose+@('stop')); return }
 if ($Action -eq 'start') {
     # A running instance may reuse its own port; other services must not be displaced.
     $ownBackend=Run-Docker -Arguments ($compose+@('ps','--status','running','-q','backend')) -TimeoutSeconds 20
+    if ($PSBoundParameters.ContainsKey('Port') -and $Port -ne [int]$state.port) {
+        if ($ownBackend) { throw '当前环境正在运行；请先停止本环境，再指定新端口。其他服务不会被停止。' }
+        Assert-PortAvailable $Port
+        $backup=Join-Path $stateRoot ('port-backup-'+[guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $backup | Out-Null
+        Copy-Item -LiteralPath $stateFile,$envFile -Destination $backup
+        try {
+            $lines=@(Get-Content -LiteralPath $envFile -Encoding UTF8)
+            $lines -replace '^PORT=.*$', "PORT=$Port" | Set-Content -LiteralPath $envFile -Encoding UTF8
+            $state.port=$Port
+            $state | ConvertTo-Json | Set-Content -LiteralPath $stateFile -Encoding UTF8
+        } catch {
+            Copy-Item -LiteralPath (Join-Path $backup 'instance.json') -Destination $stateFile -Force
+            Copy-Item -LiteralPath (Join-Path $backup '.env') -Destination $envFile -Force
+            throw
+        }
+        Write-Host "本环境端口已改为 $Port；原环境身份、凭据及数据卷保持不变。"
+    }
     if (-not $ownBackend) {
-        $listener=New-Object System.Net.Sockets.TcpListener([Net.IPAddress]::Loopback,[int]$state.port)
-        try { $listener.Start() } catch { throw "端口 $($state.port) 已被占用。停止对应服务或在新的解压目录使用 -Port 指定空闲端口；不会停止现有服务。" } finally { $listener.Stop() }
+        Assert-PortAvailable ([int]$state.port)
     }
     $archive=Join-Path $packageRoot 'Runtime/images.tar'
     $stream=[IO.File]::OpenRead($archive)

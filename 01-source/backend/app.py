@@ -688,10 +688,19 @@ def _commit_merge(data, items, source_file, force):
     # Cross-project failures must leave both memory and disk untouched.
     target_project = (project_store.get_active_copy() if target_id == project_store.get_active_id()
                       else project_store.read_project(target_id))
+    if not target_project:
+        return jsonify({"error": f"找不到数据集: {target_id}"}), 404
     target_ds = copy.deepcopy((target_project or {}).get('dataset'))
     baseline_dataset = copy.deepcopy(target_ds)
     if not target_ds:
-        return jsonify({"error": f"找不到数据集: {target_id}"}), 404
+        # 4.8 permits project creation before its first ontology/CAD import.
+        # Initialize only the graph projection, within the existing transaction.
+        existing_nodes = [dict(copy.deepcopy(value), rid=rid)
+                          for rid, value in (target_project.get('object_types') or {}).items()]
+        target_ds = {'id': target_id, 'name': target_project.get('name') or target_id,
+                     'created_at': target_project.get('created_at'),
+                     'graph_data': {'nodes': existing_nodes, 'links': [], 'categories': []},
+                     'node_count': len(existing_nodes), 'link_count': 0}
     if strategy not in ("skip", "overwrite"):
         return jsonify({"error": f"未知 conflict_strategy: {strategy}"}), 400
 

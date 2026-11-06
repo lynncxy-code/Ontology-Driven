@@ -18,6 +18,8 @@ public class OntoTwinSyncEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Blutility",
+            "PropertyEditor",
+            "HTTP",
 			"Projects",
 			"Json",
 			"OntoTwinSync",

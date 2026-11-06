@@ -1,4 +1,5 @@
 #include "OntoTwinSyncEditor.h"
+#include "OntoTwinConnectionDetails.h"
 #include "OntoTwinCalibrationSnapshot.h"
 
 #include "Editor.h"
@@ -33,6 +34,7 @@ void FOntoTwinSyncEditorModule::StartupModule()
 
 	if (!IsRunningCommandlet() && !IsRunningGame())
 	{
+		RegisterOntoTwinConnectionDetails();
 		OntoTwinCalibrationSnapshot::Register();
 		UToolMenus::RegisterStartupCallback(
 			FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FOntoTwinSyncEditorModule::RegisterMenus));
@@ -41,6 +43,7 @@ void FOntoTwinSyncEditorModule::StartupModule()
 
 void FOntoTwinSyncEditorModule::ShutdownModule()
 {
+	UnregisterOntoTwinConnectionDetails();
 	if (UObjectInitialized())
 	{
 		if (!IsRunningCommandlet() && !IsRunningGame())

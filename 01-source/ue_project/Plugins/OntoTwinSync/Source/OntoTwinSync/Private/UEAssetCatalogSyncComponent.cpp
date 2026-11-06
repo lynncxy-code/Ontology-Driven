@@ -1,4 +1,5 @@
 #include "UEAssetCatalogSyncComponent.h"
+#include "OntoTwinConnectionContext.h"
 
 #include "TwinSceneManager.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -89,6 +90,7 @@ FString ThumbnailDataUrl(const FAssetData& AssetData, const bool bEnabled)
 FString ResolveBackendUrl(const ATwinSceneManager* Manager)
 {
     FString BackendUrl = Manager ? Manager->BackendBaseUrl : TEXT("http://localhost:5000");
+    BackendUrl = OntoTwinConnectionContext::Setting(TEXT("BackendBaseUrl"), BackendUrl);
     FString Override;
     if (FParse::Value(FCommandLine::Get(), TEXT("OntoTwinBackendBaseUrl="), Override))
     {
@@ -202,7 +204,7 @@ void UOntoTwinUEAssetCatalogSyncComponent::PublishFolderIndex()
     });
 
     TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
-    Body->SetStringField(TEXT("ue_project_id"), UEProjectId);
+    Body->SetStringField(TEXT("ue_project_id"), OntoTwinConnectionContext::Setting(TEXT("UEProjectId"), UEProjectId));
     Body->SetStringField(TEXT("ue_project_name"), UEProjectName);
     TArray<TSharedPtr<FJsonValue>> FoldersJson;
     FoldersJson.Reserve(FolderPaths.Num());
@@ -222,6 +224,7 @@ void UOntoTwinUEAssetCatalogSyncComponent::PublishFolderIndex()
     Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
     Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Id"), UEProjectId);
     Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Name"), UEProjectName);
+    OntoTwinConnectionContext::Apply(Request, GetWorld());
     Request->SetContentAsString(BodyString);
     bFolderIndexRequestInFlight = true;
     FolderIndexRefreshElapsed = 0.0f;
@@ -275,6 +278,7 @@ void UOntoTwinUEAssetCatalogSyncComponent::PollScanRequest()
     Request->SetHeader(TEXT("Accept"), TEXT("application/json"));
     Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Id"), UEProjectId);
     Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Name"), UEProjectName);
+    OntoTwinConnectionContext::Apply(Request, GetWorld());
     bScanPollRequestInFlight = true;
 
     const TWeakObjectPtr<UOntoTwinUEAssetCatalogSyncComponent> WeakThis(this);
@@ -358,7 +362,7 @@ void UOntoTwinUEAssetCatalogSyncComponent::ReportScanRequestFailure(
     const FString BackendUrl = ResolveBackendUrl(Manager);
 
     TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
-    Body->SetStringField(TEXT("ue_project_id"), UEProjectId);
+    Body->SetStringField(TEXT("ue_project_id"), OntoTwinConnectionContext::Setting(TEXT("UEProjectId"), UEProjectId));
     Body->SetStringField(TEXT("request_id"), ScanRequestId);
     Body->SetStringField(TEXT("status"), TEXT("failed"));
     Body->SetStringField(TEXT("error"), ErrorMessage);
@@ -372,6 +376,7 @@ void UOntoTwinUEAssetCatalogSyncComponent::ReportScanRequestFailure(
     Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
     Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Id"), UEProjectId);
     Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Name"), UEProjectName);
+    OntoTwinConnectionContext::Apply(Request, GetWorld());
     Request->SetContentAsString(BodyString);
     Request->ProcessRequest();
     ActiveScanRequestId.Empty();
@@ -660,7 +665,7 @@ void UOntoTwinUEAssetCatalogSyncComponent::SyncCatalogForRoots(
     }
 
     TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
-    Body->SetStringField(TEXT("ue_project_id"), UEProjectId);
+    Body->SetStringField(TEXT("ue_project_id"), OntoTwinConnectionContext::Setting(TEXT("UEProjectId"), UEProjectId));
     Body->SetStringField(TEXT("ue_project_name"), UEProjectName);
     TArray<TSharedPtr<FJsonValue>> RootsJson;
     for (const FString& Root : EffectiveRoots)
@@ -684,6 +689,7 @@ void UOntoTwinUEAssetCatalogSyncComponent::SyncCatalogForRoots(
     Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
     Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Id"), UEProjectId);
     Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Name"), UEProjectName);
+    OntoTwinConnectionContext::Apply(Request, GetWorld());
     Request->SetContentAsString(BodyString);
     bRequestInFlight = true;
 

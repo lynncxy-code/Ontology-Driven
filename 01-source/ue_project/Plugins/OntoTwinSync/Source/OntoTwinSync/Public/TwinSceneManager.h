@@ -87,6 +87,7 @@ class ONTOTWINSYNC_API ATwinSceneManager : public AActor
 
 public:
     ATwinSceneManager();
+    virtual void PostLoad() override;
 
     /** Project-configured mutually exclusive exhibits. Definitions remain in the database. */
     UFUNCTION(BlueprintCallable, Category="OntoTwin|DisplaySchemes")

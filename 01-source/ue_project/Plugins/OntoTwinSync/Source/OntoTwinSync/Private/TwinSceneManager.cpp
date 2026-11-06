@@ -11,6 +11,7 @@
 // ============================================================================
 
 #include "TwinSceneManager.h"
+#include "OntoTwinConnectionContext.h"
 #include "Realtime/OntoTwinRealtimeStreamProvider.h"
 #include "UEAssetCatalogSyncComponent.h"
 #include "OntoTwinModelLoadingWidget.h"
@@ -235,11 +236,22 @@ void ATwinSceneManager::EnsureSceneId()
 
 // ── BeginPlay ────────────────────────────────────────────────────────────────
 
+void ATwinSceneManager::PostLoad()
+{
+    Super::PostLoad();
+    BackendBaseUrl = OntoTwinConnectionContext::Setting(TEXT("BackendBaseUrl"), BackendBaseUrl);
+    UEProjectId = OntoTwinConnectionContext::Setting(TEXT("UEProjectId"), UEProjectId);
+    BoundProjectId = OntoTwinConnectionContext::Setting(TEXT("ProjectId"), BoundProjectId);
+}
+
 void ATwinSceneManager::BeginPlay()
 {
     // Customer releases can override serialized level defaults without rebuilding the map.
     // Resolve the backend before Super::BeginPlay(), because that starts actor components and
     // SceneInteractionManager immediately performs its first runtime projection request.
+    BackendBaseUrl = OntoTwinConnectionContext::Setting(TEXT("BackendBaseUrl"), BackendBaseUrl);
+    UEProjectId = OntoTwinConnectionContext::Setting(TEXT("UEProjectId"), UEProjectId);
+    BoundProjectId = OntoTwinConnectionContext::Setting(TEXT("ProjectId"), BoundProjectId);
     FString BackendBaseUrlOverride;
     const bool bHasBackendBaseUrlOverride = FParse::Value(
             FCommandLine::Get(),
@@ -1689,6 +1701,7 @@ void ATwinSceneManager::AddUEProjectHeaders(TSharedRef<IHttpRequest, ESPMode::Th
     HttpRequest->SetHeader(TEXT("X-OntoTwin-UE-Context"),
         World && World->WorldType == EWorldType::PIE ? TEXT("pie") :
         (World && World->WorldType == EWorldType::Editor ? TEXT("editor") : TEXT("runtime")));
+    OntoTwinConnectionContext::Apply(HttpRequest, GetWorld());
 }
 
 void ATwinSceneManager::SetPollTimerInterval(float IntervalSeconds, float FirstDelaySeconds)
@@ -1799,6 +1812,11 @@ void ATwinSceneManager::DismissModelLoadingWidget()
 
 void ATwinSceneManager::BindCurrentUEProjectToActiveDataset()
 {
+    if (OntoTwinConnectionContext::IsExplicit())
+    {
+        CheckRuntimeBindingStatus();
+        return; // Use the existing scene binding, never the global active dataset.
+    }
     EnsureSceneId();
     RuntimeStatusMessage = TEXT("请在网页数据集卡片中选择关卡绑定；网页切换项目不会换绑");
     FPlatformProcess::LaunchURL(*(BackendBaseUrl + TEXT("/workspace48")), nullptr, nullptr);
@@ -1955,7 +1973,10 @@ void ATwinSceneManager::CheckInitialBindingStatus()
     HttpRequest->SetVerb(TEXT("GET"));
     HttpRequest->SetHeader(TEXT("Accept"), TEXT("application/json"));
     AddUEProjectHeaders(HttpRequest);
-    HttpRequest->SetHeader(TEXT("X-OntoTwin-Project-Id"), TEXT(""));
+    if (!OntoTwinConnectionContext::IsExplicit())
+    {
+        HttpRequest->SetHeader(TEXT("X-OntoTwin-Project-Id"), TEXT(""));
+    }
 
     bRuntimeBindingRequestInFlight = true;
     const TWeakObjectPtr<ATwinSceneManager> WeakThis(this);
@@ -3879,7 +3900,10 @@ void ATwinSceneManager::CheckRuntimeBindingStatus()
     HttpRequest->SetVerb(TEXT("GET"));
     HttpRequest->SetHeader(TEXT("Accept"), TEXT("application/json"));
     AddUEProjectHeaders(HttpRequest);
-    HttpRequest->SetHeader(TEXT("X-OntoTwin-Project-Id"), TEXT(""));
+    if (!OntoTwinConnectionContext::IsExplicit())
+    {
+        HttpRequest->SetHeader(TEXT("X-OntoTwin-Project-Id"), TEXT(""));
+    }
 
     bRuntimeBindingRequestInFlight = true;
     RuntimeStatusMessage = TEXT("正在检查 UE 工程绑定...");

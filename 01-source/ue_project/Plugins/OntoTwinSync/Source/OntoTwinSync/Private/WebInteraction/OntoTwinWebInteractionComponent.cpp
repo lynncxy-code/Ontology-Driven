@@ -1,4 +1,5 @@
 #include "WebInteraction/OntoTwinWebInteractionComponent.h"
+#include "OntoTwinConnectionContext.h"
 
 #include "TwinInstance.h"
 #include "TwinSceneManager.h"
@@ -211,6 +212,7 @@ void UOntoTwinWebInteractionComponent::AddProjectHeaders(
     if (!SceneManager) return;
     Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Id"), SceneManager->UEProjectId);
     Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Name"), SceneManager->UEProjectName);
+    OntoTwinConnectionContext::Apply(Request, GetWorld());
 #if WITH_EDITOR
     Request->SetHeader(TEXT("X-OntoTwin-UE-Context"), TEXT("editor"));
 #else

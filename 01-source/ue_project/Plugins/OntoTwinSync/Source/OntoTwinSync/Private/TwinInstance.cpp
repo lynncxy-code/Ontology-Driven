@@ -1,4 +1,4 @@
-﻿// ============================================================================
+// ============================================================================
 // TwinInstance.cpp  (修复版)
 //
 // 修复点：
@@ -8,6 +8,7 @@
 // ============================================================================
 
 #include "TwinInstance.h"
+#include "OntoTwinConnectionContext.h"
 #include "TwinSceneManager.h"
 #include "EngineUtils.h"
 #include "DigitalTwinSyncComponent.h"
@@ -2205,6 +2206,7 @@ void ATwinInstance::LoadRemoteGltf(const FString& StableId)
     Request->SetTimeout(180.0f);
     Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Id"), UEProjectId);
     Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Name"), UEProjectName);
+    OntoTwinConnectionContext::Apply(Request, GetWorld());
 
     const FString ExpectId = StableId;
     const FString AssetIdForPurge = AssetIdPart;

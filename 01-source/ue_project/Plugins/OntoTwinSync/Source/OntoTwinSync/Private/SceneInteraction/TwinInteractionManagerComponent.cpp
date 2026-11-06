@@ -1,4 +1,5 @@
 #include "SceneInteraction/TwinInteractionManagerComponent.h"
+#include "OntoTwinConnectionContext.h"
 
 #include "SceneInteraction/OntoTwinCrosshairWidget.h"
 #include "SceneInteraction/OntoTwinNarrationHUDWidget.h"
@@ -502,6 +503,7 @@ void UTwinInteractionManagerComponent::AddProjectHeaders(
     if (!SceneManager) return;
     Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Id"), SceneManager->UEProjectId);
     Request->SetHeader(TEXT("X-OntoTwin-UE-Project-Name"), SceneManager->UEProjectName);
+    OntoTwinConnectionContext::Apply(Request, GetWorld());
 #if WITH_EDITOR
     Request->SetHeader(TEXT("X-OntoTwin-UE-Context"), TEXT("editor"));
 #else

@@ -232,9 +232,12 @@ def _load_session(cur, required=True):
     }
     context = _request_context_headers()
     if any(context.values()):
-        org_id = context["organization_id"] or session["organization_id"]
-        factory_id = context["factory_id"] or session["factory_id"]
-        project_id = context["project_id"] or session["project_id"]
+        # Explicit tab context is a complete selection, not a partial patch
+        # over the shared session. Missing children were cleared by the UI
+        # when switching organization/factory; do not resurrect stale ones.
+        org_id = context["organization_id"] or None
+        factory_id = context["factory_id"] or None
+        project_id = context["project_id"] or None
 
         if org_id and not _org_role(cur, session["user_id"], org_id):
             raise ApiError(403, "无权进入该组织", "forbidden")

@@ -962,7 +962,7 @@ async function restoreSession(){
     if(hasImg){
       const im=snap.img;
       const restoredSource=im.imageUrl||(im.frameId?`/api/v2/spatial-frames/${encodeURIComponent(im.frameId)}/image`:im.src);
-      const restoredImage=await new Promise(r=>{ const img=new Image(); img.onload=()=>r(img); img.onerror=()=>r(null); img.src=restoredSource; });
+      const restoredImage=await new Promise(r=>{ const img=new Image(); img.onload=()=>r(img); img.onerror=()=>r(null); img.src=SpatialCanvas.frameImageUrl(restoredSource,restoreProjectId); });
       if(FloorConfig.projectId!==restoreProjectId)return;
       imgState.imageObj=restoredImage;
       imgState.imageUrl=im.imageUrl||restoredSource;
@@ -4742,7 +4742,7 @@ async function imgLoadImageSource(source) {
 
 async function imgApplyFrame(frame) {
   const imageUrl=frame.image_url||`/api/v2/spatial-frames/${encodeURIComponent(frame.id)}/image`;
-  const image=await imgLoadImageSource(imageUrl);
+  const image=await imgLoadImageSource(SpatialCanvas.frameImageUrl(imageUrl,FloorConfig.projectId));
   imgState.imageObj=image;
   imgState.imageUrl=imageUrl;
   imgState.frameId=frame.id;

@@ -215,7 +215,17 @@
     ctx.restore();
   }
 
+  function frameImageUrl(source, projectId) {
+    if (!source || !projectId) return source;
+    const url = new URL(source, global.location.href);
+    if (url.origin !== global.location.origin ||
+        !/^\/api\/v2\/spatial-frames\/[^/]+\/image$/.test(url.pathname)) return source;
+    url.searchParams.set('project_id', projectId);
+    return url.href;
+  }
+
   global.OntoTwinSpatialCanvas = Object.freeze({
+    frameImageUrl,
     IMAGE_COORDINATE_CONTRACT,
     IDENTITY,
     buildDisplayMatrix,

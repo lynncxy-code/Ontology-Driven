@@ -1647,7 +1647,8 @@ createApp({
             const request=++roamingImageRequest;roamingImage=null;roaming.imageReady=false;roaming.imageName='';roaming.pointerPx=null;setRoamingDisplay(frame?.display||{});drawRoamingCanvas();
             if(!frame?.image_url)return;const image=new Image();
             image.onload=()=>{if(request!==roamingImageRequest)return;roamingImage=image;roaming.imageReady=true;roaming.imageName=frame.name||'空间底图';nextTick(()=>{ensureRoamingCanvasObserver();roamingFitView()})};
-            image.onerror=()=>{if(request!==roamingImageRequest)return;roaming.imageReady=false;toast('空间底图读取失败','err');drawRoamingCanvas()};image.src=frame.image_url;
+            image.onerror=()=>{if(request!==roamingImageRequest)return;roaming.imageReady=false;toast('空间底图读取失败','err');drawRoamingCanvas()};
+            image.src=SpatialCanvas.frameImageUrl(frame.image_url,roaming.context.project_id);
         }
         function applyRoamingFrameChange(id){
             roaming.manualFrameId=id;const frame=roamingFrames.value.find(item=>item.id===id)||null;
@@ -1834,7 +1835,7 @@ createApp({
             const image=new Image();
             image.onload=()=>{routeImage=image;routeEditor.imageReady=true;nextTick(()=>{ensureRouteCanvasObserver();routeFitView()})};
             image.onerror=()=>{routeEditor.imageReady=false;toast('空间底图读取失败','err');drawRouteCanvas()};
-            image.src=frame.image_url;
+            image.src=SpatialCanvas.frameImageUrl(frame.image_url,routeEditor.projectId);
         }
         function routeFrameChanged(){
             const frame=currentRouteFrame.value;loadRouteImage(frame);

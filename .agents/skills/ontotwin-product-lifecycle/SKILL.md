@@ -1,6 +1,6 @@
 ---
 name: ontotwin-product-lifecycle
-description: Manage OntoTwin-style product lifecycle across feature, dev, release, main branches and isolated environments; use for branch strategy, testing, release, rollback, or PM workflows.
+description: Manage OntoTwin lifecycle across branches and isolated environments, including offline integration packages, coordinated frontend/backend/UE updates, data-preserving upgrades, backup and recovery. Use for branch strategy, packaging, deployment, release, rollback, or PM workflows.
 ---
 
 # OntoTwin Product Lifecycle
@@ -66,6 +66,14 @@ When the user describes a new requirement or change:
 9. Deploy production only from that tag. After production verification, fast-forward `backup/main` to the same `main` commit if the user authorizes the remote update.
 
 If acceptance fails, keep the release candidate unchanged, record the failed criterion, and create a focused follow-up feature/bug branch. Do not silently patch production or rewrite a released commit.
+
+## Offline integration and imported update packages
+
+For integration packaging, repeated upgrades on another computer, or an “导入更新包” workflow, read [references/package-update-lifecycle.md](references/package-update-lifecycle.md).
+
+The agreed product direction is a fixed installation environment with replaceable program releases. Importing a package coordinates frontend, backend, and selected UE plugins as one compatible release; it does not imply hot replacement or identical component version numbers. Preserve datasets, accounts, project/level bindings, CAD/images/models, and environment configuration across ordinary upgrades.
+
+These are development and acceptance requirements, not proof that an existing package implements an updater. Inspect the actual package, source, and target machine before claiming support. Use the database migration and UE stewardship skills when those components are involved. Updating this skill alone does not authorize a production deployment; use the user's existing authorization without asking again for already authorized work.
 
 ## Product-manager interaction mode
 

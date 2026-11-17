@@ -173,6 +173,11 @@ bool Covers(const TArray<FDirectoryPath>& Paths, const FString& Root)
 
 void Process(bool bUpdate)
 {
+    if (bUpdate && IsRunningCommandlet())
+    {
+        Report(TEXT("请在 UE 编辑器的项目设置中更新模型库，后台进程仅支持检查清单"), true);
+        return;
+    }
     TArray<FString> Roots;
     TMap<FString, FItem> Items;
     if (!Gather(Items, Roots, bUpdate)) return;

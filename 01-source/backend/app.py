@@ -3441,6 +3441,21 @@ def writeback_state():
     return jsonify({"status": "ok", "writeback": info, "snapshot": snap})
 
 
+@app.route('/api/v2/state/writeback/preview-batch', methods=['POST'])
+def writeback_editor_preview():
+    from preview_writeback import commit_preview, PreviewConflict
+    from part_transform_writeback import PartTransformWritebackError
+    allowed, info, status = check_request_can_write_active(project_store, request)
+    if not allowed:
+        return jsonify(info), status
+    data = request.get_json(silent=True)
+    try:
+        count = commit_preview(getattr(g, "ontotwin_project_store", project_store.base), data.get("changes") if isinstance(data, dict) else None)
+    except (PreviewConflict, PartTransformWritebackError) as error:
+        return jsonify(error.response()), error.status
+    return jsonify(status="ok", count=count)
+
+
 @app.route('/api/v2/state/writeback/batch', methods=['POST'])
 def writeback_state_batch():
     """原子保存一个 Runtime Editor 会话，最多包含 100 个实例。"""

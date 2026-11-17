@@ -1722,7 +1722,7 @@ void ATwinSceneManager::SetPollTimerInterval(float IntervalSeconds, float FirstD
 
 void ATwinSceneManager::EnsureModelLoadingWidget()
 {
-    if (bInitialModelBaselineReady || ModelLoadingWidget)
+    if (bInitialModelBaselineReady || bRuntimeEditMode || ModelLoadingWidget)
     {
         return;
     }
@@ -3317,6 +3317,7 @@ void ATwinSceneManager::EnterRuntimeEditMode()
         }
     }
     bRuntimeEditMode = true;
+    DismissModelLoadingWidget();
     RuntimeStatusMessage = TEXT("运行时编辑已开启");
     SetPollTimerInterval(EditModePollInterval, EditModePollInterval);
 
@@ -3393,6 +3394,7 @@ void ATwinSceneManager::FinishExitRuntimeEditMode()
     }
 
     bRuntimeEditMode = false;
+    EnsureModelLoadingWidget();
     RuntimeUndoStack.Reset();
     RuntimeRedoStack.Reset();
     RuntimeBusinessConfig.Reset();

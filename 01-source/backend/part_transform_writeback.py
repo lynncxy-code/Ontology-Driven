@@ -159,40 +159,41 @@ def _patch(config, change, owner):
     return applied
 
 
+def patch_project_parts(project, normalized, total):
+    instances = project.get("instances") or {}
+    components = project.get("components") or {}
+    results = []
+    component_count = 0
+    for change in normalized:
+        instance_id = change["instance_id"]
+        instance = instances.get(instance_id)
+        if not isinstance(instance, dict):
+            raise PartTransformWritebackError("instance_not_found", f"instance not found: {instance_id}", 404,
+                                              {"instance_id": instance_id})
+        config = instance.get("render_config")
+        if not isinstance(config, dict):
+            raise PartTransformWritebackError("render_config_missing", f"render config is unavailable for {instance_id}", 409)
+        applied = _patch(config, change, instance_id)
+        component_id = _text(instance.get("component_id"))
+        component = components.get(component_id) if component_id else None
+        synced = False
+        if isinstance(component, dict) and isinstance(component.get("render_config"), dict) and component["render_config"].get("render_parts"):
+            _patch(component["render_config"], change, f"component:{component_id}")
+            component_count += 1
+            synced = True
+        results.append({"instance_id": instance_id, "part_indices": applied, "component_id": component_id, "component_synced": synced})
+    return {"instance_ids": [item["instance_id"] for item in normalized], "instance_count": len(normalized),
+            "part_count": total, "component_sync_count": component_count, "results": results}
+
+
 def apply_part_transform_writeback(store, changes, expected_project_id=None):
     try:
         normalized, total = _normalize(changes)
     except PartTransformWritebackError as error:
         return False, error.response(), error.status
 
-    def mutate(project):
-        instances = project.get("instances") or {}
-        components = project.get("components") or {}
-        results = []
-        component_count = 0
-        for change in normalized:
-            instance_id = change["instance_id"]
-            instance = instances.get(instance_id)
-            if not isinstance(instance, dict):
-                raise PartTransformWritebackError("instance_not_found", f"instance not found: {instance_id}", 404,
-                                                  {"instance_id": instance_id})
-            config = instance.get("render_config")
-            if not isinstance(config, dict):
-                raise PartTransformWritebackError("render_config_missing", f"render config is unavailable for {instance_id}", 409)
-            applied = _patch(config, change, instance_id)
-            component_id = _text(instance.get("component_id"))
-            component = components.get(component_id) if component_id else None
-            synced = False
-            if isinstance(component, dict) and isinstance(component.get("render_config"), dict) and component["render_config"].get("render_parts"):
-                _patch(component["render_config"], change, f"component:{component_id}")
-                component_count += 1
-                synced = True
-            results.append({"instance_id": instance_id, "part_indices": applied, "component_id": component_id, "component_synced": synced})
-        return {"instance_ids": [item["instance_id"] for item in normalized], "instance_count": len(normalized),
-                "part_count": total, "component_sync_count": component_count, "results": results}
-
     try:
-        info = store.transact_expected_active(expected_project_id, mutate)
+        info = store.transact_expected_active(expected_project_id, lambda project: patch_project_parts(project, normalized, total))
     except ProjectMismatch:
         raise
     except PartTransformWritebackError as error:

@@ -7,6 +7,8 @@ description: Manage OntoTwin lifecycle across branches and isolated environments
 
 Use this skill when a user needs to manage an OntoTwin product from feature development through testing, acceptance, release, production operation, backup, or rollback. It is written for a product manager who may not be a developer and for any AI agent assisting that product manager.
 
+The day-to-day development flow (where task worktrees live, the acceptance environment on port 5501, the ledger, and when the product manager must approve) is defined in the repository's `AGENTS.md`. Where this skill and `AGENTS.md` disagree, `AGENTS.md` wins.
+
 ## Core model
 
 Keep these concepts separate:
@@ -23,13 +25,13 @@ Never infer that a branch is safe for production merely because it runs locally.
 Use this topology unless the user explicitly chooses another one:
 
 ```text
-feature/*  ->  dev  ->  release/*  ->  main  ->  production
-                            |
-                       backup/main
+task/*  ->  acceptance (5501)  ->  dev  ->  release/*  ->  main  ->  production
+                                              |
+                                         backup/main
 ```
 
-- `feature/*`: one feature, bug fix, migration, or experiment. Short-lived. Do not use as a permanent integration branch.
-- `dev`: the only long-lived development/integration branch. It contains code that is still being tested, not necessarily releasable.
+- `task/<id>`: one feature, bug fix, migration, or experiment, in `.worktrees/<id>` (see `AGENTS.md`). Short-lived. Do not use as a permanent integration branch.
+- `dev`: the only long-lived development branch. It contains only changes the product manager has accepted; it is not necessarily releasable as a whole.
 - `release/*`: optional short-lived stabilization branch for a named release. Freeze scope here and perform regression/UAT.
 - `main`: protected, production-ready release branch. Only accepted release commits and approved hotfixes enter it.
 - `backup/main`: a mirror of `main`, never an independent development line. Preserve any explicitly protected historical tags such as `1.0.0`.
@@ -43,8 +45,8 @@ Use this source-to-environment mapping:
 
 | Environment | Source | Data | Purpose |
 |---|---|---|---|
-| Local | `feature/*` or a temporary investigation branch | disposable local data | development and diagnosis |
-| Test | current `dev` commit | isolated test database | everyday functional testing |
+| Local | `task/*` or a temporary investigation branch | disposable local data | development and diagnosis |
+| Acceptance (5501) | latest `dev` plus all `task/*` branches awaiting acceptance, built from committed code | real business data; no destructive experiments | product acceptance before a change enters `dev` |
 | Release candidate/UAT | `release/*` | isolated release database copy | regression and product acceptance |
 | Production | immutable tag on `main` | production database | real users and real data |
 | Backup/recovery | `backup/main` and database backups | recovery copies | disaster recovery, not development |
@@ -57,15 +59,15 @@ When the user describes a new requirement or change:
 
 1. Translate it into a small feature, bug, or migration batch with an acceptance condition.
 2. Inspect the current branch, working tree, remotes, and existing uncommitted changes before creating or moving anything.
-3. Create or reuse a short-lived `feature/*` branch. Preserve unrelated user changes; never use `git reset --hard`, broad cleanup, or `git add .` as a shortcut.
+3. Create or reuse a short-lived `task/<id>` branch in `.worktrees/<id>`. Preserve unrelated user changes; never use `git reset --hard`, broad cleanup, or `git add .` as a shortcut.
 4. Implement and verify the batch locally. Keep generated data, customer assets, logs, acceptance records, and process files out of the product commit unless explicitly requested.
 5. Create a local checkpoint commit when the batch boundary is clear. A local commit is allowed without a remote upload; pushing requires explicit user authorization.
-6. Review the diff and test evidence. Only then propose or create a PR from `feature/*` to `dev`.
-7. Deploy the exact `dev` commit to the test environment. The product manager accepts or rejects the behavior there.
+6. Review the diff and test evidence, then publish to the acceptance environment (5501) as described in `AGENTS.md`. The product manager accepts or rejects the behavior there.
+7. Only after the product manager explicitly accepts, merge that one `task/<id>` branch (never the assembled acceptance candidate) into `dev`, then clean up the task worktree and branch.
 8. For a release, cut `release/<version>` from the accepted `dev` state, freeze scope, run regression/UAT, then merge to `main` and create an immutable `v<version>` tag.
 9. Deploy production only from that tag. After production verification, fast-forward `backup/main` to the same `main` commit if the user authorizes the remote update.
 
-If acceptance fails, keep the release candidate unchanged, record the failed criterion, and create a focused follow-up feature/bug branch. Do not silently patch production or rewrite a released commit.
+If acceptance fails, keep the release candidate unchanged, record the failed criterion, and create a focused follow-up `task/<id>` branch. Do not silently patch production or rewrite a released commit.
 
 ## Offline integration and imported update packages
 

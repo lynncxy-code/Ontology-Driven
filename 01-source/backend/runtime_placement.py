@@ -92,25 +92,51 @@ def _place(project, deleted, operation_id, business_id, type_id, name, key, sour
 
 
 def register_runtime_placement_routes(app, get_store, snapshot):
+    def scene_store(data):
+        pid = getattr(g, "ontotwin_project_id", "")
+        if not pid or data.get("expected_project_id") != pid:
+            raise ApiError(409, "数据集已切换，请重新选择模型", "project_context_mismatch")
+        if not request.headers.get("X-OntoTwin-UE-Project-Id") or not request.headers.get("X-OntoTwin-UE-Scene-Id"):
+            raise ApiError(403, "缺少关卡标识", "ue_scene_required")
+        store = get_store()
+        canonical = getattr(store, "base", store)
+        pg_mode = os.environ.get("ONTOTWIN_STORE", "pg").lower() == "pg"
+        if not pg_mode and lookup_with_heal(canonical, request.headers["X-OntoTwin-UE-Project-Id"]) != pid:
+            raise ApiError(403, "关卡与数据集不匹配", "ue_project_mismatch")
+        ok, info, status = check_request_can_write_active(store, request)
+        if not ok:
+            raise ApiError(status, info.get("message", "关卡没有写入权限"), info.get("error", "forbidden"))
+        return pid, store if pg_mode else canonical
+
+    @app.get("/api/v2/runtime-editor/placement-options")
+    def placement_options():
+        try:
+            pid, target = scene_store(request.args)
+            _model(request.args.get("model"))
+            project = target.read_project(pid)
+            if not project:
+                raise ApiError(404, "数据集不存在", "not_found")
+            instances = project.get("instances", {})
+            deleted = target._trashed_instances(pid)
+            types = [{"rid": rid, "name": row.get("name", rid)}
+                     for rid, row in project.get("object_types", {}).items()
+                     if rid != TYPE_RID and set(CAPABILITIES).issubset(row.get("injected_interfaces", []))]
+            occupied = set(instances) | set(deleted)
+            available = [row for row in project.get("instance_roster", []) if row.get("instance_id") not in occupied]
+            default_name = _scenery_name((*instances.values(), *deleted.values()), request.args["model"],
+                                         request.args.get("label", "")[:255])
+            return jsonify(types=types, roster=available, active_ids=list(instances), deleted_ids=list(deleted),
+                           default_name=default_name)
+        except ApiError as exc:
+            return jsonify(error=exc.code, message=exc.message), exc.status
+
     @app.post("/api/v2/runtime-editor/placements")
     def create_runtime_placement():
         data = request.get_json(silent=True)
         if not isinstance(data, dict):
             return jsonify(error="invalid_payload"), 400
-        pid = getattr(g, "ontotwin_project_id", "")
-        if not pid or data.get("expected_project_id") != pid:
-            return jsonify(error="project_context_mismatch"), 409
-        if not request.headers.get("X-OntoTwin-UE-Project-Id") or not request.headers.get("X-OntoTwin-UE-Scene-Id"):
-            return jsonify(error="ue_scene_required"), 403
-        store = get_store()
-        canonical = getattr(store, "base", store)
-        pg_mode = os.environ.get("ONTOTWIN_STORE", "pg").lower() == "pg"
-        if not pg_mode and lookup_with_heal(canonical, request.headers["X-OntoTwin-UE-Project-Id"]) != pid:
-            return jsonify(error="ue_project_mismatch"), 403
-        ok, info, status = check_request_can_write_active(store, request)
-        if not ok:
-            return jsonify(info), status
         try:
+            pid, target = scene_store(data)
             operation_id = UUID(str(data.get("placement_id", "")))
             position = data.get("position")
             if not isinstance(position, dict) or any(
@@ -118,6 +144,8 @@ def register_runtime_placement_routes(app, get_store, snapshot):
                 or abs(position[k]) > 1e10 for k in ("x", "y", "z")
             ):
                 raise ValueError
+        except ApiError as exc:
+            return jsonify(error=exc.code, message=exc.message), exc.status
         except (ValueError, OverflowError):
             return jsonify(error="invalid_placement"), 400
         key = data.get("model")
@@ -136,7 +164,6 @@ def register_runtime_placement_routes(app, get_store, snapshot):
                 return iid, snapshot(iid, project), created
 
             # PG reloads under its row lock. File stores must share the base object's lock.
-            target = store if pg_mode else canonical
             iid, snap, created = target.transact_project(pid, update, include_trash=True)
         except ApiError as exc:
             return jsonify(error=exc.code, message=exc.message), exc.status

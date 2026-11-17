@@ -126,7 +126,7 @@
     function groupInstances(instances) {
         return groupItems(
             instances,
-            item => item.hierarchy_path,
+            item => item.object_type_rid === 'ontotwin.scene_object' ? ['布景'] : item.hierarchy_path,
             item => item.display_name || item.id
         );
     }

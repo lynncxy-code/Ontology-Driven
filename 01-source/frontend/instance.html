@@ -382,7 +382,7 @@
                 <div class="ic-header">
                     <div>
                         <div class="flex flex-wrap items-center gap-3">
-                            <span class="ic-header-id">{{ selectedInst.id }}</span>
+                            <span class="ic-header-id">{{ isScenery(selectedInst) ? '布景' : selectedInst.id }}</span>
                             <span class="ic-tag" :aria-label="instanceLivenessTag(selectedInst).detail">{{ instanceLivenessTag(selectedInst).label }}</span>
                         </div>
                         <div class="ic-header-meta">
@@ -439,7 +439,7 @@
                             <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
                                 <div>
                                     <div class="text-xs font-semibold text-gray-700">端点响应</div>
-                                    <div class="mt-1 text-[11px] font-mono text-gray-500">GET /api/v2/state/snapshot?id={{ selectedInst.id }}</div>
+                                    <div v-if="!isScenery(selectedInst)" class="mt-1 text-[11px] font-mono text-gray-500">GET /api/v2/state/snapshot?id={{ isScenery(selectedInst) ? '布景' : selectedInst.id }}</div>
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <button @click="fetchSnap" type="button"
@@ -514,7 +514,7 @@
                                 </section>
                                 <section class="ic-card" aria-label="实例信息面板">
                                     <div class="ic-section">
-                                        <div class="ic-pair"><span class="ic-row-title">信息面板</span><a :href="'/interaction?target=instance&instance_id=' + encodeURIComponent(selectedInst.id) + '&from=instance'" class="ic-link">配置此实例</a></div>
+                                        <div class="ic-pair"><span class="ic-row-title">信息面板</span><span v-if="isScenery(selectedInst)">先在 F10 中补编号</span><a v-else :href="'/interaction?target=instance&instance_id=' + encodeURIComponent(selectedInst.id) + '&from=instance'" class="ic-link">配置此实例</a></div>
                                         <p class="ic-help">点击模型后的详细信息，可为此实例单独配置；与文字标签独立。</p>
                                     </div>
                                 </section>
@@ -1145,7 +1145,7 @@
                         <input type="checkbox" :value="inst.id" v-model="batchSelectedIds"
                                class="accent-indigo-600 w-4 h-4 cursor-pointer" />
                         <div class="flex-1 min-w-0">
-                            <div class="font-mono text-sm font-bold text-gray-900 truncate">{{ inst.id }}</div>
+                            <div class="font-mono text-sm font-bold text-gray-900 truncate">{{ isScenery(inst) ? '布景' : inst.id }}</div>
                             <div class="text-[11px] text-gray-500">{{ inst.object_type_name }}</div>
                         </div>
                         <div :class="['w-2 h-2 rounded-full flex-shrink-0', instanceLivenessTag(inst).dot]"></div>
@@ -1540,6 +1540,7 @@ createApp({
             return zoneId === filterValue;
         }
 
+        const isScenery = inst => inst?.object_type_rid === 'ontotwin.scene_object';
         const filteredInstances = computed(() => {
             const query = instanceSearchApplied.value.toLowerCase();
             return instances.value.filter(inst => {
@@ -1623,7 +1624,7 @@ createApp({
         );
 
         const zoneCandidates = computed(() => instances.value.filter(inst =>
-            matchesZone(inst, zoneSourceFilter.value) &&
+            !isScenery(inst) && matchesZone(inst, zoneSourceFilter.value) &&
             (!zoneTypeFilter.value || inst.object_type_name === zoneTypeFilter.value)
         ));
         const zoneAllSelected = computed(() =>
@@ -1666,7 +1667,7 @@ createApp({
             batchCandidates.value.some(i => batchSelectedIds.value.includes(i.id))
         );
 
-        const readyTypes = computed(() => objectTypes.value.filter(t => t.has_representable));
+        const readyTypes = computed(() => objectTypes.value.filter(t => t.has_representable && t.rid !== 'ontotwin.scene_object'));
 
         const existingInstanceIdSet = computed(() =>
             new Set(instances.value.map(inst => String(inst.id || '').trim()).filter(Boolean))
@@ -3122,7 +3123,7 @@ createApp({
         });
 
         return {
-            instances, objectTypes, readyTypes, instanceRoster, availableRosterEntries,
+            instances, objectTypes, readyTypes, instanceRoster, availableRosterEntries, isScenery,
             selectedSpawnRosterEntry, spawnIdConflict, spawnIdHint, selectedInst, currentSnap,
             snapshotLoading, snapshotError, snapshotUpdatedAt, controlError, controlSavedMessage, controlDirtyCount, plainLabelSummary,
             controlDialog, controlDialogElement, closeControlDialog, confirmControlDialog, trapControlDialog, refreshInstanceView,

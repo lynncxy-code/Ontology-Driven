@@ -507,7 +507,8 @@ class ProjectStore:
                 with open(os.path.join(self._projects_dir, fn), "r", encoding="utf-8") as f:
                     p = json.load(f)
                 ds = p.get("dataset") or {}
-                insts = p.get("instances") or {}
+                insts = {iid: rec for iid, rec in (p.get("instances") or {}).items()
+                         if rec.get("object_type_rid") != "ontotwin.scene_object"}
                 zones = {r.get("zone_id") for r in insts.values() if isinstance(r, dict) and r.get("zone_id")}
                 unzoned = sum(1 for r in insts.values() if isinstance(r, dict) and not r.get("zone_id"))
                 out.append({

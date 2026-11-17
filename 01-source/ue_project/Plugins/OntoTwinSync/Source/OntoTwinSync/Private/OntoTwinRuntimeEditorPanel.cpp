@@ -169,7 +169,7 @@ void UOntoTwinRuntimeEditorPanel::NativeConstruct()
 {
     Super::NativeConstruct();
     SetIsFocusable(true);
-    if (ModelSelector) PopulateModelLibrary(ModelSource);
+    if (LibraryBounds && LibraryBounds->IsVisible()) PopulateModelLibrary(ModelSource);
 
     if (AccessActionButton)
     {
@@ -397,45 +397,7 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
         UVerticalBox::StaticClass(), TEXT("SceneContent"));
     Body->AddChildToVerticalBox(SceneContent);
 
-    ModelLibraryStatus = CreateText(TEXT("ModelLibraryStatus"), TEXT("模型库"), 11, PrimaryText, true);
-    SceneContent->AddChildToVerticalBox(ModelLibraryStatus);
-    UHorizontalBox* ModelTabs = WidgetTree->ConstructWidget<UHorizontalBox>();
-    SceneContent->AddChildToVerticalBox(ModelTabs);
-    UTextBlock* ButtonLabel = nullptr;
-    UButton* ProjectTab = CreateButton(TEXT("ProjectModels"), TEXT("工程模型"), ButtonLabel, false);
-    UButton* LocalTab = CreateButton(TEXT("LocalModels"), TEXT("本地 Models"), ButtonLabel, false);
-    UButton* ArtTab = CreateButton(TEXT("ArtStudioModels"), TEXT("模型库 Art Studio"), ButtonLabel, false);
-    ModelSourceTabs = {ProjectTab, LocalTab, ArtTab};
-    for (UButton* Tab : ModelSourceTabs)
-        ModelTabs->AddChildToHorizontalBox(Tab)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-    ArtTab->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::ShowArtStudioModels);
-    ProjectTab->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::ShowProjectModels);
-    LocalTab->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::ShowLocalModels);
-    UHorizontalBox* ModelRow = WidgetTree->ConstructWidget<UHorizontalBox>();
-    ModelControls = ModelRow;
-    SceneContent->AddChildToVerticalBox(ModelRow)->SetPadding(FMargin(0, 4, 0, 4));
-    ModelSelector = WidgetTree->ConstructWidget<UComboBoxString>(UComboBoxString::StaticClass(), TEXT("ModelSelector"));
-    ModelSelector->SetWidgetStyle(BuildCompactSelectorStyle());
-    ModelSelector->SetItemStyle(BuildCompactSelectorRowStyle());
-    ModelSelector->SetMaxListHeight(220.f);
-    ModelSelector->OnGenerateWidgetEvent.BindDynamic(
-        this, &UOntoTwinRuntimeEditorPanel::GenerateSelectorOptionWidget);
-    ModelRow->AddChildToHorizontalBox(ModelSelector)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-    UButton* Place = CreateButton(TEXT("PlaceModel"), TEXT("放置"), ButtonLabel, true);
-    PlaceModelButton = Place;
-    ModelRow->AddChildToHorizontalBox(Place);
-    Place->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::PlaceSelectedModel);
-    ModelPreviewBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("ModelPreviewBox"));
-    ModelPreviewBox->SetHeightOverride(170.f);
-    ModelViewport = WidgetTree->ConstructWidget<UViewport>(UViewport::StaticClass(), TEXT("ModelViewport"));
-    ModelViewport->SetBackgroundColor(FLinearColor(0.013f, 0.016f, 0.020f));
-    ModelViewport->SetVisibility(ESlateVisibility::HitTestInvisible);
-    ModelPreviewBox->SetContent(ModelViewport);
-    SceneContent->AddChildToVerticalBox(ModelPreviewBox)->SetPadding(FMargin(0, 0, 0, 8));
-    ModelPreviewMessage = CreateText(TEXT("ModelPreviewMessage"), TEXT(""), 11, SecondaryText);
-    ModelPreviewMessage->SetAutoWrapText(true);
-    SceneContent->AddChildToVerticalBox(ModelPreviewMessage)->SetPadding(FMargin(0, 4, 0, 8));
-    ModelSelector->OnSelectionChanged.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::HandleLibrarySelection);
+    BuildModelLibrary(Root);
 
     UTextBlock* DeviceLabel = CreateText(TEXT("DeviceLabel"), TEXT("选中对象"), 10, MutedText, true);
     SceneContent->AddChildToVerticalBox(DeviceLabel);
@@ -854,7 +816,9 @@ bool UOntoTwinRuntimeEditorPanel::IsPointerOverPanel() const
         return false;
     }
 
-    return PanelBorder->GetCachedGeometry().IsUnderLocation(FSlateApplication::Get().GetCursorPos());
+    const FVector2D MousePosition = FSlateApplication::Get().GetCursorPos();
+    return PanelBorder->GetCachedGeometry().IsUnderLocation(MousePosition) ||
+        (LibraryBounds && LibraryBounds->IsVisible() && LibraryBounds->GetCachedGeometry().IsUnderLocation(MousePosition));
 }
 
 void UOntoTwinRuntimeEditorPanel::HideConfirmation()
@@ -1039,58 +1003,6 @@ UWidget* UOntoTwinRuntimeEditorPanel::GenerateSelectorOptionWidget(FString Item)
     Text->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     RetainedComboTextWidgets.Add(Text);
     return Text;
-}
-
-void UOntoTwinRuntimeEditorPanel::PopulateModelLibrary(EModelSource Source)
-{
-    ModelSource = Source;
-    if (SceneManager) SceneManager->CancelUnconfirmedModelPlacement();
-    ClearLibraryPreview();
-    ModelKeys.Reset();
-    ModelSelector->ClearOptions();
-    for (int32 Index = 0; Index < ModelSourceTabs.Num(); ++Index)
-    {
-        UButton* Tab = ModelSourceTabs[Index];
-        const bool bActive = Index == static_cast<int32>(Source);
-        Tab->SetStyle(BuildButtonStyle(Tab->GetStyle(), bActive));
-        SetTextColor(Cast<UTextBlock>(Tab->GetContent()), bActive ? PanelBackground : PrimaryText);
-    }
-    if (Source != EModelSource::ArtStudio)
-    {
-        for (const auto& Entry : OntoTwinModelLibrary::List(Source == EModelSource::Local))
-        {
-            if (ModelKeys.Contains(Entry.Label)) continue;
-            ModelKeys.Add(Entry.Label, Entry.Key);
-            ModelSelector->AddOption(Entry.Label);
-        }
-    }
-
-    const bool bHasModels = !ModelKeys.IsEmpty();
-    ModelControls->SetVisibility(bHasModels ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
-    ModelLibraryStatus->SetText(FText::FromString(TEXT("模型库")));
-    if (bHasModels)
-    {
-        ModelSelector->SetSelectedIndex(0);
-    }
-    else
-    {
-        const TCHAR* Message = Source == EModelSource::ArtStudio ? TEXT("Art Studio 暂无模型")
-            : Source == EModelSource::Local ? TEXT("本地 Models 文件夹中暂无 GLB 模型") : TEXT("此工程尚未配置模型");
-        ModelPreviewMessage->SetText(FText::FromString(Message));
-        ModelPreviewMessage->SetVisibility(ESlateVisibility::HitTestInvisible);
-    }
-}
-
-void UOntoTwinRuntimeEditorPanel::ShowProjectModels() { PopulateModelLibrary(EModelSource::Project); }
-void UOntoTwinRuntimeEditorPanel::ShowLocalModels() { PopulateModelLibrary(EModelSource::Local); }
-void UOntoTwinRuntimeEditorPanel::ShowArtStudioModels() { PopulateModelLibrary(EModelSource::ArtStudio); }
-void UOntoTwinRuntimeEditorPanel::PlaceSelectedModel()
-{
-    const FString Name = ModelSelector->GetSelectedOption();
-    if (const FString* Key = ModelKeys.Find(Name); Key && SceneManager)
-        SceneManager->BeginModelPlacement(*Key, Name);
-    else
-        ShowToast(TEXT("当前目录没有可放置的模型"), EOntoTwinRuntimeToastType::Info);
 }
 
 void UOntoTwinRuntimeEditorPanel::RefreshFromManager()

@@ -328,7 +328,10 @@ public:
     void RetryRuntimeBindingStatus();
 
     UFUNCTION(BlueprintCallable, Category="OntoTwin|Runtime Editor")
-    bool BeginModelPlacement(const FString& ModelKey, const FString& Label);
+    bool BeginModelPlacement(const FString& ModelKey, const FString& Label, bool bDrag = false);
+    bool CanPlaceRuntimeModel() const { return bRuntimeEditMode && bRuntimeCanSave && !BoundProjectId.IsEmpty(); }
+    void SavePlacementDetails(const FString& Id, const FString& Name, const FString& Rid);
+    bool LocatePlacementConflict(const FString& Id);
     void CancelUnconfirmedModelPlacement();
 
     UFUNCTION(BlueprintCallable, Category="Runtime Editor")
@@ -663,6 +666,9 @@ private:
     double PlacementBottomOffset = 0.0;
     bool bPlacementSending = false;
     bool bPlacementPositionFrozen = false;
+    bool bPlacementDrag = false;
+    FString PlacementBusinessId, PlacementName, PlacementType;
+    void OpenPlacementDetails();
     void CancelModelPlacement();
     void TickModelPlacement(APlayerController* PC, float DeltaTime);
     void ConfirmModelPlacement();

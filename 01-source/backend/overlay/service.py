@@ -400,6 +400,8 @@ class OverlayService:
         instance = (project.get("instances") or {}).get(instance_id)
         if not instance:
             raise OverlayNotFoundError("当前项目中不存在该实例")
+        if instance.get("object_type_rid") == "ontotwin.scene_object":
+            raise OverlayValidationError([{"path": "instance_id", "message": "布景请先在 F10 中补编号"}])
         return instance
 
     @staticmethod
@@ -422,7 +424,7 @@ class OverlayService:
 
         instances = [
             rec for rec in (project.get("instances") or {}).values()
-            if rec.get("object_type_rid") == object_type_rid
+            if rec.get("object_type_rid") == object_type_rid and object_type_rid != "ontotwin.scene_object"
         ]
         instances.sort(key=lambda item: str(item.get("display_name") or item.get("id") or ""))
         if instance is None and instances:

@@ -19,6 +19,9 @@ class UVerticalBox;
 class UWidget;
 class UViewport;
 class UHorizontalBox;
+class UWrapBox;
+class UCanvasPanel;
+class UImage;
 class AActor;
 
 enum class EOntoTwinRuntimePanelConfirmation : uint8
@@ -49,11 +52,15 @@ public:
     void ShowCancelAllConfirmation();
     bool IsPointerOverPanel() const;
     void EndLibraryPreview();
+    void ShowPlacementDetails(const FString& Label, const TSharedPtr<FJsonObject>& Options, const FString& Error);
+    void ClosePlacementDetails();
+    void SetPlacementFeedback(const FString& Message);
     bool IsConfirmationOpen() const;
 
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeConstruct() override;
+    virtual void NativeTick(const FGeometry& Geometry, float DeltaSeconds) override;
     virtual void NativeDestruct() override;
     virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
 
@@ -65,10 +72,28 @@ private:
     UBorder* PanelBorder = nullptr;
 
     UPROPERTY()
-    UComboBoxString* ModelSelector = nullptr;
+    USizeBox* LibraryBounds = nullptr;
     UPROPERTY()
     UTextBlock* ModelLibraryStatus = nullptr;
-    TMap<FString, FString> ModelKeys;
+    UPROPERTY(Transient) UWrapBox* LibraryGrid = nullptr;
+    UPROPERTY(Transient) class UNativeWidgetHost* PlacementFormHost = nullptr;
+    TSharedPtr<class SRuntimePlacementForm> PlacementForm;
+    UPROPERTY(Transient) UEditableTextBox* LibrarySearch = nullptr;
+    UPROPERTY(Transient) UImage* BlueprintImage = nullptr;
+    UPROPERTY(Transient) UHorizontalBox* LocalActions = nullptr;
+    TMap<FString, FString> ModelLabels, ModelErrors, ModelImages, ModelKinds;
+    TArray<FString> OrderedModelKeys;
+    TArray<FString> PendingLocalImages;
+    UPROPERTY(Transient) TMap<FString, TObjectPtr<UTexture2D>> LibraryTextures;
+    UPROPERTY(Transient) TMap<FString, TObjectPtr<UImage>> LibraryIcons;
+    FString SelectedModelKey;
+    void BuildModelLibrary(UCanvasPanel* Root);
+    void RebuildLibraryGrid();
+    void SelectLibraryKey(const FString& Key);
+    UFUNCTION() void ToggleLibrary();
+    UFUNCTION() void RefreshLibrary();
+    UFUNCTION() void OpenModelsFolder();
+    UFUNCTION() void SearchLibrary(const FText& Query);
     enum class EModelSource : uint8 { Project, Local, ArtStudio };
     EModelSource ModelSource = EModelSource::Project;
     UPROPERTY(Transient) UViewport* ModelViewport = nullptr;
@@ -81,7 +106,6 @@ private:
     void ClearLibraryPreview();
     void PopulateModelLibrary(EModelSource Source);
     UFUNCTION() void ShowArtStudioModels();
-    UFUNCTION() void HandleLibrarySelection(FString Label, ESelectInfo::Type Selection);
     UFUNCTION() void ShowProjectModels();
     UFUNCTION() void ShowLocalModels();
     UFUNCTION() void PlaceSelectedModel();

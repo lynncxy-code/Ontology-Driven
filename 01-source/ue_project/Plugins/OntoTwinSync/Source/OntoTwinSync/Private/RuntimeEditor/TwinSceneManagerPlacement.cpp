@@ -7,13 +7,15 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "HttpModule.h"
+#include "Framework/Application/SlateApplication.h"
+#include "GenericPlatform/GenericPlatformHttp.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Serialization/JsonSerializer.h"
 
-bool ATwinSceneManager::BeginModelPlacement(const FString& ModelKey, const FString& Label)
+bool ATwinSceneManager::BeginModelPlacement(const FString& ModelKey, const FString& Label, bool bDrag)
 {
-    if (!bRuntimeEditMode || bPlacementSending || bRuntimeEditSaving || bRuntimeDragging) return false;
+    if (!CanPlaceRuntimeModel() || bPlacementSending || bRuntimeEditSaving || bRuntimeDragging) return false;
     const auto Entries = OntoTwinModelLibrary::List(ModelKey.StartsWith(TEXT("models:")));
     if (!Entries.ContainsByPredicate([&](const auto& Entry) { return Entry.Key == ModelKey && Entry.Label == Label; }))
         return false;
@@ -36,6 +38,7 @@ bool ATwinSceneManager::BeginModelPlacement(const FString& ModelKey, const FStri
     PlacementModelKey = ModelKey;
     PlacementLabel = Label;
     PlacementProjectId = BoundProjectId;
+    bPlacementDrag = bDrag;
     PlacementId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens);
     UWidgetBlueprintLibrary::SetFocusToGameViewport();
     RuntimeStatusMessage = TEXT("移动到放置位置，左键确认，Esc 取消");
@@ -55,6 +58,11 @@ void ATwinSceneManager::CancelModelPlacement()
     PlacementId.Reset();
     PlacementProjectId.Reset();
     bPlacementPositionFrozen = false;
+    bPlacementDrag = false;
+    PlacementBusinessId.Reset();
+    PlacementName.Reset();
+    PlacementType.Reset();
+    if (RuntimeEditorPanel) RuntimeEditorPanel->ClosePlacementDetails();
     bPlacementSending = false;
 }
 
@@ -67,6 +75,8 @@ void ATwinSceneManager::TickModelPlacement(APlayerController* PC, float DeltaTim
         return;
     }
     const bool bOverPanel = RuntimeEditorPanel && RuntimeEditorPanel->IsPointerOverPanel();
+    if (bPlacementPositionFrozen) return;
+    const bool bReleased = bPlacementDrag && !FSlateApplication::Get().GetPressedMouseButtons().Contains(EKeys::LeftMouseButton);
     TickRuntimeEditorCamera(PC, DeltaTime, bOverPanel);
     if (!bPlacementPositionFrozen)
     {
@@ -79,11 +89,57 @@ void ATwinSceneManager::TickModelPlacement(APlayerController* PC, float DeltaTim
         const bool bHit = !bOverPanel && PC->DeprojectMousePositionToWorld(Origin, Direction)
             && GetWorld()->LineTraceSingleByChannel(Hit, Origin, Origin + Direction * 1000000., ECC_Visibility, Query);
         PlacementPreview->SetActorHiddenInGame(!bHit);
-        if (!bHit) return;
+        if (!bHit)
+        {
+            if (bReleased) CancelModelPlacement();
+            return;
+        }
         PlacementPreview->SetActorLocation(Hit.ImpactPoint + FVector(0., 0., PlacementBottomOffset));
     }
-    if (!bOverPanel && PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
-        ConfirmModelPlacement();
+    if (!bOverPanel && (bReleased || (!bPlacementDrag && PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))))
+        OpenPlacementDetails();
+}
+
+void ATwinSceneManager::OpenPlacementDetails()
+{
+    bPlacementPositionFrozen = true;
+    bPlacementDrag = false;
+    const FString Id = PlacementId;
+    RuntimeEditorPanel->ShowPlacementDetails(PlacementLabel, nullptr, TEXT("正在读取放置信息…"));
+    auto Request = FHttpModule::Get().CreateRequest();
+    Request->SetURL(BackendBaseUrl / TEXT("api/v2/runtime-editor/placement-options")
+        + TEXT("?expected_project_id=") + FGenericPlatformHttp::UrlEncode(PlacementProjectId)
+        + TEXT("&model=") + FGenericPlatformHttp::UrlEncode(PlacementModelKey)
+        + TEXT("&label=") + FGenericPlatformHttp::UrlEncode(PlacementLabel));
+    Request->SetVerb(TEXT("GET"));
+    AddUEProjectHeaders(Request);
+    Request->OnProcessRequestComplete().BindWeakLambda(this,[this,Id](FHttpRequestPtr,FHttpResponsePtr Response,bool bOk){
+        if (Id != PlacementId || !RuntimeEditorPanel) return;
+        TSharedPtr<FJsonObject> Options;
+        if (bOk && Response && EHttpResponseCodes::IsOk(Response->GetResponseCode()))
+            FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Response->GetContentAsString()),Options);
+        RuntimeEditorPanel->ShowPlacementDetails(PlacementLabel, Options, Options ? FString() : TEXT("无法读取放置信息，请取消后重试"));
+    });
+    if (!Request->ProcessRequest()) RuntimeEditorPanel->SetPlacementFeedback(TEXT("无法连接后台，请取消后重试"));
+}
+
+bool ATwinSceneManager::LocatePlacementConflict(const FString& Id)
+{
+    ATwinInstance* Instance = InstanceRegistry.FindRef(Id);
+    if (!IsValid(Instance)) return false;
+    CancelModelPlacement();
+    SelectRuntimeInstance(Instance,false);
+    FocusManagedInstance(Instance);
+    return true;
+}
+
+void ATwinSceneManager::SavePlacementDetails(const FString& Id, const FString& Name, const FString& Rid)
+{
+    if (!bPlacementPositionFrozen || bPlacementSending) return;
+    PlacementBusinessId = Id;
+    PlacementName = Name;
+    PlacementType = Rid;
+    ConfirmModelPlacement();
 }
 
 void ATwinSceneManager::ConfirmModelPlacement()
@@ -99,6 +155,9 @@ void ATwinSceneManager::ConfirmModelPlacement()
     Payload->SetStringField(TEXT("expected_project_id"), PlacementProjectId);
     Payload->SetStringField(TEXT("model"), PlacementModelKey);
     Payload->SetStringField(TEXT("label"), PlacementLabel);
+    Payload->SetStringField(TEXT("instance_id"), PlacementBusinessId);
+    Payload->SetStringField(TEXT("display_name"), PlacementName);
+    Payload->SetStringField(TEXT("object_type_rid"), PlacementType);
     const FVector Location = PlacementPreview->GetActorLocation();
     auto Position = MakeShared<FJsonObject>();
     Position->SetNumberField(TEXT("x"), Location.X);
@@ -130,7 +189,7 @@ void ATwinSceneManager::ConfirmModelPlacement()
                 FString Reason;
                 if (Root) Root->TryGetStringField(TEXT("message"), Reason);
                 if (Reason.IsEmpty()) Reason = TEXT("未收到保存确认，可在原位左键重试或按 Esc 退出");
-                if (RuntimeEditorPanel) RuntimeEditorPanel->ShowToast(Reason, EOntoTwinRuntimeToastType::Error);
+                if (RuntimeEditorPanel) RuntimeEditorPanel->SetPlacementFeedback(Reason);
                 return;
             }
             const bool bSameProject = BoundProjectId == PlacementProjectId;

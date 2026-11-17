@@ -4,6 +4,8 @@
 #include "Animation/SkeletalMeshActor.h"
 #include "Camera/CameraTypes.h"
 #include "Components/Button.h"
+#include "Components/Image.h"
+#include "ImageUtils.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "SceneView.h"
@@ -30,18 +32,35 @@ void UOntoTwinRuntimeEditorPanel::ClearLibraryPreview()
 {
     if (AActor* Previous = LibraryPreviewActor.Get()) Previous->Destroy();
     LibraryPreviewActor.Reset();
+    if (BlueprintImage) BlueprintImage->SetVisibility(ESlateVisibility::Collapsed);
     if (ModelPreviewBox) ModelPreviewBox->SetVisibility(ESlateVisibility::Collapsed);
     if (ModelPreviewMessage) ModelPreviewMessage->SetVisibility(ESlateVisibility::Collapsed);
     if (PlaceModelButton) PlaceModelButton->SetIsEnabled(false);
 }
 
-void UOntoTwinRuntimeEditorPanel::HandleLibrarySelection(FString Label, ESelectInfo::Type)
+void UOntoTwinRuntimeEditorPanel::SelectLibraryKey(const FString& Selected)
 {
     if (SceneManager) SceneManager->CancelUnconfirmedModelPlacement();
+    SelectedModelKey = Selected;
     ClearLibraryPreview();
-    const FString* Key = ModelKeys.Find(Label);
-    if (!Key || !ModelViewport || !ModelViewport->GetViewportWorld()) return;
-
+    ModelLibraryStatus->SetText(FText::FromString(ModelLabels.FindRef(Selected)));
+    const FString* Key = &SelectedModelKey;
+    if (const FString* Error = ModelErrors.Find(*Key))
+    {
+        ModelPreviewMessage->SetText(FText::FromString(*Error + TEXT("。请检查原文件，然后刷新模型库。")));
+        ModelPreviewMessage->SetVisibility(ESlateVisibility::Visible);
+        return;
+    }
+    if (ModelKinds.FindRef(*Key) == TEXT("Blueprint"))
+    {
+        BlueprintImage->SetBrushFromTexture(FImageUtils::ImportFileAsTexture2D(ModelImages.FindRef(*Key)));
+        BlueprintImage->SetVisibility(ESlateVisibility::Visible);
+        ModelPreviewMessage->SetText(FText::FromString(TEXT("放置后可查看完整效果")));
+        ModelPreviewMessage->SetVisibility(ESlateVisibility::Visible);
+        PlaceModelButton->SetIsEnabled(true);
+        return;
+    }
+    if (!ModelViewport || !ModelViewport->GetViewportWorld()) return;
     UObject* Asset = nullptr;
     if (Key->StartsWith(TEXT("models:")))
     {
@@ -75,14 +94,10 @@ void UOntoTwinRuntimeEditorPanel::HandleLibrarySelection(FString Label, ESelectI
 
     if (!Component)
     {
-        // Configured Actor Blueprints keep their existing placement path. Browsing never runs their scripts.
-        const UBlueprint* Blueprint = Cast<UBlueprint>(Asset);
-        const UClass* ActorClass = Blueprint ? Blueprint->GeneratedClass.Get() : Cast<UClass>(Asset);
-        const bool bActorBlueprint = ActorClass && ActorClass->IsChildOf(AActor::StaticClass());
-        ModelPreviewMessage->SetText(FText::FromString(bActorBlueprint
-            ? TEXT("此蓝图可点击放置后在场景中预览") : TEXT("模型预览加载失败，请检查资源后重新选择")));
-        ModelPreviewMessage->SetVisibility(ESlateVisibility::HitTestInvisible);
-        PlaceModelButton->SetIsEnabled(bActorBlueprint);
+        ModelErrors.Add(Selected, TEXT("加载失败"));
+        ModelPreviewMessage->SetText(FText::FromString(TEXT("加载失败。请检查资源并刷新模型库。")));
+        ModelPreviewMessage->SetVisibility(ESlateVisibility::Visible);
+        RebuildLibraryGrid();
         return;
     }
 

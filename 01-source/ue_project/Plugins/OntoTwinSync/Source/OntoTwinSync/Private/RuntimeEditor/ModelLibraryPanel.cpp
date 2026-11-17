@@ -22,6 +22,7 @@
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
 #include "ImageUtils.h"
+#include "UI/OntoTwinGlassTheme.h"
 
 namespace
 {
@@ -65,6 +66,9 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     Art->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::ShowArtStudioModels);
     Close->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::ToggleLibrary);
     LibrarySearch = WidgetTree->ConstructWidget<UEditableTextBox>();
+    LibrarySearch->WidgetStyle = FCoreStyle::Get().GetWidgetStyle<FEditableTextBoxStyle>(TEXT("NormalEditableTextBox"));
+    LibrarySearch->WidgetStyle.SetFont(FOntoTwinGlassTheme::Font(11.f)).SetPadding(FMargin(8.f, 5.f))
+        .SetForegroundColor(Ink).SetBackgroundColor(FLinearColor(.06f, .07f, .08f));
     LibrarySearch->SetHintText(FText::FromString(TEXT("搜索模型名称")));
     LibrarySearch->OnTextChanged.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::SearchLibrary);
     Stack->AddChildToVerticalBox(LibrarySearch);
@@ -158,7 +162,7 @@ void UOntoTwinRuntimeEditorPanel::RebuildLibraryGrid()
         Tile->InitializeTile();
         Tile->SetToolTipText(FText::FromString(Name));
         auto* Box = WidgetTree->ConstructWidget<USizeBox>();
-        Box->SetWidthOverride(122);
+        Box->SetWidthOverride(110);
         Tile->SetContent(Box);
         auto* Stack = WidgetTree->ConstructWidget<UVerticalBox>();
         Box->SetContent(Stack);

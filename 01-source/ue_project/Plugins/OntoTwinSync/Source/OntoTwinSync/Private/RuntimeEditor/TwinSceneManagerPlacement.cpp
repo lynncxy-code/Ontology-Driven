@@ -199,6 +199,8 @@ void ATwinSceneManager::ConfirmModelPlacement()
             ProcessSnapshot(*Snapshot);
             FRuntimeEditCommand History;
             History.Label = PlacementLabel;
+            if (const auto* Instance = InstanceRegistry.FindRef(InstanceId))
+                History.Label = Instance->GetTwinDisplayName();
             History.SavedObjectIds.Add(InstanceId);
             History.bCreatedObjects = true;
             RecordRuntimeCommand(MoveTemp(History));

@@ -159,7 +159,10 @@ void UOntoTwinRuntimeEditorPanel::RebuildLibraryGrid()
         Tile->Select.BindWeakLambda(this,[this,Key]{SelectLibraryKey(Key);});
         Tile->Drag.BindWeakLambda(this,[this,Key]{
             if (SceneManager && SceneManager->CanPlaceRuntimeModel() && !ModelErrors.Contains(Key))
+            {
+                SelectLibraryKey(Key);
                 SceneManager->BeginModelPlacement(Key, ModelLabels.FindRef(Key), true);
+            }
         });
         Tile->InitializeTile();
         Tile->SetToolTipText(FText::FromString(Name));

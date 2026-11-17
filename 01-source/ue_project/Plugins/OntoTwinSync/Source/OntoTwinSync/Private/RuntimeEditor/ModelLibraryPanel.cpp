@@ -97,6 +97,7 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     auto* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
     Stack->AddChildToVerticalBox(Row);
     ModelLibraryStatus = CreateText(TEXT("ModelLibraryStatus"),TEXT(""),12,Ink);
+    ModelLibraryStatus->SetAutoWrapText(true);
     Row->AddChildToHorizontalBox(ModelLibraryStatus)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     PlaceModelButton = AddButton(Row,TEXT("PlaceModel"),TEXT("放置"));
     PlaceModelButton->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::PlaceSelectedModel);
@@ -187,11 +188,16 @@ void UOntoTwinRuntimeEditorPanel::RebuildLibraryGrid()
         else Icon->SetColorAndOpacity(FLinearColor(.2f,.2f,.2f));
         LibraryIcons.Add(Key,Icon);
         Stack->AddChildToVerticalBox(ImageBox)->SetHorizontalAlignment(HAlign_Center);
-        Stack->AddChildToVerticalBox(CreateText(NAME_None,Name,11,Ink));
+        auto* NameText = CreateText(NAME_None,Name,11,Ink);
+        NameText->SetWrapTextAt(110.f);
+        NameText->SetWrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping);
+        Stack->AddChildToVerticalBox(NameText);
         if (const FString* Error = ModelErrors.Find(Key))
         {
             Tile->SetRenderOpacity(.55f);
-            Stack->AddChildToVerticalBox(CreateText(NAME_None,TEXT("⚠ ") + *Error,10,Ink));
+            auto* ErrorText = CreateText(NAME_None,TEXT("⚠ ") + *Error,10,Ink);
+            ErrorText->SetWrapTextAt(110.f);
+            Stack->AddChildToVerticalBox(ErrorText);
         }
         LibraryGrid->AddChildToWrapBox(Tile);
     }

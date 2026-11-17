@@ -450,7 +450,7 @@ class ProjectStorePG(ProjectStore):
                         )
         self._dirty = False
 
-    def transact_project(self, pid, updater):
+    def transact_project(self, pid, updater, *, include_trash=False):
         """Read-modify-write on one connection/row lock, never resurrect a deleted project."""
         with self._lock:
             previous, dirty_before = self._current, self._dirty
@@ -463,7 +463,15 @@ class ProjectStorePG(ProjectStore):
                     # Read under the row lock: request-scoped snapshots may predate another commit.
                     project = self._read_project(pid, conn)
                     working = copy.deepcopy(project)
-                    result = updater(working)
+                    if include_trash:
+                        with conn.cursor() as cur:
+                            cur.execute("""SELECT id, display_name, object_type_rid, render_config
+                                           FROM instance WHERE project_id=%s AND deleted_at IS NOT NULL""", (pid,))
+                            deleted = {iid: {"display_name": name, "object_type_rid": rid, "render_config": config or {}}
+                                       for iid, name, rid, config in cur.fetchall()}
+                        result = updater(working, deleted)
+                    else:
+                        result = updater(working)
                     self._current = working
                     self._save_current(conn)
             except Exception:

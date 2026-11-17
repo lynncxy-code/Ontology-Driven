@@ -689,7 +689,19 @@ class ProjectStore:
                     # 不是激活项目 → 还原 _current，避免污染激活态
                     self._current = saved
 
-    def transact_project(self, pid, updater):
+    def _trashed_instances(self, pid):
+        records = {}
+        for entry in self.list_trash():
+            if entry.get("project_id") != pid or entry["kind"] not in ("instance", "scene"):
+                continue
+            _, payload = self._trash.get_snapshot(entry["id"])
+            if payload and entry["kind"] == "instance":
+                records[payload["instance_id"]] = payload["record"]
+            elif payload:
+                records.update(payload.get("instances", {}))
+        return records
+
+    def transact_project(self, pid, updater, *, include_trash=False):
         """Atomically read, update and persist a project by id.
 
         The updater receives a detached copy. Failed writes therefore cannot
@@ -700,7 +712,7 @@ class ProjectStore:
             if project is None:
                 raise ValueError(f"project not found: {pid}")
             working = copy.deepcopy(project)
-            result = updater(working)
+            result = updater(working, self._trashed_instances(pid)) if include_trash else updater(working)
             previous = self._current
             dirty_before = self._dirty
             try:

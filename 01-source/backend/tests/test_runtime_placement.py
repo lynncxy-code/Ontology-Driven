@@ -52,3 +52,45 @@ def test_binding_required(client, store, placement):
     assert client.post(URL, headers={**HEADERS, "X-OntoTwin-UE-Project-Id": "OTHER"}, json=placement).status_code == 403
     assert client.post(URL, headers=HEADERS, json={**placement, "expected_project_id": "other"}).status_code == 409
     assert not store.read_project("p_test")["instances"]
+
+
+def test_scenery_names_trash_and_purge(client, store, placement):
+    def place(**fields):
+        response = client.post(URL, headers=HEADERS, json={**placement, "label": "货架",
+                               "placement_id": str(uuid4()), **fields})
+        assert response.status_code == 201, response.json
+        iid = response.json["instance_id"]
+        return iid, store.read_project("p_test")["instances"][iid]["display_name"]
+
+    first, name = place()
+    assert name == "货架 01"
+    store.remove(first)
+    second, name = place()
+    assert name == "货架 02"
+    store.remove(second)
+    store.purge_trash()
+    new_id, name = place()
+    assert name == "货架 01" and new_id != first
+    duplicate, name = place(display_name="货架 01")
+    assert name == "货架 01" and duplicate != new_id
+    assert not store.get_roster()
+
+
+def test_business_placement_roster_retry_and_conflicts(client, store, placement):
+    def setup(project):
+        project["object_types"]["robot"] = {"rid": "robot", "name": "机器人",
+                                            "injected_interfaces": ["I3D_Representable", "I3D_Spatial"]}
+        project["instance_roster"] = [{"instance_id": "R-017", "type": "机器人", "name": "装配臂"}]
+    store.transact_project("p_test", setup)
+    data = {**placement, "instance_id": "R-017"}
+    assert client.post(URL, headers=HEADERS, json=data).status_code == 201
+    assert client.post(URL, headers=HEADERS, json=data).status_code == 200
+    rec = store.read_project("p_test")["instances"]["R-017"]
+    assert (rec["display_name"], rec["object_type_rid"]) == ("装配臂", "robot")
+    other = {**data, "placement_id": str(uuid4())}
+    assert client.post(URL, headers=HEADERS, json=other).json["error"] == "already_placed"
+    store.remove("R-017")
+    assert client.post(URL, headers=HEADERS, json=other).json["error"] == "in_trash"
+    new = {**other, "instance_id": "R-018", "object_type_rid": "robot", "display_name": "二号臂"}
+    assert client.post(URL, headers=HEADERS, json=new).status_code == 201
+    assert [row["instance_id"] for row in store.get_roster()] == ["R-017", "R-018"]

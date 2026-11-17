@@ -329,6 +329,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="OntoTwin|Runtime Editor")
     bool BeginModelPlacement(const FString& ModelKey, const FString& Label);
+    void CancelUnconfirmedModelPlacement();
 
     UFUNCTION(BlueprintCallable, Category="Runtime Editor")
     void SetRuntimeWallSnapEnabled(bool bEnabled);

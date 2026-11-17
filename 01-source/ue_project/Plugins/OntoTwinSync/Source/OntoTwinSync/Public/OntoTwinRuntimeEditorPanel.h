@@ -17,6 +17,9 @@ class USizeBox;
 class UTextBlock;
 class UVerticalBox;
 class UWidget;
+class UViewport;
+class UHorizontalBox;
+class AActor;
 
 enum class EOntoTwinRuntimePanelConfirmation : uint8
 {
@@ -45,6 +48,7 @@ public:
     void ShowExitConfirmation();
     void ShowCancelAllConfirmation();
     bool IsPointerOverPanel() const;
+    void EndLibraryPreview();
     bool IsConfirmationOpen() const;
 
 protected:
@@ -65,7 +69,19 @@ private:
     UPROPERTY()
     UTextBlock* ModelLibraryStatus = nullptr;
     TMap<FString, FString> ModelKeys;
-    void PopulateModelLibrary(bool bLocal);
+    enum class EModelSource : uint8 { Project, Local, ArtStudio };
+    EModelSource ModelSource = EModelSource::Project;
+    UPROPERTY(Transient) UViewport* ModelViewport = nullptr;
+    UPROPERTY(Transient) USizeBox* ModelPreviewBox = nullptr;
+    UPROPERTY(Transient) UTextBlock* ModelPreviewMessage = nullptr;
+    UPROPERTY(Transient) UHorizontalBox* ModelControls = nullptr;
+    UPROPERTY(Transient) UButton* PlaceModelButton = nullptr;
+    UPROPERTY(Transient) TArray<TObjectPtr<UButton>> ModelSourceTabs;
+    TWeakObjectPtr<AActor> LibraryPreviewActor;
+    void ClearLibraryPreview();
+    void PopulateModelLibrary(EModelSource Source);
+    UFUNCTION() void ShowArtStudioModels();
+    UFUNCTION() void HandleLibrarySelection(FString Label, ESelectInfo::Type Selection);
     UFUNCTION() void ShowProjectModels();
     UFUNCTION() void ShowLocalModels();
     UFUNCTION() void PlaceSelectedModel();

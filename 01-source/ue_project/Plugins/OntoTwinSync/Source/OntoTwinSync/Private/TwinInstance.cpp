@@ -44,9 +44,6 @@
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
-// glTFRuntime —— 运行时加载磁盘上的 glb/gltf（B2 方案，模型不参与打包）
-#include "glTFRuntimeFunctionLibrary.h"
-#include "glTFRuntimeAsset.h"
 #include "Blueprint/UserWidget.h"
 #include "GameFramework/PlayerController.h"
 
@@ -2011,26 +2008,8 @@ bool ATwinInstance::LoadGltfFromFile(const FString& FilePath)
 {
     UE_LOG(LogTemp, Log, TEXT("[孪生体] 运行时加载 glb: %s"), *FilePath);
 
-    // glTF 以米为单位，UE 以厘米，SceneScale=100 做单位换算
-    FglTFRuntimeConfig LoaderConfig;
-    LoaderConfig.TransformBaseType = EglTFRuntimeTransformBaseType::Default;
-    LoaderConfig.SceneScale = 100.0f;
+    UStaticMesh* Mesh = OntoTwinModelLibrary::LoadGltfMesh(FilePath, true);
 
-    UglTFRuntimeAsset* Asset =
-        UglTFRuntimeFunctionLibrary::glTFLoadAssetFromFilename(FilePath, false, LoaderConfig);
-    if (!Asset)
-    {
-        UE_LOG(LogTemp, Error, TEXT("[孪生体] glb 解析失败: %s"), *FilePath);
-        return false;
-    }
-
-    // 把整个默认场景的所有静态网格递归合并成一个 StaticMesh
-    FglTFRuntimeStaticMeshConfig MeshConfig;
-    MeshConfig.bBuildSimpleCollision = true;
-    MeshConfig.NormalsGenerationStrategy = EglTFRuntimeNormalsGenerationStrategy::IfMissing;
-    MeshConfig.TangentsGenerationStrategy = EglTFRuntimeTangentsGenerationStrategy::IfMissing;
-
-    UStaticMesh* Mesh = Asset->LoadStaticMeshRecursive(FString(), TArray<FString>(), MeshConfig);
     if (!Mesh)
     {
         UE_LOG(LogTemp, Error, TEXT("[孪生体] glb 网格生成失败: %s"), *FilePath);

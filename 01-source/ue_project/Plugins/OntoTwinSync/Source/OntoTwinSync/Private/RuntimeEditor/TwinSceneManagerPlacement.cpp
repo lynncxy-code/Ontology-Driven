@@ -43,6 +43,11 @@ bool ATwinSceneManager::BeginModelPlacement(const FString& ModelKey, const FStri
     return true;
 }
 
+void ATwinSceneManager::CancelUnconfirmedModelPlacement()
+{
+    if (PlacementPreview && !bPlacementSending) CancelModelPlacement();
+}
+
 void ATwinSceneManager::CancelModelPlacement()
 {
     if (IsValid(PlacementPreview)) PlacementPreview->Destroy();

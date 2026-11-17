@@ -2,6 +2,23 @@
 #include "HAL/FileManager.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Paths.h"
+#include "glTFRuntimeFunctionLibrary.h"
+#include "glTFRuntimeAsset.h"
+
+UStaticMesh* OntoTwinModelLibrary::LoadGltfMesh(const FString& FilePath, bool bBuildCollision)
+{
+    FglTFRuntimeConfig Loader;
+    Loader.TransformBaseType = EglTFRuntimeTransformBaseType::Default;
+    Loader.SceneScale = 100.f; // metres to UE centimetres
+    auto* Asset = UglTFRuntimeFunctionLibrary::glTFLoadAssetFromFilename(FilePath, false, Loader);
+    if (!Asset) return nullptr;
+
+    FglTFRuntimeStaticMeshConfig Config;
+    Config.bBuildSimpleCollision = bBuildCollision;
+    Config.NormalsGenerationStrategy = EglTFRuntimeNormalsGenerationStrategy::IfMissing;
+    Config.TangentsGenerationStrategy = EglTFRuntimeTangentsGenerationStrategy::IfMissing;
+    return Asset->LoadStaticMeshRecursive(FString(), TArray<FString>(), Config);
+}
 
 namespace
 {

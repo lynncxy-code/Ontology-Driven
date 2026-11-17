@@ -3849,16 +3849,13 @@ void ATwinSceneManager::ShowRuntimeEditorPanel()
     RuntimeEditorPanel->SetSceneManager(this);
     RuntimeEditorPanel->AddToViewport(1000);
     UE_LOG(LogTemp, Log, TEXT("[RuntimeEditor] 面板已创建并添加到视口"));
-    if (GEngine)
-    {
-        GEngine->AddOnScreenDebugMessage(-1, 4.0f, FColor::Cyan, TEXT("Runtime Editor panel opened"));
-    }
 }
 
 void ATwinSceneManager::HideRuntimeEditorPanel()
 {
     if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel))
     {
+        RuntimeEditorPanel->EndLibraryPreview();
         RuntimeEditorPanel->RemoveFromParent();
     }
     RuntimeEditorPanel = nullptr;

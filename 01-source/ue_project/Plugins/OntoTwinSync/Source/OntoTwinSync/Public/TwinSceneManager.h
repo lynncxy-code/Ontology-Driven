@@ -327,6 +327,9 @@ public:
     UFUNCTION(BlueprintCallable, Category="Runtime Editor")
     void RetryRuntimeBindingStatus();
 
+    UFUNCTION(BlueprintCallable, Category="OntoTwin|Runtime Editor")
+    bool BeginModelPlacement(const FString& ModelKey, const FString& Label);
+
     UFUNCTION(BlueprintCallable, Category="Runtime Editor")
     void SetRuntimeWallSnapEnabled(bool bEnabled);
 
@@ -650,6 +653,19 @@ private:
     double RuntimeEditSelfTestStartSeconds = 0.0;
     bool bRuntimeEditDirty = false;
     bool bRuntimeEditSaving = false;
+    UPROPERTY(Transient)
+    ATwinInstance* PlacementPreview = nullptr;
+    FString PlacementModelKey;
+    FString PlacementLabel;
+    FString PlacementId;
+    FString PlacementProjectId;
+    double PlacementBottomOffset = 0.0;
+    bool bPlacementSending = false;
+    bool bPlacementPositionFrozen = false;
+    void CancelModelPlacement();
+    void TickModelPlacement(APlayerController* PC, float DeltaTime);
+    void ConfirmModelPlacement();
+
     bool bRuntimeBindingRequestInFlight = false;
     /** Shipping startup binding may race backend/container readiness. */
     bool bRuntimeProjectBound = false;
@@ -860,7 +876,7 @@ private:
     void RequestRuntimeEditToggle();
     void EnterRuntimeEditMode();
     void ExitRuntimeEditMode();
-    bool StartRuntimeEditorCamera(APlayerController* PlayerController);
+    bool StartRuntimeEditorCamera(APlayerController* PlayerController, const FTransform& CameraTransform, float Fov);
     void StopRuntimeEditorCamera(APlayerController* PlayerController);
     void TickRuntimeEditorCamera(
         APlayerController* PlayerController,

@@ -460,7 +460,10 @@ class ProjectStorePG(ProjectStore):
                         cur.execute('SELECT id FROM project WHERE id=%s AND deleted_at IS NULL FOR UPDATE', (pid,))
                         if cur.fetchone() is None:
                             raise ValueError(f'project not found: {pid}')
-                    project = self._current if self._active_id == pid else self._read_project(pid, conn)
+                    if self._active_id == pid and not getattr(self, "_request_scoped", False):
+                        project = self._current
+                    else:
+                        project = self._read_project(pid, conn)
                     working = copy.deepcopy(project)
                     result = updater(working)
                     self._current = working

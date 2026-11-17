@@ -61,6 +61,16 @@ private:
     UBorder* PanelBorder = nullptr;
 
     UPROPERTY()
+    UComboBoxString* ModelSelector = nullptr;
+    UPROPERTY()
+    UTextBlock* ModelLibraryStatus = nullptr;
+    TMap<FString, FString> ModelKeys;
+    void PopulateModelLibrary(bool bLocal);
+    UFUNCTION() void ShowProjectModels();
+    UFUNCTION() void ShowLocalModels();
+    UFUNCTION() void PlaceSelectedModel();
+
+    UPROPERTY()
     USizeBox* PanelBounds = nullptr;
 
     UPROPERTY()
@@ -269,7 +279,7 @@ private:
     void HandleBusinessSelected(FString SelectedItem, ESelectInfo::Type SelectionType);
 
     UFUNCTION()
-    UWidget* GenerateBusinessOptionWidget(FString Item);
+    UWidget* GenerateSelectorOptionWidget(FString Item);
 
     UFUNCTION()
     void HandleCreateBusinessClicked();

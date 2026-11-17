@@ -8,6 +8,7 @@
 // ============================================================================
 
 #include "TwinInstance.h"
+#include "RuntimeEditor/RuntimeModelLibrary.h"
 #include "OntoTwinConnectionContext.h"
 #include "TwinSceneManager.h"
 #include "EngineUtils.h"
@@ -845,6 +846,16 @@ void ATwinInstance::TriggerPresentationFx(const FString& FxName)
 // ═══════════════════════════════════════════════════════════════════════════
 // 资产加载
 // ═══════════════════════════════════════════════════════════════════════════
+
+bool ATwinInstance::InitializePlacementPreview(const FString& ModelKey)
+{
+    const bool bLoaded = LoadMeshFromPath(ModelKey);
+    SetActorEnableCollision(false);
+    SetActorTickEnabled(false);
+    if (LabelComponent) LabelComponent->SetVisibility(false);
+    if (OverlayWidgetComponent) OverlayWidgetComponent->SetVisibility(false);
+    return bLoaded;
+}
 
 bool ATwinInstance::LoadMeshFromPath(const FString& MeshPath)
 {
@@ -1931,6 +1942,7 @@ static FString FindVersionedModelFile(const FString& Directory, const FString& F
 
 FString ATwinInstance::ResolveModelFilePath(const FString& AssetId) const
 {
+    if (AssetId.StartsWith(TEXT("models:"))) return OntoTwinModelLibrary::ResolveLocal(AssetId);
     // 在候选目录里找 <file>，返回第一个存在的；都没有则返回空串。
     // 优先级：① 固定目录（ini 可配，默认 kDefaultModelsDir）—— 编辑器/打包共用，零拷贝；
     //         ②③④ exe 相对的 Models/（兜底，兼容把模型丢在包旁的情况）。

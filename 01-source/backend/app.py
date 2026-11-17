@@ -5905,6 +5905,12 @@ register_label_routes(app, lambda: _object_types, _persist_active_project)
 from overlay import register_overlay_routes
 overlay_service = register_overlay_routes(app, project_store, _refresh_object_types_after_overlay_save)
 
+from runtime_placement import register_runtime_placement_routes
+register_runtime_placement_routes(
+    app, lambda: project_store,
+    lambda iid, project: _build_snapshot(iid, _project_snapshot_context(project)),
+)
+
 from scene_interaction import register_scene_interaction_routes
 register_scene_interaction_routes(app, project_store)
 

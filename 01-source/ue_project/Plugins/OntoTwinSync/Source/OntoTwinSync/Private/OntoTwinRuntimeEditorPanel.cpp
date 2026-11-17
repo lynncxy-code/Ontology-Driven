@@ -1,4 +1,5 @@
 #include "OntoTwinRuntimeEditorPanel.h"
+#include "RuntimeEditor/RuntimeModelLibrary.h"
 
 #include "TwinSceneManager.h"
 #include "UI/OntoTwinGlassTheme.h"
@@ -393,6 +394,31 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
         UVerticalBox::StaticClass(), TEXT("SceneContent"));
     Body->AddChildToVerticalBox(SceneContent);
 
+    ModelLibraryStatus = CreateText(TEXT("ModelLibraryStatus"), TEXT("模型库"), 11, PrimaryText, true);
+    SceneContent->AddChildToVerticalBox(ModelLibraryStatus);
+    UHorizontalBox* ModelTabs = WidgetTree->ConstructWidget<UHorizontalBox>();
+    SceneContent->AddChildToVerticalBox(ModelTabs);
+    UTextBlock* ButtonLabel = nullptr;
+    UButton* ProjectTab = CreateButton(TEXT("ProjectModels"), TEXT("工程模型"), ButtonLabel, false);
+    UButton* LocalTab = CreateButton(TEXT("LocalModels"), TEXT("本地 Models"), ButtonLabel, false);
+    ModelTabs->AddChildToHorizontalBox(ProjectTab)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    ModelTabs->AddChildToHorizontalBox(LocalTab)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    ProjectTab->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::ShowProjectModels);
+    LocalTab->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::ShowLocalModels);
+    UHorizontalBox* ModelRow = WidgetTree->ConstructWidget<UHorizontalBox>();
+    SceneContent->AddChildToVerticalBox(ModelRow)->SetPadding(FMargin(0, 4, 0, 8));
+    ModelSelector = WidgetTree->ConstructWidget<UComboBoxString>(UComboBoxString::StaticClass(), TEXT("ModelSelector"));
+    ModelSelector->SetWidgetStyle(BuildCompactSelectorStyle());
+    ModelSelector->SetItemStyle(BuildCompactSelectorRowStyle());
+    ModelSelector->SetMaxListHeight(220.f);
+    ModelSelector->OnGenerateWidgetEvent.BindDynamic(
+        this, &UOntoTwinRuntimeEditorPanel::GenerateSelectorOptionWidget);
+    ModelRow->AddChildToHorizontalBox(ModelSelector)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    UButton* Place = CreateButton(TEXT("PlaceModel"), TEXT("放置"), ButtonLabel, true);
+    ModelRow->AddChildToHorizontalBox(Place);
+    Place->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::PlaceSelectedModel);
+    ShowProjectModels();
+
     UTextBlock* DeviceLabel = CreateText(TEXT("DeviceLabel"), TEXT("选中对象"), 10, MutedText, true);
     SceneContent->AddChildToVerticalBox(DeviceLabel);
 
@@ -424,8 +450,8 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     TypeNameCopyButton->SetStyle(BuildCopyValueButtonStyle(TypeNameCopyButton->GetStyle()));
     TypeNameCopyButton->SetToolTipText(FText::FromString(TEXT("点击复制完整类型名称")));
     TypeNameText = CreateText(TEXT("TypeNameText"), TEXT("-"), 11, SecondaryText, true);
-    TypeNameText->SetAutoWrapText(true);
-    TypeNameText->SetWrapTextAt(250.0f);
+    TypeNameText->SetAutoWrapText(false);
+    TypeNameText->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
     TypeNameText->SetJustification(ETextJustify::Right);
     TypeNameCopyButton->SetContent(TypeNameText);
     UGridSlot* TypeNameSlot = IdentityGrid->AddChildToGrid(TypeNameCopyButton, 1, 1);
@@ -537,7 +563,7 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     BusinessSelector->SetToolTipText(FText::FromString(
         TEXT("选择业务后切换所选对象的业务归属。")));
     BusinessSelector->OnGenerateWidgetEvent.BindDynamic(
-        this, &UOntoTwinRuntimeEditorPanel::GenerateBusinessOptionWidget);
+        this, &UOntoTwinRuntimeEditorPanel::GenerateSelectorOptionWidget);
     UVerticalBoxSlot* BusinessSelectorSlot =
         BusinessContent->AddChildToVerticalBox(BusinessSelector);
     BusinessSelectorSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 12.0f));
@@ -986,7 +1012,7 @@ void UOntoTwinRuntimeEditorPanel::RefreshBusinessEditor()
     if (BusinessNameInput) BusinessNameInput->SetIsEnabled(SelectionCount > 0 && bHasSnapshot);
 }
 
-UWidget* UOntoTwinRuntimeEditorPanel::GenerateBusinessOptionWidget(FString Item)
+UWidget* UOntoTwinRuntimeEditorPanel::GenerateSelectorOptionWidget(FString Item)
 {
     UTextBlock* Text = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
     Text->SetText(FText::FromString(Item));
@@ -995,6 +1021,33 @@ UWidget* UOntoTwinRuntimeEditorPanel::GenerateBusinessOptionWidget(FString Item)
     Text->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     RetainedComboTextWidgets.Add(Text);
     return Text;
+}
+
+void UOntoTwinRuntimeEditorPanel::PopulateModelLibrary(bool bLocal)
+{
+    const auto Entries = OntoTwinModelLibrary::List(bLocal);
+    ModelKeys.Reset();
+    ModelSelector->ClearOptions();
+    for (const auto& Entry : Entries)
+    {
+        if (ModelKeys.Contains(Entry.Label)) continue;
+        ModelKeys.Add(Entry.Label, Entry.Key);
+        ModelSelector->AddOption(Entry.Label);
+    }
+    if (ModelSelector->GetOptionCount()) ModelSelector->SetSelectedIndex(0);
+    ModelLibraryStatus->SetText(FText::FromString(FString::Printf(TEXT("%s · %d"),
+        bLocal ? TEXT("本地 Models") : TEXT("工程模型"), ModelKeys.Num())));
+}
+
+void UOntoTwinRuntimeEditorPanel::ShowProjectModels() { PopulateModelLibrary(false); }
+void UOntoTwinRuntimeEditorPanel::ShowLocalModels() { PopulateModelLibrary(true); }
+void UOntoTwinRuntimeEditorPanel::PlaceSelectedModel()
+{
+    const FString Name = ModelSelector->GetSelectedOption();
+    if (const FString* Key = ModelKeys.Find(Name); Key && SceneManager)
+        SceneManager->BeginModelPlacement(*Key, Name);
+    else
+        ShowToast(TEXT("当前目录没有可放置的模型"), EOntoTwinRuntimeToastType::Info);
 }
 
 void UOntoTwinRuntimeEditorPanel::RefreshFromManager()

@@ -3229,10 +3229,6 @@ void ATwinSceneManager::ToggleRuntimeEditMode()
         return;
     }
 
-    if (!bRuntimeEditMode && InteractionManager && InteractionManager->IsRoamingActive())
-    {
-        InteractionManager->ExitRoaming();
-    }
 
     if (bRuntimeEditMode)
     {
@@ -3246,6 +3242,8 @@ void ATwinSceneManager::ToggleRuntimeEditMode()
 
 void ATwinSceneManager::RequestRuntimeEditToggle()
 {
+    if (bPlacementSending) return;
+    CancelModelPlacement();
     if (bRuntimeEditMode && RuntimeEditorPanel && IsValid(RuntimeEditorPanel)
         && RuntimeEditorPanel->IsConfirmationOpen())
     {
@@ -3296,6 +3294,10 @@ void ATwinSceneManager::EnterRuntimeEditMode()
         return;
     }
 
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    const FTransform EntryView = BuildRuntimeEditorCameraTransform(PC);
+    const float EntryFov = PC && PC->PlayerCameraManager ? PC->PlayerCameraManager->GetFOVAngle() : 90.f;
+    if (InteractionManager && InteractionManager->IsRoamingActive()) InteractionManager->ExitRoaming();
     if (InteractionManager) InteractionManager->SetRuntimeEditorSuppressed(true);
     if (WebInteractionManager) WebInteractionManager->SetRuntimeEditorSuppressed(true);
     RuntimeBusinessConfig.Reset();
@@ -3318,11 +3320,10 @@ void ATwinSceneManager::EnterRuntimeEditMode()
     RuntimeStatusMessage = TEXT("运行时编辑已开启");
     SetPollTimerInterval(EditModePollInterval, EditModePollInterval);
 
-    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
     if (PC)
     {
         bRuntimePreviousMouseCursor = PC->bShowMouseCursor;
-        if (bEnableRuntimeEditorFreeCamera && !StartRuntimeEditorCamera(PC))
+        if (bEnableRuntimeEditorFreeCamera && !StartRuntimeEditorCamera(PC, EntryView, EntryFov))
         {
             RuntimeStatusMessage = TEXT("运行时编辑已开启，自由相机不可用");
         }
@@ -3365,6 +3366,7 @@ void ATwinSceneManager::FinishExitRuntimeEditMode()
 {
     if (!bRuntimeEditMode) return;
 
+    CancelModelPlacement();
     const bool bEnterRoamingAfterExit = bRuntimeEnterRoamingAfterExit;
     bRuntimeEnterRoamingAfterExit = false;
 
@@ -3455,6 +3457,12 @@ void ATwinSceneManager::TickRuntimeEditor(float DeltaTime)
 
     if (!bRuntimeEditMode)
     {
+        return;
+    }
+
+    if (PlacementPreview)
+    {
+        TickModelPlacement(PC, DeltaTime);
         return;
     }
 
@@ -3629,13 +3637,13 @@ void ATwinSceneManager::TickRuntimeEditor(float DeltaTime)
     UpdateRuntimeEditorPanel();
 }
 
-bool ATwinSceneManager::StartRuntimeEditorCamera(APlayerController* PlayerController)
+bool ATwinSceneManager::StartRuntimeEditorCamera(APlayerController* PlayerController, const FTransform& CameraTransform, float Fov)
 {
     if (!PlayerController || !GetWorld()) return false;
     if (RuntimeEditorCameraPawn && IsValid(RuntimeEditorCameraPawn)) return true;
 
     RuntimeEditorOriginalPawn = PlayerController->GetPawn();
-    const FTransform CameraTransform = BuildRuntimeEditorCameraTransform(PlayerController);
+
 
     FActorSpawnParameters SpawnParams;
     SpawnParams.Owner = this;
@@ -3653,6 +3661,7 @@ bool ATwinSceneManager::StartRuntimeEditorCamera(APlayerController* PlayerContro
     const bool bUsesGodViewLookSensitivity = InteractionManager
         && InteractionManager->GetGodViewLookSensitivity(LookSensitivity);
     RuntimeEditorCameraPawn->Configure(RuntimeEditorCameraMoveSpeedCmS, LookSensitivity);
+    if (RuntimeEditorCameraPawn->Camera) RuntimeEditorCameraPawn->Camera->SetFieldOfView(Fov);
     PlayerController->Possess(RuntimeEditorCameraPawn);
     PlayerController->SetControlRotation(CameraTransform.Rotator());
 

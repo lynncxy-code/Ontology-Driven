@@ -69,7 +69,7 @@ bool Gather(TMap<FString, FItem>& Items, TArray<FString>& Roots, bool bUpdate)
                          UBlueprint::StaticClass()->GetClassPathName()};
     Filter.bRecursiveClasses = true;
     IAssetRegistry& Registry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
-    Registry.ScanPathsSynchronous(Roots);
+    Registry.ScanPathsSynchronous(Roots, true);
     TArray<FAssetData> Assets;
     Registry.GetAssets(Filter, Assets);
     TSet<FName> Parts;

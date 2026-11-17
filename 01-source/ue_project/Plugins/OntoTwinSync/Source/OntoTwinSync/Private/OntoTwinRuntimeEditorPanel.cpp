@@ -1,5 +1,6 @@
 #include "OntoTwinRuntimeEditorPanel.h"
 #include "RuntimeEditor/RuntimeModelLibrary.h"
+#include "Components/NativeWidgetHost.h"
 
 #include "TwinSceneManager.h"
 #include "UI/OntoTwinGlassTheme.h"
@@ -278,6 +279,11 @@ FReply UOntoTwinRuntimeEditorPanel::NativeOnKeyDown(
 {
     if (InKeyEvent.GetKey() == EKeys::Escape && IsConfirmationOpen())
     {
+        if (PlacementFormHost && PlacementFormHost->IsVisible() && SceneManager)
+        {
+            SceneManager->DismissObjectForm();
+            return FReply::Handled();
+        }
         if (SceneManager) SceneManager->CancelRuntimeEditExitRequest();
         HideConfirmation();
         return FReply::Handled();
@@ -807,8 +813,9 @@ void UOntoTwinRuntimeEditorPanel::ShowCancelAllConfirmation()
 
 bool UOntoTwinRuntimeEditorPanel::IsConfirmationOpen() const
 {
-    return ConfirmationMode != EOntoTwinRuntimePanelConfirmation::None &&
-        ConfirmationOverlay && ConfirmationOverlay->GetVisibility() != ESlateVisibility::Collapsed;
+    return (PlacementFormHost && PlacementFormHost->IsVisible()) ||
+        (ConfirmationMode != EOntoTwinRuntimePanelConfirmation::None &&
+        ConfirmationOverlay && ConfirmationOverlay->GetVisibility() != ESlateVisibility::Collapsed);
 }
 
 bool UOntoTwinRuntimeEditorPanel::IsPointerOverPanel() const

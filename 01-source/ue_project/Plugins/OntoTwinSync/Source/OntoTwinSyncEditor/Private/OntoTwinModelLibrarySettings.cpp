@@ -178,7 +178,7 @@ void Process(bool bUpdate)
         if (!bImageCurrent || !(*Prior)->TryGetStringField(TEXT("label"), Name) || Name != Item.Label)
             Changes.Add((Prior ? TEXT("变更 ") : TEXT("新增或移入 ")) + Key);
         if (!bUpdate) continue;
-        if (!bImageCurrent && !RenderImage(Item))
+        if (!RenderImage(Item))
         {
             Report(TEXT("缩略图生成失败：") + Key, true);
             return;

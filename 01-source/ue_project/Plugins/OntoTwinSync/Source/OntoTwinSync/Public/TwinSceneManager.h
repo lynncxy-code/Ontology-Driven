@@ -738,6 +738,7 @@ private:
 
     struct FRuntimeEditValue
     {
+        FString InstanceId;
         TWeakObjectPtr<ATwinInstance> Instance;
         FTransform Transform = FTransform::Identity;
         bool bLoaded = true;

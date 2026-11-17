@@ -83,6 +83,8 @@ void ATwinSceneManager::RunObjectHistory(const FRuntimeEditCommand& Command,int3
     PostObjectAction(bDelete?TEXT("delete"):TEXT("restore"),Body,[this,Command,Direction,bDelete](const TSharedPtr<FJsonObject>& Root){
         if (bDelete) for (const FString& Id:Command.SavedObjectIds) DestroyTwinInstance(Id);
         else for (const auto& Snap:Root->GetArrayField(TEXT("snapshots"))) ProcessSnapshot(Snap->AsObject());
+        if (!bDelete && !Command.bCreatedObjects)
+            for (const auto& Before : Command.Before) ApplyRuntimeValue(Before);
         if (Direction < 0) {RuntimeUndoStack.Pop(); RuntimeRedoStack.Add(Command);}
         else if (Direction > 0) {RuntimeRedoStack.Pop(); RuntimeUndoStack.Add(Command);}
         else {FRuntimeEditCommand Copy = Command; RecordRuntimeCommand(MoveTemp(Copy));}
@@ -95,6 +97,8 @@ void ATwinSceneManager::DeleteSelectedObjects()
     if (!CanPlaceRuntimeModel() || bRuntimeEditSaving) return;
     FRuntimeEditCommand Command;
     GetRuntimeSelectedInstanceIds(Command.SavedObjectIds);
+    for (ATwinInstance* Instance : RuntimeSelectedInstances)
+        if (IsValid(Instance)) Command.Before.Add(CaptureRuntimeValue(Instance));
     TArray<FString> Names;
     GetRuntimeSelectedInstanceDisplayNames(Names);
     Command.Label=FString::Join(Names,TEXT("、"));
@@ -137,7 +141,11 @@ void ATwinSceneManager::SaveEditedIdentity(const FString& SourceId,const FString
         {
             for (auto* History : {&RuntimeUndoStack, &RuntimeRedoStack})
                 for (auto& Command : *History)
+                {
                     for (FString& Id : Command.SavedObjectIds) if (Id == SourceId) Id = Destination;
+                    for (auto* Values : {&Command.Before,&Command.After})
+                        for (auto& Value : *Values) if (Value.InstanceId==SourceId) Value.InstanceId=Destination;
+                }
             DestroyTwinInstance(SourceId);
         }
         for (const auto& Snap:Root->GetArrayField(TEXT("snapshots"))) ProcessSnapshot(Snap->AsObject());

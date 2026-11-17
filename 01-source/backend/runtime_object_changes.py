@@ -3,13 +3,15 @@ from flask import jsonify, request
 
 from project_store import apply_instance_metadata
 from tenant_api import ApiError
+from web_interaction.validators import business_view_members
 
 
 def attachment_reasons(project, iid, record):
     reasons = []
     config = record.get("render_config") or {}
     panel = (config.get("interface_overrides") or {}).get("I3D_Overlay") or {}
-    if panel.get("values"):
+    typ = project.get("object_types", {}).get(record.get("object_type_rid"), {})
+    if panel.get("values") or "I3D_Overlay" in typ.get("injected_interfaces", []):
         reasons.append("已配置信息面板")
     if record.get("zone_id"):
         reasons.append("已设置业务分区")
@@ -19,6 +21,8 @@ def attachment_reasons(project, iid, record):
     for version in ("draft", "published", "previous_published"):
         cfg = web.get(version) or {}
         for view in cfg.get("business_views") or []:
+            if iid in business_view_members(project, view):
+                reasons.append("已加入业务视图")
             for group in view.get("rule_groups") or view.get("groups") or []:
                 if iid in (group.get("instance_ids") or []) or iid in (group.get("exclude_instance_ids") or []):
                     reasons.append("已加入业务视图")
@@ -101,7 +105,7 @@ def register_object_changes(app, scene_store, scene_type, caps, snapshot):
                 if rid == scene_type or not set(caps).issubset(typ.get("injected_interfaces", [])):
                     raise ApiError(400, "请选择具备三维和空间能力的业务类型", "invalid_type")
                 rec.update(id=destination, object_type_rid=rid, object_type_name=typ["name"])
-                rec["render_config"].update(object_type_name=typ["name"],injected_interfaces=list(typ["injected_interfaces"]))
+                rec.setdefault("render_config", {}).update(object_type_name=typ["name"],injected_interfaces=list(typ["injected_interfaces"]))
                 apply_instance_metadata(rec, {"display_name": (target or {}).get("name") or new_name.strip(),
                                               "hierarchy_path": [typ["name"]]})
                 instances[destination] = instances.pop(iid)

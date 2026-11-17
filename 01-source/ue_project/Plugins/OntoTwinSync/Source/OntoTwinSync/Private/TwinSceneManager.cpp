@@ -4935,6 +4935,7 @@ ATwinSceneManager::FRuntimeEditValue ATwinSceneManager::CaptureRuntimeValue(
 {
     FRuntimeEditValue Value;
     Value.Instance = Instance;
+    if (Instance) Value.InstanceId = Instance->GetInstanceId();
     if (Instance && IsValid(Instance))
     {
         Value.Transform = Instance->GetActorTransform();
@@ -5113,7 +5114,7 @@ bool ATwinSceneManager::CreateRuntimeBusiness(const FString& Name)
 
 void ATwinSceneManager::ApplyRuntimeValue(const FRuntimeEditValue& Value)
 {
-    ATwinInstance* Instance = Value.Instance.Get();
+    ATwinInstance* Instance = InstanceRegistry.FindRef(Value.InstanceId);
     if (!Instance || !IsValid(Instance)) return;
     EnsureRuntimeEditState(Instance);
     Instance->SetActorTransform(Value.Transform);

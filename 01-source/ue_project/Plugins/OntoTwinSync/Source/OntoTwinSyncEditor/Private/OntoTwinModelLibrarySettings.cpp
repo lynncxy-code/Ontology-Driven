@@ -24,6 +24,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "HAL/IConsoleManager.h"
+#include "UObject/Package.h"
 
 namespace
 {
@@ -48,7 +49,7 @@ void Report(const FString& Message, bool bError = false)
     }
 }
 
-bool Gather(TMap<FString, FItem>& Items, TArray<FString>& Roots)
+bool Gather(TMap<FString, FItem>& Items, TArray<FString>& Roots, bool bUpdate)
 {
     const auto* Settings = GetDefault<UOntoTwinModelLibrarySettings>();
     FARFilter Filter;
@@ -72,6 +73,7 @@ bool Gather(TMap<FString, FItem>& Items, TArray<FString>& Roots)
     TArray<FAssetData> Assets;
     Registry.GetAssets(Filter, Assets);
     TSet<FName> Parts;
+    TMap<FName, FString> PackageHashes;
     for (const FAssetData& Asset : Assets)
     {
         FItem Item;
@@ -104,7 +106,42 @@ bool Gather(TMap<FString, FItem>& Items, TArray<FString>& Roots)
             Report(TEXT("请先保存模型：") + Item.Key, true);
             return false;
         }
-        Item.Hash = LexToString(FMD5Hash::HashFile(*Filename));
+        // Include material, texture and nested blueprint dependencies in freshness checks.
+        TArray<FName> PendingPackages{Asset.PackageName};
+        TSet<FName> VisitedPackages;
+        TArray<FString> Fingerprints;
+        while (!PendingPackages.IsEmpty())
+        {
+            const FName PackageName = PendingPackages.Pop();
+            if (VisitedPackages.Contains(PackageName)) continue;
+            VisitedPackages.Add(PackageName);
+            const FString PackagePath = PackageName.ToString();
+            if (PackagePath.StartsWith(TEXT("/Script/"))) continue;
+            if (bUpdate)
+            {
+                const UPackage* Package = FindPackage(nullptr, *PackagePath);
+                if (Package && Package->IsDirty())
+                {
+                    Report(TEXT("请先保存模型及其依赖：") + PackagePath, true);
+                    return false;
+                }
+            }
+            FString* Hash = PackageHashes.Find(PackageName);
+            if (!Hash)
+            {
+                FString DependencyFile;
+                const bool bExists = FPackageName::DoesPackageExist(PackagePath, &DependencyFile);
+                Hash = &PackageHashes.Add(PackageName,
+                    bExists ? LexToString(FMD5Hash::HashFile(*DependencyFile)) : TEXT("missing"));
+            }
+            Fingerprints.Add(PackagePath + TEXT("=") + *Hash);
+            TArray<FName> Dependencies;
+            Registry.GetDependencies(PackageName, Dependencies);
+            PendingPackages.Append(Dependencies);
+            if (Item.Kind == TEXT("Blueprint")) Parts.Append(Dependencies);
+        }
+        Fingerprints.Sort();
+        Item.Hash = FMD5::HashAnsiString(*FString::Join(Fingerprints, TEXT("\n")));
         Item.Thumbnail = FMD5::HashAnsiString(*Item.Key) + TEXT("-") + Item.Hash + TEXT(".png");
         const FString Key = Item.Key;
         Items.Add(Key, MoveTemp(Item));
@@ -138,7 +175,7 @@ void Process(bool bUpdate)
 {
     TArray<FString> Roots;
     TMap<FString, FItem> Items;
-    if (!Gather(Items, Roots)) return;
+    if (!Gather(Items, Roots, bUpdate)) return;
     const FString IndexPath = Directory() / TEXT("catalog.json");
     if (Roots.IsEmpty() && !bUpdate)
     {

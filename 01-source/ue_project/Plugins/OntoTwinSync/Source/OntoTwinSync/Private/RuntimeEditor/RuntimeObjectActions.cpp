@@ -85,6 +85,8 @@ void ATwinSceneManager::RunObjectHistory(const FRuntimeEditCommand& Command,int3
         else for (const auto& Snap:Root->GetArrayField(TEXT("snapshots"))) ProcessSnapshot(Snap->AsObject());
         if (!bDelete && !Command.bCreatedObjects)
             for (const auto& Before : Command.Before) ApplyRuntimeValue(Before);
+        RefreshRuntimeEditDirtyState();
+        UpdateRuntimeSelectionGeometry();
         if (Direction < 0) {RuntimeUndoStack.Pop(); RuntimeRedoStack.Add(Command);}
         else if (Direction > 0) {RuntimeRedoStack.Pop(); RuntimeUndoStack.Add(Command);}
         else {FRuntimeEditCommand Copy = Command; RecordRuntimeCommand(MoveTemp(Copy));}
@@ -137,8 +139,13 @@ void ATwinSceneManager::SaveEditedIdentity(const FString& SourceId,const FString
     Body->SetStringField(TEXT("object_type_rid"),Rid);
     PostObjectAction(TEXT("identity"),Body,[this,SourceId](const TSharedPtr<FJsonObject>& Root){
         const FString Destination=Root->GetStringField(TEXT("instance_id"));
+        TOptional<FRuntimeEditInstanceState> PreviousState;
+        TOptional<FRuntimeEditValue> PreviousValue;
         if (SourceId!=Destination)
         {
+            if (auto* Instance = InstanceRegistry.FindRef(SourceId))
+                PreviousValue = CaptureRuntimeValue(Instance);
+            if (const auto* State = RuntimeEditStates.Find(SourceId)) PreviousState = *State;
             for (auto* History : {&RuntimeUndoStack, &RuntimeRedoStack})
                 for (auto& Command : *History)
                 {
@@ -149,7 +156,23 @@ void ATwinSceneManager::SaveEditedIdentity(const FString& SourceId,const FString
             DestroyTwinInstance(SourceId);
         }
         for (const auto& Snap:Root->GetArrayField(TEXT("snapshots"))) ProcessSnapshot(Snap->AsObject());
-        if (auto* Instance=InstanceRegistry.FindRef(Destination)) SelectRuntimeInstance(Instance,false);
+        if (auto* Instance=InstanceRegistry.FindRef(Destination))
+        {
+            if (PreviousState.IsSet())
+            {
+                PreviousState->Instance = Instance;
+                RuntimeEditStates.Add(Destination, PreviousState.GetValue());
+                Instance->bLocalOverrideLock = true;
+            }
+            if (PreviousValue.IsSet())
+            {
+                PreviousValue->InstanceId = Destination;
+                ApplyRuntimeValue(PreviousValue.GetValue());
+            }
+            SelectRuntimeInstance(Instance,false);
+        }
+        RefreshRuntimeEditDirtyState();
+        UpdateRuntimeSelectionGeometry();
         if (RuntimeEditorPanel) RuntimeEditorPanel->ClosePlacementDetails();
     });
 }

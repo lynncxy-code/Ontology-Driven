@@ -277,6 +277,19 @@ FReply UOntoTwinRuntimeEditorPanel::NativeOnKeyDown(
     const FGeometry& InGeometry,
     const FKeyEvent& InKeyEvent)
 {
+    if (SceneManager && !IsConfirmationOpen() && InKeyEvent.IsControlDown())
+    {
+        if (InKeyEvent.GetKey() == EKeys::Z)
+        {
+            SceneManager->UndoRuntimeEdit();
+            return FReply::Handled();
+        }
+        if (InKeyEvent.GetKey() == EKeys::Y)
+        {
+            SceneManager->RedoRuntimeEdit();
+            return FReply::Handled();
+        }
+    }
     if (InKeyEvent.GetKey() == EKeys::Escape && IsConfirmationOpen())
     {
         if (PlacementFormHost && PlacementFormHost->IsVisible() && SceneManager)
@@ -421,7 +434,7 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     DisplayNameCopyButton->SetStyle(BuildCopyValueButtonStyle(DisplayNameCopyButton->GetStyle()));
     DisplayNameCopyButton->SetToolTipText(FText::FromString(TEXT("点击复制完整实例名称")));
     DisplayNameText = CreateText(TEXT("DisplayNameText"), TEXT("未选择实例"), 12, PrimaryText, true);
-    DisplayNameText->SetAutoWrapText(true);
+    DisplayNameText->SetAutoWrapText(false);
     DisplayNameText->SetWrapTextAt(250.0f);
     DisplayNameText->SetJustification(ETextJustify::Right);
     DisplayNameCopyButton->SetContent(DisplayNameText);

@@ -167,7 +167,7 @@ void UOntoTwinRuntimeEditorPanel::ClosePlacementDetails()
 {
     if (PlacementFormHost) PlacementFormHost->SetVisibility(ESlateVisibility::Collapsed);
     PlacementForm.Reset();
-    UWidgetBlueprintLibrary::SetFocusToGameViewport();
+    SetKeyboardFocus();
 }
 void UOntoTwinRuntimeEditorPanel::SetPlacementFeedback(const FString& Message)
 {

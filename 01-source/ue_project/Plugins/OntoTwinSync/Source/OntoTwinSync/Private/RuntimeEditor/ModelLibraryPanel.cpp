@@ -83,7 +83,9 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     ModelViewport = WidgetTree->ConstructWidget<UViewport>();
     ModelViewport->SetBackgroundColor(FLinearColor(.013f,.016f,.020f));
     ModelViewport->SetVisibility(ESlateVisibility::HitTestInvisible);
-    PreviewLayers->AddChildToOverlay(ModelViewport);
+    auto* ViewportSlot = PreviewLayers->AddChildToOverlay(ModelViewport);
+    ViewportSlot->SetHorizontalAlignment(HAlign_Fill);
+    ViewportSlot->SetVerticalAlignment(VAlign_Fill);
     Stack->AddChildToVerticalBox(ModelPreviewBox);
     BlueprintImage = WidgetTree->ConstructWidget<UImage>();
     BlueprintImage->SetDesiredSizeOverride(FVector2D(180));

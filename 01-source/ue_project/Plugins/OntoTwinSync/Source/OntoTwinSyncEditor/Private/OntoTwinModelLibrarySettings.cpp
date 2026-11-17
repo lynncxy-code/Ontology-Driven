@@ -158,6 +158,9 @@ bool RenderImage(const FItem& Item)
     FAssetCompilingManager::Get().FinishAllCompilation();
     FObjectThumbnail Thumb;
     ThumbnailTools::RenderThumbnail(Asset, 192, 192, ThumbnailTools::EThumbnailTextureFlushMode::AlwaysFlush, nullptr, &Thumb);
+    // Creating the preview scene can enqueue material shaders on the first draw.
+    FAssetCompilingManager::Get().FinishAllCompilation();
+    ThumbnailTools::RenderThumbnail(Asset, 192, 192, ThumbnailTools::EThumbnailTextureFlushMode::AlwaysFlush, nullptr, &Thumb);
     const auto& Data = Thumb.GetUncompressedImageData();
     if (Thumb.GetImageWidth() <= 0 || Data.Num() != Thumb.GetImageWidth() * Thumb.GetImageHeight() * 4) return false;
     TArray64<uint8> PNG;

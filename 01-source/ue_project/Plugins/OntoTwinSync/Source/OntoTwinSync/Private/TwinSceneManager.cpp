@@ -3393,8 +3393,8 @@ void ATwinSceneManager::FinishExitRuntimeEditMode()
     }
 
     bRuntimeEditMode = false;
-    RuntimeUndoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
-    RuntimeRedoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
+    RuntimeUndoStack.Reset();
+    RuntimeRedoStack.Reset();
     RuntimeBusinessConfig.Reset();
     RuntimeBusinessBaseline.Reset();
     RuntimeBusinessRevision = -1;

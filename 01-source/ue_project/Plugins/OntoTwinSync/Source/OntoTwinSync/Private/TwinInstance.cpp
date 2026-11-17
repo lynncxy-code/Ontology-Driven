@@ -516,8 +516,8 @@ void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool 
     }
 
     FString TypeRid;
-    Snapshot->TryGetStringField(TEXT("objectTypeRid"),TypeRid);
-    bSceneryObject = TypeRid == TEXT("ontotwin.scene_object");
+    if (Snapshot->TryGetStringField(TEXT("objectTypeRid"),TypeRid))
+        bSceneryObject = TypeRid == TEXT("ontotwin.scene_object");
     FString SnapshotObjectTypeName;
     if (Snapshot->TryGetStringField(TEXT("objectTypeName"), SnapshotObjectTypeName)
         && !SnapshotObjectTypeName.IsEmpty())

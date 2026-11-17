@@ -1,6 +1,7 @@
 #include "OntoTwinRuntimeEditorPanel.h"
 #include "TwinSceneManager.h"
 #include "Blueprint/WidgetTree.h"
+#include "Blueprint/WidgetBlueprintLibrary.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/NativeWidgetHost.h"
@@ -22,6 +23,11 @@ public:
     SLATE_END_ARGS()
 
     void Feedback(const FString& Text) { Message = Text; bSaving = false; }
+    virtual void Tick(const FGeometry& Geometry, const double Time, const float DeltaTime) override
+    {
+        SCompoundWidget::Tick(Geometry,Time,DeltaTime);
+        if (bReady && bFocusPending) { bFocusPending=false; FSlateApplication::Get().SetKeyboardFocus(IdBox); }
+    }
     void Construct(const FArguments& Args)
     {
         Manager = Args._Manager;
@@ -90,9 +96,8 @@ public:
         Actions->AddSlot().AutoWidth()[SNew(SButton).Text(FText::FromString(TEXT("确定")))
             .IsEnabled_Lambda([this]{return CanSave();}).OnClicked_Lambda([this]{Save();return FReply::Handled();})];
         Line(Actions);
-        ChildSlot[SNew(SBorder).Padding(14).BorderBackgroundColor(FLinearColor(.06f,.06f,.06f,.99f))[
+        ChildSlot[SNew(SBorder).Padding(14).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(FLinearColor(.06f,.06f,.06f,1.f))[
             SNew(SBox).WidthOverride(330)[Form]]];
-        if (bReady) FSlateApplication::Get().SetKeyboardFocus(IdBox);
     }
 private:
     bool CanSave() const
@@ -139,7 +144,7 @@ private:
     TSharedPtr<STextComboBox> TypeBox;
     FString DefaultName,BusinessId,Rid,Message,SourceId,OriginalType;
     bool bScenery=false,bLocked=false;
-    bool bReady=false,bSaving=false;
+    bool bReady=false,bSaving=false,bFocusPending=true;
 };
 
 void UOntoTwinRuntimeEditorPanel::ShowPlacementDetails(const FString&,const TSharedPtr<FJsonObject>& Options,const FString& Error)
@@ -162,6 +167,7 @@ void UOntoTwinRuntimeEditorPanel::ClosePlacementDetails()
 {
     if (PlacementFormHost) PlacementFormHost->SetVisibility(ESlateVisibility::Collapsed);
     PlacementForm.Reset();
+    UWidgetBlueprintLibrary::SetFocusToGameViewport();
 }
 void UOntoTwinRuntimeEditorPanel::SetPlacementFeedback(const FString& Message)
 {

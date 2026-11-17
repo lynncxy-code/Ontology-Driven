@@ -19,9 +19,11 @@ def attachment_reasons(project, iid, record):
     for version in ("draft", "published", "previous_published"):
         cfg = web.get(version) or {}
         for view in cfg.get("business_views") or []:
-            for group in view.get("groups") or []:
+            for group in view.get("rule_groups") or view.get("groups") or []:
                 if iid in (group.get("instance_ids") or []) or iid in (group.get("exclude_instance_ids") or []):
                     reasons.append("已加入业务视图")
+            if iid in (view.get("exclude_instance_ids") or []):
+                reasons.append("已加入业务视图排除清单")
         for binding in cfg.get("bindings") or []:
             if (binding.get("scope") or {}).get("instance_id") == iid:
                 reasons.append("已挂接网页")

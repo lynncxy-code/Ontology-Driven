@@ -1,5 +1,6 @@
 #include "OntoTwinModelLibrarySettings.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetCompilingManager.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
@@ -117,6 +118,7 @@ bool RenderImage(const FItem& Item)
 {
     UObject* Asset = Item.Asset.GetAsset();
     if (!Asset) return false;
+    FAssetCompilingManager::Get().FinishAllCompilation();
     FObjectThumbnail Thumb;
     ThumbnailTools::RenderThumbnail(Asset, 192, 192, ThumbnailTools::EThumbnailTextureFlushMode::AlwaysFlush, nullptr, &Thumb);
     const auto& Data = Thumb.GetUncompressedImageData();

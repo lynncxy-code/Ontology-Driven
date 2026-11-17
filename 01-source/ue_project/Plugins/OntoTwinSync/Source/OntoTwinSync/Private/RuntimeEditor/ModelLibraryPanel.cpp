@@ -10,6 +10,8 @@
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
 #include "Components/ScrollBox.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
@@ -35,7 +37,7 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     Open->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::ToggleLibrary);
     SceneContent->AddChildToVerticalBox(Open);
     LibraryBounds = WidgetTree->ConstructWidget<USizeBox>();
-    LibraryBounds->SetWidthOverride(396);
+    LibraryBounds->SetWidthOverride(448);
     LibraryBounds->SetHeightOverride(550);
     auto* LibrarySlot = Root->AddChildToCanvas(LibraryBounds);
     LibrarySlot->SetPosition(FVector2D(406,20));
@@ -71,17 +73,21 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     AddButton(LocalActions,TEXT("RefreshModels"),TEXT("刷新"))->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::RefreshLibrary);
     AddButton(LocalActions,TEXT("OpenModelsFolder"),TEXT("打开文件夹"))->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::OpenModelsFolder);
     ModelPreviewBox = WidgetTree->ConstructWidget<USizeBox>();
-    ModelPreviewBox->SetHeightOverride(156);
+    ModelPreviewBox->SetHeightOverride(190);
+    auto* PreviewLayers = WidgetTree->ConstructWidget<UOverlay>();
+    ModelPreviewBox->SetContent(PreviewLayers);
     ModelViewport = WidgetTree->ConstructWidget<UViewport>();
     ModelViewport->SetBackgroundColor(FLinearColor(.013f,.016f,.020f));
     ModelViewport->SetVisibility(ESlateVisibility::HitTestInvisible);
-    ModelPreviewBox->SetContent(ModelViewport);
+    PreviewLayers->AddChildToOverlay(ModelViewport);
     Stack->AddChildToVerticalBox(ModelPreviewBox);
     BlueprintImage = WidgetTree->ConstructWidget<UImage>();
-    BlueprintImage->SetDesiredSizeOverride(FVector2D(156));
-    Stack->AddChildToVerticalBox(BlueprintImage)->SetHorizontalAlignment(HAlign_Center);
+    BlueprintImage->SetDesiredSizeOverride(FVector2D(180));
+    PreviewLayers->AddChildToOverlay(BlueprintImage)->SetHorizontalAlignment(HAlign_Center);
     ModelPreviewMessage = CreateText(TEXT("ModelPreviewMessage"),TEXT("单击模型查看"),11,Ink);
-    Stack->AddChildToVerticalBox(ModelPreviewMessage);
+    auto* MessageSlot=PreviewLayers->AddChildToOverlay(ModelPreviewMessage);
+    MessageSlot->SetHorizontalAlignment(HAlign_Center);
+    MessageSlot->SetVerticalAlignment(VAlign_Center);
     auto* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
     Stack->AddChildToVerticalBox(Row);
     ModelLibraryStatus = CreateText(TEXT("ModelLibraryStatus"),TEXT(""),12,Ink);
@@ -143,6 +149,7 @@ void UOntoTwinRuntimeEditorPanel::RebuildLibraryGrid()
         const FString& Name = ModelLabels[Key];
         if (!Name.Contains(Query,ESearchCase::IgnoreCase) && !Query.IsEmpty()) continue;
         auto* Tile = WidgetTree->ConstructWidget<UModelLibraryTile>();
+        Tile->SetStyle(PlaceModelButton->GetStyle());
         Tile->Select.BindWeakLambda(this,[this,Key]{SelectLibraryKey(Key);});
         Tile->Drag.BindWeakLambda(this,[this,Key]{
             if (SceneManager && SceneManager->CanPlaceRuntimeModel() && !ModelErrors.Contains(Key))
@@ -151,12 +158,16 @@ void UOntoTwinRuntimeEditorPanel::RebuildLibraryGrid()
         Tile->InitializeTile();
         Tile->SetToolTipText(FText::FromString(Name));
         auto* Box = WidgetTree->ConstructWidget<USizeBox>();
-        Box->SetWidthOverride(104);
+        Box->SetWidthOverride(122);
         Tile->SetContent(Box);
         auto* Stack = WidgetTree->ConstructWidget<UVerticalBox>();
         Box->SetContent(Stack);
         auto* Icon = WidgetTree->ConstructWidget<UImage>();
-        Icon->SetDesiredSizeOverride(FVector2D(92,62));
+        auto* ImageBox = WidgetTree->ConstructWidget<USizeBox>();
+        ImageBox->SetWidthOverride(110);
+        ImageBox->SetHeightOverride(110);
+        ImageBox->SetContent(Icon);
+        Icon->SetDesiredSizeOverride(FVector2D(110));
         const FString File = ModelImages.FindRef(Key);
         if (!File.IsEmpty())
         {
@@ -166,7 +177,7 @@ void UOntoTwinRuntimeEditorPanel::RebuildLibraryGrid()
         }
         else Icon->SetColorAndOpacity(FLinearColor(.2f,.2f,.2f));
         LibraryIcons.Add(Key,Icon);
-        Stack->AddChildToVerticalBox(Icon);
+        Stack->AddChildToVerticalBox(ImageBox)->SetHorizontalAlignment(HAlign_Center);
         Stack->AddChildToVerticalBox(CreateText(NAME_None,Name,11,Ink));
         if (const FString* Error = ModelErrors.Find(Key))
         {
@@ -233,7 +244,7 @@ void UOntoTwinRuntimeEditorPanel::NativeTick(const FGeometry& Geometry, float De
         }
     }
     const FVector2D Size = PanelBorder->GetCachedGeometry().GetLocalSize();
-    if (Size.Y > 0) LibraryBounds->SetHeightOverride(Size.Y);
+    if (Size.Y > 0) LibraryBounds->SetHeightOverride(FMath::Max(Size.Y,460.f));
     if (AActor* Actor = LibraryPreviewActor.Get())
     {
         const FVector Pivot = Actor->GetComponentsBoundingBox().GetCenter();

@@ -33,7 +33,7 @@ void UOntoTwinRuntimeEditorPanel::ClearLibraryPreview()
     if (AActor* Previous = LibraryPreviewActor.Get()) Previous->Destroy();
     LibraryPreviewActor.Reset();
     if (BlueprintImage) BlueprintImage->SetVisibility(ESlateVisibility::Collapsed);
-    if (ModelPreviewBox) ModelPreviewBox->SetVisibility(ESlateVisibility::Collapsed);
+    if (ModelViewport) ModelViewport->SetVisibility(ESlateVisibility::Hidden);
     if (ModelPreviewMessage) ModelPreviewMessage->SetVisibility(ESlateVisibility::Collapsed);
     if (PlaceModelButton) PlaceModelButton->SetIsEnabled(false);
 }
@@ -143,6 +143,6 @@ void UOntoTwinRuntimeEditorPanel::SelectLibraryKey(const FString& Selected)
     Fill->RegisterComponent();
     ModelViewport->SetLightIntensity(1.8f);
     ModelViewport->SetSkyIntensity(1.5f);
-    ModelPreviewBox->SetVisibility(ESlateVisibility::HitTestInvisible);
+    ModelViewport->SetVisibility(ESlateVisibility::HitTestInvisible);
     PlaceModelButton->SetIsEnabled(true);
 }

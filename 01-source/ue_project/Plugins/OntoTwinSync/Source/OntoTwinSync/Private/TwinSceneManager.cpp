@@ -5853,11 +5853,11 @@ void ATwinSceneManager::CancelRuntimeEdit()
     bRuntimeExitAfterSave = false;
     RuntimeSelectionYawDelta = 0.0f;
     if (RuntimeGizmo && IsValid(RuntimeGizmo)) RuntimeGizmo->SetGizmoEnabled(false);
-    RuntimeStatusMessage = TEXT("已取消全部修改");
+    RuntimeStatusMessage = TEXT("已取消未保存修改");
     if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel))
     {
         RuntimeEditorPanel->ShowToast(
-            TEXT("全部修改已恢复"),
+            TEXT("已恢复至上次保存状态"),
             EOntoTwinRuntimeToastType::Info);
     }
     UpdateRuntimeEditorPanel();

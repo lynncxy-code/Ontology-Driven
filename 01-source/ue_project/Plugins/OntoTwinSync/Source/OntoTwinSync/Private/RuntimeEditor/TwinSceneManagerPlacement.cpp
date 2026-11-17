@@ -188,7 +188,7 @@ void ATwinSceneManager::ConfirmModelPlacement()
             {
                 FString Reason;
                 if (Root) Root->TryGetStringField(TEXT("message"), Reason);
-                if (Reason.IsEmpty()) Reason = TEXT("未收到保存确认，可在原位左键重试或按 Esc 退出");
+                if (Reason.IsEmpty()) Reason = TEXT("未收到保存确认，请点确定重试，或点取消退出");
                 if (RuntimeEditorPanel) RuntimeEditorPanel->SetPlacementFeedback(Reason);
                 return;
             }

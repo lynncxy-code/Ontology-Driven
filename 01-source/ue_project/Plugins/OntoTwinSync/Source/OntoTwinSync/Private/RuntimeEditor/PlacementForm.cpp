@@ -72,12 +72,15 @@ public:
         Line(SAssignNew(IdBox,SEditableTextBox).Text(FText::FromString(BusinessId)).IsReadOnly(bLocked)
             .OnTextChanged_Lambda([this](const FText& T){OnId(T.ToString().TrimStartAndEnd());})
             .OnTextCommitted_Lambda([this](const FText&,ETextCommit::Type How){if (How == ETextCommit::OnEnter) Save();}));
+        Line(Caption(TEXT("或从待投产实例清单选择")));
         Line(SNew(STextComboBox).OptionsSource(&RosterOptions).IsEnabled(!bLocked)
             .ContentPadding(2).ToolTipText(FText::FromString(TEXT("选择待投产编号")))
             .OnSelectionChanged_Lambda([this](TSharedPtr<FString> Id,ESelectInfo::Type){if (Id) IdBox->SetText(FText::FromString(*Id));}));
         Line(Caption(TEXT("名称")));
         Line(SAssignNew(NameBox,SEditableTextBox).Text(FText::FromString(DefaultName))
             .OnTextCommitted_Lambda([this](const FText&,ETextCommit::Type How){if (How == ETextCommit::OnEnter) Save();}));
+        Line(SNew(STextBlock).Text(FText::FromString(TEXT("业务类型（必选）")))
+            .Visibility_Lambda([this]{return BusinessId.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;}));
         Line(SAssignNew(TypeBox,STextComboBox).OptionsSource(&Types)
             .Visibility_Lambda([this]{return BusinessId.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;})
             .ToolTipText(FText::FromString(TEXT("选择业务类型")))

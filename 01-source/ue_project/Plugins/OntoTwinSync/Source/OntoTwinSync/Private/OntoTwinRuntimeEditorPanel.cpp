@@ -620,7 +620,7 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     Stack->AddChildToVerticalBox(Footer);
 
     UTextBlock* CancelLabel = nullptr;
-    CancelButton = CreateButton(TEXT("CancelButton"), TEXT("取消全部修改"), CancelLabel, false);
+    CancelButton = CreateButton(TEXT("CancelButton"), TEXT("取消未保存修改"), CancelLabel, false);
     UHorizontalBoxSlot* CancelSlot = Footer->AddChildToHorizontalBox(CancelButton);
     CancelSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     CancelSlot->SetPadding(FMargin(0.0f, 0.0f, 4.0f, 0.0f));
@@ -810,14 +810,14 @@ void UOntoTwinRuntimeEditorPanel::ShowCancelAllConfirmation()
     if (!ConfirmationOverlay) return;
 
     ConfirmationMode = EOntoTwinRuntimePanelConfirmation::CancelAll;
-    if (ConfirmationTitleText) ConfirmationTitleText->SetText(FText::FromString(TEXT("取消全部修改？")));
+    if (ConfirmationTitleText) ConfirmationTitleText->SetText(FText::FromString(TEXT("取消未保存修改？")));
     if (ConfirmationBodyText)
     {
         ConfirmationBodyText->SetText(FText::FromString(
-            FString::Printf(TEXT("将恢复本次编辑会话中 %d 个实例的全部修改，此操作不能通过重做恢复。"),
+            FString::Printf(TEXT("将丢弃 %d 个对象的未保存修改，恢复至上次保存状态。此操作会清除对应的空间编辑历史。"),
                 SceneManager ? SceneManager->GetRuntimeEditPendingCount() : 0)));
     }
-    if (ConfirmationPrimaryLabel) ConfirmationPrimaryLabel->SetText(FText::FromString(TEXT("确认取消全部修改")));
+    if (ConfirmationPrimaryLabel) ConfirmationPrimaryLabel->SetText(FText::FromString(TEXT("确认取消未保存修改")));
     if (ConfirmationContinueLabel) ConfirmationContinueLabel->SetText(FText::FromString(TEXT("继续编辑")));
     if (ConfirmationSecondaryButton) ConfirmationSecondaryButton->SetVisibility(ESlateVisibility::Collapsed);
     ConfirmationOverlay->SetVisibility(ESlateVisibility::Visible);

@@ -11,6 +11,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/World.h"
 #include "Engine/LevelScriptActor.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
@@ -161,8 +162,8 @@ void UOntoTwinUEAssetCatalogSyncComponent::TickComponent(
 
     FolderIndexRefreshElapsed += DeltaTime;
     ScanRequestPollElapsed += DeltaTime;
-    if (!bFolderIndexPublished
-        || FolderIndexRefreshElapsed >= FMath::Max(15.0f, FolderIndexRefreshIntervalSeconds))
+    if (FolderIndexRefreshElapsed >= (bFolderIndexPublished
+        ? FMath::Max(15.0f, FolderIndexRefreshIntervalSeconds) : 2.0f))
     {
         PublishFolderIndex();
     }
@@ -181,6 +182,10 @@ void UOntoTwinUEAssetCatalogSyncComponent::PublishFolderIndex()
     }
 
     const ATwinSceneManager* Manager = Cast<ATwinSceneManager>(GetOwner());
+    if (GetWorld() && GetWorld()->IsGameWorld() && Manager && !Manager->CanWriteBoundDataset())
+    {
+        return;
+    }
     const FString UEProjectName = Manager && !Manager->UEProjectName.IsEmpty()
         ? Manager->UEProjectName
         : FString(FApp::GetProjectName());
@@ -264,6 +269,10 @@ void UOntoTwinUEAssetCatalogSyncComponent::PollScanRequest()
     }
 
     const ATwinSceneManager* Manager = Cast<ATwinSceneManager>(GetOwner());
+    if (GetWorld() && GetWorld()->IsGameWorld() && Manager && !Manager->CanWriteBoundDataset())
+    {
+        return;
+    }
     const FString UEProjectName = Manager && !Manager->UEProjectName.IsEmpty()
         ? Manager->UEProjectName
         : FString(FApp::GetProjectName());
@@ -486,6 +495,10 @@ void UOntoTwinUEAssetCatalogSyncComponent::SyncCatalogForRoots(
     }
 
     const ATwinSceneManager* Manager = Cast<ATwinSceneManager>(GetOwner());
+    if (GetWorld() && GetWorld()->IsGameWorld() && Manager && !Manager->CanWriteBoundDataset())
+    {
+        return;
+    }
     const FString UEProjectName = Manager && !Manager->UEProjectName.IsEmpty()
         ? Manager->UEProjectName
         : FString(FApp::GetProjectName());

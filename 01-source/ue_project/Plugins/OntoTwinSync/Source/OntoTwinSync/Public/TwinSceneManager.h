@@ -329,7 +329,8 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="OntoTwin|Runtime Editor")
     bool BeginModelPlacement(const FString& ModelKey, const FString& Label, bool bDrag = false);
-    bool CanPlaceRuntimeModel() const { return bRuntimeEditMode && bRuntimeCanSave && !BoundProjectId.IsEmpty(); }
+    bool CanWriteBoundDataset() const { return bRuntimeCanSave && !BoundProjectId.IsEmpty(); }
+    bool CanPlaceRuntimeModel() const { return bRuntimeEditMode && CanWriteBoundDataset(); }
     void SavePlacementDetails(const FString& Id, const FString& Name, const FString& Rid);
     bool LocatePlacementConflict(const FString& Id);
     void DeleteSelectedObjects();

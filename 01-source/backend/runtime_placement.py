@@ -8,6 +8,7 @@ from uuid import UUID
 from flask import g, jsonify, request
 
 from project_store import _default_raw_state, apply_instance_metadata
+from runtime_object_changes import attachment_reasons, register_object_changes
 from tenant_api import ApiError
 from ue_project_binding import check_request_can_write_active, lookup_with_heal
 
@@ -44,6 +45,11 @@ def _scenery_name(records, key, label):
 def _place(project, deleted, operation_id, business_id, type_id, name, key, source, label, position):
     instances = project.setdefault("instances", {})
     iid = business_id or "scene-" + operation_id.hex
+    for existing_id, record in instances.items():
+        if record.get("source") == "runtime_editor" and record.get("ext_guid") == str(operation_id):
+            if record.get("render_config", {}).get("model_override", {}).get("ue_asset_path") != key:
+                raise ApiError(409, "同一次放置不能改用其他模型", "placement_conflict")
+            return existing_id, False
     if iid in deleted:
         raise ApiError(409, "此编号位于回收站，请先恢复或彻底删除", "in_trash")
     previous = instances.get(iid)
@@ -108,11 +114,15 @@ def register_runtime_placement_routes(app, get_store, snapshot):
             raise ApiError(status, info.get("message", "关卡没有写入权限"), info.get("error", "forbidden"))
         return pid, store if pg_mode else canonical
 
+    register_object_changes(app, scene_store, TYPE_RID, CAPABILITIES, snapshot)
+
     @app.get("/api/v2/runtime-editor/placement-options")
     def placement_options():
         try:
             pid, target = scene_store(request.args)
-            _model(request.args.get("model"))
+            selected = request.args.get("selected_id", "")
+            if not selected:
+                _model(request.args.get("model"))
             project = target.read_project(pid)
             if not project:
                 raise ApiError(404, "数据集不存在", "not_found")
@@ -123,10 +133,20 @@ def register_runtime_placement_routes(app, get_store, snapshot):
                      if rid != TYPE_RID and set(CAPABILITIES).issubset(row.get("injected_interfaces", []))]
             occupied = set(instances) | set(deleted)
             available = [row for row in project.get("instance_roster", []) if row.get("instance_id") not in occupied]
-            default_name = _scenery_name((*instances.values(), *deleted.values()), request.args["model"],
-                                         request.args.get("label", "")[:255])
+            identity = {}
+            if selected:
+                rec = instances.get(selected)
+                if not rec:
+                    raise ApiError(404, "对象已删除", "not_found")
+                default_name = rec.get("display_name", "")
+                identity = {"instance_id": selected, "object_type_rid": rec["object_type_rid"],
+                            "scenery": rec["object_type_rid"] == TYPE_RID,
+                            "reasons": attachment_reasons(project, selected, rec)}
+            else:
+                default_name = _scenery_name((*instances.values(), *deleted.values()), request.args["model"],
+                                             request.args.get("label", "")[:255])
             return jsonify(types=types, roster=available, active_ids=list(instances), deleted_ids=list(deleted),
-                           default_name=default_name)
+                           default_name=default_name, identity=identity)
         except ApiError as exc:
             return jsonify(error=exc.code, message=exc.message), exc.status
 

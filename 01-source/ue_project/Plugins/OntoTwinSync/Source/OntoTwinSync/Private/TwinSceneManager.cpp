@@ -3393,6 +3393,8 @@ void ATwinSceneManager::FinishExitRuntimeEditMode()
     }
 
     bRuntimeEditMode = false;
+    RuntimeUndoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
+    RuntimeRedoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
     RuntimeBusinessConfig.Reset();
     RuntimeBusinessBaseline.Reset();
     RuntimeBusinessRevision = -1;
@@ -5153,6 +5155,7 @@ void ATwinSceneManager::ApplyRuntimeCommand(
 void ATwinSceneManager::UndoRuntimeEdit()
 {
     if (!CanUndoRuntimeEdit()) return;
+    if (RuntimeUndoStack.Last().SavedObjectIds.Num()) { RunObjectHistory(RuntimeUndoStack.Last(), -1); return; }
     FRuntimeEditCommand Command = MoveTemp(RuntimeUndoStack.Last());
     RuntimeUndoStack.Pop();
     ApplyRuntimeCommand(Command, false);
@@ -5168,6 +5171,7 @@ void ATwinSceneManager::UndoRuntimeEdit()
 void ATwinSceneManager::RedoRuntimeEdit()
 {
     if (!CanRedoRuntimeEdit()) return;
+    if (RuntimeRedoStack.Last().SavedObjectIds.Num()) { RunObjectHistory(RuntimeRedoStack.Last(), 1); return; }
     FRuntimeEditCommand Command = MoveTemp(RuntimeRedoStack.Last());
     RuntimeRedoStack.Pop();
     ApplyRuntimeCommand(Command, true);
@@ -5608,8 +5612,8 @@ void ATwinSceneManager::SaveRuntimeEdit()
                     return;
                 }
 
-                Self->RuntimeUndoStack.Reset();
-                Self->RuntimeRedoStack.Reset();
+                Self->RuntimeUndoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
+                Self->RuntimeRedoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
                 Self->RuntimeStatusMessage = TEXT("业务修改已保存并应用");
                 if (Self->RuntimeEditorPanel && IsValid(Self->RuntimeEditorPanel))
                 {
@@ -5742,8 +5746,8 @@ void ATwinSceneManager::SaveRuntimeEdit()
                     }
                 }
 
-                Self->RuntimeUndoStack.Reset();
-                Self->RuntimeRedoStack.Reset();
+                Self->RuntimeUndoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
+                Self->RuntimeRedoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
                 Self->RefreshRuntimeEditDirtyState();
                 Self->ReleaseCleanUnselectedRuntimeStates();
                 Self->RuntimeStatusMessage = TEXT("修改已保存");
@@ -5837,8 +5841,8 @@ void ATwinSceneManager::CancelRuntimeEdit()
     {
         ReleaseRuntimeEditState(InstanceId, true);
     }
-    RuntimeUndoStack.Reset();
-    RuntimeRedoStack.Reset();
+    RuntimeUndoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
+    RuntimeRedoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
     RuntimeBusinessConfig = CloneRuntimeBusinessConfig(RuntimeBusinessBaseline);
     bRuntimeBusinessDirty = false;
     bRuntimeEditDirty = false;
@@ -6060,6 +6064,7 @@ FString ATwinSceneManager::GetRuntimeEditorInstanceIdText() const
         return TEXT("多个实例");
     }
 
+    if (RuntimeSelectedInstance->IsScenery()) return TEXT("布景");
     const FString InstanceId = RuntimeSelectedInstance->GetInstanceId();
     if (InstanceId.Len() <= 18)
     {

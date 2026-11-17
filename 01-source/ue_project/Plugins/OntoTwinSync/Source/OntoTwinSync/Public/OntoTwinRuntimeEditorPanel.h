@@ -28,7 +28,8 @@ enum class EOntoTwinRuntimePanelConfirmation : uint8
 {
     None,
     ExitEditor,
-    CancelAll
+    CancelAll,
+    DeleteObjects
 };
 
 enum class EOntoTwinRuntimeToastType : uint8
@@ -55,6 +56,7 @@ public:
     void ShowPlacementDetails(const FString& Label, const TSharedPtr<FJsonObject>& Options, const FString& Error);
     void ClosePlacementDetails();
     void SetPlacementFeedback(const FString& Message);
+    void ConfirmObjectDeletion(const FString& Message, FSimpleDelegate Accept);
     bool IsConfirmationOpen() const;
 
 protected:
@@ -213,6 +215,11 @@ private:
 
     UPROPERTY()
     UButton* RemoveButton = nullptr;
+    UPROPERTY(Transient) UButton* DeleteObjectsButton = nullptr;
+    UPROPERTY(Transient) UButton* EditIdentityButton = nullptr;
+    UFUNCTION() void DeleteSelectedObjects();
+    UFUNCTION() void EditSelectedIdentity();
+    FSimpleDelegate PendingDeleteAction;
 
     UPROPERTY()
     UButton* PendingToggleButton = nullptr;

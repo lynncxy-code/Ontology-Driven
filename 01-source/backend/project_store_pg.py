@@ -457,6 +457,31 @@ class ProjectStorePG(ProjectStore):
             return {iid: {"display_name": name, "object_type_rid": rid, "render_config": config or {}}
                     for iid, name, rid, config in cur.fetchall()}
 
+    def edit_runtime_objects(self, pid, action, ids, destination, update):
+        """Apply row identity/trash changes under the same lock as roster changes."""
+        with self._lock, pg.get_conn() as conn, conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM project WHERE id=%s AND deleted_at IS NULL FOR UPDATE", (pid,))
+                if not cur.fetchone():
+                    raise ValueError("项目不存在")
+                _guard_project_mutation(cur, pid)
+                project = self._read_project(pid, conn)
+                result = update(project, self._trashed_instances(pid, conn))
+                if action == "restore":
+                    cur.execute("UPDATE instance SET deleted_at=NULL WHERE project_id=%s AND id=ANY(%s)", (pid, ids))
+                elif action == "delete":
+                    cur.execute("""UPDATE instance SET deleted_at=now() WHERE project_id=%s
+                                   AND id=ANY(%s) AND deleted_at IS NULL""", (pid, ids))
+                else:
+                    cur.execute("UPDATE instance SET id=%s WHERE project_id=%s AND id=%s", (destination, pid, ids[0]))
+                    previous = self._current
+                    try:
+                        self._current = project
+                        self._save_current(conn)
+                    finally:
+                        self._current = previous
+            return result
+
     def transact_project(self, pid, updater, *, include_trash=False):
         """Read-modify-write on one connection/row lock, never resurrect a deleted project."""
         with self._lock:

@@ -94,3 +94,41 @@ def test_business_placement_roster_retry_and_conflicts(client, store, placement)
     new = {**other, "instance_id": "R-018", "object_type_rid": "robot", "display_name": "二号臂"}
     assert client.post(URL, headers=HEADERS, json=new).status_code == 201
     assert [row["instance_id"] for row in store.get_roster()] == ["R-017", "R-018"]
+
+
+def test_scene_delete_restore_and_identity(client, store, placement):
+    iid = client.post(URL, headers=HEADERS, json=placement).json["instance_id"]
+    def edit(action, **fields):
+        return client.post("/api/v2/runtime-editor/objects/" + action, headers=HEADERS,
+                           json={"expected_project_id":"p_test", "ids":[iid], **fields})
+    assert edit("delete").status_code == 200
+    assert iid not in store.read_project("p_test")["instances"]
+    assert edit("delete").status_code == 200
+    assert edit("restore").status_code == 200
+    assert edit("restore").status_code == 200
+    assert iid in store.read_project("p_test")["instances"]
+    assert edit("identity", display_name="新名称").status_code == 200
+    store.transact_project("p_test", lambda p:p["object_types"].update(
+        robot={"rid":"robot", "name":"机器人", "injected_interfaces":["I3D_Representable","I3D_Spatial"]}))
+    assert edit("identity", instance_id="R-020",object_type_rid="robot",display_name="新名称").status_code == 200
+    project = store.read_project("p_test")
+    assert list(project["instances"]) == ["R-020"]
+    assert not store.list_trash()
+    assert project["instance_roster"][0]["instance_id"] == "R-020"
+    iid = "R-020"
+    store.transact_project("p_test",lambda p:p["instances"][iid].update(zone_id="zone"))
+    assert edit("identity",instance_id="R-021",display_name="新名称").json["error"] == "identifier_locked"
+    assert edit("delete").json["error"] == "confirmation_required"
+    assert edit("delete",confirm_business=True).status_code == 200
+    assert edit("restore").status_code == 200
+    assert store.read_project("p_test")["instances"][iid]["zone_id"] == "zone"
+
+
+def test_placement_options_and_retry_after_id_change(client, store, placement):
+    iid = client.post(URL,headers=HEADERS,json=placement).json["instance_id"]
+    response = client.get("/api/v2/runtime-editor/placement-options",headers=HEADERS,
+                          query_string={"expected_project_id":"p_test","selected_id":iid})
+    assert response.status_code == 200 and response.json["identity"]["scenery"]
+    retry = client.post(URL,headers=HEADERS,json={**placement,"instance_id":"another"})
+    assert retry.status_code == 200 and retry.json["instance_id"] == iid
+    assert len(store.read_project("p_test")["instances"]) == 1

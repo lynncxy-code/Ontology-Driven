@@ -47,16 +47,26 @@ public:
             }
             for (const auto& V : Options->GetArrayField(TEXT("active_ids"))) Active.Add(V->AsString());
             for (const auto& V : Options->GetArrayField(TEXT("deleted_ids"))) Deleted.Add(V->AsString());
+            const TSharedPtr<FJsonObject>* Identity = nullptr;
+            if (Options->TryGetObjectField(TEXT("identity"),Identity) && (*Identity)->TryGetStringField(TEXT("instance_id"),SourceId))
+            {
+                bScenery = (*Identity)->GetBoolField(TEXT("scenery"));
+                OriginalType = (*Identity)->GetStringField(TEXT("object_type_rid"));
+                for (const auto& Reason : (*Identity)->GetArrayField(TEXT("reasons"))) Message += Reason->AsString() + TEXT(" ");
+                bLocked = !Message.IsEmpty();
+                Active.Remove(SourceId);
+            }
         }
         auto Form = SNew(SVerticalBox);
         auto Line = [&](TSharedRef<SWidget> Widget){ Form->AddSlot().AutoHeight().Padding(2,4)[Widget]; };
         auto Caption = [](const TCHAR* Text){return SNew(STextBlock).Text(FText::FromString(Text));};
-        Line(Caption(TEXT("放置信息")));
+        Line(Caption(SourceId.IsEmpty() ? TEXT("放置信息") : TEXT("编辑名称或编号")));
         Line(Caption(TEXT("实例编号（留空保存为布景）")));
-        Line(SAssignNew(IdBox,SEditableTextBox)
+        BusinessId = bScenery ? FString() : SourceId;
+        Line(SAssignNew(IdBox,SEditableTextBox).Text(FText::FromString(BusinessId)).IsReadOnly(bLocked)
             .OnTextChanged_Lambda([this](const FText& T){OnId(T.ToString().TrimStartAndEnd());})
             .OnTextCommitted_Lambda([this](const FText&,ETextCommit::Type How){if (How == ETextCommit::OnEnter) Save();}));
-        Line(SNew(STextComboBox).OptionsSource(&RosterOptions)
+        Line(SNew(STextComboBox).OptionsSource(&RosterOptions).IsEnabled(!bLocked)
             .ContentPadding(2).ToolTipText(FText::FromString(TEXT("选择待投产编号")))
             .OnSelectionChanged_Lambda([this](TSharedPtr<FString> Id,ESelectInfo::Type){if (Id) IdBox->SetText(FText::FromString(*Id));}));
         Line(Caption(TEXT("名称")));
@@ -66,6 +76,8 @@ public:
             .Visibility_Lambda([this]{return BusinessId.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;})
             .ToolTipText(FText::FromString(TEXT("选择业务类型")))
             .OnSelectionChanged_Lambda([this](TSharedPtr<FString> Name,ESelectInfo::Type){Rid=TypeKeys.FindRef(Name);}));
+        for (const auto& Type : Types)
+            if (TypeKeys[Type] == OriginalType) {TypeBox->SetSelectedItem(Type); break;}
         Line(SNew(STextBlock).AutoWrapText(true).Text_Lambda([this]{return FText::FromString(Message);}));
         auto Actions = SNew(SHorizontalBox);
         Actions->AddSlot().AutoWidth()[SNew(SButton).Text(FText::FromString(TEXT("定位")))
@@ -74,7 +86,7 @@ public:
                 Feedback(TEXT("该实例当前未加载，可在实例列表中重新加载")); return FReply::Handled();})];
         Actions->AddSlot().AutoWidth()[SNew(SButton).Text(FText::FromString(TEXT("取消")))
             .IsEnabled_Lambda([this]{return !bSaving;})
-            .OnClicked_Lambda([this]{if(Manager.IsValid()) Manager->CancelUnconfirmedModelPlacement();return FReply::Handled();})];
+            .OnClicked_Lambda([this]{if(Manager.IsValid()) Manager->DismissObjectForm();return FReply::Handled();})];
         Actions->AddSlot().AutoWidth()[SNew(SButton).Text(FText::FromString(TEXT("确定")))
             .IsEnabled_Lambda([this]{return CanSave();}).OnClicked_Lambda([this]{Save();return FReply::Handled();})];
         Line(Actions);
@@ -86,16 +98,18 @@ private:
     bool CanSave() const
     {
         return Manager.IsValid() && Manager->CanPlaceRuntimeModel() && bReady && !bSaving &&
-            !Active.Contains(BusinessId) && !Deleted.Contains(BusinessId) && (BusinessId.IsEmpty() || !Rid.IsEmpty());
+            !Active.Contains(BusinessId) && !Deleted.Contains(BusinessId) &&
+            (BusinessId.IsEmpty() ? SourceId.IsEmpty() || bScenery : !Rid.IsEmpty());
     }
     void Save()
     {
         if (!CanSave()) return;
         FString Name = NameBox->GetText().ToString().TrimStartAndEnd();
-        if (BusinessId.IsEmpty() && Name == DefaultName) Name.Reset();
+        if (SourceId.IsEmpty() && BusinessId.IsEmpty() && Name == DefaultName) Name.Reset();
         bSaving = true;
         Message = TEXT("正在保存…");
-        Manager->SavePlacementDetails(BusinessId,Name,Rid);
+        if (SourceId.IsEmpty()) Manager->SavePlacementDetails(BusinessId,Name,Rid);
+        else Manager->SaveEditedIdentity(SourceId,BusinessId,Name,Rid);
     }
     void OnId(const FString& Id)
     {
@@ -123,7 +137,8 @@ private:
     TSet<FString> Active, Deleted;
     TSharedPtr<SEditableTextBox> IdBox,NameBox;
     TSharedPtr<STextComboBox> TypeBox;
-    FString DefaultName,BusinessId,Rid,Message;
+    FString DefaultName,BusinessId,Rid,Message,SourceId,OriginalType;
+    bool bScenery=false,bLocked=false;
     bool bReady=false,bSaving=false;
 };
 

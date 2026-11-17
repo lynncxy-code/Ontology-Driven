@@ -450,6 +450,12 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     RemoveButton->SetToolTipText(FText::FromString(TEXT("立即隐藏所选实例，保存后可在 Web 端重新加载")));
     UVerticalBoxSlot* RemoveSlot = SceneContent->AddChildToVerticalBox(RemoveButton);
     RemoveSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 10.0f));
+    DeleteObjectsButton = CreateButton(TEXT("DeleteObjects"), TEXT("删除到回收站"), RemoveLabel, false);
+    DeleteObjectsButton->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::DeleteSelectedObjects);
+    SceneContent->AddChildToVerticalBox(DeleteObjectsButton);
+    EditIdentityButton = CreateButton(TEXT("EditIdentity"), TEXT("编辑名称或编号"), RemoveLabel, false);
+    EditIdentityButton->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::EditSelectedIdentity);
+    SceneContent->AddChildToVerticalBox(EditIdentityButton);
 
     UGridPanel* TransformGrid = WidgetTree->ConstructWidget<UGridPanel>(UGridPanel::StaticClass(), TEXT("TransformGrid"));
     TransformGrid->SetColumnFill(1, 1.0f);
@@ -1137,6 +1143,8 @@ void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
     if (UndoButton) UndoButton->SetIsEnabled(SceneManager->CanUndoRuntimeEdit());
     if (RedoButton) RedoButton->SetIsEnabled(SceneManager->CanRedoRuntimeEdit());
     if (RemoveButton) RemoveButton->SetIsEnabled(SceneManager->CanRemoveRuntimeSelection());
+    if (DeleteObjectsButton) DeleteObjectsButton->SetIsEnabled(SceneManager->CanPlaceRuntimeModel() && SceneManager->CanRemoveRuntimeSelection());
+    if (EditIdentityButton) EditIdentityButton->SetIsEnabled(SceneManager->CanPlaceRuntimeModel() && SceneManager->GetRuntimeEditSelectionCount() == 1);
 
     if (WallSnapCheckBox && WallSnapCheckBox->IsChecked() != SceneManager->IsRuntimeWallSnapEnabled())
     {
@@ -1275,7 +1283,9 @@ void UOntoTwinRuntimeEditorPanel::HandleConfirmationPrimaryClicked()
     }
 
     const EOntoTwinRuntimePanelConfirmation Action = ConfirmationMode;
+    FSimpleDelegate Accept = MoveTemp(PendingDeleteAction);
     HideConfirmation();
+    if (Action == EOntoTwinRuntimePanelConfirmation::DeleteObjects) { Accept.ExecuteIfBound(); return; }
     if (Action == EOntoTwinRuntimePanelConfirmation::ExitEditor)
     {
         SceneManager->SaveAndExitRuntimeEdit();

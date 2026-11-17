@@ -197,6 +197,11 @@ void ATwinSceneManager::ConfirmModelPlacement()
             if (!bSameProject || !bRuntimeEditMode) return;
             const FString InstanceId = Root->GetStringField(TEXT("instance_id"));
             ProcessSnapshot(*Snapshot);
+            FRuntimeEditCommand History;
+            History.Label = PlacementLabel;
+            History.SavedObjectIds.Add(InstanceId);
+            History.bCreatedObjects = true;
+            RecordRuntimeCommand(MoveTemp(History));
             if (auto* Instance = InstanceRegistry.FindRef(InstanceId))
                 SelectRuntimeInstance(Instance, false);
             if (RuntimeEditorPanel) RuntimeEditorPanel->ShowToast(TEXT("模型已放置并保存"), EOntoTwinRuntimeToastType::Success);
@@ -204,6 +209,6 @@ void ATwinSceneManager::ConfirmModelPlacement()
     if (!Request->ProcessRequest())
     {
         bPlacementSending = false;
-        if (RuntimeEditorPanel) RuntimeEditorPanel->ShowToast(TEXT("无法连接后台，左键重试"), EOntoTwinRuntimeToastType::Error);
+        if (RuntimeEditorPanel) RuntimeEditorPanel->SetPlacementFeedback(TEXT("无法连接后台，请重试"));
     }
 }

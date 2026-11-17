@@ -332,6 +332,10 @@ public:
     bool CanPlaceRuntimeModel() const { return bRuntimeEditMode && bRuntimeCanSave && !BoundProjectId.IsEmpty(); }
     void SavePlacementDetails(const FString& Id, const FString& Name, const FString& Rid);
     bool LocatePlacementConflict(const FString& Id);
+    void DeleteSelectedObjects();
+    void EditSelectedIdentity();
+    void DismissObjectForm();
+    void SaveEditedIdentity(const FString& SourceId, const FString& Id, const FString& Name, const FString& Rid);
     void CancelUnconfirmedModelPlacement();
 
     UFUNCTION(BlueprintCallable, Category="Runtime Editor")
@@ -747,7 +751,12 @@ private:
         bool bBusinessCommand = false;
         TSharedPtr<FJsonObject> BusinessBefore;
         TSharedPtr<FJsonObject> BusinessAfter;
+        TArray<FString> SavedObjectIds;
+        bool bCreatedObjects = false;
     };
+    void RunObjectHistory(const FRuntimeEditCommand& Command, int32 Direction, bool bConfirmed = false);
+    void PostObjectAction(const FString& Action, TSharedRef<FJsonObject> Body,
+                          TFunction<void(const TSharedPtr<FJsonObject>&)> OnSuccess);
 
     TMap<FString, FRuntimeEditInstanceState> RuntimeEditStates;
     TArray<FRuntimeEditCommand> RuntimeUndoStack;

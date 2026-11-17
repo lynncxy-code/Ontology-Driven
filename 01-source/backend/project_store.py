@@ -702,6 +702,41 @@ class ProjectStore:
                 records.update(payload.get("instances", {}))
         return records
 
+    def edit_runtime_objects(self, pid, action, ids, destination, update):
+        with self._lock:
+            created, restored = [], []
+            def mutate(project, deleted):
+                result = update(project, deleted)
+                records = project["instances"]
+                if action == "delete":
+                    for iid in ids:
+                        if iid not in records:
+                            continue
+                        record = records.pop(iid)
+                        payload = {"project_id": pid, "instance_id": iid, "record": record}
+                        entry = self._trash.put("instance", payload, project_id=pid, instance_id=iid,
+                                                name=record.get("display_name", iid))
+                        created.append(entry["id"])
+                elif action == "restore":
+                    by_id = {e["instance_id"]: e["id"] for e in self.list_trash()
+                             if e["kind"] == "instance" and e["project_id"] == pid}
+                    for iid in ids:
+                        if iid not in records:
+                            if iid not in by_id:
+                                raise ValueError("请在网页回收站恢复此批次")
+                            records[iid] = deleted[iid]
+                            restored.append(by_id[iid])
+                return result
+            try:
+                result = self.transact_project(pid, mutate, include_trash=True)
+            except Exception:
+                for tid in created:
+                    self._trash.delete(tid)
+                raise
+            for tid in restored:
+                self._trash.delete(tid)
+            return result
+
     def transact_project(self, pid, updater, *, include_trash=False):
         """Atomically read, update and persist a project by id.
 

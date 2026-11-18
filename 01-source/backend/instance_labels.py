@@ -32,8 +32,9 @@ def register_label_routes(app, get_types, persist):
         obj = get_types().get(object_type_rid)
         if obj is None:
             return jsonify({"error": "类型不存在"}), 404
-        if "I3D_Visual" not in obj.get("injected_interfaces", []):
-            return jsonify({"error": "请先启用外观表现能力"}), 400
+        injected = obj.get("injected_interfaces", [])
+        if "I3D_Visual" not in injected and "I3D_Representable" not in injected:
+            return jsonify({"error": "请先启用三维存在能力"}), 400
         data = request.get_json(silent=True)
         if not isinstance(data, dict) or type(data.get("enabled")) is not bool:
             return jsonify({"error": "标签显示设置无效"}), 400
@@ -48,5 +49,11 @@ def register_label_routes(app, get_types, persist):
         if config["enabled"] and config["source"] == "fixed" and not config["text"].strip():
             return jsonify({"error": "请填写标签文字，或关闭文字标签"}), 400
         obj.setdefault("interface_configs", {}).setdefault("I3D_Visual", {})["label"] = config
+        # OPT-03: the type page no longer shows a separate "外观表现" capability.
+        # Labels still travel through I3D_Visual, so saving a label quietly keeps
+        # that underlying capability on.  Types that once switched it off keep
+        # their label hidden until someone saves the label again.
+        if "I3D_Visual" not in injected:
+            obj["injected_interfaces"] = [*injected, "I3D_Visual"]
         persist()
-        return jsonify({"label": config})
+        return jsonify({"label": config, "injected_interfaces": obj["injected_interfaces"]})

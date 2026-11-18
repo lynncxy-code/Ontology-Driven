@@ -29,7 +29,7 @@ namespace
 // The library remembers its layout for this program run, including across level changes.
 bool bLibraryOpen = false;
 int32 LastSource = 0;
-const FLinearColor Ink(0.92f, 0.92f, 0.92f);
+const FLinearColor Ink(0.96f, 0.96f, 0.96f);
 }
 void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
 {
@@ -41,25 +41,33 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     LibraryBounds->SetWidthOverride(448);
     LibraryBounds->SetHeightOverride(550);
     auto* LibrarySlot = Root->AddChildToCanvas(LibraryBounds);
-    LibrarySlot->SetPosition(FVector2D(406,20));
+    LibrarySlot->SetAnchors(FAnchors(1.f, 0.f));
+    LibrarySlot->SetAlignment(FVector2D(1.f, 0.f));
+    LibrarySlot->SetPosition(FVector2D(-20,20));
     LibrarySlot->SetAutoSize(true);
     auto* Frame = WidgetTree->ConstructWidget<UBorder>();
-    Frame->SetPadding(FMargin(10));
-    Frame->SetBrushColor(FLinearColor(.022f,.025f,.03f,.98f));
+    Frame->SetPadding(FMargin(14));
+    Frame->SetBrush(PanelBorder->Background);
+    Frame->SetBrushColor(PanelBorder->GetBrushColor());
     LibraryBounds->SetContent(Frame);
     auto* Stack = WidgetTree->ConstructWidget<UVerticalBox>();
     Frame->SetContent(Stack);
-    auto* Tabs = WidgetTree->ConstructWidget<UHorizontalBox>();
-    Stack->AddChildToVerticalBox(Tabs);
     auto AddButton = [&](UHorizontalBox* Row, const TCHAR* Name, const TCHAR* Title) {
         UButton* Button = CreateButton(Name, Title, Label, false);
         Row->AddChildToHorizontalBox(Button)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         return Button;
     };
+    auto* Header = WidgetTree->ConstructWidget<UHorizontalBox>();
+    Stack->AddChildToVerticalBox(Header)->SetPadding(FMargin(0, 0, 0, 10));
+    Header->AddChildToHorizontalBox(CreateText(TEXT("LibraryTitle"), TEXT("模型库"), 16, Ink, true))
+        ->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    UButton* Close = CreateButton(TEXT("CloseLibrary"), TEXT("收起"), Label, false);
+    Header->AddChildToHorizontalBox(Close);
+    auto* Tabs = WidgetTree->ConstructWidget<UHorizontalBox>();
+    Stack->AddChildToVerticalBox(Tabs)->SetPadding(FMargin(0, 0, 0, 8));
     auto* Project = AddButton(Tabs,TEXT("ProjectModels"),TEXT("工程模型"));
     auto* Local = AddButton(Tabs,TEXT("LocalModels"),TEXT("本地 Models"));
-    auto* Art = AddButton(Tabs,TEXT("ArtModels"),TEXT("模型库 Art Studio"));
-    auto* Close = AddButton(Tabs,TEXT("CloseLibrary"),TEXT("收起"));
+    auto* Art = AddButton(Tabs,TEXT("ArtModels"),TEXT("Art Studio"));
     ModelSourceTabs = {Project, Local, Art};
     Project->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::ShowProjectModels);
     Local->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::ShowLocalModels);
@@ -68,7 +76,7 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     LibrarySearch = WidgetTree->ConstructWidget<UEditableTextBox>();
     LibrarySearch->WidgetStyle = FCoreStyle::Get().GetWidgetStyle<FEditableTextBoxStyle>(TEXT("NormalEditableTextBox"));
     LibrarySearch->WidgetStyle.SetFont(FOntoTwinGlassTheme::Font(11.f)).SetPadding(FMargin(8.f, 5.f))
-        .SetForegroundColor(Ink).SetBackgroundColor(FLinearColor(.06f, .07f, .08f));
+        .SetForegroundColor(Ink).SetBackgroundColor(FLinearColor(.078f, .078f, .078f, .92f));
     LibrarySearch->SetHintText(FText::FromString(TEXT("搜索模型名称")));
     LibrarySearch->OnTextChanged.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::SearchLibrary);
     Stack->AddChildToVerticalBox(LibrarySearch);
@@ -76,12 +84,27 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     Stack->AddChildToVerticalBox(LocalActions);
     AddButton(LocalActions,TEXT("RefreshModels"),TEXT("刷新"))->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::RefreshLibrary);
     AddButton(LocalActions,TEXT("OpenModelsFolder"),TEXT("打开文件夹"))->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::OpenModelsFolder);
+    ArtStudioPanel = WidgetTree->ConstructWidget<UVerticalBox>();
+    Stack->AddChildToVerticalBox(ArtStudioPanel)->SetPadding(FMargin(0, 24, 0, 16));
+    ArtStudioPanel->AddChildToVerticalBox(CreateText(TEXT("ArtStudioTitle"),TEXT("Art Studio 模型库"),16,Ink,true));
+    auto* ArtStatus = CreateText(TEXT("ArtStudioStatus"),TEXT("服务尚未部署，模型库暂未连接。"),12,Ink);
+    ArtStatus->SetAutoWrapText(true);
+    ArtStudioPanel->AddChildToVerticalBox(ArtStatus)->SetPadding(FMargin(0,12,0,16));
+    UButton* Admin = CreateButton(TEXT("ArtStudioAdmin"),TEXT("管理员入口"),Label,false);
+    Admin->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::OpenArtStudioAdmin);
+    ArtStudioPanel->AddChildToVerticalBox(Admin);
+    ArtStudioAdminInfo = CreateText(TEXT("ArtStudioAdminInfo"),
+        TEXT("此入口预留给管理员配置 Art Studio 服务地址和连接账号。\n\n服务部署完成后开放配置与登录，连接后可在这里浏览模型。"),12,Ink);
+    ArtStudioAdminInfo->SetAutoWrapText(true);
+    ArtStudioPanel->AddChildToVerticalBox(ArtStudioAdminInfo)->SetPadding(FMargin(0,16,0,0));
+    ArtStudioAdminInfo->SetVisibility(ESlateVisibility::Collapsed);
+    ArtStudioPanel->SetVisibility(ESlateVisibility::Collapsed);
     ModelPreviewBox = WidgetTree->ConstructWidget<USizeBox>();
     ModelPreviewBox->SetHeightOverride(190);
     auto* PreviewLayers = WidgetTree->ConstructWidget<UOverlay>();
     ModelPreviewBox->SetContent(PreviewLayers);
     ModelViewport = WidgetTree->ConstructWidget<UViewport>();
-    ModelViewport->SetBackgroundColor(FLinearColor(.013f,.016f,.020f));
+    ModelViewport->SetBackgroundColor(FLinearColor(.078f,.078f,.078f));
     ModelViewport->SetVisibility(ESlateVisibility::HitTestInvisible);
     auto* ViewportSlot = PreviewLayers->AddChildToOverlay(ModelViewport);
     ViewportSlot->SetHorizontalAlignment(HAlign_Fill);
@@ -95,6 +118,7 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     MessageSlot->SetHorizontalAlignment(HAlign_Center);
     MessageSlot->SetVerticalAlignment(VAlign_Center);
     auto* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
+    ModelControls = Row;
     Stack->AddChildToVerticalBox(Row);
     ModelLibraryStatus = CreateText(TEXT("ModelLibraryStatus"),TEXT(""),12,Ink);
     ModelLibraryStatus->SetAutoWrapText(true);
@@ -131,6 +155,12 @@ void UOntoTwinRuntimeEditorPanel::PopulateModelLibrary(EModelSource Source)
     PendingLocalImages.Reset();
     LibraryTextures.Reset();
     LocalActions->SetVisibility(Source == EModelSource::Local ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+    const bool bArtStudio = Source == EModelSource::ArtStudio;
+    ArtStudioPanel->SetVisibility(bArtStudio ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+    LibrarySearch->SetVisibility(bArtStudio ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+    ModelPreviewBox->SetVisibility(bArtStudio ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+    ModelControls->SetVisibility(bArtStudio ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+    LibraryGrid->SetVisibility(bArtStudio ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
     if (Source != EModelSource::ArtStudio)
         for (const auto& E : OntoTwinModelLibrary::List(Source == EModelSource::Local))
         {
@@ -218,6 +248,10 @@ void UOntoTwinRuntimeEditorPanel::SearchLibrary(const FText&) { RebuildLibraryGr
 void UOntoTwinRuntimeEditorPanel::ShowProjectModels() { PopulateModelLibrary(EModelSource::Project); }
 void UOntoTwinRuntimeEditorPanel::ShowLocalModels() { PopulateModelLibrary(EModelSource::Local); }
 void UOntoTwinRuntimeEditorPanel::ShowArtStudioModels() { PopulateModelLibrary(EModelSource::ArtStudio); }
+void UOntoTwinRuntimeEditorPanel::OpenArtStudioAdmin()
+{
+    ArtStudioAdminInfo->SetVisibility(ESlateVisibility::Visible);
+}
 void UOntoTwinRuntimeEditorPanel::OpenModelsFolder()
 {
     const FString Dir = OntoTwinModelLibrary::ModelsDirectory();
@@ -258,8 +292,13 @@ void UOntoTwinRuntimeEditorPanel::NativeTick(const FGeometry& Geometry, float De
             if (Key == SelectedModelKey) SelectLibraryKey(Key);
         }
     }
+    const FVector2D ScreenSize = Geometry.GetLocalSize();
     const FVector2D Size = PanelBorder->GetCachedGeometry().GetLocalSize();
-    if (Size.Y > 0) LibraryBounds->SetHeightOverride(FMath::Max(Size.Y,460.f));
+    if (ScreenSize.X > 40 && ScreenSize.Y > 40)
+    {
+        LibraryBounds->SetWidthOverride(FMath::Min(448.f, ScreenSize.X - 40.f));
+        LibraryBounds->SetHeightOverride(FMath::Min(FMath::Max(Size.Y,550.f), ScreenSize.Y - 40.f));
+    }
     if (AActor* Actor = LibraryPreviewActor.Get())
     {
         const FVector Pivot = Actor->GetComponentsBoundingBox().GetCenter();

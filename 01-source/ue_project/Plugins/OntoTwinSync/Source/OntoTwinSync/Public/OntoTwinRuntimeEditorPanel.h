@@ -83,6 +83,8 @@ private:
     UPROPERTY(Transient) UEditableTextBox* LibrarySearch = nullptr;
     UPROPERTY(Transient) UImage* BlueprintImage = nullptr;
     UPROPERTY(Transient) UHorizontalBox* LocalActions = nullptr;
+    UPROPERTY(Transient) UVerticalBox* ArtStudioPanel = nullptr;
+    UPROPERTY(Transient) UTextBlock* ArtStudioAdminInfo = nullptr;
     TMap<FString, FString> ModelLabels, ModelErrors, ModelImages, ModelKinds;
     TArray<FString> OrderedModelKeys;
     TArray<FString> PendingLocalImages;
@@ -108,6 +110,7 @@ private:
     void ClearLibraryPreview();
     void PopulateModelLibrary(EModelSource Source);
     UFUNCTION() void ShowArtStudioModels();
+    UFUNCTION() void OpenArtStudioAdmin();
     UFUNCTION() void ShowProjectModels();
     UFUNCTION() void ShowLocalModels();
     UFUNCTION() void PlaceSelectedModel();

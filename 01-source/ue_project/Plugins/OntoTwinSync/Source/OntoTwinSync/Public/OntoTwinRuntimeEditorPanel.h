@@ -103,6 +103,7 @@ private:
     enum class EModelSource : uint8 { Project, Local, ArtStudio };
     EModelSource ModelSource = EModelSource::Project;
     UPROPERTY(Transient) UViewport* ModelViewport = nullptr;
+    UPROPERTY(Transient) USizeBox* ModelPreviewBounds = nullptr;
     UPROPERTY(Transient) USizeBox* ModelPreviewBox = nullptr;
     UPROPERTY(Transient) UTextBlock* ModelPreviewMessage = nullptr;
     UPROPERTY(Transient) UHorizontalBox* ModelControls = nullptr;

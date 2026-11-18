@@ -848,7 +848,8 @@ bool UOntoTwinRuntimeEditorPanel::IsPointerOverPanel() const
 
     const FVector2D MousePosition = FSlateApplication::Get().GetCursorPos();
     return PanelBorder->GetCachedGeometry().IsUnderLocation(MousePosition) ||
-        (LibraryBounds && LibraryBounds->IsVisible() && LibraryBounds->GetCachedGeometry().IsUnderLocation(MousePosition));
+        (LibraryBounds && LibraryBounds->IsVisible() && LibraryBounds->GetCachedGeometry().IsUnderLocation(MousePosition)) ||
+        (ModelPreviewBounds && ModelPreviewBounds->IsVisible() && ModelPreviewBounds->GetCachedGeometry().IsUnderLocation(MousePosition));
 }
 
 void UOntoTwinRuntimeEditorPanel::HideConfirmation()

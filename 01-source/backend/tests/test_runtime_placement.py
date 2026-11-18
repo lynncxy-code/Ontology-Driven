@@ -208,3 +208,132 @@ def test_heartbeat_attachment_uses_bound_project_and_latest_report(client, store
     assert reasons() == []
     assert client.post("/api/v2/runtime-editor/objects/identity", headers=HEADERS,
                        json={"expected_project_id": "p_test", "ids": [iid], "display_name": "更名布景"}).status_code == 200
+
+
+@pytest.fixture
+def identity_instance(client, store, placement):
+    store.transact_project("p_test", lambda p: p["object_types"].update(
+        robot={"rid": "robot", "name": "机器人",
+               "injected_interfaces": ["I3D_Representable", "I3D_Spatial", "I3D_Overlay"]}))
+    iid = "ACCEPT48_ID_OLD"
+    response = client.post(URL, headers=HEADERS, json={
+        **placement, "instance_id": iid, "object_type_rid": "robot", "display_name": "编号测试"})
+    assert response.status_code == 201, response.json
+    return iid
+
+
+def rename_identity(client, iid, destination="ACCEPT48_ID_NEW", **fields):
+    return client.post("/api/v2/runtime-editor/objects/identity", headers=HEADERS, json={
+        "expected_project_id": "p_test", "ids": [iid], "instance_id": destination, **fields})
+
+
+@pytest.mark.parametrize("version", ["draft", "published", "previous_published"])
+def test_inherited_panel_and_derived_view_do_not_lock_id(client, store, identity_instance, version):
+    from web_interaction.validators import business_view_members
+    iid = identity_instance
+    view = {"id": "automatic", "rule_groups": [{"object_type_rids": ["robot"]}]}
+    def setup(project):
+        project["web_interactions"] = {version: {"business_views": [view]}}
+        project["object_types"]["robot"]["interface_overrides"] = {
+            "I3D_Overlay": {"values": {"title": "继承面板"}}}
+    store.transact_project("p_test", setup)
+    options = client.get("/api/v2/runtime-editor/placement-options", headers=HEADERS,
+                         query_string={"expected_project_id": "p_test", "selected_id": iid})
+    assert options.json["identity"]["reasons"] == []
+    assert iid in business_view_members(store.read_project("p_test"), view)
+    before = store.read_project("p_test")["instances"][iid]
+    response = rename_identity(client, iid)
+    assert response.status_code == 200, response.json
+    project = store.read_project("p_test")
+    assert "ACCEPT48_ID_NEW" in business_view_members(project, view)
+    rec = project["instances"]["ACCEPT48_ID_NEW"]
+    assert rec["raw_state"] == before["raw_state"]
+    assert rec["render_config"]["model_override"] == before["render_config"]["model_override"]
+    assert project["web_interactions"][version]["business_views"] == [view]
+
+
+@pytest.mark.parametrize("version", ["draft", "published", "previous_published"])
+@pytest.mark.parametrize("reference", ["include", "exclude", "group_exclude"])
+def test_explicit_view_references_still_lock_id(client, store, identity_instance, version, reference):
+    iid = identity_instance
+    # A non-matching type must not hide an explicit ID dependency.
+    group = {"object_type_rids": ["non_matching_type"]}
+    view = {"rule_groups": [group]}
+    if reference == "include":
+        group["instance_ids"] = [iid]
+    elif reference == "group_exclude":
+        group["exclude_instance_ids"] = [iid]
+    else:
+        view["exclude_instance_ids"] = [iid]
+    store.transact_project("p_test", lambda p: p.update(
+        web_interactions={version: {"business_views": [view]}}))
+    before = store.read_project("p_test")
+    response = rename_identity(client, iid)
+    assert response.status_code == 409 and response.json["error"] == "identifier_locked"
+    assert "业务视图" in response.json["message"]
+    assert store.read_project("p_test") == before
+
+
+@pytest.mark.parametrize("attachment,reason", [
+    ("panel", "已配置信息面板"), ("zone", "已设置业务分区"), ("component", "已绑定构件")])
+def test_instance_attachments_still_lock_id(client, store, identity_instance, attachment, reason):
+    iid = identity_instance
+    def setup(project):
+        rec = project["instances"][iid]
+        if attachment == "panel":
+            rec["render_config"]["interface_overrides"] = {"I3D_Overlay": {"values": {"title": "实例面板"}}}
+        elif attachment == "zone":
+            rec["zone_id"] = "ACCEPT48_ZONE"
+        else:
+            project["components"]["ACCEPT48_COMPONENT"] = {"bound_instance_id": iid}
+    store.transact_project("p_test", setup)
+    before = store.read_project("p_test")
+    response = rename_identity(client, iid)
+    assert response.status_code == 409 and response.json["message"] == reason
+    assert store.read_project("p_test") == before
+
+
+@pytest.mark.parametrize("source", ["runtime_editor", "manual", "import", "legacy_unknown", None])
+@pytest.mark.parametrize("existing_target", [False, True])
+def test_rename_preserves_planned_and_unknown_roster_entries(client, store, identity_instance, source, existing_target):
+    iid, destination = identity_instance, "ACCEPT48_ID_NEW"
+    original = {"instance_id": iid, "type": "机器人", "name": "原计划名称", "note": "保留原清单资料"}
+    if source is not None:
+        original["source"] = source
+    target = {"instance_id": destination, "type": "机器人", "name": "目标计划", "source": "manual"}
+    unrelated = {"instance_id": "ACCEPT48_OTHER", "type": "机器人", "name": "其他计划"}
+    store.transact_project("p_test", lambda p: p.update(
+        instance_roster=[original, unrelated] + ([target] if existing_target else [])))
+    response = rename_identity(client, iid, destination)
+    assert response.status_code == 200, response.json
+    project = store.read_project("p_test")
+    assert iid not in project["instances"] and destination in project["instances"]
+    rows = {row["instance_id"]: row for row in project["instance_roster"]}
+    if source == "runtime_editor":
+        assert iid not in rows
+    else:
+        assert rows[iid] == original
+    assert rows[unrelated["instance_id"]] == unrelated
+    if existing_target:
+        assert rows[destination] == target
+    assert len(project["instance_roster"]) == len(rows)
+    options = client.get("/api/v2/runtime-editor/placement-options", headers=HEADERS,
+                         query_string={"expected_project_id": "p_test", "model": "models:AGV.glb"})
+    available = {row["instance_id"] for row in options.json["roster"]}
+    assert (iid in available) == (source != "runtime_editor")
+    assert destination not in available
+
+
+@pytest.mark.parametrize("conflict", ["active", "trash"])
+def test_failed_rename_preserves_original_roster(client, store, identity_instance, placement, conflict):
+    iid, destination = identity_instance, "ACCEPT48_ID_TAKEN"
+    other = client.post(URL, headers=HEADERS, json={**placement, "placement_id": str(uuid4()),
+                        "instance_id": destination, "object_type_rid": "robot"})
+    assert other.status_code == 201
+    if conflict == "trash":
+        store.remove(destination)
+    before = store.read_project("p_test")
+    response = rename_identity(client, iid, destination)
+    assert response.status_code == 409
+    assert response.json["error"] == ("already_placed" if conflict == "active" else "in_trash")
+    assert store.read_project("p_test") == before

@@ -4,7 +4,6 @@ from flask import jsonify, request
 from project_store import apply_instance_metadata
 from realtime_channel import has_external_realtime_data
 from tenant_api import ApiError
-from web_interaction.validators import business_view_members
 
 
 def attachment_reasons(project, iid, record, runtime_status=None, *, for_deletion=False):
@@ -14,8 +13,7 @@ def attachment_reasons(project, iid, record, runtime_status=None, *, for_deletio
                        if for_deletion else "正在接收外部实时数据")
     config = record.get("render_config") or {}
     panel = (config.get("interface_overrides") or {}).get("I3D_Overlay") or {}
-    typ = project.get("object_types", {}).get(record.get("object_type_rid"), {})
-    if panel.get("values") or "I3D_Overlay" in typ.get("injected_interfaces", []):
+    if panel.get("values"):
         reasons.append("已配置信息面板")
     if record.get("zone_id"):
         reasons.append("已设置业务分区")
@@ -25,8 +23,7 @@ def attachment_reasons(project, iid, record, runtime_status=None, *, for_deletio
     for version in ("draft", "published", "previous_published"):
         cfg = web.get(version) or {}
         for view in cfg.get("business_views") or []:
-            if iid in business_view_members(project, view):
-                reasons.append("已加入业务视图")
+            # Derived membership survives renaming; explicit ID references do not.
             for group in view.get("rule_groups") or view.get("groups") or []:
                 if iid in (group.get("instance_ids") or []) or iid in (group.get("exclude_instance_ids") or []):
                     reasons.append("已加入业务视图")
@@ -112,7 +109,10 @@ def register_object_changes(app, scene_store, scene_type, caps, snapshot, get_ru
                 apply_instance_metadata(rec, {"display_name": (target or {}).get("name") or new_name.strip(),
                                               "hierarchy_path": [typ["name"]]})
                 instances[destination] = instances.pop(iid)
-                roster[:] = [x for x in roster if x.get("instance_id") != iid]
+                # Only F10-created entries are known typo candidates. Preserve planned
+                # and legacy entries (including unknown provenance) as uncommissioned.
+                roster[:] = [x for x in roster if x.get("instance_id") != iid
+                             or x.get("source") != "runtime_editor"]
                 if not target:
                     roster.append({"instance_id": destination, "type": typ["name"], "name": rec["display_name"], "source":"runtime_editor"})
                 return info

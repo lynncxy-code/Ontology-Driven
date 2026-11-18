@@ -100,29 +100,52 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     ArtStudioPanel->AddChildToVerticalBox(ArtStudioAdminInfo)->SetPadding(FMargin(0,16,0,0));
     ArtStudioAdminInfo->SetVisibility(ESlateVisibility::Collapsed);
     ArtStudioPanel->SetVisibility(ESlateVisibility::Collapsed);
+    // A separate canvas child keeps search and model cards stationary while previewing.
+    ModelPreviewBounds = WidgetTree->ConstructWidget<USizeBox>();
+    ModelPreviewBounds->SetWidthOverride(560);
+    ModelPreviewBounds->SetVisibility(ESlateVisibility::Collapsed);
+    auto* PreviewSlot = Root->AddChildToCanvas(ModelPreviewBounds);
+    PreviewSlot->SetAnchors(FAnchors(1.f, 0.f));
+    PreviewSlot->SetAlignment(FVector2D(1.f, 0.f));
+    PreviewSlot->SetPosition(FVector2D(-484,20));
+    PreviewSlot->SetAutoSize(true);
+    auto* PreviewFrame = WidgetTree->ConstructWidget<UBorder>();
+    PreviewFrame->SetPadding(FMargin(14));
+    PreviewFrame->SetBrush(PanelBorder->Background);
+    PreviewFrame->SetBrushColor(PanelBorder->GetBrushColor());
+    ModelPreviewBounds->SetContent(PreviewFrame);
+    auto* PreviewStack = WidgetTree->ConstructWidget<UVerticalBox>();
+    PreviewFrame->SetContent(PreviewStack);
     ModelPreviewBox = WidgetTree->ConstructWidget<USizeBox>();
-    ModelPreviewBox->SetHeightOverride(190);
+    ModelPreviewBox->SetHeightOverride(399);
     ModelPreviewBox->SetVisibility(ESlateVisibility::Collapsed);
     auto* PreviewLayers = WidgetTree->ConstructWidget<UOverlay>();
-    ModelPreviewBox->SetContent(PreviewLayers);
+    auto* PreviewBackdrop = WidgetTree->ConstructWidget<UBorder>();
+    PreviewBackdrop->SetPadding(FMargin(0));
+    PreviewBackdrop->SetBrushColor(FLinearColor::Black);
+    PreviewBackdrop->SetContent(PreviewLayers);
+    ModelPreviewBox->SetContent(PreviewBackdrop);
     ModelViewport = WidgetTree->ConstructWidget<UViewport>();
-    ModelViewport->SetBackgroundColor(FLinearColor(.078f,.078f,.078f));
+    ModelViewport->SetBackgroundColor(FLinearColor::Black);
     ModelViewport->SetVisibility(ESlateVisibility::HitTestInvisible);
     auto* ViewportSlot = PreviewLayers->AddChildToOverlay(ModelViewport);
     ViewportSlot->SetHorizontalAlignment(HAlign_Fill);
     ViewportSlot->SetVerticalAlignment(VAlign_Fill);
-    Stack->AddChildToVerticalBox(ModelPreviewBox);
+    PreviewStack->AddChildToVerticalBox(ModelPreviewBox);
     BlueprintImage = WidgetTree->ConstructWidget<UImage>();
     BlueprintImage->SetDesiredSizeOverride(FVector2D(180));
-    PreviewLayers->AddChildToOverlay(BlueprintImage)->SetHorizontalAlignment(HAlign_Center);
+    auto* BlueprintSlot = PreviewLayers->AddChildToOverlay(BlueprintImage);
+    BlueprintSlot->SetHorizontalAlignment(HAlign_Center);
+    BlueprintSlot->SetVerticalAlignment(VAlign_Center);
     ModelPreviewMessage = CreateText(TEXT("ModelPreviewMessage"),TEXT("单击模型查看"),11,Ink);
+    ModelPreviewMessage->SetAutoWrapText(true);
     auto* MessageSlot=PreviewLayers->AddChildToOverlay(ModelPreviewMessage);
     MessageSlot->SetHorizontalAlignment(HAlign_Center);
     MessageSlot->SetVerticalAlignment(VAlign_Center);
     auto* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
     ModelControls = Row;
     ModelControls->SetVisibility(ESlateVisibility::Collapsed);
-    Stack->AddChildToVerticalBox(Row)->SetPadding(FMargin(0, 6, 0, 8));
+    PreviewStack->AddChildToVerticalBox(Row)->SetPadding(FMargin(0, 10, 0, 0));
     ModelLibraryStatus = CreateText(TEXT("ModelLibraryStatus"),TEXT(""),12,Ink);
     ModelLibraryStatus->SetAutoWrapText(true);
     Row->AddChildToHorizontalBox(ModelLibraryStatus)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
@@ -325,6 +348,16 @@ void UOntoTwinRuntimeEditorPanel::NativeTick(const FGeometry& Geometry, float De
         const float Width = FMath::Min(448.f, ScreenSize.X - 40.f);
         LibraryBounds->SetWidthOverride(Width);
         LibraryBounds->SetHeightOverride(FMath::Min(720.f, ScreenSize.Y - 40.f));
+        const float BetweenPanels = ScreenSize.X - Width - 380.f - 84.f;
+        const float AvailablePreviewWidth = BetweenPanels >= 280.f
+            ? BetweenPanels : ScreenSize.X - Width - 56.f;
+        const float PreviewWidth = FMath::Clamp(AvailablePreviewWidth, 160.f, 560.f);
+        ModelPreviewBounds->SetWidthOverride(PreviewWidth);
+        const float PreviewHeight = FMath::Max(100.f, FMath::Min((PreviewWidth - 28.f) * .75f, ScreenSize.Y - 132.f));
+        ModelPreviewBox->SetHeightOverride(PreviewHeight);
+        BlueprintImage->SetDesiredSizeOverride(FVector2D(FMath::Min(PreviewHeight, PreviewWidth - 28.f)));
+        if (auto* PreviewCanvasSlot = Cast<UCanvasPanelSlot>(ModelPreviewBounds->Slot))
+            PreviewCanvasSlot->SetPosition(FVector2D(-(Width + 36.f), 20.f));
         // Frame padding + reserved scroll bar width keep the column count stable.
         const float GridWidth = FMath::Max(80.f, Width - 28.f - 16.f);
         if (!FMath::IsNearlyEqual(GridWidth, LibraryGridWidth, 1.f))

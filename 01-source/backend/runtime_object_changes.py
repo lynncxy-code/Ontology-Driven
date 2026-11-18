@@ -32,6 +32,42 @@ def attachment_reasons(project, iid, record, runtime_status=None, *, for_deletio
     return list(dict.fromkeys(reasons))
 
 
+def assign_business_number(project, deleted, iid, destination, type_rid, new_name, reasons, scene_type, caps, roster_source):
+    """Update the existing object and its roster in the caller's locked transaction."""
+    instances = project["instances"]
+    rec = instances[iid]
+    if reasons:
+        raise ApiError(409, "、".join(reasons), "identifier_locked")
+    if destination in deleted:
+        raise ApiError(409, "该编号位于回收站", "in_trash")
+    if destination in instances:
+        raise ApiError(409, "该编号已投产", "already_placed")
+    roster = project.setdefault("instance_roster", [])
+    target = next((x for x in roster if x.get("instance_id") == destination), None)
+    types = project["object_types"]
+    rid = type_rid
+    if not isinstance(rid, str):
+        raise ApiError(400, "类型无效")
+    if target and target.get("type"):
+        rid = next((k for k, v in types.items() if target["type"] in (k, v.get("name"))
+                    and k != scene_type and set(caps).issubset(v.get("injected_interfaces", []))), rid)
+    typ = types.get(rid) or {}
+    if rid == scene_type or not set(caps).issubset(typ.get("injected_interfaces", [])):
+        raise ApiError(400, "请选择具备三维和空间能力的业务类型", "invalid_type")
+    rec.update(id=destination, object_type_rid=rid, object_type_name=typ["name"])
+    rec.setdefault("render_config", {}).update(object_type_name=typ["name"],
+                                                injected_interfaces=list(typ["injected_interfaces"]))
+    apply_instance_metadata(rec, {"display_name": (target or {}).get("name") or new_name.strip(),
+                                  "hierarchy_path": [typ["name"]]})
+    instances[destination] = instances.pop(iid)
+    # Only F10-created entries are known typo candidates. Preserve planned
+    # and legacy entries (including unknown provenance) as uncommissioned.
+    roster[:] = [x for x in roster if x.get("instance_id") != iid
+                 or x.get("source") != "runtime_editor"]
+    if not target:
+        roster.append({"instance_id": destination, "type": typ["name"], "name": rec["display_name"], "source": roster_source})
+
+
 def checked_ids(data):
     ids = data.get("ids")
     if not isinstance(ids, list) or not 1 <= len(ids) <= 500 or any(
@@ -86,35 +122,8 @@ def register_object_changes(app, scene_store, scene_type, caps, snapshot, get_ru
                         if row.get("instance_id") == iid:
                             row["name"] = rec["display_name"]
                     return info
-                if info[0]["reasons"]:
-                    raise ApiError(409, "、".join(info[0]["reasons"]), "identifier_locked")
-                if destination in deleted:
-                    raise ApiError(409, "该编号位于回收站", "in_trash")
-                if destination in instances:
-                    raise ApiError(409, "该编号已投产", "already_placed")
-                roster = project.setdefault("instance_roster", [])
-                target = next((x for x in roster if x.get("instance_id") == destination), None)
-                types = project["object_types"]
-                rid = data.get("object_type_rid", rec.get("object_type_rid"))
-                if not isinstance(rid,str):
-                    raise ApiError(400, "类型无效")
-                if target and target.get("type"):
-                    rid = next((k for k, v in types.items() if target["type"] in (k,v.get("name"))
-                                and k != scene_type and set(caps).issubset(v.get("injected_interfaces",[]))),rid)
-                typ = types.get(rid) or {}
-                if rid == scene_type or not set(caps).issubset(typ.get("injected_interfaces", [])):
-                    raise ApiError(400, "请选择具备三维和空间能力的业务类型", "invalid_type")
-                rec.update(id=destination, object_type_rid=rid, object_type_name=typ["name"])
-                rec.setdefault("render_config", {}).update(object_type_name=typ["name"],injected_interfaces=list(typ["injected_interfaces"]))
-                apply_instance_metadata(rec, {"display_name": (target or {}).get("name") or new_name.strip(),
-                                              "hierarchy_path": [typ["name"]]})
-                instances[destination] = instances.pop(iid)
-                # Only F10-created entries are known typo candidates. Preserve planned
-                # and legacy entries (including unknown provenance) as uncommissioned.
-                roster[:] = [x for x in roster if x.get("instance_id") != iid
-                             or x.get("source") != "runtime_editor"]
-                if not target:
-                    roster.append({"instance_id": destination, "type": typ["name"], "name": rec["display_name"], "source":"runtime_editor"})
+                assign_business_number(project, deleted, iid, destination, data.get("object_type_rid", rec.get("object_type_rid")),
+                                       new_name, info[0]["reasons"], scene_type, caps, "runtime_editor")
                 return info
 
             if action == "inspect":

@@ -78,6 +78,88 @@ def test_binding_required(client, store, placement):
     assert not store.read_project("p_test")["instances"]
 
 
+WEB = {"X-OntoTwin-Project-Id": "p_test", "X-OntoTwin-Session": "fixture-session"}
+
+
+@pytest.fixture
+def scenery_binding(client, store, placement):
+    iid = client.post(URL, headers=HEADERS, json=placement).json["instance_id"]
+
+    def seed(project):
+        project["object_types"]["robot"] = {"rid": "robot", "name": "机器人",
+                                            "injected_interfaces": ["I3D_Representable", "I3D_Spatial"]}
+        project["instance_roster"] = [{"instance_id": "R-017", "type": "机器人", "name": "装配臂", "source": "import"}]
+    store.transact_project("p_test", seed)
+    return iid, f"/api/v2/instances/{iid}/business-number"
+
+
+@pytest.mark.parametrize("mode,number", [("roster", "R-017"), ("new", "R-018")])
+def test_browser_first_number(client, store, scenery_binding, mode, number):
+    iid, endpoint = scenery_binding
+    project = store.read_project("p_test")
+    rec = project["instances"][iid]
+    options = client.get(endpoint, headers=WEB).json
+    assert options["types"] == [{"rid": "robot", "name": "机器人"}]
+    assert [r["instance_id"] for r in options["roster"]] == ["R-017"]
+    body = {"expected_project_id": "p_test", "instance_id": number, "mode": mode}
+    if mode == "new":
+        body["object_type_rid"] = "robot"
+    assert client.post(endpoint, json=body, headers=WEB).json == {"instance_id": number}
+    result = store.read_project("p_test")
+    assert set(result["instances"]) == {number}
+    bound = result["instances"][number]
+    assert bound["object_type_rid"] == "robot" and bound["ext_guid"] == rec["ext_guid"]
+    assert bound["raw_state"] == rec["raw_state"]
+    assert bound["render_config"]["model_override"] == rec["render_config"]["model_override"]
+    if mode == "roster":
+        assert bound["display_name"] == "装配臂" and result["instance_roster"] == project["instance_roster"]
+    else:
+        assert bound["display_name"] == rec["display_name"]
+        assert len([r for r in result["instance_roster"] if r["instance_id"] == number]) == 1
+    assert client.post(endpoint, json=body, headers=WEB).status_code == 404
+    assert client.post(endpoint.replace(iid, number), json=body, headers=WEB).status_code == 409
+
+
+@pytest.mark.parametrize("case,code", [
+    ("active", "already_placed"), ("trash", "in_trash"), ("component", "component_bound"),
+    ("stale_roster", "roster_changed"), ("manual_roster", "on_roster"),
+    ("invalid_type", "invalid_type"), ("project", "project_context_mismatch"),
+])
+def test_browser_binding_rejects_without_mutation(client, store, scenery_binding, placement, case, code):
+    iid, endpoint = scenery_binding
+    number = "R-019"
+    body = {"expected_project_id": "p_test", "instance_id": number, "mode": "new", "object_type_rid": "robot"}
+    if case in ("active", "trash"):
+        response = client.post(URL, headers=HEADERS, json={**placement, "placement_id": str(uuid4()),
+                               "instance_id": number, "object_type_rid": "robot"})
+        assert response.status_code == 201
+        if case == "trash":
+            store.remove(number)
+    elif case == "component":
+        body["instance_id"] = "DW-001"
+    elif case == "stale_roster":
+        body["mode"] = "roster"
+    elif case == "manual_roster":
+        body["instance_id"] = "R-017"
+    elif case == "invalid_type":
+        body["object_type_rid"] = "ontotwin.scene_object"
+    else:
+        body["expected_project_id"] = "different"
+    before = store.read_project("p_test")
+    response = client.post(endpoint, headers=WEB, json=body)
+    assert response.status_code in (400, 409) and response.json["error"] == code
+    assert store.read_project("p_test") == before
+
+
+def test_browser_binding_requires_session_and_edit_access(client, scenery_binding, monkeypatch):
+    import app as backend
+    _, endpoint = scenery_binding
+    assert client.post(endpoint, headers=HEADERS, json={}).status_code == 401
+    monkeypatch.setattr(backend, "legacy_project_role", lambda pid, minimum="view": "none" if minimum == "edit" else "viewer")
+    assert client.get(endpoint, headers=WEB).status_code == 200
+    assert client.post(endpoint, headers=WEB, json={}).status_code == 403
+
+
 def test_scenery_names_trash_and_purge(client, store, placement):
     def place(**fields):
         response = client.post(URL, headers=HEADERS, json={**placement, "label": "货架",

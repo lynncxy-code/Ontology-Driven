@@ -13,6 +13,7 @@
     </script>
     <script type="module" src="/artstudio_cover.js"></script>
     <script src="/hierarchy_menu.js"></script>
+    <script src="/scenery_number_binding.js"></script>
     <script src="/vendor/jsencrypt-3.3.2.min.js" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="/nexus_titlebar.css" />
     <link rel="stylesheet" href="/instance_control.css" />
@@ -382,7 +383,10 @@
                 <div class="ic-header">
                     <div>
                         <div class="flex flex-wrap items-center gap-3">
-                            <span class="ic-header-id">{{ isScenery(selectedInst) ? '场景陈设' : selectedInst.id }}</span>
+                            <span class="ic-header-id">{{ isScenery(selectedInst) ? '未编号' : selectedInst.id }}</span>
+                            <scenery-number-binding v-if="isScenery(selectedInst)" :key="selectedInst.id"
+                                :instance="selectedInst" :project-id="activeDataset?.project_id || activeDataset?.id"
+                                :disabled="overriding || controlDirtyCount > 0" @bound="numberBound"></scenery-number-binding>
                             <span class="ic-tag" :aria-label="instanceLivenessTag(selectedInst).detail">{{ instanceLivenessTag(selectedInst).label }}</span>
                         </div>
                         <div class="ic-header-meta">
@@ -514,7 +518,7 @@
                                 </section>
                                 <section class="ic-card" aria-label="实例信息面板">
                                     <div class="ic-section">
-                                        <div class="ic-pair"><span class="ic-row-title">信息面板</span><span v-if="isScenery(selectedInst)">在运行中的三维场景按 F10，进入编辑模式补填业务编号</span><a v-else :href="'/interaction?target=instance&instance_id=' + encodeURIComponent(selectedInst.id) + '&from=instance'" class="ic-link">配置此实例</a></div>
+                                        <div class="ic-pair"><span class="ic-row-title">信息面板</span><span v-if="isScenery(selectedInst)">绑定业务编号后可配置</span><a v-else :href="'/interaction?target=instance&instance_id=' + encodeURIComponent(selectedInst.id) + '&from=instance'" class="ic-link">配置此实例</a></div>
                                         <p class="ic-help">点击模型后的详细信息，可为此实例单独配置；与文字标签独立。</p>
                                     </div>
                                 </section>
@@ -1307,6 +1311,7 @@ const INSTANCE_LIVENESS_TAGS = Object.freeze({
 
 const { createApp, ref, computed, onMounted, onUnmounted, watch, nextTick } = Vue;
 createApp({
+    components: { SceneryNumberBinding: window.SceneryNumberBinding },
     components: { 'ue-asset-picker': OntoTwinUEAssetPicker },
     setup() {
         const instances = ref([]);
@@ -1902,6 +1907,17 @@ createApp({
             // 这里原来顺带刷一次 model-binding。但模型绑定只会被本页或 MCP 改动，
             // UE 不写它——跟着列表每 2s 拉一次纯属搭便车，实测响应体一字不变。
             // 改成选中时查一次 + 改动后主动刷（见 saveModelBinding / clearModelBinding）。
+        }
+
+        async function numberBound(number) {
+            toast('ok', '已绑定业务编号 ' + number);
+            try {
+                await loadInstances();
+                const bound = instances.value.find(item => item.id === number);
+                if (bound) selectInstance(bound);
+            } catch (_) {
+                toast('err', '绑定已保存，请刷新页面查看实例。');
+            }
         }
 
         async function loadInstances() {
@@ -3123,7 +3139,7 @@ createApp({
         });
 
         return {
-            instances, objectTypes, readyTypes, instanceRoster, availableRosterEntries, isScenery,
+            instances, objectTypes, readyTypes, instanceRoster, availableRosterEntries, isScenery, numberBound,
             selectedSpawnRosterEntry, spawnIdConflict, spawnIdHint, selectedInst, currentSnap,
             snapshotLoading, snapshotError, snapshotUpdatedAt, controlError, controlSavedMessage, controlDirtyCount, plainLabelSummary,
             controlDialog, controlDialogElement, closeControlDialog, confirmControlDialog, trapControlDialog, refreshInstanceView,

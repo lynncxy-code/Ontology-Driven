@@ -21,6 +21,10 @@
 .il-list>div>div>div{padding:8px 12px;border-radius:8px}
 .il-spawn-dialog{width:min(520px,100%);max-height:82vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 16px 48px rgba(20,20,20,.18);color:#1a1a1a}
 .il-spawn-head{padding:24px 24px 0}
+.il-number-dialog{margin:auto;padding:0;border:0;font-size:13px}
+.il-number-dialog::backdrop{background:rgba(20,20,20,.4)}
+.il-number-dialog select,.il-number-dialog input[type=text]{display:block;width:100%;margin-top:4px;border:1px solid #d4d4d4;border-radius:6px;padding:8px;background:#fff}
+.il-number-dialog .ic-error{margin-bottom:12px}
 .il-spawn-head h2{font-size:16px;font-weight:600;margin:0}
 .il-spawn-head p,.il-help{font-size:12px;line-height:1.6;color:#5c5c5c;margin:8px 0 0}
 .il-spawn-dialog fieldset{min-width:0}

@@ -9,6 +9,7 @@ from flask import g, jsonify, request
 
 from project_store import _default_raw_state, apply_instance_metadata
 from runtime_object_changes import attachment_reasons, register_object_changes
+from scenery_number_binding import register_scenery_number_binding
 from tenant_api import ApiError
 from ue_project_binding import check_request_can_write_active, lookup_with_heal
 
@@ -117,6 +118,7 @@ def register_runtime_placement_routes(app, get_store, snapshot, get_runtime_stat
         return pid, store if pg_mode else canonical
 
     register_object_changes(app, scene_store, TYPE_RID, CAPABILITIES, snapshot, get_runtime_status)
+    register_scenery_number_binding(app, get_store, TYPE_RID, CAPABILITIES, get_runtime_status)
 
     @app.get("/api/v2/runtime-editor/placement-options")
     def placement_options():

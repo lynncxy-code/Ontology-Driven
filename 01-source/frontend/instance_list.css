@@ -23,6 +23,7 @@
 .il-spawn-head{padding:24px 24px 0}
 .il-number-dialog{margin:auto;padding:0;border:0;font-size:13px}
 .il-number-dialog::backdrop{background:rgba(20,20,20,.4)}
+.il-number-dialog input[type=radio]{accent-color:#1a1a1a}
 .il-number-dialog select,.il-number-dialog input[type=text]{display:block;width:100%;margin-top:4px;border:1px solid #d4d4d4;border-radius:6px;padding:8px;background:#fff}
 .il-number-dialog .ic-error{margin-bottom:12px}
 .il-spawn-head h2{font-size:16px;font-weight:600;margin:0}

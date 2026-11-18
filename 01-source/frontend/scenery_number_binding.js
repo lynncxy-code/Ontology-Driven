@@ -75,14 +75,14 @@ window.SceneryNumberBinding = {
                                 <label><input type="radio" name="number-mode" :checked="mode === 'new'" @change="setMode('new')"> 填写新编号</label>
                             </div>
                             <label class="block">业务编号
-                                <select v-if="mode === 'roster'" v-model="number" @change="typeRid = ''; message = ''">
+                                <select v-if="mode === 'roster'" aria-label="业务编号" v-model="number" @change="typeRid = ''; message = ''">
                                     <option disabled value="">{{ options.roster.length ? '请选择待投产编号' : '暂无待投产编号' }}</option>
                                     <option v-for="r in options.roster" :value="r.instance_id" :key="r.instance_id">{{ r.instance_id }}{{ r.name ? ' · ' + r.name : '' }}</option>
                                 </select>
-                                <input v-else type="text" v-model.trim="number" maxlength="255" placeholder="输入新业务编号" @input="message = ''">
+                                <input v-else type="text" aria-label="业务编号" v-model.trim="number" maxlength="255" placeholder="输入新业务编号" @input="message = ''">
                             </label>
                             <label class="block">业务类型
-                                <select :value="effectiveType" :disabled="!!rosterType" @change="typeRid = $event.target.value; message = ''">
+                                <select aria-label="业务类型" :value="effectiveType" :disabled="!!rosterType" @change="typeRid = $event.target.value; message = ''">
                                     <option disabled value="">请选择业务类型</option>
                                     <option v-for="t in options.types" :key="t.rid" :value="t.rid">{{ t.name }}</option>
                                 </select>

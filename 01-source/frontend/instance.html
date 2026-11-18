@@ -1311,8 +1311,7 @@ const INSTANCE_LIVENESS_TAGS = Object.freeze({
 
 const { createApp, ref, computed, onMounted, onUnmounted, watch, nextTick } = Vue;
 createApp({
-    components: { SceneryNumberBinding: window.SceneryNumberBinding },
-    components: { 'ue-asset-picker': OntoTwinUEAssetPicker },
+    components: { 'ue-asset-picker': OntoTwinUEAssetPicker, SceneryNumberBinding: window.SceneryNumberBinding },
     setup() {
         const instances = ref([]);
         const objectTypes = ref([]);

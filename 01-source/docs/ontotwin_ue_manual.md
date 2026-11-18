@@ -225,6 +225,8 @@ OntoTwin 的核心任务是将**物理世界中设备的业务属性与图纸几
 ```ini
 [/Script/UnrealEd.ProjectPackagingSettings]
 +DirectoriesToAlwaysCook=(Path="/glTFRuntime")
+; 启用工业行为库时，打包告警、状态外观和皮带条纹材质（5503 验收配置）。
++DirectoriesToAlwaysCook=(Path="/OntoTwinIndustrialBehavior/Materials")
 
 [OntoTwinSync]
 ModelsDir=D:/SCC/DigitalFactoryBase_SCC/Models

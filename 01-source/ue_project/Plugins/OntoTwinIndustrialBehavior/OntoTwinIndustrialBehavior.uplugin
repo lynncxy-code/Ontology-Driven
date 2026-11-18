@@ -1,7 +1,7 @@
 {
   "FileVersion": 3,
-  "Version": 100,
-  "VersionName": "1.0.0",
+  "Version": 110,
+  "VersionName": "1.1.0",
   "FriendlyName": "OntoTwin Industrial Behavior",
   "Description": "Optional OntoTwin 4.5 industrial semantic presentation behaviors.",
   "Category": "DigitalTwin",
@@ -17,7 +17,7 @@
       "LoadingPhase": "Default"
     }
   ],
-  "Plugins": [
+  "Plugins": [{"Name": "Niagara", "Enabled": true},
     {
       "Name": "OntoTwinSync",
       "Enabled": true

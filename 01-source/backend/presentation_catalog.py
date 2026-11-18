@@ -8,10 +8,11 @@ an offline/demo environment and are also a contract for a future publisher.
 from __future__ import annotations
 
 import copy
+from device_effects import EFFECTS, effect_resources, validate_effect_params
 from motion_behaviors import motion_resources, normalize_motion_params, belt_resource
 from typing import Any, Iterable, Mapping
 
-CATALOG_VERSION = "industrial-4.6.motion.2"
+CATALOG_VERSION = "industrial-4.6.effects.1"
 
 _COMMON = "行为库"
 _PROJECT = "项目自带"
@@ -44,9 +45,9 @@ _EXAMPLES = {
     "ot.industrial.machine.idle": ("待机：停止指示（示例）", "停止并隐藏附加旋转指示，不产生运行动画"),
     "ot.industrial.alarm_flash": ("告警闪烁（示例）", "模型上方的告警方块每秒闪烁"),
     "ot.industrial.critical_flash": ("严重告警闪烁（示例）", "模型上方的红色告警方块每秒闪烁"),
-    "ot.industrial.warning_material": ("黄色高亮（示例）", "为模型叠加黄色半透明高亮，保留原材质"),
-    "ot.industrial.critical_material": ("红色高亮（示例）", "为模型叠加红色半透明高亮，保留原材质"),
-    "ot.industrial.maintenance_material": ("蓝色高亮（示例）", "为模型叠加蓝色半透明高亮，保留原材质"),
+    "ot.industrial.warning_material": ("状态外观·警告黄（示例）", "为模型叠加黄色半透明高亮，保留原材质"),
+    "ot.industrial.critical_material": ("状态外观·故障红（示例）", "为模型叠加红色半透明高亮，保留原材质"),
+    "ot.industrial.maintenance_material": ("状态外观·维护蓝（示例）", "为模型叠加蓝色半透明高亮，保留原材质"),
 }
 for _resource in MOCK_PRESENTATION_RESOURCES:
     _example = _EXAMPLES.get(_resource['resource_id'])
@@ -75,6 +76,7 @@ for _resource in MOCK_PRESENTATION_RESOURCES:
         _resource['legacy_only'] = True
 MOCK_PRESENTATION_RESOURCES.extend(motion_resources())
 MOCK_PRESENTATION_RESOURCES.append(belt_resource())
+MOCK_PRESENTATION_RESOURCES.extend(effect_resources())
 
 
 def list_resources(*, source: str | None = None, channel: str | None = None,
@@ -141,7 +143,7 @@ def catalog_payload(**filters: Any) -> dict[str, Any]:
         "resource_count": len(resources),
         "mock": False,
         "example": False,
-        "runtime_note": "基础运动需要 UE 加载行为库 0.2；配置保存与运行时执行是不同状态。",
+        "runtime_note": "区域扫描和目标高亮需要 UE 加载工业行为库 1.1；保存配置后，设备进入对应状态时播放。",
     }
 
 
@@ -166,6 +168,11 @@ def validate_selection(selection: Mapping[str, Any], *, channel: str | None = No
         return False, "resource source does not match selection source", None
     if resource.get("available") is False or resource.get("status") != "published":
         return False, "resource is not published", None
+    if resource_id in EFFECTS:
+        try:
+            validate_effect_params(resource_id, selection.get('params'))
+        except ValueError as error:
+            return False, str(error), None
     if resource_id.startswith('ot.motion.') or resource_id == 'ot.material.belt_scroll':
         try:
             normalize_motion_params(resource_id, selection.get('params'))

@@ -9,6 +9,9 @@ class FOntoTwinIndustrialBehaviorModule final
     : public IModuleInterface
     , public IOntoTwinPresentationExecutor
 {
+#if WITH_EDITOR
+    FDelegateHandle CookHandle;
+#endif
 public:
     virtual void StartupModule() override;
     virtual void ShutdownModule() override;

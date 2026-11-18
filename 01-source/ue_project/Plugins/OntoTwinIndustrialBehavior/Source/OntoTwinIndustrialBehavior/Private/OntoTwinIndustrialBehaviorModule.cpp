@@ -1,4 +1,6 @@
 #include "OntoTwinIndustrialBehaviorModule.h"
+#include "DeviceEffectsComponent.h"
+#include "GameDelegates.h"
 
 #include "GameFramework/Actor.h"
 #include "TwinInstance.h"
@@ -8,12 +10,24 @@
 
 void FOntoTwinIndustrialBehaviorModule::StartupModule()
 {
+#if WITH_EDITOR
+    // These six roots are selected at runtime; the cooker follows their package dependencies.
+    CookHandle = FGameDelegates::Get().GetModifyCookDelegate().AddLambda(
+        [](TConstArrayView<const ITargetPlatform*>, TArray<FName>& Packages, TArray<FName>&){
+            for (const TCHAR* Root : {TEXT("N_Scan01"), TEXT("MPC_Scan"), TEXT("MI_Go2NativeFloorScan"),
+                TEXT("MI_RehearsalFloorScan_Green"), TEXT("MI_TranslucentOverlay"), TEXT("MI_TranslucentOverlay_2")})
+                Packages.AddUnique(FName(*(FString(TEXT("/OntoTwinIndustrialBehavior/Effects/")) + Root)));
+        });
+#endif
     IModularFeatures::Get().RegisterModularFeature(
         IOntoTwinPresentationExecutor::GetModularFeatureName(), this);
 }
 
 void FOntoTwinIndustrialBehaviorModule::ShutdownModule()
 {
+#if WITH_EDITOR
+    FGameDelegates::Get().GetModifyCookDelegate().Remove(CookHandle);
+#endif
     if (IModularFeatures::Get().IsModularFeatureAvailable(
         IOntoTwinPresentationExecutor::GetModularFeatureName()))
     {
@@ -69,13 +83,13 @@ bool FOntoTwinIndustrialBehaviorModule::SupportsPresentationRoute(
     }
     if (Channel == TEXT("visual"))
     {
-        return BehaviorId == TEXT("material.belt_scroll") || BehaviorId == TEXT("industrial.visual.warning")
+        return BehaviorId == TEXT("ot.industrial.target_highlight") || BehaviorId == TEXT("material.belt_scroll") || BehaviorId == TEXT("industrial.visual.warning")
             || BehaviorId == TEXT("industrial.visual.critical")
             || BehaviorId == TEXT("industrial.visual.maintenance");
     }
     if (Channel == TEXT("fx") || Channel == TEXT("action"))
     {
-        return BehaviorId == TEXT("industrial.fx.warning_flash")
+        return BehaviorId == TEXT("ot.industrial.region_scan") || BehaviorId == TEXT("industrial.fx.warning_flash")
             || BehaviorId == TEXT("industrial.fx.critical_flash")
             || BehaviorId == TEXT("industrial.fx.start_pulse");
     }
@@ -94,6 +108,25 @@ bool FOntoTwinIndustrialBehaviorModule::ExecutePresentationRoute(
     {
         return false;
     }
+
+    auto* Effects = Twin->FindComponentByClass<UDeviceEffectsComponent>();
+    const bool Scan = Channel == TEXT("fx") && BehaviorId == TEXT("ot.industrial.region_scan");
+    const bool Highlight = Channel == TEXT("visual") && BehaviorId == TEXT("ot.industrial.target_highlight");
+    if (Scan || Highlight)
+    {
+        if (auto* Previous = Twin->FindComponentByClass<UIndustrialPresentationComponent>())
+            Previous->Apply(Channel, Scan ? TEXT("safe.none") : TEXT("safe.visible"));
+        if (Highlight) if (auto* Previous = Twin->FindComponentByClass<UBeltMaterialComponent>()) Previous->ResetMaterials();
+        if (!Effects)
+        {
+            Effects = NewObject<UDeviceEffectsComponent>(Twin, NAME_None, RF_Transient);
+            Twin->AddInstanceComponent(Effects);
+            Effects->RegisterComponent();
+        }
+        return Scan ? Effects->StartScan(Params) : Effects->StartHighlight(Params);
+    }
+    if (Effects && Channel == TEXT("fx")) Effects->StopScan();
+    if (Effects && Channel == TEXT("visual")) Effects->StopHighlight();
 
     auto* Belt = Twin->FindComponentByClass<UBeltMaterialComponent>();
     if (Channel == TEXT("visual"))

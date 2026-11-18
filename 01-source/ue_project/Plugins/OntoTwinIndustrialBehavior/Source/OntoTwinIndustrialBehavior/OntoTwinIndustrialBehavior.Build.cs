@@ -11,7 +11,7 @@ public class OntoTwinIndustrialBehavior : ModuleRules
             "CoreUObject",
             "Engine",
             "Json",
-            "OntoTwinSync"
+            "OntoTwinSync", "Niagara"
         });
     }
 }

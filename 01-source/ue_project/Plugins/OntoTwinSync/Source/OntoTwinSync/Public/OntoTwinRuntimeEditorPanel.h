@@ -88,6 +88,7 @@ private:
     TMap<FString, FString> ModelLabels, ModelErrors, ModelImages, ModelKinds;
     TArray<FString> OrderedModelKeys;
     TArray<FString> PendingLocalImages;
+    float LibraryGridWidth = 404.f;
     UPROPERTY(Transient) TMap<FString, TObjectPtr<UTexture2D>> LibraryTextures;
     UPROPERTY(Transient) TMap<FString, TObjectPtr<UImage>> LibraryIcons;
     FString SelectedModelKey;
@@ -96,6 +97,7 @@ private:
     void SelectLibraryKey(const FString& Key);
     UFUNCTION() void ToggleLibrary();
     UFUNCTION() void RefreshLibrary();
+    UFUNCTION() void CollapseLibraryPreview();
     UFUNCTION() void OpenModelsFolder();
     UFUNCTION() void SearchLibrary(const FText& Query);
     enum class EModelSource : uint8 { Project, Local, ArtStudio };

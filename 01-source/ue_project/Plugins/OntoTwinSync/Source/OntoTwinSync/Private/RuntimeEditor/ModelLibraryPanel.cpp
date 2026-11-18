@@ -4,6 +4,7 @@
 #include "TwinSceneManager.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
+#include "Components/ButtonSlot.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/EditableTextBox.h"
@@ -39,7 +40,7 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     SceneContent->AddChildToVerticalBox(Open);
     LibraryBounds = WidgetTree->ConstructWidget<USizeBox>();
     LibraryBounds->SetWidthOverride(448);
-    LibraryBounds->SetHeightOverride(550);
+    LibraryBounds->SetHeightOverride(720);
     auto* LibrarySlot = Root->AddChildToCanvas(LibraryBounds);
     LibrarySlot->SetAnchors(FAnchors(1.f, 0.f));
     LibrarySlot->SetAlignment(FVector2D(1.f, 0.f));
@@ -76,7 +77,7 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     LibrarySearch = WidgetTree->ConstructWidget<UEditableTextBox>();
     LibrarySearch->WidgetStyle = FCoreStyle::Get().GetWidgetStyle<FEditableTextBoxStyle>(TEXT("NormalEditableTextBox"));
     LibrarySearch->WidgetStyle.SetFont(FOntoTwinGlassTheme::Font(11.f)).SetPadding(FMargin(8.f, 5.f))
-        .SetForegroundColor(Ink).SetBackgroundColor(FLinearColor(.078f, .078f, .078f, .92f));
+        .SetForegroundColor(Ink).SetBackgroundColor(FLinearColor(.078f, .078f, .078f, .98f));
     LibrarySearch->SetHintText(FText::FromString(TEXT("搜索模型名称")));
     LibrarySearch->OnTextChanged.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::SearchLibrary);
     Stack->AddChildToVerticalBox(LibrarySearch);
@@ -101,6 +102,7 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     ArtStudioPanel->SetVisibility(ESlateVisibility::Collapsed);
     ModelPreviewBox = WidgetTree->ConstructWidget<USizeBox>();
     ModelPreviewBox->SetHeightOverride(190);
+    ModelPreviewBox->SetVisibility(ESlateVisibility::Collapsed);
     auto* PreviewLayers = WidgetTree->ConstructWidget<UOverlay>();
     ModelPreviewBox->SetContent(PreviewLayers);
     ModelViewport = WidgetTree->ConstructWidget<UViewport>();
@@ -119,16 +121,26 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     MessageSlot->SetVerticalAlignment(VAlign_Center);
     auto* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
     ModelControls = Row;
-    Stack->AddChildToVerticalBox(Row);
+    ModelControls->SetVisibility(ESlateVisibility::Collapsed);
+    Stack->AddChildToVerticalBox(Row)->SetPadding(FMargin(0, 6, 0, 8));
     ModelLibraryStatus = CreateText(TEXT("ModelLibraryStatus"),TEXT(""),12,Ink);
     ModelLibraryStatus->SetAutoWrapText(true);
     Row->AddChildToHorizontalBox(ModelLibraryStatus)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-    PlaceModelButton = AddButton(Row,TEXT("PlaceModel"),TEXT("放置"));
+    UButton* CollapsePreview = CreateButton(TEXT("CollapsePreview"),TEXT("收起预览"),Label,false);
+    Row->AddChildToHorizontalBox(CollapsePreview)->SetPadding(FMargin(8,0));
+    CollapsePreview->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::CollapseLibraryPreview);
+    PlaceModelButton = CreateButton(TEXT("PlaceModel"),TEXT("放置"),Label,false);
+    Row->AddChildToHorizontalBox(PlaceModelButton);
     PlaceModelButton->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::PlaceSelectedModel);
     auto* Scroll = WidgetTree->ConstructWidget<UScrollBox>();
-    Stack->AddChildToVerticalBox(Scroll)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    auto* ScrollSlot = Stack->AddChildToVerticalBox(Scroll);
+    ScrollSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    ScrollSlot->SetPadding(FMargin(0,8,0,0));
+    Scroll->SetScrollbarThickness(FVector2D(8,8));
     LibraryGrid = WidgetTree->ConstructWidget<UWrapBox>();
-    LibraryGrid->SetInnerSlotPadding(FVector2D(4,4));
+    LibraryGrid->SetExplicitWrapSize(true);
+    LibraryGrid->SetWrapSize(LibraryGridWidth);
+    LibraryGrid->SetInnerSlotPadding(FVector2D(8,8));
     Scroll->AddChild(LibraryGrid);
     ModelSource = static_cast<EModelSource>(LastSource);
     LibraryBounds->SetVisibility(bLibraryOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
@@ -158,8 +170,6 @@ void UOntoTwinRuntimeEditorPanel::PopulateModelLibrary(EModelSource Source)
     const bool bArtStudio = Source == EModelSource::ArtStudio;
     ArtStudioPanel->SetVisibility(bArtStudio ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
     LibrarySearch->SetVisibility(bArtStudio ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
-    ModelPreviewBox->SetVisibility(bArtStudio ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
-    ModelControls->SetVisibility(bArtStudio ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
     LibraryGrid->SetVisibility(bArtStudio ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
     if (Source != EModelSource::ArtStudio)
         for (const auto& E : OntoTwinModelLibrary::List(Source == EModelSource::Local))
@@ -172,8 +182,6 @@ void UOntoTwinRuntimeEditorPanel::PopulateModelLibrary(EModelSource Source)
             if (E.Kind == TEXT("GLB") && E.Error.IsEmpty()) PendingLocalImages.Add(E.Key);
         }
     ModelLibraryStatus->SetText(FText::GetEmpty());
-    ModelPreviewMessage->SetText(FText::FromString(TEXT("单击模型查看")));
-    ModelPreviewMessage->SetVisibility(ESlateVisibility::Visible);
     RebuildLibraryGrid();
 }
 void UOntoTwinRuntimeEditorPanel::RebuildLibraryGrid()
@@ -181,12 +189,17 @@ void UOntoTwinRuntimeEditorPanel::RebuildLibraryGrid()
     LibraryGrid->ClearChildren();
     LibraryIcons.Reset();
     const FString Query = LibrarySearch->GetText().ToString().TrimStartAndEnd();
+    const int32 Columns = FMath::Clamp(FMath::FloorToInt((LibraryGridWidth + 8.f) / 126.f),1,3);
+    const float CardWidth = FMath::FloorToFloat((LibraryGridWidth - (Columns-1)*8.f) / Columns);
+    const float ImageSize = FMath::Max(48.f, CardWidth - 16.f);
     for (const FString& Key : OrderedModelKeys)
     {
         const FString& Name = ModelLabels[Key];
         if (!Name.Contains(Query,ESearchCase::IgnoreCase) && !Query.IsEmpty()) continue;
         auto* Tile = WidgetTree->ConstructWidget<UModelLibraryTile>();
-        Tile->SetStyle(PlaceModelButton->GetStyle());
+        FButtonStyle TileStyle = PlaceModelButton->GetStyle();
+        TileStyle.SetNormalPadding(FMargin(8)).SetPressedPadding(FMargin(8));
+        Tile->SetStyle(TileStyle);
         Tile->Select.BindWeakLambda(this,[this,Key]{SelectLibraryKey(Key);});
         Tile->Drag.BindWeakLambda(this,[this,Key]{
             if (SceneManager && SceneManager->CanPlaceRuntimeModel() && !ModelErrors.Contains(Key))
@@ -198,16 +211,19 @@ void UOntoTwinRuntimeEditorPanel::RebuildLibraryGrid()
         Tile->InitializeTile();
         Tile->SetToolTipText(FText::FromString(Name));
         auto* Box = WidgetTree->ConstructWidget<USizeBox>();
-        Box->SetWidthOverride(110);
+        Box->SetWidthOverride(ImageSize);
         Tile->SetContent(Box);
+        // SButton adds style padding to slot padding. Budget it exactly once.
+        CastChecked<UButtonSlot>(Box->Slot)->SetPadding(FMargin(0));
+        CastChecked<UButtonSlot>(Box->Slot)->SetVerticalAlignment(VAlign_Top);
         auto* Stack = WidgetTree->ConstructWidget<UVerticalBox>();
         Box->SetContent(Stack);
         auto* Icon = WidgetTree->ConstructWidget<UImage>();
         auto* ImageBox = WidgetTree->ConstructWidget<USizeBox>();
-        ImageBox->SetWidthOverride(110);
-        ImageBox->SetHeightOverride(110);
+        ImageBox->SetWidthOverride(ImageSize);
+        ImageBox->SetHeightOverride(ImageSize);
         ImageBox->SetContent(Icon);
-        Icon->SetDesiredSizeOverride(FVector2D(110));
+        Icon->SetDesiredSizeOverride(FVector2D(ImageSize));
         const FString File = ModelImages.FindRef(Key);
         if (!File.IsEmpty())
         {
@@ -219,17 +235,23 @@ void UOntoTwinRuntimeEditorPanel::RebuildLibraryGrid()
         LibraryIcons.Add(Key,Icon);
         Stack->AddChildToVerticalBox(ImageBox)->SetHorizontalAlignment(HAlign_Center);
         auto* NameText = CreateText(NAME_None,Name,11,Ink);
-        NameText->SetWrapTextAt(110.f);
+        NameText->SetWrapTextAt(ImageSize);
         NameText->SetWrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping);
-        Stack->AddChildToVerticalBox(NameText);
+        auto* NameBox = WidgetTree->ConstructWidget<USizeBox>();
+        NameBox->SetMinDesiredHeight(32.f);
+        NameBox->SetContent(NameText);
+        Stack->AddChildToVerticalBox(NameBox)->SetPadding(FMargin(0,6,0,0));
         if (const FString* Error = ModelErrors.Find(Key))
         {
             Tile->SetRenderOpacity(.55f);
             auto* ErrorText = CreateText(NAME_None,TEXT("⚠ ") + *Error,10,Ink);
-            ErrorText->SetWrapTextAt(110.f);
+            ErrorText->SetWrapTextAt(ImageSize);
             Stack->AddChildToVerticalBox(ErrorText);
         }
-        LibraryGrid->AddChildToWrapBox(Tile);
+        auto* Card = WidgetTree->ConstructWidget<USizeBox>();
+        Card->SetWidthOverride(CardWidth);
+        Card->SetContent(Tile);
+        LibraryGrid->AddChildToWrapBox(Card);
     }
     if (!LibraryGrid->GetChildrenCount())
     {
@@ -242,7 +264,12 @@ void UOntoTwinRuntimeEditorPanel::RefreshLibrary()
     const FString Key = SelectedModelKey;
     PopulateModelLibrary(ModelSource);
     if (ModelLabels.Contains(Key)) SelectLibraryKey(Key);
-    else if (!Key.IsEmpty()) ModelPreviewMessage->SetText(FText::FromString(TEXT("选中的文件已删除")));
+    else if (!Key.IsEmpty()) ShowToast(TEXT("选中的文件已删除"), EOntoTwinRuntimeToastType::Info);
+}
+void UOntoTwinRuntimeEditorPanel::CollapseLibraryPreview()
+{
+    ClearLibraryPreview();
+    SelectedModelKey.Reset();
 }
 void UOntoTwinRuntimeEditorPanel::SearchLibrary(const FText&) { RebuildLibraryGrid(); }
 void UOntoTwinRuntimeEditorPanel::ShowProjectModels() { PopulateModelLibrary(EModelSource::Project); }
@@ -293,11 +320,19 @@ void UOntoTwinRuntimeEditorPanel::NativeTick(const FGeometry& Geometry, float De
         }
     }
     const FVector2D ScreenSize = Geometry.GetLocalSize();
-    const FVector2D Size = PanelBorder->GetCachedGeometry().GetLocalSize();
     if (ScreenSize.X > 40 && ScreenSize.Y > 40)
     {
-        LibraryBounds->SetWidthOverride(FMath::Min(448.f, ScreenSize.X - 40.f));
-        LibraryBounds->SetHeightOverride(FMath::Min(FMath::Max(Size.Y,550.f), ScreenSize.Y - 40.f));
+        const float Width = FMath::Min(448.f, ScreenSize.X - 40.f);
+        LibraryBounds->SetWidthOverride(Width);
+        LibraryBounds->SetHeightOverride(FMath::Min(720.f, ScreenSize.Y - 40.f));
+        // Frame padding + reserved scroll bar width keep the column count stable.
+        const float GridWidth = FMath::Max(80.f, Width - 28.f - 16.f);
+        if (!FMath::IsNearlyEqual(GridWidth, LibraryGridWidth, 1.f))
+        {
+            LibraryGridWidth = GridWidth;
+            LibraryGrid->SetWrapSize(GridWidth);
+            RebuildLibraryGrid();
+        }
     }
     if (AActor* Actor = LibraryPreviewActor.Get())
     {

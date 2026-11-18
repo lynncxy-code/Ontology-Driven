@@ -10,6 +10,7 @@
 #include "Engine/LocalPlayer.h"
 #include "SceneView.h"
 #include "Components/SizeBox.h"
+#include "Components/HorizontalBox.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextBlock.h"
@@ -36,6 +37,8 @@ void UOntoTwinRuntimeEditorPanel::ClearLibraryPreview()
     if (ModelViewport) ModelViewport->SetVisibility(ESlateVisibility::Hidden);
     if (ModelPreviewMessage) ModelPreviewMessage->SetVisibility(ESlateVisibility::Collapsed);
     if (PlaceModelButton) PlaceModelButton->SetIsEnabled(false);
+    if (ModelPreviewBox) ModelPreviewBox->SetVisibility(ESlateVisibility::Collapsed);
+    if (ModelControls) ModelControls->SetVisibility(ESlateVisibility::Collapsed);
 }
 
 void UOntoTwinRuntimeEditorPanel::SelectLibraryKey(const FString& Selected)
@@ -43,6 +46,8 @@ void UOntoTwinRuntimeEditorPanel::SelectLibraryKey(const FString& Selected)
     if (SceneManager) SceneManager->CancelUnconfirmedModelPlacement();
     SelectedModelKey = Selected;
     ClearLibraryPreview();
+    ModelPreviewBox->SetVisibility(ESlateVisibility::Visible);
+    ModelControls->SetVisibility(ESlateVisibility::Visible);
     ModelLibraryStatus->SetText(FText::FromString(ModelLabels.FindRef(Selected)));
     const FString* Key = &SelectedModelKey;
     if (const FString* Error = ModelErrors.Find(*Key))
@@ -115,7 +120,7 @@ void UOntoTwinRuntimeEditorPanel::SelectLibraryKey(const FString& Selected)
     const FVector Up = Axes.GetUnitAxis(EAxis::Z);
     // Match the UMG viewport's projection, including host projects which maintain vertical FOV.
     FVector2D Size = ModelViewport->GetCachedGeometry().GetLocalSize();
-    if (Size.X < 1. || Size.Y < 1.) Size = FVector2D(340., ModelPreviewBox->GetHeightOverride());
+    if (Size.X < 1. || Size.Y < 1.) Size = FVector2D(LibraryBounds->GetWidthOverride()-28.f, ModelPreviewBox->GetHeightOverride());
     const FIntRect Rect(0, 0, FMath::RoundToInt(Size.X), FMath::RoundToInt(Size.Y));
     FSceneViewProjectionData Projection;
     Projection.SetViewRectangle(Rect);

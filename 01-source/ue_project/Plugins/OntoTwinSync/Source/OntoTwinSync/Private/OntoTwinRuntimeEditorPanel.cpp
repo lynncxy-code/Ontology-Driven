@@ -35,7 +35,8 @@
 
 namespace
 {
-const FLinearColor PanelBackground(0.078f, 0.078f, 0.078f, 0.92f);
+// Keep the editor and copied library surface neutral over bright, coloured scene objects.
+const FLinearColor PanelBackground(0.078f, 0.078f, 0.078f, 0.98f);
 const FLinearColor PrimaryText(0.96f, 0.96f, 0.96f, 1.0f);
 const FLinearColor SecondaryText(0.64f, 0.64f, 0.64f, 1.0f);
 const FLinearColor MutedText(0.46f, 0.46f, 0.46f, 1.0f);

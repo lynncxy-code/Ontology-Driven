@@ -5924,6 +5924,7 @@ from runtime_placement import register_runtime_placement_routes
 register_runtime_placement_routes(
     app, lambda: project_store,
     lambda iid, project: _build_snapshot(iid, _project_snapshot_context(project)),
+    get_runtime_status,
 )
 
 from scene_interaction import register_scene_interaction_routes

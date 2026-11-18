@@ -2,12 +2,16 @@
 from flask import jsonify, request
 
 from project_store import apply_instance_metadata
+from realtime_channel import has_external_realtime_data
 from tenant_api import ApiError
 from web_interaction.validators import business_view_members
 
 
-def attachment_reasons(project, iid, record):
+def attachment_reasons(project, iid, record, runtime_status=None, *, for_deletion=False):
     reasons = []
+    if has_external_realtime_data(iid, runtime_status):
+        reasons.append("外部实时数据（外部系统按此编号推送）。删除后外部推送将对不上。"
+                       if for_deletion else "正在接收外部实时数据")
     config = record.get("render_config") or {}
     panel = (config.get("interface_overrides") or {}).get("I3D_Overlay") or {}
     typ = project.get("object_types", {}).get(record.get("object_type_rid"), {})
@@ -28,9 +32,6 @@ def attachment_reasons(project, iid, record):
                     reasons.append("已加入业务视图")
             if iid in (view.get("exclude_instance_ids") or []):
                 reasons.append("已加入业务视图排除清单")
-        for binding in cfg.get("bindings") or []:
-            if (binding.get("scope") or {}).get("instance_id") == iid:
-                reasons.append("已挂接网页")
     return list(dict.fromkeys(reasons))
 
 
@@ -42,7 +43,7 @@ def checked_ids(data):
     return list(dict.fromkeys(ids))
 
 
-def register_object_changes(app, scene_store, scene_type, caps, snapshot):
+def register_object_changes(app, scene_store, scene_type, caps, snapshot, get_runtime_status):
     @app.post("/api/v2/runtime-editor/objects/<action>")
     def change_objects(action):
         if action not in {"inspect", "delete", "restore", "identity"}:
@@ -61,6 +62,7 @@ def register_object_changes(app, scene_store, scene_type, caps, snapshot):
 
             def update(project, deleted):
                 instances = project["instances"]
+                runtime_status = get_runtime_status(pid)
                 info = []
                 for iid in ids:
                     rec = instances.get(iid)
@@ -68,7 +70,8 @@ def register_object_changes(app, scene_store, scene_type, caps, snapshot):
                         rec = deleted.get(iid)
                     if rec is None:
                         raise ApiError(404, "该对象已删除，请刷新", "not_found")
-                    reasons = attachment_reasons(project, iid, rec)
+                    reasons = attachment_reasons(project, iid, rec, runtime_status,
+                                                 for_deletion=action in {"inspect", "delete"})
                     info.append({"id": iid, "name": rec.get("display_name") or iid,
                                  "scenery": rec.get("object_type_rid") == scene_type, "reasons": reasons})
                 if action == "delete" and any(i["reasons"] for i in info) and data.get("confirm_business") is not True:

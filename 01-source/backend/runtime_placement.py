@@ -97,7 +97,7 @@ def _place(project, deleted, operation_id, business_id, type_id, name, key, sour
     return iid, True
 
 
-def register_runtime_placement_routes(app, get_store, snapshot):
+def register_runtime_placement_routes(app, get_store, snapshot, get_runtime_status):
     def scene_store(data):
         pid = getattr(g, "ontotwin_project_id", "")
         if not pid or data.get("expected_project_id") != pid:
@@ -114,7 +114,7 @@ def register_runtime_placement_routes(app, get_store, snapshot):
             raise ApiError(status, info.get("message", "关卡没有写入权限"), info.get("error", "forbidden"))
         return pid, store if pg_mode else canonical
 
-    register_object_changes(app, scene_store, TYPE_RID, CAPABILITIES, snapshot)
+    register_object_changes(app, scene_store, TYPE_RID, CAPABILITIES, snapshot, get_runtime_status)
 
     @app.get("/api/v2/runtime-editor/placement-options")
     def placement_options():
@@ -141,7 +141,7 @@ def register_runtime_placement_routes(app, get_store, snapshot):
                 default_name = rec.get("display_name", "")
                 identity = {"instance_id": selected, "object_type_rid": rec["object_type_rid"],
                             "scenery": rec["object_type_rid"] == TYPE_RID,
-                            "reasons": attachment_reasons(project, selected, rec)}
+                            "reasons": attachment_reasons(project, selected, rec, get_runtime_status(pid))}
             else:
                 default_name = _scenery_name((*instances.values(), *deleted.values()), request.args["model"],
                                              request.args.get("label", "")[:255])

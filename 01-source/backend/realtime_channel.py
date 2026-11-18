@@ -22,6 +22,20 @@ INSTANCE_LIVENESS_OFFLINE = "offline"
 INSTANCE_LIVENESS_UNKNOWN = "unknown"
 
 
+def has_external_realtime_data(instance_id, runtime_status):
+    """Match configured IDs or targets in the project's latest UE heartbeat."""
+    if is_websocket_spatial_instance(instance_id):
+        return True
+    if not isinstance(runtime_status, dict):
+        return False
+    channel = runtime_status.get("realtime_channel")
+    if not isinstance(channel, dict):
+        return False
+    # The latest report still establishes the attachment when the UE is offline.
+    return any(isinstance(target, dict) and target.get("instance_id") == instance_id
+               for target in channel.get("targets") or [])
+
+
 def project_instance_realtime_channel(instance_id, runtime_status):
     """Return a browser-facing channel view, or ``None`` for non-WS instances."""
     if not is_websocket_spatial_instance(instance_id):

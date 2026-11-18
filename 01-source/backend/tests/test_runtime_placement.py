@@ -132,3 +132,79 @@ def test_placement_options_and_retry_after_id_change(client, store, placement):
     retry = client.post(URL,headers=HEADERS,json={**placement,"instance_id":"another"})
     assert retry.status_code == 200 and retry.json["instance_id"] == iid
     assert len(store.read_project("p_test")["instances"]) == 1
+
+
+@pytest.fixture(params=["configured", "heartbeat"])
+def external_data_instance(request, client, store, placement, monkeypatch):
+    import scene_interaction.service as runtime_service
+    registry = runtime_service.RuntimeStatusRegistry()
+    monkeypatch.setattr(runtime_service, "_RUNTIME_STATUS", registry)
+    iid = "agv:agvfac000000001n01" if request.param == "configured" else "ACCEPT48_EXTERNAL_01"
+    store.transact_project("p_test", lambda p: p["object_types"].update(
+        robot={"rid": "robot", "name": "机器人", "injected_interfaces": ["I3D_Representable", "I3D_Spatial"]}))
+    response = client.post(URL, headers=HEADERS, json={
+        **placement, "instance_id": iid, "object_type_rid": "robot", "display_name": "外部数据设备"})
+    assert response.status_code == 201, response.json
+    if request.param == "heartbeat":
+        registry.report("p_test", {"runtime_state": "available", "realtime_channel": {
+            "enabled": True, "connection_state": "connected", "active_source": "websocket",
+            "targets": [{"instance_id": iid, "state": "active", "applied": True}]}}, {})
+    return iid
+
+
+def test_external_data_locks_identity(client, store, external_data_instance):
+    iid = external_data_instance
+    options = client.get("/api/v2/runtime-editor/placement-options", headers=HEADERS,
+                         query_string={"expected_project_id": "p_test", "selected_id": iid})
+    assert options.json["identity"]["reasons"] == ["正在接收外部实时数据"]
+    before = store.read_project("p_test")
+    response = client.post("/api/v2/runtime-editor/objects/identity", headers=HEADERS,
+                           json={"expected_project_id": "p_test", "ids": [iid], "instance_id": "ACCEPT48_RENAMED"})
+    assert response.status_code == 409
+    assert response.json["error"] == "identifier_locked"
+    assert response.json["message"] == "正在接收外部实时数据"
+    assert store.read_project("p_test") == before
+
+
+def test_external_data_delete_confirmation_and_restore(client, store, external_data_instance):
+    iid = external_data_instance
+    body = {"expected_project_id": "p_test", "ids": [iid]}
+    expected = ["外部实时数据（外部系统按此编号推送）。删除后外部推送将对不上。"]
+    inspect = client.post("/api/v2/runtime-editor/objects/inspect", headers=HEADERS, json=body)
+    assert inspect.json["objects"][0]["reasons"] == expected
+    rejected = client.post("/api/v2/runtime-editor/objects/delete", headers=HEADERS, json=body)
+    assert rejected.status_code == 409 and rejected.json["error"] == "confirmation_required"
+    assert rejected.json["objects"][0]["reasons"] == expected
+    assert iid in store.read_project("p_test")["instances"]
+    deleted = client.post("/api/v2/runtime-editor/objects/delete", headers=HEADERS,
+                          json={**body, "confirm_business": True})
+    assert deleted.status_code == 200
+    assert iid not in store.read_project("p_test")["instances"]
+    assert any(row["instance_id"] == iid for row in store.get_roster())
+    assert client.post("/api/v2/runtime-editor/objects/restore", headers=HEADERS, json=body).status_code == 200
+    assert iid in store.read_project("p_test")["instances"]
+
+
+def test_heartbeat_attachment_uses_bound_project_and_latest_report(client, store, placement, monkeypatch):
+    import scene_interaction.service as runtime_service
+    registry = runtime_service.RuntimeStatusRegistry()
+    monkeypatch.setattr(runtime_service, "_RUNTIME_STATUS", registry)
+    iid = client.post(URL, headers=HEADERS, json=placement).json["instance_id"]
+    store.transact_project("p_test", lambda p: p.update(web_interactions={
+        "draft": {"bindings": [{"scope": {"instance_id": iid}}]}}))
+    heartbeat = {"runtime_state": "available", "realtime_channel": {
+        "enabled": True, "connection_state": "connected", "active_source": "websocket",
+        "targets": [{"instance_id": iid, "state": "active", "applied": True}]}}
+    registry.report("other_project", heartbeat, {})
+    query = {"expected_project_id": "p_test", "selected_id": iid}
+    def reasons():
+        return client.get("/api/v2/runtime-editor/placement-options", headers=HEADERS,
+                          query_string=query).json["identity"]["reasons"]
+    assert reasons() == []
+    registry.report("p_test", heartbeat, {})
+    assert reasons() == ["正在接收外部实时数据"]
+    heartbeat["realtime_channel"]["targets"] = []
+    registry.report("p_test", heartbeat, {})
+    assert reasons() == []
+    assert client.post("/api/v2/runtime-editor/objects/identity", headers=HEADERS,
+                       json={"expected_project_id": "p_test", "ids": [iid], "display_name": "更名布景"}).status_code == 200

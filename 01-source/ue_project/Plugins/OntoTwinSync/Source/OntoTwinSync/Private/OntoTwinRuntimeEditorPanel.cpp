@@ -78,7 +78,7 @@ FButtonStyle BuildCopyValueButtonStyle(const FButtonStyle& BaseStyle)
 FButtonStyle BuildTabButtonStyle(const FButtonStyle& BaseStyle, bool bActive)
 {
     FButtonStyle Style = BaseStyle;
-    const FLinearColor ActiveFill(0.96f, 0.96f, 0.96f, 0.96f);
+    const FLinearColor ActiveFill = FLinearColor::White;
     const FLinearColor InactiveFill(1.0f, 1.0f, 1.0f, 0.035f);
     Style.SetNormal(FSlateRoundedBoxBrush(bActive ? ActiveFill : InactiveFill, 6.0f));
     Style.SetHovered(FSlateRoundedBoxBrush(
@@ -461,9 +461,12 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     UGridSlot* IdLabelSlot = IdentityGrid->AddChildToGrid(IdLabel, 2, 0);
     IdLabelSlot->SetPadding(FMargin(0.0f, 2.0f, 12.0f, 2.0f));
     InstanceIdText = CreateText(TEXT("InstanceIdText"), TEXT("-"), 11, SecondaryText);
+    InstanceIdText->SetAutoWrapText(false);
+    InstanceIdText->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+    InstanceIdText->SetJustification(ETextJustify::Right);
     UGridSlot* InstanceIdSlot = IdentityGrid->AddChildToGrid(InstanceIdText, 2, 1);
     InstanceIdSlot->SetPadding(FMargin(0.0f, 2.0f));
-    InstanceIdSlot->SetHorizontalAlignment(HAlign_Right);
+    InstanceIdSlot->SetHorizontalAlignment(HAlign_Fill);
 
     UTextBlock* RemoveLabel = nullptr;
     RemoveButton = CreateButton(TEXT("RemoveButton"), TEXT("从场景移除"), RemoveLabel, false);
@@ -918,6 +921,19 @@ void UOntoTwinRuntimeEditorPanel::SetActiveTab(bool bBusiness)
     if (bBusiness) RefreshBusinessEditor();
 }
 
+void UOntoTwinRuntimeEditorPanel::RefreshModelSourceTabs()
+{
+    for (int32 Index = 0; Index < ModelSourceTabs.Num(); ++Index)
+    {
+        UButton* Button = ModelSourceTabs[Index];
+        if (!Button) continue;
+        const bool bActive = Index == static_cast<int32>(ModelSource);
+        Button->SetIsEnabled(true);
+        Button->SetStyle(BuildTabButtonStyle(Button->GetStyle(), bActive));
+        SetTextColor(Cast<UTextBlock>(Button->GetContent()), bActive ? PanelBackground : SecondaryText);
+    }
+}
+
 void UOntoTwinRuntimeEditorPanel::RefreshBusinessEditor()
 {
     if (!SceneManager || !BusinessSelector) return;
@@ -1081,6 +1097,7 @@ void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
     if (InstanceIdText)
     {
         InstanceIdText->SetText(FText::FromString(SceneManager->GetRuntimeEditorInstanceIdText()));
+        InstanceIdText->SetToolTipText(FText::FromString(SceneManager->GetRuntimeEditorInstanceIdTooltip()));
     }
 
     FVector Location = FVector::ZeroVector;

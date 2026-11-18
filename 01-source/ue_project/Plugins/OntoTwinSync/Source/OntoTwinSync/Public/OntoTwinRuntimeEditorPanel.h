@@ -295,6 +295,7 @@ private:
     void HideConfirmation();
     void RefreshPendingList();
     void SetActiveTab(bool bBusiness);
+    void RefreshModelSourceTabs();
     void RefreshBusinessEditor();
 
     UFUNCTION()

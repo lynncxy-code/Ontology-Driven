@@ -356,6 +356,7 @@ public:
     FString GetRuntimeEditorTypeName() const;
     FString GetRuntimeEditorTypeNameRaw() const;
     FString GetRuntimeEditorInstanceIdText() const;
+    FString GetRuntimeEditorInstanceIdTooltip() const;
     bool GetRuntimeEditorTransform(FVector& OutLocation, float& OutYaw) const;
     EOntoTwinRuntimeAccessState GetRuntimeEditorAccessState() const;
     bool CanBindRuntimeProject() const;

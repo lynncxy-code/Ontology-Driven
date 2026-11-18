@@ -158,7 +158,7 @@ void UOntoTwinRuntimeEditorPanel::PopulateModelLibrary(EModelSource Source)
     SelectedModelKey.Reset();
     ModelSource = Source;
     LastSource = static_cast<int32>(Source);
-    for (int32 I=0; I<ModelSourceTabs.Num(); ++I) ModelSourceTabs[I]->SetIsEnabled(I!=LastSource);
+    RefreshModelSourceTabs();
     ModelLabels.Reset();
     OrderedModelKeys.Reset();
     ModelErrors.Reset();

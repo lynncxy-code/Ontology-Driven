@@ -6055,6 +6055,14 @@ FString ATwinSceneManager::GetRuntimeEditorTypeNameRaw() const
         : FString();
 }
 
+FString ATwinSceneManager::GetRuntimeEditorInstanceIdTooltip() const
+{
+    if (GetRuntimeEditSelectionCount() != 1) return FString();
+    return RuntimeSelectedInstance->IsScenery()
+        ? TEXT("此东西目前没有 ID，仅设为布景")
+        : RuntimeSelectedInstance->GetInstanceId();
+}
+
 FString ATwinSceneManager::GetRuntimeEditorInstanceIdText() const
 {
     const int32 SelectionCount = GetRuntimeEditSelectionCount();
@@ -6067,7 +6075,7 @@ FString ATwinSceneManager::GetRuntimeEditorInstanceIdText() const
         return TEXT("多个实例");
     }
 
-    if (RuntimeSelectedInstance->IsScenery()) return TEXT("布景");
+    if (RuntimeSelectedInstance->IsScenery()) return TEXT("未编号（布景）");
     const FString InstanceId = RuntimeSelectedInstance->GetInstanceId();
     if (InstanceId.Len() <= 18)
     {

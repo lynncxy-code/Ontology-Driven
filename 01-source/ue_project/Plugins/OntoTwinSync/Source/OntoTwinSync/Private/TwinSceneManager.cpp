@@ -6059,7 +6059,7 @@ FString ATwinSceneManager::GetRuntimeEditorInstanceIdTooltip() const
 {
     if (GetRuntimeEditSelectionCount() != 1) return FString();
     return RuntimeSelectedInstance->IsScenery()
-        ? TEXT("此东西目前没有 ID，仅设为布景")
+        ? TEXT("尚未分配业务编号，当前为场景陈设")
         : RuntimeSelectedInstance->GetInstanceId();
 }
 
@@ -6075,7 +6075,7 @@ FString ATwinSceneManager::GetRuntimeEditorInstanceIdText() const
         return TEXT("多个实例");
     }
 
-    if (RuntimeSelectedInstance->IsScenery()) return TEXT("未编号（布景）");
+    if (RuntimeSelectedInstance->IsScenery()) return TEXT("未编号（场景陈设）");
     const FString InstanceId = RuntimeSelectedInstance->GetInstanceId();
     if (InstanceId.Len() <= 18)
     {

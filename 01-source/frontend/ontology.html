@@ -12,6 +12,9 @@
     <script src="/vendor/jsencrypt-3.3.2.min.js" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="/nexus_titlebar.css" />
     <style>
+        .scenery-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: #718698; border-radius: 8px 0 0 8px; }
+        .scenery-card { overflow: hidden; }
+        .scenery-badge { flex: none; font-size: 10px; line-height: 16px; padding: 0 4px; border-radius: 4px; color: #43596b; background: #edf2f5; }
         .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -67,13 +70,17 @@
                              @click="selectType(ot)"
                              :class="[
                                 'p-3 border rounded-lg cursor-pointer transition-all duration-150 relative group',
+                                { 'scenery-card': ot.rid === 'ontotwin.scene_object' },
                                 selected && selected.rid === ot.rid ? 'border-gray-900 bg-gray-50 shadow-sm' : 'border-gray-200 bg-white hover:border-gray-400 hover:shadow-sm'
                              ]">
                             <div class="flex items-start gap-3">
                                 <div class="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0" :style="{ backgroundColor: ot.color || '#9ca3af' }"></div>
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center justify-between">
-                                        <div class="text-sm font-bold text-gray-900 truncate">{{ ot.name }}</div>
+                                        <div class="flex items-center gap-1.5 min-w-0">
+                                            <span class="text-sm font-bold text-gray-900 truncate">{{ ot.name }}</span>
+                                            <span v-if="ot.rid === 'ontotwin.scene_object'" class="scenery-badge">系统预置</span>
+                                        </div>
                                         <span v-if="ot.has_representable" class="text-[10px] bg-green-50 text-green-700 border border-green-200 px-1.5 rounded-md whitespace-nowrap">已配置</span>
                                         <span v-else class="text-[10px] bg-gray-100 text-gray-400 border border-gray-200 px-1.5 rounded-md whitespace-nowrap">未配置</span>
                                     </div>

@@ -67,7 +67,7 @@ public:
         auto Line = [&](TSharedRef<SWidget> Widget){ Form->AddSlot().AutoHeight().Padding(2,4)[Widget]; };
         auto Caption = [](const TCHAR* Text){return SNew(STextBlock).Text(FText::FromString(Text));};
         Line(Caption(SourceId.IsEmpty() ? TEXT("放置信息") : TEXT("编辑名称或编号")));
-        Line(Caption(TEXT("实例编号（留空保存为布景）")));
+        Line(Caption(TEXT("实例编号（留空保存为场景陈设）")));
         BusinessId = bScenery ? FString() : SourceId;
         Line(SAssignNew(IdBox,SEditableTextBox).Text(FText::FromString(BusinessId)).IsReadOnly(bLocked)
             .OnTextChanged_Lambda([this](const FText& T){OnId(T.ToString().TrimStartAndEnd());})

@@ -24,6 +24,7 @@ def test_place_and_retry(client, store, placement, key):
     first = client.post(URL, headers=HEADERS, json=placement)
     assert first.status_code == 201, first.json
     iid = first.json["instance_id"]
+    assert first.json["snapshot"]["objectTypeName"] == "场景陈设"
     interfaces = first.json["snapshot"]["interfaces"]
     assert interfaces["I3D_Representable"]["asset_id"] == key
     assert interfaces["I3D_Spatial"]["translation_x"] == -35
@@ -34,6 +35,29 @@ def test_place_and_retry(client, store, placement, key):
     persisted = store.read_project("p_test")
     assert list(persisted["instances"]) == [iid]
     assert not persisted["object_types"]["ontotwin.scene_object"].get("asset_id")
+
+
+def test_legacy_scenery_name_in_catalog_instance_and_snapshot(client, store, placement):
+    iid = client.post(URL, headers=HEADERS, json=placement).json["instance_id"]
+    rid = "ontotwin.scene_object"
+
+    def legacy_names(project):
+        project["object_types"][rid]["name"] = "场景对象"
+        instance = project["instances"][iid]
+        instance.update(object_type_name="场景对象", hierarchy_path=["场景对象"], display_name="场景对象")
+        instance["render_config"]["object_type_name"] = "场景对象"
+        project["object_types"]["robot"] = {"rid": "robot", "name": "场景对象"}
+
+    store.transact_project("p_test", legacy_names)
+    catalog = client.get("/api/v2/ontology/types", headers=HEADERS).json
+    names = {item["rid"]: item["name"] for item in catalog}
+    assert names[rid] == "场景陈设" and names["robot"] == "场景对象"
+    instance = client.get("/api/v2/instances", headers=HEADERS).json[0]
+    assert instance["object_type_name"] == "场景陈设"
+    assert instance["hierarchy_path"] == ["场景陈设"]
+    assert instance["display_name"] == "场景对象"
+    snapshot = client.get("/api/v2/state/snapshot", headers=HEADERS, query_string={"id": iid}).json
+    assert snapshot["objectTypeName"] == "场景陈设" and snapshot["hierarchyPath"] == ["场景陈设"]
 
 
 @pytest.mark.parametrize("patch", [{"model": "models:../x.glb"}, {"model": "models:D:/robot.glb"},

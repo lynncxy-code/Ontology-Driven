@@ -13,6 +13,7 @@ from tenant_api import ApiError
 from ue_project_binding import check_request_can_write_active, lookup_with_heal
 
 TYPE_RID = "ontotwin.scene_object"
+SCENERY_NAME = "场景陈设"
 CAPABILITIES = ["I3D_Representable", "I3D_Spatial"]
 
 
@@ -77,18 +78,19 @@ def _place(project, deleted, operation_id, business_id, type_id, name, key, sour
             roster.append({"instance_id": iid, "type": typ["name"], "name": name, "source": "runtime_editor"})
     else:
         type_id = TYPE_RID
-        typ = types.setdefault(TYPE_RID, {"rid": TYPE_RID, "name": "场景对象", "category": "Core",
+        typ = types.setdefault(TYPE_RID, {"rid": TYPE_RID, "name": SCENERY_NAME, "category": "Core",
                                          "injected_interfaces": CAPABILITIES.copy()})
         if not name:
             name = _scenery_name((*instances.values(), *deleted.values()), key, label)
     if not set(CAPABILITIES).issubset(typ.get("injected_interfaces", [])):
         raise ApiError(409, "所选类型缺少三维表现或空间能力", "type_not_spatial")
     now = time.time()
-    rec = {"id": iid, "object_type_rid": type_id, "object_type_name": typ["name"],
+    type_name = SCENERY_NAME if type_id == TYPE_RID else typ["name"]
+    rec = {"id": iid, "object_type_rid": type_id, "object_type_name": type_name,
            "source": "runtime_editor", "ext_guid": str(operation_id),
-           "raw_state": _default_raw_state(type_id, typ["name"], position),
+           "raw_state": _default_raw_state(type_id, type_name, position),
            "created_at": now, "last_seen": now, "status": "online",
-           "render_config": {"injected_interfaces": list(typ["injected_interfaces"]), "object_type_name": typ["name"],
+           "render_config": {"injected_interfaces": list(typ["injected_interfaces"]), "object_type_name": type_name,
                              "model_override": {"schema_version": 1, "revision": 1, "updated_at": now,
                                                 "asset_id": key, "ue_asset_path": key,
                                                 "label": label, "source": source}}}

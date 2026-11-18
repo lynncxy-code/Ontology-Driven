@@ -41,7 +41,7 @@ class MotionTests(unittest.TestCase):
         before = profile_fingerprint(profile)
         result = build_presentation('test', {'status':'normal'}, profile)['resolution']['channels']['animation']
         self.assertEqual('motion.rotate', result['behavior_id'])
-        self.assertEqual(dict(selection['params'], target='model'), result['params'])
+        self.assertEqual(dict(selection['params'], target='model', pivot='center'), result['params'])
         self.assertEqual('platform', result['source'])
         selection['params']['speed'] = 120
         self.assertNotEqual(before, profile_fingerprint(profile))
@@ -51,6 +51,48 @@ class MotionTests(unittest.TestCase):
         profile = {'channels':{'animation':{'resource_id':'ot.motion.rotate','params':{'speed':-20}}}}
         route = build_presentation('test', {}, profile)['resolution']['channels']['animation']
         self.assertEqual('safe.idle', route['behavior_id'])
+
+    def test_bug26_rotation_presets_offer_pivot_defaulting_to_center(self):
+        schemas = {r['resource_id']: r['parameter_schema'] for r in motion_resources()}
+        for key in ('rotate', 'rotate_to', 'swing'):
+            with self.subTest(preset=key):
+                pivot = next(p for p in schemas['ot.motion.' + key] if p['key'] == 'pivot')
+                self.assertEqual('center', pivot['default'])
+                self.assertEqual(['center', 'origin'], [o['value'] for o in pivot['options']])
+        for key in ('translate', 'pingpong', 'reset'):
+            with self.subTest(preset=key):
+                self.assertNotIn('pivot', [p['key'] for p in schemas['ot.motion.' + key]])
+
+    def test_bug26_saved_rotation_without_pivot_turns_around_center(self):
+        # Configurations saved before BUG-26 carry no pivot; they must not keep orbiting the file origin.
+        profile = {'channels':{'animation':{'resource_id':'ot.motion.rotate','source':'ontotwin_common',
+                                            'params':{'axis':'z','direction':'positive','speed':90}}}}
+        route = build_presentation('test', {}, profile)['resolution']['channels']['animation']
+        self.assertEqual('motion.rotate', route['behavior_id'])
+        self.assertEqual('center', route['params']['pivot'])
+
+    def test_bug26_origin_pivot_reaches_wire_and_invalid_pivot_rejected(self):
+        profile = {'channels':{'animation':{'resource_id':'ot.motion.swing','source':'ontotwin_common',
+                                            'params':{'pivot':'origin'}}}}
+        route = build_presentation('test', {}, profile)['resolution']['channels']['animation']
+        self.assertEqual('origin', route['params']['pivot'])
+        for resource_id, params in (('ot.motion.rotate', {'pivot':'corner'}), ('ot.motion.translate', {'pivot':'center'})):
+            with self.subTest(resource_id=resource_id):
+                ok, error, _ = validate_selection({'resource_id':resource_id, 'params':params}, channel='animation')
+                self.assertFalse(ok)
+                self.assertTrue(error)
+
+    def test_bug26_rotation_axis_labels_describe_rotation(self):
+        schemas = {r['resource_id']: r['parameter_schema'] for r in motion_resources()}
+        rotate_axis = next(p for p in schemas['ot.motion.rotate'] if p['key'] == 'axis')
+        move_axis = next(p for p in schemas['ot.motion.translate'] if p['key'] == 'axis')
+        self.assertEqual({'x', 'y', 'z'}, {o['value'] for o in rotate_axis['options']})
+        self.assertEqual('z', rotate_axis['default'])
+        labels = {o['value']: o['label'] for o in rotate_axis['options']}
+        self.assertIn('绕竖直轴', labels['z'])
+        self.assertIn('绕左右轴', labels['y'])
+        self.assertIn('绕前后轴', labels['x'])
+        self.assertNotEqual(labels, {o['value']: o['label'] for o in move_axis['options']})
 
     def test_belt_has_independent_material_channel(self):
         profile = {'channels':{'visual':{'resource_id':'ot.material.belt_scroll','source':'ontotwin_common','params':{'speed':-1}}}}

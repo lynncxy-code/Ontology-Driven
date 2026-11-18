@@ -114,6 +114,60 @@ bool FBasicMotionTest::RunTest(const FString& Parameters)
     World->DestroyWorld(false);
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicMotionPivotTest, "OntoTwin.Presentation.BasicMotionPivot",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+// BUG-26: a GLB whose file origin is far from its geometry must spin in place, not orbit.
+bool FBasicMotionPivotTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+    auto* Twin = World->SpawnActor<ATwinInstance>();
+    Twin->InitializeTwin(TEXT("isolated-pivot"), TEXT("/Engine/BasicShapes/Cube.Cube"), TEXT(""), TEXT(""), TEXT("primary"));
+    auto* Model = Twin->FindComponentByClass<UStaticMeshComponent>();
+    TestNotNull(TEXT("Actual model mesh"), Model);
+    if (!Model) { World->DestroyWorld(false); return false; }
+    // Geometry spans x = -50..350 (two 100 cm cubes), so its centre is x = 150 while the file origin stays at 0.
+    auto* Arm = NewObject<UStaticMeshComponent>(Twin, TEXT("OffsetGeometry"));
+    Twin->AddInstanceComponent(Arm);
+    Arm->SetupAttachment(Model);
+    Arm->SetStaticMesh(Model->GetStaticMesh());
+    Arm->SetMobility(EComponentMobility::Movable);
+    Arm->SetRelativeLocation(FVector(300, 0, 0));
+    Arm->RegisterComponent();
+    Twin->SetActorLocation(FVector(1000, 0, 0));
+    const FTransform Business = Twin->GetActorTransform();
+    auto Turn = [Twin](const TCHAR* Pivot)
+    {
+        auto P = MakeShared<FJsonObject>();
+        P->SetStringField(TEXT("axis"), TEXT("z"));
+        P->SetNumberField(TEXT("angle"), 180);
+        P->SetNumberField(TEXT("duration"), 1);
+        if (Pivot) P->SetStringField(TEXT("pivot"), Pivot);
+        return Twin->ExecutePresentationRoute(TEXT("animation"), TEXT("motion.rotate_to"), TEXT("motion"), TEXT("platform"), P);
+    };
+    auto InOwner = [Twin](const USceneComponent* C) { return C->GetComponentLocation() - Twin->GetActorLocation(); };
+
+    TestTrue(TEXT("Route without pivot accepted (configurations saved before BUG-26)"), Turn(nullptr));
+    auto* Motion = Twin->FindComponentByClass<UBasicMotionComponent>();
+    TestNotNull(TEXT("Basic executor loaded"), Motion);
+    if (!Motion) { World->DestroyWorld(false); return false; }
+    Motion->TickComponent(1, LEVELTICK_All, nullptr);
+    TestTrue(TEXT("Default pivot is the model centre: file origin swings to the far side"), InOwner(Model).Equals(FVector(300, 0, 0), .5));
+    TestTrue(TEXT("Default pivot is the model centre: far geometry swings to the origin side"), InOwner(Arm).Equals(FVector(0, 0, 0), .5));
+    TestTrue(TEXT("Business root unchanged"), Twin->GetActorTransform().Equals(Business));
+
+    TestTrue(TEXT("Explicit origin pivot accepted"), Turn(TEXT("origin")));
+    Motion->TickComponent(1, LEVELTICK_All, nullptr);
+    TestTrue(TEXT("Origin pivot keeps the file origin in place"), InOwner(Model).Equals(FVector::ZeroVector, .5));
+    TestTrue(TEXT("Origin pivot swings geometry around it"), InOwner(Arm).Equals(FVector(-300, 0, 0), .5));
+
+    TestFalse(TEXT("Unknown pivot rejected"), Turn(TEXT("corner")));
+    Twin->ExecutePresentationRoute(TEXT("animation"), TEXT("motion.reset"), TEXT("motion"), TEXT("platform"));
+    TestTrue(TEXT("Reset restores the model in place"), InOwner(Model).IsNearlyZero(.5) && InOwner(Arm).Equals(FVector(300, 0, 0), .5));
+    World->DestroyWorld(false);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPresentationFallbackPositionTest, "OntoTwin.Presentation.FallbackPreservesPosition",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

@@ -514,7 +514,7 @@
                                 </section>
                                 <section class="ic-card" aria-label="实例信息面板">
                                     <div class="ic-section">
-                                        <div class="ic-pair"><span class="ic-row-title">信息面板</span><span v-if="isScenery(selectedInst)">先在 F10 中补编号</span><a v-else :href="'/interaction?target=instance&instance_id=' + encodeURIComponent(selectedInst.id) + '&from=instance'" class="ic-link">配置此实例</a></div>
+                                        <div class="ic-pair"><span class="ic-row-title">信息面板</span><span v-if="isScenery(selectedInst)">在运行中的三维场景按 F10，进入编辑模式补填业务编号</span><a v-else :href="'/interaction?target=instance&instance_id=' + encodeURIComponent(selectedInst.id) + '&from=instance'" class="ic-link">配置此实例</a></div>
                                         <p class="ic-help">点击模型后的详细信息，可为此实例单独配置；与文字标签独立。</p>
                                     </div>
                                 </section>

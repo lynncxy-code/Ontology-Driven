@@ -401,7 +401,7 @@ class OverlayService:
         if not instance:
             raise OverlayNotFoundError("当前项目中不存在该实例")
         if instance.get("object_type_rid") == "ontotwin.scene_object":
-            raise OverlayValidationError([{"path": "instance_id", "message": "场景陈设请先在 F10 中补编号"}])
+            raise OverlayValidationError([{"path": "instance_id", "message": "在运行中的三维场景按 F10，进入编辑模式补填业务编号"}])
         return instance
 
     @staticmethod

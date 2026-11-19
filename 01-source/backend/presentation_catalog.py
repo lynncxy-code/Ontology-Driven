@@ -12,7 +12,7 @@ from device_effects import EFFECTS, effect_resources, validate_effect_params
 from motion_behaviors import motion_resources, normalize_motion_params, belt_resource
 from typing import Any, Iterable, Mapping
 
-CATALOG_VERSION = "industrial-4.6.effects.1"
+CATALOG_VERSION = "industrial-4.6.effects.2"
 
 _COMMON = "行为库"
 _PROJECT = "项目自带"
@@ -27,6 +27,8 @@ MOCK_PRESENTATION_RESOURCES = [
     {"resource_id": "ot.industrial.warning_material", "revision": 1, "display_name": "警告黄色外观", "resource_type": "dynamic_material", "channel": "visual", "source": "ontotwin_common", "source_label": _COMMON, "supported_states": ["warning", "low_battery", "industrial.visual.warning"], "supported_object_types": ["*"], "slot": "status_indicator", "preview": {"kind": "material", "thumbnail": "mock://presentation/warning-material"}, "status": "published", "available": True},
     {"resource_id": "ot.industrial.critical_material", "revision": 1, "display_name": "故障红色外观", "resource_type": "dynamic_material", "channel": "visual", "source": "ontotwin_common", "source_label": _COMMON, "supported_states": ["fault", "critical", "industrial.visual.critical"], "supported_object_types": ["*"], "slot": "status_indicator", "preview": {"kind": "material", "thumbnail": "mock://presentation/critical-material"}, "status": "published", "available": True},
     {"resource_id": "ot.industrial.maintenance_material", "revision": 1, "display_name": "维护蓝色外观", "resource_type": "dynamic_material", "channel": "visual", "source": "ontotwin_common", "source_label": _COMMON, "supported_states": ["maintenance", "industrial.visual.maintenance"], "supported_object_types": ["*"], "slot": "status_indicator", "preview": {"kind": "material", "thumbnail": "mock://presentation/maintenance-material"}, "status": "published", "available": True},
+    {"resource_id": "ot.industrial.gray_material", "revision": 1, "display_name": "灰色外观", "resource_type": "dynamic_material", "channel": "visual", "source": "ontotwin_common", "source_label": _COMMON, "supported_states": ["*"], "supported_object_types": ["*"], "slot": "status_indicator", "preview": {"kind": "material", "thumbnail": "mock://presentation/gray-material"}, "status": "published", "available": True},
+    {"resource_id": "ot.industrial.wireframe_material", "revision": 1, "display_name": "线框外观", "resource_type": "dynamic_material", "channel": "visual", "source": "ontotwin_common", "source_label": _COMMON, "supported_states": ["*"], "supported_object_types": ["*"], "slot": "status_indicator", "preview": {"kind": "material", "thumbnail": "mock://presentation/wireframe-material"}, "status": "published", "available": True},
     {"resource_id": "project.agv.running_motion", "revision": 1, "display_name": "项目 AGV 运行动画", "resource_type": "animation", "channel": "animation", "source": "project", "source_label": _PROJECT, "supported_states": ["running", "industrial.machine.running"], "supported_object_types": ["AGV", "agv"], "slot": "motion", "preview": {"kind": "animation", "thumbnail": "mock://project/agv-running"}, "status": "published", "available": True},
     {"resource_id": "project.agv.red_material", "revision": 1, "display_name": "项目 AGV 故障材质", "resource_type": "dynamic_material", "channel": "visual", "source": "project", "source_label": _PROJECT, "supported_states": ["fault", "industrial.machine.fault"], "supported_object_types": ["AGV", "agv"], "slot": "status_indicator", "preview": {"kind": "material", "thumbnail": "mock://project/agv-red"}, "status": "published", "available": True},
     {"resource_id": "project.agv.alarm_fx", "revision": 1, "display_name": "项目 AGV 告警特效", "resource_type": "fx", "channel": "fx", "source": "project", "source_label": _PROJECT, "supported_states": ["fault", "industrial.machine.fault"], "supported_object_types": ["AGV", "agv"], "slot": "alarm", "preview": {"kind": "loop", "thumbnail": "mock://project/agv-alarm"}, "status": "published", "available": True},
@@ -48,6 +50,8 @@ _EXAMPLES = {
     "ot.industrial.warning_material": ("状态外观·警告黄（示例）", "为模型叠加黄色半透明高亮，保留原材质"),
     "ot.industrial.critical_material": ("状态外观·故障红（示例）", "为模型叠加红色半透明高亮，保留原材质"),
     "ot.industrial.maintenance_material": ("状态外观·维护蓝（示例）", "为模型叠加蓝色半透明高亮，保留原材质"),
+    "ot.industrial.gray_material": ("状态外观·灰色", "整机临时换成纯灰材质，看不出原来的颜色；状态结束后换回原材质"),
+    "ot.industrial.wireframe_material": ("状态外观·线框", "模型只显示边线、中间透明可看穿；状态结束后换回原材质"),
 }
 for _resource in MOCK_PRESENTATION_RESOURCES:
     _example = _EXAMPLES.get(_resource['resource_id'])

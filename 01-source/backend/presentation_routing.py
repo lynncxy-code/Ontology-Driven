@@ -107,6 +107,8 @@ _CATALOG_RESOURCE_BEHAVIOR_IDS = {
     "ot.industrial.warning_material": "industrial.visual.warning",
     "ot.industrial.critical_material": "industrial.visual.critical",
     "ot.industrial.maintenance_material": "industrial.visual.maintenance",
+    "ot.industrial.gray_material": "industrial.visual.gray",
+    "ot.industrial.wireframe_material": "industrial.visual.wireframe",
 }
 
 

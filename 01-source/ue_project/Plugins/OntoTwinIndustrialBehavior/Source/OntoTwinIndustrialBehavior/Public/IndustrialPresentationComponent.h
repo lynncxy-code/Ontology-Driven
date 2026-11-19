@@ -29,6 +29,13 @@ public:
 private:
     UStaticMeshComponent* CreateIndicator(FName Name);
     bool UpdateVisual();
+    void ClearOverlays();
+    // NEW-07: grey / wireframe swap the model materials and restore them afterwards.
+    void RestoreSwappedMaterials();
+    bool ApplySwappedMaterial(const TCHAR* AssetPath);
+    UPROPERTY(Transient) TObjectPtr<UMaterialInterface> SwapMaterial;
+    FString SwapPath;
+    TMap<TWeakObjectPtr<UMeshComponent>, TArray<TWeakObjectPtr<UMaterialInterface>>> PreviousMaterials;
     UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> Overlay;
     TMap<TWeakObjectPtr<UMeshComponent>, TWeakObjectPtr<UMaterialInterface>> PreviousOverlays;
     float Phase = 0.f;

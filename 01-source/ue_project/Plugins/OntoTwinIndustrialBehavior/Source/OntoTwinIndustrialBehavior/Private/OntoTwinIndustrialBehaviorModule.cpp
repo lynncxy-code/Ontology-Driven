@@ -85,7 +85,9 @@ bool FOntoTwinIndustrialBehaviorModule::SupportsPresentationRoute(
     {
         return BehaviorId == TEXT("ot.industrial.target_highlight") || BehaviorId == TEXT("material.belt_scroll") || BehaviorId == TEXT("industrial.visual.warning")
             || BehaviorId == TEXT("industrial.visual.critical")
-            || BehaviorId == TEXT("industrial.visual.maintenance");
+            || BehaviorId == TEXT("industrial.visual.maintenance")
+            || BehaviorId == TEXT("industrial.visual.gray")
+            || BehaviorId == TEXT("industrial.visual.wireframe");
     }
     if (Channel == TEXT("fx") || Channel == TEXT("action"))
     {

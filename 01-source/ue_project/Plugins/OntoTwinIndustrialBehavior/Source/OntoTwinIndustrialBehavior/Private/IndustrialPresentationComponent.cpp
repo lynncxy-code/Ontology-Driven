@@ -74,16 +74,77 @@ bool UIndustrialPresentationComponent::Apply(const FString& Channel, const FStri
     return false;
 }
 
+void UIndustrialPresentationComponent::ClearOverlays()
+{
+    for (auto& Pair : PreviousOverlays)
+        if (Pair.Key.IsValid() && Pair.Key->GetOverlayMaterial() == Overlay)
+            Pair.Key->SetOverlayMaterial(Pair.Value.Get());
+    PreviousOverlays.Reset();
+}
+
+void UIndustrialPresentationComponent::RestoreSwappedMaterials()
+{
+    for (auto& Pair : PreviousMaterials)
+    {
+        UMeshComponent* Mesh = Pair.Key.Get();
+        if (!Mesh) continue;
+        for (int32 Index = 0; Index < Pair.Value.Num(); ++Index)
+            if (SwapMaterial && Mesh->GetMaterial(Index) == SwapMaterial)
+                Mesh->SetMaterial(Index, Pair.Value[Index].Get());
+    }
+    PreviousMaterials.Reset();
+    SwapMaterial = nullptr;
+    SwapPath.Reset();
+}
+
+bool UIndustrialPresentationComponent::ApplySwappedMaterial(const TCHAR* AssetPath)
+{
+    if (SwapPath != AssetPath || !SwapMaterial)
+    {
+        RestoreSwappedMaterials();
+        SwapMaterial = LoadObject<UMaterialInterface>(nullptr, AssetPath);
+        if (!SwapMaterial) return false;
+        SwapPath = AssetPath;
+    }
+    TArray<UStaticMeshComponent*> Meshes;
+    GetOwner()->GetComponents<UStaticMeshComponent>(Meshes, true);
+    int32 Count = 0;
+    for (auto* Mesh : Meshes)
+    {
+        // Indicator meshes and UI keep their own materials.
+        if (!Mesh || Mesh->ComponentHasTag(TEXT("OntoTwinPresentation"))) continue;
+        auto& Saved = PreviousMaterials.FindOrAdd(Mesh);
+        const int32 Slots = Mesh->GetNumMaterials();
+        if (Saved.Num() < Slots) Saved.SetNum(Slots);
+        for (int32 Index = 0; Index < Slots; ++Index)
+        {
+            UMaterialInterface* Current = Mesh->GetMaterial(Index);
+            if (Current == SwapMaterial) continue;
+            // A GLB that finishes loading later brings new materials; remember the latest ones.
+            Saved[Index] = Current;
+            Mesh->SetMaterial(Index, SwapMaterial);
+        }
+        ++Count;
+    }
+    return Count > 0;
+}
+
 bool UIndustrialPresentationComponent::UpdateVisual()
 {
     if (Visual.IsEmpty() || Visual.StartsWith(TEXT("safe.")))
     {
-        for (auto& Pair : PreviousOverlays)
-            if (Pair.Key.IsValid() && Pair.Key->GetOverlayMaterial() == Overlay)
-                Pair.Key->SetOverlayMaterial(Pair.Value.Get());
-        PreviousOverlays.Reset();
+        ClearOverlays();
+        RestoreSwappedMaterials();
         return true;
     }
+    if (Visual == TEXT("industrial.visual.gray") || Visual == TEXT("industrial.visual.wireframe"))
+    {
+        ClearOverlays();
+        return ApplySwappedMaterial(Visual == TEXT("industrial.visual.gray")
+            ? TEXT("/OntoTwinIndustrialBehavior/Materials/M_StatusGray.M_StatusGray")
+            : TEXT("/OntoTwinIndustrialBehavior/Materials/M_StatusWireframe.M_StatusWireframe"));
+    }
+    RestoreSwappedMaterials();
     if (!Overlay)
     {
         auto* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/OntoTwinIndustrialBehavior/Materials/M_StatusOverlay.M_StatusOverlay"));

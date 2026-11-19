@@ -40,6 +40,12 @@ bool UBasicMotionComponent::Apply(const FString& Behavior, const TSharedPtr<FJso
     if (Params && Params->HasField(TEXT("target")) && !Params->TryGetStringField(TEXT("target"), TargetName)) return false;
     if (TargetName != TEXT("model") && TargetName != TEXT("tagged")) return false;
     bTaggedOnly = TargetName == TEXT("tagged");
+    // Older backends send no pivot; they get the centre too, because orbiting the
+    // GLB file origin was the defect (BUG-26), not intended behaviour.
+    FString PivotName = TEXT("center");
+    if (Params && Params->HasField(TEXT("pivot")) && !Params->TryGetStringField(TEXT("pivot"), PivotName)) return false;
+    if (PivotName != TEXT("center") && PivotName != TEXT("origin")) return false;
+    bPivotCenter = PivotName == TEXT("center");
     // Older TwinInstance uses its mesh as root. Split a stable spatial root
     // from the rendered model once, so data-driven location keeps one owner.
     if (auto* OldRoot = Cast<UMeshComponent>(GetOwner()->GetRootComponent()))
@@ -56,6 +62,7 @@ bool UBasicMotionComponent::Apply(const FString& Behavior, const TSharedPtr<FJso
     }
     Mode = Behavior;
     DiscoverTargets();
+    UpdatePivot();
     if (bTaggedOnly && Targets.IsEmpty())
         UE_LOG(LogTemp, Warning, TEXT("[OT-Motion] %s: no movable model component tagged OntoTwinMotionTarget; waiting, never falling back to whole model"), *GetOwner()->GetName());
     ApplyOffset();
@@ -93,6 +100,34 @@ void UBasicMotionComponent::DiscoverTargets()
     }
 }
 
+void UBasicMotionComponent::UpdatePivot()
+{
+    PivotInOwner = FVector::ZeroVector;
+    // Tagged parts keep the pivot the project modelled for them (e.g. a door hinge).
+    if (!bPivotCenter || bTaggedOnly) return;
+    FBox Box(ForceInit);
+    for (const FTarget& Target : Targets)
+    {
+        const USceneComponent* Root = Target.Component.Get();
+        if (!Root) continue;
+        // Children move rigidly with the target, so their pose relative to it is
+        // unaffected by the display offset; measure everything on the original pose.
+        TArray<USceneComponent*> Parts;
+        Root->GetChildrenComponents(true, Parts);
+        Parts.Insert(const_cast<USceneComponent*>(Root), 0);
+        for (const USceneComponent* Part : Parts)
+        {
+            const auto* Static = Cast<UStaticMeshComponent>(Part);
+            const auto* Skeletal = Cast<USkeletalMeshComponent>(Part);
+            if ((!Static || !Static->GetStaticMesh()) && (!Skeletal || !Skeletal->GetSkeletalMeshAsset())) continue;
+            if (!Part->IsVisible() || Part->ComponentHasTag(TEXT("OntoTwinPresentation"))) continue;
+            const FTransform PartInTarget = Part->GetComponentTransform().GetRelativeTransform(Root->GetComponentTransform());
+            Box += Part->CalcBounds(PartInTarget * Target.OriginalInOwner).GetBox();
+        }
+    }
+    if (Box.IsValid) PivotInOwner = Box.GetCenter();
+}
+
 void UBasicMotionComponent::ApplyOffset()
 {
     double Amount = FMath::Clamp(Elapsed / Duration, 0.0, 1.0);
@@ -103,6 +138,9 @@ void UBasicMotionComponent::ApplyOffset()
     if (bTranslate) Offset.SetTranslation(Axis * (Direction * Distance * Amount));
     else Offset.SetRotation(FQuat(Axis, FMath::DegreesToRadians(Direction *
         (Mode == TEXT("motion.rotate") ? FMath::Fmod(Elapsed * Speed, 360.0) : Angle * Amount))));
+    // Rotate about the pivot: move it to the origin, turn, move it back (applied left to right).
+    if (!bTranslate && !bTaggedOnly && !PivotInOwner.IsZero())
+        Offset = FTransform(-PivotInOwner) * Offset * FTransform(PivotInOwner);
     for (auto& Target : Targets)
         if (Target.Component.IsValid())
         {
@@ -123,6 +161,7 @@ void UBasicMotionComponent::TickComponent(float Delta, ELevelTick Type, FActorCo
     if (Mode.IsEmpty()) return;
     Elapsed += FMath::Max(0.f, Delta);
     DiscoverTargets();
+    UpdatePivot();
     ApplyOffset();
 }
 
@@ -133,6 +172,7 @@ void UBasicMotionComponent::ResetMotion()
     Targets.Reset();
     Mode.Reset();
     Elapsed = 0;
+    PivotInOwner = FVector::ZeroVector;
 }
 
 void UBasicMotionComponent::EndPlay(const EEndPlayReason::Type Reason)

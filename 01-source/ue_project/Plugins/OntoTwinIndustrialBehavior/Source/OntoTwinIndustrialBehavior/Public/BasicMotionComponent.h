@@ -19,6 +19,7 @@ public:
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 private:
     void DiscoverTargets();
+    void UpdatePivot();
     void ApplyOffset();
     struct FTarget
     {
@@ -29,6 +30,10 @@ private:
     TArray<FTarget> Targets;
     FString Mode;
     bool bTaggedOnly = false;
+    /** Whole-model rotation turns around the model's bounding-box centre unless pivot=origin (BUG-26). */
+    bool bPivotCenter = true;
+    /** Rotation centre in owner (actor) space, measured on the untransformed model. */
+    FVector PivotInOwner = FVector::ZeroVector;
     FVector Axis = FVector::UpVector;
     double Direction = 1, Speed = 90, Distance = 100, Angle = 90, Duration = 2, Elapsed = 0;
 };

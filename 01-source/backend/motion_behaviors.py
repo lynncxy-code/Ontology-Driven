@@ -10,6 +10,16 @@ TARGET = {"key": "target", "label": "作用对象", "type": "select", "default":
 
 AXIS = {"key": "axis", "label": "方向", "type": "select", "default": "z",
         "options": [{"value": "x", "label": "前后 X"}, {"value": "y", "label": "左右 Y"}, {"value": "z", "label": "上下 Z"}]}
+# Rotation picks an axis to turn around, not a direction to move along; the
+# translation labels read as the opposite motion (BUG-26). Values are unchanged.
+ROTATION_AXIS = {"key": "axis", "label": "旋转方式", "type": "select", "default": "z",
+                 "options": [{"value": "z", "label": "水平转动（绕竖直轴 Z）"},
+                             {"value": "y", "label": "前后俯仰（绕左右轴 Y）"},
+                             {"value": "x", "label": "左右翻滚（绕前后轴 X）"}]}
+# Whole-model rotation turns around the model's bounding-box centre by default;
+# many exported GLB files keep their origin at a corner (BUG-26).
+PIVOT = {"key": "pivot", "label": "旋转中心（设备整体）", "type": "select", "default": "center",
+         "options": [{"value": "center", "label": "模型中心"}, {"value": "origin", "label": "模型文件原点"}]}
 DIRECTION = {"key": "direction", "label": "正反方向", "type": "select", "default": "positive",
              "options": [{"value": "positive", "label": "正向"}, {"value": "negative", "label": "反向"}]}
 SPEED = {"key": "speed", "label": "转速（度/秒）", "type": "number", "default": 90, "min": 1, "max": 720, "step": 1}
@@ -18,11 +28,11 @@ ANGLE = {"key": "angle", "label": "角度（度）", "type": "number", "default"
 DURATION = {"key": "duration", "label": "单程时长（秒）", "type": "number", "default": 2, "min": 0.1, "max": 120, "step": 0.1}
 
 PRESETS = {
-    "rotate": ("持续旋转", "模型围绕自身原点持续旋转，不改变实时定位坐标。", [AXIS, DIRECTION, SPEED]),
+    "rotate": ("持续旋转", "模型默认绕自身中心持续旋转，不改变实时定位坐标。", [ROTATION_AXIS, DIRECTION, SPEED, PIVOT]),
     "translate": ("平移到指定位置", "从模型原位沿选定方向移动指定行程，到达后保持。", [AXIS, DIRECTION, DISTANCE, DURATION]),
-    "rotate_to": ("旋转到指定角度", "从模型原始朝向旋转指定角度，到达后保持。", [AXIS, DIRECTION, ANGLE, DURATION]),
+    "rotate_to": ("旋转到指定角度", "从模型原始朝向旋转指定角度，到达后保持。", [ROTATION_AXIS, DIRECTION, ANGLE, DURATION, PIVOT]),
     "pingpong": ("往复移动", "在模型原位与行程终点之间循环移动。", [AXIS, DIRECTION, DISTANCE, DURATION]),
-    "swing": ("往复摆动", "在原始角度与指定角度之间循环摆动。", [AXIS, DIRECTION, ANGLE, DURATION]),
+    "swing": ("往复摆动", "在原始角度与指定角度之间循环摆动。", [ROTATION_AXIS, DIRECTION, ANGLE, DURATION, PIVOT]),
     "reset": ("恢复原位", "停止基础运动，恢复模型相对于实时定位点的原始姿态。", []),
 }
 PRESETS = {key: (name, description, ([TARGET] + schema) if schema else [])
@@ -47,9 +57,9 @@ def motion_resources():
              "channel": "animation", "resource_type": "animation", "source": "ontotwin_common",
              "source_label": "行为库", "supported_states": ["*"], "supported_object_types": ["*"],
              "slot": "motion", "status": "published", "available": True,
-             "runtime_package": "OntoTwinIndustrialBehavior", "package_version": "基础运动 0.2",
+             "runtime_package": "OntoTwinIndustrialBehavior", "package_version": "基础运动 0.3",
              "parameter_schema": schema, "example": False,
-             "target_note": "整体绕模型原点运动；部件绕各自原点运动，需项目预设可动部件。没有预设时不会改动整机。实时定位坐标不变。"}
+             "target_note": "设备整体旋转默认绕模型中心，可改为模型文件原点；部件绕各自原点运动，需项目预设可动部件。没有预设时不会改动整机。实时定位坐标不变。"}
             for key, (name, description, schema) in PRESETS.items()]
 
 

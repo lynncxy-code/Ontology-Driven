@@ -3,6 +3,8 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "GameFramework/Actor.h"
 
+static FString OTMatName(const UMaterialInterface* M) { return M ? M->GetPathName() : FString(TEXT("(默认)")); }
+
 UBeltMaterialComponent::UBeltMaterialComponent() { PrimaryComponentTick.bCanEverTick = true; }
 bool UBeltMaterialComponent::Apply(const TSharedPtr<FJsonObject>& Params)
 {
@@ -22,6 +24,7 @@ bool UBeltMaterialComponent::Apply(const TSharedPtr<FJsonObject>& Params)
     bTaggedOnly = Target == TEXT("tagged");
     Offset = 0;
     Material->SetScalarParameterValue(TEXT("Offset"), 0);
+    UE_LOG(LogTemp, Log, TEXT("[OT-Material] %s 启用皮带条纹 target=%s speed=%.2f"), *GetOwner()->GetName(), *Target, Speed);
     FindMeshes();
     return true;
 }
@@ -38,6 +41,8 @@ void UBeltMaterialComponent::FindMeshes()
             if (Slots.ContainsByPredicate([Mesh,I](const FSlot& S){ return S.Mesh == Mesh && S.Index == I; })) continue;
             Slots.Add({Mesh, I, Mesh->GetMaterial(I)});
             HeldOriginals.Add(Mesh->GetMaterial(I));
+            UE_LOG(LogTemp, Log, TEXT("[OT-Material] %s 换上皮带条纹：%s 槽%d 模型=%s（原 %s）"), *GetOwner()->GetName(),
+                *Mesh->GetName(), I, *GetNameSafe(Mesh->GetStaticMesh()), *OTMatName(Mesh->GetMaterial(I)));
             Mesh->SetMaterial(I, Material);
         }
     }
@@ -55,7 +60,11 @@ void UBeltMaterialComponent::ResetMaterials()
     bActive = false;
     for (auto& Slot : Slots)
         if (Slot.Mesh.IsValid() && Slot.Mesh->GetMaterial(Slot.Index) == Material)
+        {
             Slot.Mesh->SetMaterial(Slot.Index, Slot.Original.Get());
+            UE_LOG(LogTemp, Log, TEXT("[OT-Material] %s 撤下皮带条纹：%s 槽%d -> %s"), *GetOwner()->GetName(),
+                *Slot.Mesh->GetName(), Slot.Index, *OTMatName(Slot.Mesh->GetMaterial(Slot.Index)));
+        }
     Slots.Reset();
     HeldOriginals.Reset();
 }

@@ -110,6 +110,10 @@ bool FOntoTwinIndustrialBehaviorModule::ExecutePresentationRoute(
     {
         return false;
     }
+    // BUG-29 diagnostics: every route that can change model materials.
+    if (Channel == TEXT("visual"))
+        UE_LOG(LogTemp, Log, TEXT("[OT-Material] 收到外观路由 instance=%s actor=%s behavior=%s"),
+            *Twin->GetInstanceId(), *Twin->GetName(), *BehaviorId);
 
     auto* Effects = Twin->FindComponentByClass<UDeviceEffectsComponent>();
     const bool Scan = Channel == TEXT("fx") && BehaviorId == TEXT("ot.industrial.region_scan");

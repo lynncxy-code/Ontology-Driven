@@ -9,6 +9,7 @@ class UMaterialInstanceDynamic;
 class UMeshComponent;
 class UMaterialInterface;
 class UTextRenderComponent;
+class UStaticMesh;
 
 /** Executable example resources. All motion stays on owned indicator components. */
 UCLASS()
@@ -35,7 +36,15 @@ private:
     bool ApplySwappedMaterial(const TCHAR* AssetPath);
     UPROPERTY(Transient) TObjectPtr<UMaterialInterface> SwapMaterial;
     FString SwapPath;
-    TMap<TWeakObjectPtr<UMeshComponent>, TArray<TWeakObjectPtr<UMaterialInterface>>> PreviousMaterials;
+    struct FSwappedMesh
+    {
+        /** The model the originals belong to; a different model must not get them back. */
+        TWeakObjectPtr<UStaticMesh> Asset;
+        TArray<TWeakObjectPtr<UMaterialInterface>> Originals;
+    };
+    TMap<TWeakObjectPtr<UMeshComponent>, FSwappedMesh> PreviousMaterials;
+    /** Keeps replaced runtime (GLB) materials alive until they are put back. */
+    UPROPERTY(Transient) TArray<TObjectPtr<UMaterialInterface>> HeldOriginals;
     UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> Overlay;
     TMap<TWeakObjectPtr<UMeshComponent>, TWeakObjectPtr<UMaterialInterface>> PreviousOverlays;
     float Phase = 0.f;

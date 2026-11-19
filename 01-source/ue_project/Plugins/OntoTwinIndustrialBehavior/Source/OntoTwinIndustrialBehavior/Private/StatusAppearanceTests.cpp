@@ -5,6 +5,7 @@
 #include "IndustrialPresentationComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Materials/MaterialInterface.h"
+#include "Engine/StaticMesh.h"
 
 // NEW-07: grey and wireframe replace every model material and restore it afterwards.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusAppearanceSwapTest,
@@ -71,6 +72,20 @@ bool FStatusAppearanceSwapTest::RunTest(const FString& Parameters)
     {
         TestEqual(TEXT("Leaving the state restores the original"), Meshes[Index]->GetMaterial(0), Original[Index]);
         TestNull(TEXT("No overlay left"), Meshes[Index]->GetOverlayMaterial());
+    }
+    // The model is replaced while grey is shown: leaving grey must show the new
+    // model's own material, never the previous model's.
+    if (Meshes.Num() > 0)
+    {
+        auto* Sphere = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+        TestNotNull(TEXT("Replacement model exists"), Sphere);
+        Twin->ApplySnapshot(MakeSnapshot(TEXT("industrial.visual.gray")));
+        Meshes[0]->SetStaticMesh(Sphere);
+        if (auto* Component = Twin->FindComponentByClass<UIndustrialPresentationComponent>())
+            Component->TickComponent(.1f, LEVELTICK_All, nullptr);
+        TestEqual(TEXT("New model also shown grey"), Meshes[0]->GetMaterial(0), Gray);
+        Twin->ApplySnapshot(MakeSnapshot(TEXT("safe.visible")));
+        TestTrue(TEXT("New model gets its own material back"), Sphere && Meshes[0]->GetMaterial(0) == Sphere->GetMaterial(0));
     }
     World->DestroyWorld(false);
     return true;

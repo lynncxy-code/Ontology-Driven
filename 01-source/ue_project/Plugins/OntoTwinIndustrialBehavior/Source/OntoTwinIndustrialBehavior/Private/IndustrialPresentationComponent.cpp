@@ -82,17 +82,31 @@ void UIndustrialPresentationComponent::ClearOverlays()
     PreviousOverlays.Reset();
 }
 
+static FString OTMaterialName(const UMaterialInterface* Material)
+{
+    return Material ? Material->GetPathName() : TEXT("(默认)");
+}
+
 void UIndustrialPresentationComponent::RestoreSwappedMaterials()
 {
     for (auto& Pair : PreviousMaterials)
     {
-        UMeshComponent* Mesh = Pair.Key.Get();
+        auto* Mesh = Cast<UStaticMeshComponent>(Pair.Key.Get());
         if (!Mesh) continue;
-        for (int32 Index = 0; Index < Pair.Value.Num(); ++Index)
-            if (SwapMaterial && Mesh->GetMaterial(Index) == SwapMaterial)
-                Mesh->SetMaterial(Index, Pair.Value[Index].Get());
+        // The model was replaced while grey/wireframe was shown: drop our override so
+        // the new model shows its own materials instead of the previous model's.
+        const bool bSameModel = Mesh->GetStaticMesh() == Pair.Value.Asset.Get();
+        for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index)
+        {
+            if (!SwapMaterial || Mesh->GetMaterial(Index) != SwapMaterial) continue;
+            UMaterialInterface* Back = bSameModel && Pair.Value.Originals.IsValidIndex(Index) ? Pair.Value.Originals[Index].Get() : nullptr;
+            Mesh->SetMaterial(Index, Back);
+            UE_LOG(LogTemp, Log, TEXT("[OT-Material] %s 恢复 %s 槽%d -> %s%s"), *GetOwner()->GetName(), *Mesh->GetName(), Index,
+                *OTMaterialName(Mesh->GetMaterial(Index)), bSameModel ? TEXT("") : TEXT("（模型已更换，改用新模型自带材质）"));
+        }
     }
     PreviousMaterials.Reset();
+    HeldOriginals.Reset();
     SwapMaterial = nullptr;
     SwapPath.Reset();
 }
@@ -115,14 +129,27 @@ bool UIndustrialPresentationComponent::ApplySwappedMaterial(const TCHAR* AssetPa
         if (!Mesh || Mesh->ComponentHasTag(TEXT("OntoTwinPresentation"))) continue;
         auto& Saved = PreviousMaterials.FindOrAdd(Mesh);
         const int32 Slots = Mesh->GetNumMaterials();
-        if (Saved.Num() < Slots) Saved.SetNum(Slots);
+        if (Saved.Asset.Get() != Mesh->GetStaticMesh())
+        {
+            // First capture, or the model was replaced while this appearance stayed on:
+            // our old overrides carried over to the new model, so clear them first.
+            if (Saved.Asset.IsValid() || !Saved.Originals.IsEmpty())
+                for (int32 Index = 0; Index < Slots; ++Index)
+                    if (Mesh->GetMaterial(Index) == SwapMaterial) Mesh->SetMaterial(Index, nullptr);
+            Saved.Asset = Mesh->GetStaticMesh();
+            Saved.Originals.Reset();
+        }
+        if (Saved.Originals.Num() < Slots) Saved.Originals.SetNum(Slots);
         for (int32 Index = 0; Index < Slots; ++Index)
         {
             UMaterialInterface* Current = Mesh->GetMaterial(Index);
             if (Current == SwapMaterial) continue;
             // A GLB that finishes loading later brings new materials; remember the latest ones.
-            Saved[Index] = Current;
+            Saved.Originals[Index] = Current;
+            if (Current) HeldOriginals.AddUnique(Current);
             Mesh->SetMaterial(Index, SwapMaterial);
+            UE_LOG(LogTemp, Log, TEXT("[OT-Material] %s 换上 %s：%s 槽%d（原 %s）"), *GetOwner()->GetName(),
+                *OTMaterialName(SwapMaterial), *Mesh->GetName(), Index, *OTMaterialName(Current));
         }
         ++Count;
     }

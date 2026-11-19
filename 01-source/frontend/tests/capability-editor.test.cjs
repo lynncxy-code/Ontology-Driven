@@ -28,11 +28,14 @@ vm.runInContext(section('        const capabilityInterfaces =', '        const s
     + section('        function defaultCapabilityTab(', '        function selectBehaviorResource(')
     + section('        function isInjected(', '        function enterEditMode(')
     + section('        function cancelCapabilityChanges()', '        async function enablePresentationInterface()')
+    + '\nconst hasRepresentable=computed(()=>isInjected("I3D_Representable"));'
     + '\nconst hasVisual=computed(()=>isInjected("I3D_Visual")); const hasBehavioral=computed(()=>isInjected("I3D_Behavioral"));'
+    + '\nconst hasLabelTab=computed(()=>hasRepresentable.value||hasVisual.value);'
     + '\nglobalThis.testUI={toggleCapability,cancelCapabilityChanges,saveCapabilityChanges,capabilityInterfaces,capabilityChangeCount,capabilityDisabled};',ctx);
 (async () => {
     const ui=ctx.testUI;
     assert.ok(ui.capabilityInterfaces.value.some(c=>c.rid==='I3D_Spatial'));
+    assert.ok(!ui.capabilityInterfaces.value.some(c=>c.rid==='I3D_Visual'), 'OPT-03: no separate visual capability card');
     ui.toggleCapability('I3D_Behavioral');
     assert.ok(ctx.pendingRemove.value.has('I3D_Behavioral'));
     assert.ok(ctx.selected.value.injected_interfaces.includes('I3D_Behavioral'), 'Draft must not modify saved badges');

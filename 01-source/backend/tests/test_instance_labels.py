@@ -53,6 +53,16 @@ class LabelTests(unittest.TestCase):
         self.assertEqual("",resolve_label(self.obj,{},{}))
         self.assertEqual(400,self.save(enabled=True).status_code)
 
+    def test_model_type_can_save_label_without_visual_card(self):
+        self.obj["injected_interfaces"] = ["I3D_Representable", "I3D_Overlay"]
+        self.assertEqual("", resolve_label(self.obj, {}, {}))
+        response = self.save(enabled=True, source="fixed", text="A-01")
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(["I3D_Representable", "I3D_Overlay", "I3D_Visual"], response.json["injected_interfaces"])
+        self.assertEqual("A-01", resolve_label(self.obj, {}, {}))
+        self.assertEqual(200, self.save(enabled=False).status_code)
+        self.assertEqual(3, len(self.obj["injected_interfaces"]))
+
 
 if __name__ == "__main__":
     unittest.main()

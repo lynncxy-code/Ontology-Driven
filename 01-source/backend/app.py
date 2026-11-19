@@ -3196,10 +3196,14 @@ def _build_snapshot(instance_id, ctx=None):
 
     label_source = ot if ot_rid in ctx.object_types else cfg
     label_text = resolve_label(label_source, {**inst_meta, "id": instance_id}, raw)
-    if "I3D_Visual" in injected:
+    # OPT-03: "显示模型" belongs to every instance that has a model, so the
+    # legacy I3D_Visual projection is sent whenever the model capability is on.
+    # Old fixed material variants were test-only settings and are no longer
+    # honoured; state-driven materials come from I3D_Presentation instead.
+    if "I3D_Visual" in injected or "I3D_Representable" in injected:
         interfaces["I3D_Visual"] = {
             "ui_label_content": label_text,
-            "material_variant": raw.get("material_variant", "normal"),
+            "material_variant": "normal",
             "is_visible": raw.get("is_visible", True)
         }
 

@@ -80,8 +80,8 @@
                                     <div class="text-[10px] text-gray-400 font-mono mt-0.5 truncate">{{ ot.rid }}</div>
                                     <div class="text-[11px] text-gray-500 mt-1">{{ typeCategoryCaption(ot) }}: <span class="text-gray-700">{{ ot.category || '未分类' }}</span></div>
 
-                                    <div class="flex flex-wrap gap-1.5 mt-2" v-if="ot.injected_interfaces.length > 0">
-                                        <span v-for="iface in ot.injected_interfaces" :key="iface"
+                                    <div class="flex flex-wrap gap-1.5 mt-2" v-if="shownCapabilities(ot.injected_interfaces).length > 0">
+                                        <span v-for="iface in shownCapabilities(ot.injected_interfaces)" :key="iface"
                                               :class="[
                                                  'text-[9px] px-1.5 py-0.5 rounded-md border',
                                                  capabilityTagClass(iface)
@@ -158,11 +158,11 @@
                             </div>
                             <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
                                 <span class="text-[11px] text-gray-500 mr-1">已启用能力</span>
-                                <span v-for="rid in selected.injected_interfaces || []" :key="rid"
+                                <span v-for="rid in shownCapabilities(selected.injected_interfaces)" :key="rid"
                                       :class="['rounded-md border px-2 py-1 text-[11px]', capabilityTagClass(rid)]">
                                     {{ interfaceShortName(rid) }}
                                 </span>
-                                <span v-if="!selected.injected_interfaces?.length" class="text-[11px] text-gray-400">尚未启用</span>
+                                <span v-if="!shownCapabilities(selected.injected_interfaces).length" class="text-[11px] text-gray-400">尚未启用</span>
                                 <button type="button" @click="interfaceEditorOpen = !interfaceEditorOpen"
                                         :aria-expanded="interfaceEditorOpen" aria-controls="capability-editor" :disabled="saving"
                                         class="ml-auto text-[11px] font-medium rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-gray-700 hover:bg-gray-50">
@@ -195,17 +195,15 @@
                         </div>
                     </div>
 
-                    <div v-if="hasRepresentable || hasVisual || hasBehavioral" class="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+                    <div v-if="hasRepresentable || hasLabelTab || hasBehavioral" class="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
                         <button v-if="hasRepresentable" type="button" @click="activeCapabilityTab = 'model'"
                                 :class="['flex-1 rounded-md px-3 py-2 text-xs font-medium transition', activeCapabilityTab === 'model' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50']">模型配置</button>
-                        <button v-if="hasVisual" type="button" @click="activeCapabilityTab = 'visual'"
-                                :class="['flex-1 rounded-md px-3 py-2 text-xs font-medium transition', activeCapabilityTab === 'visual' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50']">
-                            外观表现 <span class="ml-1 font-mono text-[9px] opacity-70">I3D_Visual</span>
-                        </button>
                         <button v-if="hasBehavioral" type="button" @click="activeCapabilityTab = 'behavioral'"
                                 :class="['flex-1 rounded-md px-3 py-2 text-xs font-medium transition', activeCapabilityTab === 'behavioral' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50']">
                             动态行为 <span class="ml-1 font-mono text-[9px] opacity-70">I3D_Behavioral</span>
                         </button>
+                        <button v-if="hasLabelTab" type="button" @click="activeCapabilityTab = 'visual'"
+                                :class="['flex-1 rounded-md px-3 py-2 text-xs font-medium transition', activeCapabilityTab === 'visual' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50']">信息叠加</button>
                     </div>
 
                     <!-- Interface Injection -->
@@ -448,9 +446,13 @@
                         </div>
                     </div>
 
-                    <section v-if="hasVisual && activeCapabilityTab === 'visual'" class="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
-                        <h3 class="text-sm font-semibold text-gray-900">文字标签</h3>
-                        <p class="text-xs text-gray-500">模型旁的简短文字，默认关闭；本类型的所有实例统一继承。点击模型后的详细内容仍在“配置信息面板”中管理。</p>
+                    <section v-if="hasLabelTab && activeCapabilityTab === 'visual'" class="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-900">信息叠加</h3>
+                            <p class="mt-1 text-xs text-gray-500">用户在场景里能看到的文字和数据。文字标签和实例信息面板各自独立开关。</p>
+                        </div>
+                        <h4 class="border-t border-gray-100 pt-4 text-sm font-semibold text-gray-900">文字标签</h4>
+                        <p class="text-xs text-gray-500">模型旁的一行简短文字，比如设备编号。默认关闭；本类型的所有实例统一继承。</p>
                         <label class="flex items-center gap-2 text-sm text-gray-700">
                             <input type="checkbox" v-model="labelForm.enabled" :disabled="labelSaving" class="accent-gray-900">
                             显示文字标签
@@ -479,7 +481,13 @@
                             <button type="button" @click="resetLabelForm" :disabled="labelSaving || !labelDirty" class="rounded-md border border-gray-300 px-3 py-2 text-xs text-gray-700 disabled:opacity-40">撤销未保存</button>
                             <span class="text-xs text-gray-400">{{ labelDirty ? '有未保存修改' : '与类型设置一致' }}</span>
                         </div>
-                        <p class="border-t border-gray-100 pt-3 text-xs text-gray-500">按状态变化的材质在“动态行为”配置；模型选择在“模型配置”。此处不再提供旧的固定材质变体按钮。</p>
+                        <h4 class="border-t border-gray-100 pt-4 text-sm font-semibold text-gray-900">实例信息面板</h4>
+                        <template v-if="isInjected('I3D_Overlay')">
+                            <p class="text-xs text-gray-500">点击模型后弹出的详细信息，按模板展示标题、字段和数据。</p>
+                            <a :href="`/interaction?target=type&type_rid=${encodeURIComponent(selected.rid)}&from=ontology`"
+                               class="inline-flex rounded-md border border-gray-300 bg-white px-3 py-2 text-xs text-gray-700 hover:bg-gray-50">配置信息面板</a>
+                        </template>
+                        <p v-else class="text-xs text-gray-500">未启用。需要点击模型后弹出详细信息时，在上方“编辑能力”中勾选“信息叠加”。</p>
                     </section>
 
                     <!-- 4.5 Dynamic behavior configuration -->
@@ -865,7 +873,7 @@
                  @keydown.tab="trapCapabilityFocus" class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl outline-none">
                 <h3 id="capability-confirm-title" class="text-base font-semibold">确认停用能力</h3>
                 <p class="mt-3 text-sm text-gray-600">将停用：{{ [...pendingRemove].map(interfaceShortName).join('、') }}。保存后，这些能力不再下发给此类型的实例，相应配置入口将关闭。</p>
-                <p v-if="pendingRemove.has('I3D_Representable')" class="mt-3 text-sm text-gray-700">停用三维存在还会清除类型默认模型绑定，并停用空间定位和信息叠加；外观表现、动态行为不受影响。</p>
+                <p v-if="pendingRemove.has('I3D_Representable')" class="mt-3 text-sm text-gray-700">停用三维存在还会清除类型默认模型绑定，并停用空间定位和实例信息面板；文字标签设置会保留，动态行为不受影响。</p>
                 <div class="mt-5 flex justify-end gap-2">
                     <button type="button" @click="closeCapabilityConfirm" :disabled="saving" class="rounded-md border border-gray-300 px-3 py-2 text-sm disabled:opacity-40">返回修改</button>
                     <button type="button" @click="saveCapabilityChanges" :disabled="saving" class="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-40">{{ saving ? '保存中…' : '确认并保存' }}</button>
@@ -1298,13 +1306,12 @@ createApp({
         const capabilityInterfaces = computed(() => [
             { rid: 'I3D_Representable', label: '三维存在' },
             { rid: 'I3D_Spatial', label: '空间定位' },
-            { rid: 'I3D_Visual', label: '外观表现' },
             { rid: 'I3D_Behavioral', label: '动态行为' },
             { rid: 'I3D_Overlay', label: '信息叠加' },
         ].map(cap => ({...cap, description: ({
             I3D_Representable: '模型与三维实体', I3D_Spatial: '位置、旋转与缩放',
-            I3D_Visual: '可见性与外观', I3D_Behavioral: '按状态配置动态表现',
-            I3D_Overlay: '实例信息面板',
+            I3D_Behavioral: '按状态配置动态表现',
+            I3D_Overlay: '点击模型后弹出的信息面板',
         })[cap.rid]})));
         function capabilityTagClass(rid) {
             return rid === 'I3D_Representable' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-green-50 text-green-700 border-green-200';
@@ -1426,6 +1433,10 @@ createApp({
         ));
 
         const hasVisual = computed(() => isInjected('I3D_Visual'));
+        // OPT-03: 文字标签放进“信息叠加”页；有模型（或旧数据里有外观表现）的类型都能配置。
+        const hasLabelTab = computed(() => hasRepresentable.value || hasVisual.value);
+        // 外观表现不再单独作为能力展示，只作为文字标签和显隐的底层通道保留。
+        function shownCapabilities(list) { return (list || []).filter(rid => rid !== 'I3D_Visual'); }
         const hasBehavioral = computed(() => isInjected('I3D_Behavioral'));
         const behaviorSyncLabel = computed(() => ({ idle: '尚未保存', saving: '正在保存…', saved: '已保存，等待运行时确认' }[behaviorSyncState.value] || '待同步'));
 
@@ -1714,8 +1725,8 @@ createApp({
                 pendingRemove.value = new Set();
                 toast('ok', '能力变更已保存');
                 await loadTypes();
-                const tabInterface = { model: 'I3D_Representable', visual: 'I3D_Visual', behavioral: 'I3D_Behavioral' };
-                if (!isInjected(tabInterface[activeCapabilityTab.value]))
+                const tabAvailable = { model: hasRepresentable.value, visual: hasLabelTab.value, behavioral: hasBehavioral.value };
+                if (!tabAvailable[activeCapabilityTab.value])
                     activeCapabilityTab.value = defaultCapabilityTab(selected.value.injected_interfaces || []);
             } catch (e) {
                 toast('err', e.response?.data?.error || '能力变更保存失败');
@@ -1961,6 +1972,7 @@ createApp({
                 const update = ot => {
                     if (!ot) return;
                     ot.interface_configs = {...ot.interface_configs, I3D_Visual:{...ot.interface_configs?.I3D_Visual, label:data.label}};
+                    if (Array.isArray(data.injected_interfaces)) ot.injected_interfaces = [...data.injected_interfaces];
                 };
                 update(objectTypes.value.find(ot => ot.rid === target.rid));
                 if (selected.value?.rid === target.rid) { update(selected.value); resetLabelForm(); }
@@ -2442,7 +2454,7 @@ createApp({
                     openTypeMenuForRid(target.rid);
                     selectType(target);
                     const tab = urlParams.get('tab');
-                    if ((tab === 'visual' && hasVisual.value) || (tab === 'behavioral' && hasBehavioral.value)) activeCapabilityTab.value = tab;
+                    if ((tab === 'visual' && hasLabelTab.value) || (tab === 'behavioral' && hasBehavioral.value)) activeCapabilityTab.value = tab;
                     // 等待渲染完成后自动滚动到选中项
                     setTimeout(() => {
                         const el = document.getElementById('list-item-' + target.rid.replace(/\./g, '-'));
@@ -2454,7 +2466,7 @@ createApp({
         return {
             labelForm, labelSaving, labelDirty, saveLabelConfig, resetLabelForm,
             objectTypes, typeSearch, sortedObjectTypes, filteredObjectTypes, objectTypeMenuGroups, expandedTypeMenus, isTypeMenuOpen, toggleTypeMenu, typeCategoryCaption, allInterfaces, allAssets, assetTotal, assetSource, selected, activeDataset,
-            parentInterfaces, childInterfaces, pendingInterfaces, pendingRemove, hasRepresentable, hasVisual, hasBehavioral,
+            parentInterfaces, childInterfaces, pendingInterfaces, pendingRemove, hasRepresentable, hasVisual, hasLabelTab, shownCapabilities, hasBehavioral,
             capabilityInterfaces, interfaceEditorOpen, isCapabilityEnabled, activeCapabilityTab,
             capabilityTagClass, capabilityChangeCount, capabilityChangeSummary, capabilityDisabled, toggleCapability,
             capabilityConfirmOpen, capabilityConfirmDialog, requestCapabilitySave, closeCapabilityConfirm, trapCapabilityFocus,

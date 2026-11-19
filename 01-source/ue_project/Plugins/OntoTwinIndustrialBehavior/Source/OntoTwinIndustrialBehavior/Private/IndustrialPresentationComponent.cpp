@@ -100,7 +100,11 @@ bool UIndustrialPresentationComponent::UpdateVisual()
     {
         // Indicator meshes and UI are not targets for the material channel.
         if (!Mesh || Mesh->ComponentHasTag(TEXT("OntoTwinPresentation")) || !Mesh->IsA<UStaticMeshComponent>()) continue;
-        if (!PreviousOverlays.Contains(Mesh)) PreviousOverlays.Add(Mesh, Mesh->GetOverlayMaterial());
+        if (!PreviousOverlays.Contains(Mesh))
+        {
+            PreviousOverlays.Add(Mesh, Mesh->GetOverlayMaterial());
+            UE_LOG(LogTemp, Log, TEXT("[OT-Material] %s 状态外观叠加 %s：%s"), *GetOwner()->GetName(), *Visual, *Mesh->GetName());
+        }
         Mesh->SetOverlayMaterial(Overlay);
         ++Count;
     }

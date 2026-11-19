@@ -230,6 +230,7 @@ void UDeviceEffectsComponent::AttachOverlay()
         {
             Originals.Add(M, M->GetOverlayMaterial());
             M->SetOverlayMaterial(Tint);
+            UE_LOG(LogTemp, Log, TEXT("[OT-Material] %s 目标高亮叠加：%s"), *GetOwner()->GetName(), *M->GetName());
         }
 }
 void UDeviceEffectsComponent::StopHighlight()

@@ -908,6 +908,11 @@ void UOntoTwinRoamingHUDWidget::HideMinimapMarker()
     if (MinimapWidget) MinimapWidget->HideMarker();
 }
 
+float UOntoTwinRoamingHUDWidget::ExpandedMinimapBottom() const
+{
+    return MinimapWidget ? MinimapWidget->ExpandedBottom() : 0.f;
+}
+
 void UOntoTwinRoamingHUDWidget::ClearMinimap()
 {
     if (MinimapWidget) MinimapWidget->ClearMap();

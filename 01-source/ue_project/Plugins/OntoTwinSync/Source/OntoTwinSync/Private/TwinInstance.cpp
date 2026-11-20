@@ -926,6 +926,8 @@ bool ATwinInstance::LoadMeshFromPath(const FString& MeshPath)
 
 void ATwinInstance::ClearSingleAssetRepresentation()
 {
+    LocalModelPath.Reset();
+    LocalModelDigest.Reset();
     if (ActiveContainerHost.IsValid())
     {
         ActiveContainerHost->ClearRepresentation(InstanceId);
@@ -1907,7 +1909,6 @@ bool ATwinInstance::ValidateRenderPartsAgainstSnapshot(
 }
 
 // 从此处起为运行时 glb/gltf 加载实现。
-static const TCHAR* kDefaultModelsDir = TEXT("D:/SCC/DigitalFactoryBase_SCC/Models");
 
 static FString FindVersionedModelFile(const FString& Directory, const FString& FileName)
 {
@@ -1957,7 +1958,7 @@ FString ATwinInstance::ResolveModelFilePath(const FString& AssetId) const
     FString FixedDir;
     if (!GConfig || !GConfig->GetString(TEXT("OntoTwinSync"), TEXT("ModelsDir"), FixedDir, GGameIni) || FixedDir.IsEmpty())
     {
-        FixedDir = kDefaultModelsDir;
+        FixedDir = FPlatformMisc::GetEnvironmentVariable(TEXT("ONTOTWIN_MODELS_DIR"));
     }
 
     const FString ProjDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
@@ -1965,7 +1966,7 @@ FString ATwinInstance::ResolveModelFilePath(const FString& AssetId) const
 
     // 候选 1：固定目录直接拼文件名（FixedDir 已是 Models 根，不再追加 Models）
     TArray<FString> Candidates;
-    Candidates.Add(FPaths::Combine(FixedDir, FileName));
+    if (!FixedDir.IsEmpty()) Candidates.Add(FPaths::Combine(FixedDir, FileName));
     // 候选 2~5：exe 相对的 Models/ 兜底
     Candidates.Add(FPaths::Combine(ProjDir, TEXT("Models"), FileName));
     Candidates.Add(FPaths::Combine(ProjDir, TEXT(".."), TEXT("Models"), FileName));
@@ -2004,7 +2005,24 @@ bool ATwinInstance::LoadRuntimeGltf(const FString& AssetId)
                *AssetId);
         return false;
     }
-    return LoadGltfFromFile(FilePath);
+    if (!LoadGltfFromFile(FilePath)) return false;
+    LocalModelPath = FilePath;
+    LocalModelDigest = LexToString(FMD5Hash::HashFile(*FilePath));
+    return true;
+}
+
+bool ATwinInstance::ReloadLocalModel()
+{
+    const FString Path = LocalModelPath;
+    if (Path.EndsWith(TEXT(".glb")))
+    {
+        TArray<uint8> Bytes;
+        if (!FFileHelper::LoadFileToArray(Bytes, *Path) || !IsValidGlbPayload(Bytes)) return false;
+    }
+    if (Path.IsEmpty() || !LoadGltfFromFile(Path)) return false;
+    LocalModelPath = Path;
+    LocalModelDigest = LexToString(FMD5Hash::HashFile(*Path));
+    return true;
 }
 
 bool ATwinInstance::LoadGltfFromFile(const FString& FilePath)

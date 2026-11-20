@@ -490,7 +490,9 @@ void AOntoTwinRuntimeGizmo::UpdateForSelection(
     TargetActor = InTargetActors[0];
     TargetLocalBounds = LocalBounds[0];
     TargetEditPivotLocal = TargetLocalBounds.GetCenter();
-    SetActorLocation(GroupPivotWorld);
+    FVector DisplayOrigin = GroupPivotWorld;
+    DisplayOrigin.Z = GroupWorldBounds.Max.Z + 12.0f;
+    SetActorLocation(DisplayOrigin);
     SetActorRotation(FRotator::ZeroRotator);
     ApplyInteractionColors();
     SetGizmoEnabled(true);

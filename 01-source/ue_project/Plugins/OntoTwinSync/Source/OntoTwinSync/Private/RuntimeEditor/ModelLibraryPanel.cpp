@@ -1,7 +1,11 @@
 #include "OntoTwinRuntimeEditorPanel.h"
 #include "RuntimeEditor/ModelLibraryTile.h"
+#include "RuntimeEditor/OntoTwinLocalModelRefresh.h"
+#include "Components/NativeWidgetHost.h"
+#include "Widgets/Layout/SBox.h"
 #include "RuntimeEditor/RuntimeModelLibrary.h"
 #include "TwinSceneManager.h"
+#include "SceneInteraction/TwinInteractionManagerComponent.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/ButtonSlot.h"
@@ -27,24 +31,25 @@
 
 namespace
 {
-// The library remembers its layout for this program run, including across level changes.
-bool bLibraryOpen = false;
-int32 LastSource = 0;
 const FLinearColor Ink(0.96f, 0.96f, 0.96f);
 }
 void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
 {
     UTextBlock* Label = nullptr;
-    UButton* Open = CreateButton(TEXT("OpenModelLibrary"), TEXT("模型库"), Label, false);
-    Open->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::ToggleLibrary);
-    SceneContent->AddChildToVerticalBox(Open);
+    LibraryHandle = CreateButton(TEXT("OpenModelLibrary"), TEXT("展开模型库"), Label, false);
+    LibraryHandle->OnClicked.AddDynamic(this, &UOntoTwinRuntimeEditorPanel::ToggleLibrary);
+    auto* HandleSlot = Root->AddChildToCanvas(LibraryHandle);
+    HandleSlot->SetAnchors(FAnchors(1.f, 0.f));
+    HandleSlot->SetAlignment(FVector2D(1.f, 0.f));
+    HandleSlot->SetPosition(FVector2D(-20, 76));
+    HandleSlot->SetAutoSize(true);
     LibraryBounds = WidgetTree->ConstructWidget<USizeBox>();
     LibraryBounds->SetWidthOverride(448);
     LibraryBounds->SetHeightOverride(720);
     auto* LibrarySlot = Root->AddChildToCanvas(LibraryBounds);
     LibrarySlot->SetAnchors(FAnchors(1.f, 0.f));
     LibrarySlot->SetAlignment(FVector2D(1.f, 0.f));
-    LibrarySlot->SetPosition(FVector2D(-20,20));
+    LibrarySlot->SetPosition(FVector2D(-20,76));
     LibrarySlot->SetAutoSize(true);
     auto* Frame = WidgetTree->ConstructWidget<UBorder>();
     Frame->SetPadding(FMargin(14));
@@ -85,6 +90,13 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     Stack->AddChildToVerticalBox(LocalActions);
     AddButton(LocalActions,TEXT("RefreshModels"),TEXT("刷新"))->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::RefreshLibrary);
     AddButton(LocalActions,TEXT("OpenModelsFolder"),TEXT("打开文件夹"))->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::OpenModelsFolder);
+    auto* Reload = WidgetTree->ConstructWidget<UNativeWidgetHost>();
+    TWeakObjectPtr<UOntoTwinRuntimeEditorPanel> WeakPanel(this);
+    Reload->SetContent(SNew(SBox).Visibility_Lambda([WeakPanel] {
+        return WeakPanel.IsValid() && WeakPanel->ModelSource == EModelSource::Local
+            ? EVisibility::Visible : EVisibility::Collapsed;
+    })[MakeLocalModelRefresh([WeakPanel] { return WeakPanel.IsValid() ? WeakPanel->SceneManager : nullptr; })]);
+    Stack->AddChildToVerticalBox(Reload);
     ArtStudioPanel = WidgetTree->ConstructWidget<UVerticalBox>();
     Stack->AddChildToVerticalBox(ArtStudioPanel)->SetPadding(FMargin(0, 24, 0, 16));
     ArtStudioPanel->AddChildToVerticalBox(CreateText(TEXT("ArtStudioTitle"),TEXT("Art Studio 模型库"),16,Ink,true));
@@ -107,7 +119,7 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     auto* PreviewSlot = Root->AddChildToCanvas(ModelPreviewBounds);
     PreviewSlot->SetAnchors(FAnchors(1.f, 0.f));
     PreviewSlot->SetAlignment(FVector2D(1.f, 0.f));
-    PreviewSlot->SetPosition(FVector2D(-484,20));
+    PreviewSlot->SetPosition(FVector2D(-484,76));
     PreviewSlot->SetAutoSize(true);
     auto* PreviewFrame = WidgetTree->ConstructWidget<UBorder>();
     PreviewFrame->SetPadding(FMargin(14));
@@ -152,7 +164,7 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     UButton* CollapsePreview = CreateButton(TEXT("CollapsePreview"),TEXT("收起预览"),Label,false);
     Row->AddChildToHorizontalBox(CollapsePreview)->SetPadding(FMargin(8,0));
     CollapsePreview->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::CollapseLibraryPreview);
-    PlaceModelButton = CreateButton(TEXT("PlaceModel"),TEXT("放置"),Label,false);
+    PlaceModelButton = CreateButton(TEXT("PlaceModel"),TEXT("摆放模型"),Label,false);
     Row->AddChildToHorizontalBox(PlaceModelButton);
     PlaceModelButton->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::PlaceSelectedModel);
     auto* Scroll = WidgetTree->ConstructWidget<UScrollBox>();
@@ -165,13 +177,34 @@ void UOntoTwinRuntimeEditorPanel::BuildModelLibrary(UCanvasPanel* Root)
     LibraryGrid->SetWrapSize(LibraryGridWidth);
     LibraryGrid->SetInnerSlotPadding(FVector2D(8,8));
     Scroll->AddChild(LibraryGrid);
-    ModelSource = static_cast<EModelSource>(LastSource);
-    LibraryBounds->SetVisibility(bLibraryOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+    UpdateLibraryVisibility();
 }
+void UOntoTwinRuntimeEditorPanel::UpdateLibraryVisibility()
+{
+    if (!LibraryBounds || !LibraryHandle) return;
+    LibraryBounds->SetVisibility(!bBusinessTabActive && bLibraryOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+    LibraryHandle->SetVisibility(!(SceneManager && SceneManager->bHasExternalLibraryButton) && !bBusinessTabActive && !bLibraryOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+    if (bBusinessTabActive || !bLibraryOpen) ClearLibraryPreview();
+}
+void UOntoTwinRuntimeEditorPanel::OpenProjectModelLibrary()
+{
+    if (!LibraryBounds) return;
+    bLibraryOpen = true;
+    SetActiveTab(false);
+    UpdateLibraryVisibility();
+    PopulateModelLibrary(EModelSource::Project);
+}
+
+void UOntoTwinRuntimeEditorPanel::ToggleProjectModelLibrary()
+{
+    if (bBusinessTabActive) OpenProjectModelLibrary();
+    else ToggleLibrary();
+}
+
 void UOntoTwinRuntimeEditorPanel::ToggleLibrary()
 {
-    bLibraryOpen = !LibraryBounds->IsVisible();
-    LibraryBounds->SetVisibility(bLibraryOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+    bLibraryOpen = !bLibraryOpen;
+    UpdateLibraryVisibility();
     if (bLibraryOpen) PopulateModelLibrary(ModelSource);
     else { ClearLibraryPreview(); SelectedModelKey.Reset(); }
 }
@@ -180,7 +213,6 @@ void UOntoTwinRuntimeEditorPanel::PopulateModelLibrary(EModelSource Source)
     ClearLibraryPreview();
     SelectedModelKey.Reset();
     ModelSource = Source;
-    LastSource = static_cast<int32>(Source);
     RefreshModelSourceTabs();
     ModelLabels.Reset();
     OrderedModelKeys.Reset();
@@ -228,7 +260,7 @@ void UOntoTwinRuntimeEditorPanel::RebuildLibraryGrid()
             if (SceneManager && SceneManager->CanPlaceRuntimeModel() && !ModelErrors.Contains(Key))
             {
                 SelectLibraryKey(Key);
-                SceneManager->BeginModelPlacement(Key, ModelLabels.FindRef(Key), true);
+                if (SceneManager->BeginModelPlacement(Key, ModelLabels.FindRef(Key), true)) ClearLibraryPreview();
             }
         });
         Tile->InitializeTile();
@@ -310,13 +342,42 @@ void UOntoTwinRuntimeEditorPanel::OpenModelsFolder()
 }
 void UOntoTwinRuntimeEditorPanel::PlaceSelectedModel()
 {
-    if (SceneManager && ModelLabels.Contains(SelectedModelKey) && !ModelErrors.Contains(SelectedModelKey))
-        SceneManager->BeginModelPlacement(SelectedModelKey,ModelLabels[SelectedModelKey]);
+    if (!SceneManager || !ModelLabels.Contains(SelectedModelKey)) return;
+    if (SceneManager->BeginModelPlacement(SelectedModelKey, ModelLabels[SelectedModelKey]))
+        ClearLibraryPreview();
+    else
+        ShowToast(TEXT("无法开始放置，请检查关卡写入权限、模型和当前编辑状态"), EOntoTwinRuntimeToastType::Error);
 }
 void UOntoTwinRuntimeEditorPanel::NativeTick(const FGeometry& Geometry, float DeltaSeconds)
 {
     Super::NativeTick(Geometry,DeltaSeconds);
     if (!LibraryBounds || !LibraryBounds->IsVisible()) return;
+    if (ModelSource == EModelSource::Local && (LocalScanDelay -= DeltaSeconds) <= 0.f)
+    {
+        LocalScanDelay = 1.f;
+        TMap<FString, int64> CurrentFiles;
+        const FString Directory = OntoTwinModelLibrary::ModelsDirectory();
+        IFileManager::Get().IterateDirectoryStat(*Directory,
+            [&CurrentFiles](const TCHAR* Path, const FFileStatData& Stat)
+            {
+                if (!Stat.bIsDirectory && FPaths::GetExtension(Path).Equals(TEXT("glb"), ESearchCase::IgnoreCase))
+                    CurrentFiles.Add(FPaths::GetCleanFilename(Path), Stat.FileSize);
+                return true;
+            });
+        if (!CurrentFiles.OrderIndependentCompareEqual(LocalFiles))
+        {
+            LocalFiles = MoveTemp(CurrentFiles);
+            RefreshLibrary();
+        }
+    }
+    const auto* Interaction = SceneManager ? SceneManager->FindComponentByClass<UTwinInteractionManagerComponent>() : nullptr;
+    const float Top = FMath::Max(76.f, Interaction ? Interaction->ExpandedMinimapBottom() + 10.f : 0.f);
+    if (auto* LibrarySlot = Cast<UCanvasPanelSlot>(LibraryBounds->Slot))
+    {
+        if (!FMath::IsNearlyEqual(LibrarySlot->GetPosition().Y, Top)) LibrarySlot->SetPosition(FVector2D(-20.f, Top));
+    }
+    const float Height = FMath::Clamp(float(Geometry.GetLocalSize().Y) - Top - 20.f, 160.f, 720.f);
+    if (!FMath::IsNearlyEqual(LibraryBounds->GetHeightOverride(), Height)) LibraryBounds->SetHeightOverride(Height);
     const bool bWritable = SceneManager && SceneManager->CanPlaceRuntimeModel();
     PlaceModelButton->SetIsEnabled(bWritable && !SelectedModelKey.IsEmpty() && !ModelErrors.Contains(SelectedModelKey));
     PlaceModelButton->SetToolTipText(FText::FromString(bWritable ? TEXT("在场景中选择位置") : TEXT("当前关卡没有可写数据集")));
@@ -347,17 +408,17 @@ void UOntoTwinRuntimeEditorPanel::NativeTick(const FGeometry& Geometry, float De
     {
         const float Width = FMath::Min(448.f, ScreenSize.X - 40.f);
         LibraryBounds->SetWidthOverride(Width);
-        LibraryBounds->SetHeightOverride(FMath::Min(720.f, ScreenSize.Y - 40.f));
+        LibraryBounds->SetHeightOverride(FMath::Min(720.f, FMath::Max(120.f, ScreenSize.Y - 96.f)));
         const float BetweenPanels = ScreenSize.X - Width - 380.f - 84.f;
         const float AvailablePreviewWidth = BetweenPanels >= 280.f
             ? BetweenPanels : ScreenSize.X - Width - 56.f;
         const float PreviewWidth = FMath::Clamp(AvailablePreviewWidth, 160.f, 560.f);
         ModelPreviewBounds->SetWidthOverride(PreviewWidth);
-        const float PreviewHeight = FMath::Max(100.f, FMath::Min((PreviewWidth - 28.f) * .75f, ScreenSize.Y - 132.f));
+        const float PreviewHeight = FMath::Max(100.f, FMath::Min((PreviewWidth - 28.f) * .75f, ScreenSize.Y - 188.f));
         ModelPreviewBox->SetHeightOverride(PreviewHeight);
         BlueprintImage->SetDesiredSizeOverride(FVector2D(FMath::Min(PreviewHeight, PreviewWidth - 28.f)));
         if (auto* PreviewCanvasSlot = Cast<UCanvasPanelSlot>(ModelPreviewBounds->Slot))
-            PreviewCanvasSlot->SetPosition(FVector2D(-(Width + 36.f), 20.f));
+            PreviewCanvasSlot->SetPosition(FVector2D(-(Width + 36.f), 76.f));
         // Frame padding + reserved scroll bar width keep the column count stable.
         const float GridWidth = FMath::Max(80.f, Width - 28.f - 16.f);
         if (!FMath::IsNearlyEqual(GridWidth, LibraryGridWidth, 1.f))

@@ -25,6 +25,8 @@ class ONTOTWINSYNC_API UOntoTwinMinimapWidget : public UUserWidget
 
 public:
     void SetInteractionManager(UTwinInteractionManagerComponent* InManager);
+    float ExpandedBottom() const { return MapTexture && ExpandAlpha > 0.f && bAnchorRight && !bAnchorBottom
+        ? GetAnimatedPanelRect().Bottom : 0.f; }
     void SetMapTexture(UTextureRenderTarget2D* InTexture, const FIntPoint& InCaptureSize);
     void SetMarker(const FVector2D& InUV, float InAngleDegrees, bool bInOffMap);
     void SetTeleportFeedback(

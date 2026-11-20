@@ -26,6 +26,7 @@ FString OntoTwinModelLibrary::ModelsDirectory()
 {
     FString Configured;
     GConfig->GetString(TEXT("OntoTwinSync"), TEXT("ModelsDir"), Configured, GGameIni);
+    if (Configured.IsEmpty()) Configured = FPlatformMisc::GetEnvironmentVariable(TEXT("ONTOTWIN_MODELS_DIR"));
     if (!Configured.IsEmpty()) return FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), Configured);
     const FString ProjectModels = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Models"));
     if (!FPlatformProperties::RequiresCookedData()) return ProjectModels;

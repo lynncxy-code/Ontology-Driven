@@ -292,6 +292,12 @@ public:
     UFUNCTION(BlueprintCallable, Category="Runtime Editor")
     void ToggleRuntimeEditMode();
 
+    UFUNCTION(BlueprintCallable, Category="Runtime Editor")
+    void OpenProjectModelLibrary();
+    void ToggleProjectModelLibrary();
+    bool IsProjectModelLibraryOpen() const;
+    bool bHasExternalLibraryButton = false;
+
     /** F7 从编辑模式切到新漫游会话；脏数据仍走原有保存/放弃确认。 */
     void RequestRoamingAfterRuntimeEdit();
     void CancelRuntimeEditExitRequest();
@@ -358,6 +364,9 @@ public:
     FString GetRuntimeEditorInstanceIdText() const;
     FString GetRuntimeEditorInstanceIdTooltip() const;
     bool GetRuntimeEditorTransform(FVector& OutLocation, float& OutYaw) const;
+    enum class ENumericField { X, Y, Z, Yaw, Uniform, ScaleX, ScaleY, ScaleZ, Pitch, Roll, ResetScale, Level };
+    TOptional<double> GetNumericTransform(ENumericField Field) const;
+    void SetNumericTransform(ENumericField Field, double Value);
     EOntoTwinRuntimeAccessState GetRuntimeEditorAccessState() const;
     bool CanBindRuntimeProject() const;
     bool CanRetryRuntimeBindingStatus() const;
@@ -367,6 +376,7 @@ public:
     bool CanRedoRuntimeEdit() const;
     bool CanRemoveRuntimeSelection() const;
     bool HasRuntimeEditSelection() const;
+    void AddUEProjectHeaders(TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest) const;
     int32 GetRuntimeEditSelectionCount() const;
     void GetRuntimeSelectedInstanceDisplayNames(TArray<FString>& OutNames) const;
     int32 GetRuntimeEditPendingCount() const;
@@ -670,6 +680,9 @@ private:
     FString PlacementId;
     FString PlacementProjectId;
     double PlacementBottomOffset = 0.0;
+    FBox PlacementRelativeBounds{ForceInit};
+    TArray<TWeakObjectPtr<AActor>> PlacementWalls;
+    FVector SnapPlacementLocation(FVector Location, const FHitResult& Hit) const;
     bool bPlacementSending = false;
     bool bPlacementPositionFrozen = false;
     bool bPlacementDrag = false;
@@ -784,7 +797,7 @@ private:
     FString BuildSnapshotChangesUrl() const;
 
     /** 给 UE→后端请求附加 UE 工程身份头（用于数据集强绑定校验） */
-    void AddUEProjectHeaders(TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest) const;
+
 
     void SetPollTimerInterval(float IntervalSeconds, float FirstDelaySeconds = 0.0f);
 
@@ -894,6 +907,9 @@ private:
 
     void RequestRuntimeEditToggle();
     void EnterRuntimeEditMode();
+    friend class FCheckStandardSceneEdits;
+    friend class FCheckLiveLocalModel;
+    friend class FCheckPlacementControls;
     void ExitRuntimeEditMode();
     bool StartRuntimeEditorCamera(APlayerController* PlayerController, const FTransform& CameraTransform, float Fov);
     void StopRuntimeEditorCamera(APlayerController* PlayerController);

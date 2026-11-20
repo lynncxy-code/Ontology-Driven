@@ -39,6 +39,7 @@ public:
     void ClearMinimapTeleportFeedback();
     void HideMinimapMarker();
     void ClearMinimap();
+    float ExpandedMinimapBottom() const;
 
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;

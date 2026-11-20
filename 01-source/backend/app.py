@@ -116,7 +116,8 @@ def add_header(response):
         html = response.get_data(as_text=True)
         # 不使用 defer：旧业务页的 body 内联脚本可能在解析阶段立即发起
         # 第一个 /api/v2 请求，桥必须先于这些脚本安装 fetch 包装器。
-        marker = '<link rel="stylesheet" href="/account_context.css"><script src="/account_context.js"></script>'
+        # session_reauth.js（OPT-04 登录过期原地重新登录）必须在上下文桥之前加载。
+        marker = '<link rel="stylesheet" href="/account_context.css"><script src="/session_reauth.js"></script><script src="/account_context.js"></script>'
         if marker not in html:
             html = html.replace('</head>', marker + '</head>')
             response.set_data(html)

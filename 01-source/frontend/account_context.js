@@ -102,6 +102,8 @@
   const tabContext = context();
   fetch('/api/v4.8/auth/me', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(me => {
     if (!me || !me.user) return;
+    // OPT-04：登录过期时，原地登录框用它预填并锁定账号，避免换人续写。
+    try { storage()?.setItem('ontotwin_login_name', me.user.login_name || ''); } catch (_) {}
     // Never bootstrap a new tab from the server's shared legacy context row.
     // Only refresh a context that this tab has already explicitly selected.
     if (me.context && (tabContext.organization_id || tabContext.factory_id || tabContext.project_id)) {

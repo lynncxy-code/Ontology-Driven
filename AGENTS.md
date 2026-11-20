@@ -69,7 +69,7 @@ OntoTwin Nexus 是本体驱动的工业数字孪生平台，已经交付给客�
 - 客户专属的内容（客户数据、地址、定制页面）不进平台代码。拿不准算不算通用能力时问产品。
 - 除非产品要求，不参考 `03-workspace/`、`04-archive/` 里的旧内容。
 - 代码地图：后端 `01-source/backend/`，前端 `01-source/frontend/`（无构建步骤），UE 插件 `01-source/ue_project/Plugins/OntoTwinSync/`，打包和部署工具 `01-source/tools/`。
-- 各领域的操作手册在 `.agents/skills/` 下，动到对应领域前先读：前端界面 `ontotwin-ui`，后端 `ontotwin-backend`，数据库结构 `ontotwin-db-migration`，测试 `ontotwin-testing`，打包、升级和回退 `ontotwin-product-lifecycle`。
+- 各领域的操作手册在 `.agents/skills/` 下，动到对应领域前先读：前端界面 `ontotwin-ui`，后端 `ontotwin-backend`，数据库结构 `ontotwin-db-migration`，测试 `ontotwin-testing`，打包、升级和回退 `ontotwin-product-lifecycle`，往工业行为库补充动画和特效 `ontotwin-behavior-library`。
 
 ### 和产品沟通
 

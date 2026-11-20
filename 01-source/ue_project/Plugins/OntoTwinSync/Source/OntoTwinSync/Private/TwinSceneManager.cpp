@@ -1722,7 +1722,7 @@ void ATwinSceneManager::SetPollTimerInterval(float IntervalSeconds, float FirstD
 
 void ATwinSceneManager::EnsureModelLoadingWidget()
 {
-    if (bInitialModelBaselineReady || ModelLoadingWidget)
+    if (bInitialModelBaselineReady || bRuntimeEditMode || ModelLoadingWidget)
     {
         return;
     }
@@ -3229,10 +3229,6 @@ void ATwinSceneManager::ToggleRuntimeEditMode()
         return;
     }
 
-    if (!bRuntimeEditMode && InteractionManager && InteractionManager->IsRoamingActive())
-    {
-        InteractionManager->ExitRoaming();
-    }
 
     if (bRuntimeEditMode)
     {
@@ -3246,6 +3242,8 @@ void ATwinSceneManager::ToggleRuntimeEditMode()
 
 void ATwinSceneManager::RequestRuntimeEditToggle()
 {
+    if (bPlacementSending) return;
+    CancelModelPlacement();
     if (bRuntimeEditMode && RuntimeEditorPanel && IsValid(RuntimeEditorPanel)
         && RuntimeEditorPanel->IsConfirmationOpen())
     {
@@ -3296,6 +3294,10 @@ void ATwinSceneManager::EnterRuntimeEditMode()
         return;
     }
 
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    const FTransform EntryView = BuildRuntimeEditorCameraTransform(PC);
+    const float EntryFov = PC && PC->PlayerCameraManager ? PC->PlayerCameraManager->GetFOVAngle() : 90.f;
+    if (InteractionManager && InteractionManager->IsRoamingActive()) InteractionManager->ExitRoaming();
     if (InteractionManager) InteractionManager->SetRuntimeEditorSuppressed(true);
     if (WebInteractionManager) WebInteractionManager->SetRuntimeEditorSuppressed(true);
     RuntimeBusinessConfig.Reset();
@@ -3315,14 +3317,14 @@ void ATwinSceneManager::EnterRuntimeEditMode()
         }
     }
     bRuntimeEditMode = true;
+    DismissModelLoadingWidget();
     RuntimeStatusMessage = TEXT("运行时编辑已开启");
     SetPollTimerInterval(EditModePollInterval, EditModePollInterval);
 
-    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
     if (PC)
     {
         bRuntimePreviousMouseCursor = PC->bShowMouseCursor;
-        if (bEnableRuntimeEditorFreeCamera && !StartRuntimeEditorCamera(PC))
+        if (bEnableRuntimeEditorFreeCamera && !StartRuntimeEditorCamera(PC, EntryView, EntryFov))
         {
             RuntimeStatusMessage = TEXT("运行时编辑已开启，自由相机不可用");
         }
@@ -3365,6 +3367,7 @@ void ATwinSceneManager::FinishExitRuntimeEditMode()
 {
     if (!bRuntimeEditMode) return;
 
+    CancelModelPlacement();
     const bool bEnterRoamingAfterExit = bRuntimeEnterRoamingAfterExit;
     bRuntimeEnterRoamingAfterExit = false;
 
@@ -3391,6 +3394,9 @@ void ATwinSceneManager::FinishExitRuntimeEditMode()
     }
 
     bRuntimeEditMode = false;
+    EnsureModelLoadingWidget();
+    RuntimeUndoStack.Reset();
+    RuntimeRedoStack.Reset();
     RuntimeBusinessConfig.Reset();
     RuntimeBusinessBaseline.Reset();
     RuntimeBusinessRevision = -1;
@@ -3455,6 +3461,12 @@ void ATwinSceneManager::TickRuntimeEditor(float DeltaTime)
 
     if (!bRuntimeEditMode)
     {
+        return;
+    }
+
+    if (PlacementPreview)
+    {
+        TickModelPlacement(PC, DeltaTime);
         return;
     }
 
@@ -3629,13 +3641,13 @@ void ATwinSceneManager::TickRuntimeEditor(float DeltaTime)
     UpdateRuntimeEditorPanel();
 }
 
-bool ATwinSceneManager::StartRuntimeEditorCamera(APlayerController* PlayerController)
+bool ATwinSceneManager::StartRuntimeEditorCamera(APlayerController* PlayerController, const FTransform& CameraTransform, float Fov)
 {
     if (!PlayerController || !GetWorld()) return false;
     if (RuntimeEditorCameraPawn && IsValid(RuntimeEditorCameraPawn)) return true;
 
     RuntimeEditorOriginalPawn = PlayerController->GetPawn();
-    const FTransform CameraTransform = BuildRuntimeEditorCameraTransform(PlayerController);
+
 
     FActorSpawnParameters SpawnParams;
     SpawnParams.Owner = this;
@@ -3653,6 +3665,7 @@ bool ATwinSceneManager::StartRuntimeEditorCamera(APlayerController* PlayerContro
     const bool bUsesGodViewLookSensitivity = InteractionManager
         && InteractionManager->GetGodViewLookSensitivity(LookSensitivity);
     RuntimeEditorCameraPawn->Configure(RuntimeEditorCameraMoveSpeedCmS, LookSensitivity);
+    if (RuntimeEditorCameraPawn->Camera) RuntimeEditorCameraPawn->Camera->SetFieldOfView(Fov);
     PlayerController->Possess(RuntimeEditorCameraPawn);
     PlayerController->SetControlRotation(CameraTransform.Rotator());
 
@@ -3840,16 +3853,13 @@ void ATwinSceneManager::ShowRuntimeEditorPanel()
     RuntimeEditorPanel->SetSceneManager(this);
     RuntimeEditorPanel->AddToViewport(1000);
     UE_LOG(LogTemp, Log, TEXT("[RuntimeEditor] 面板已创建并添加到视口"));
-    if (GEngine)
-    {
-        GEngine->AddOnScreenDebugMessage(-1, 4.0f, FColor::Cyan, TEXT("Runtime Editor panel opened"));
-    }
 }
 
 void ATwinSceneManager::HideRuntimeEditorPanel()
 {
     if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel))
     {
+        RuntimeEditorPanel->EndLibraryPreview();
         RuntimeEditorPanel->RemoveFromParent();
     }
     RuntimeEditorPanel = nullptr;
@@ -4927,6 +4937,7 @@ ATwinSceneManager::FRuntimeEditValue ATwinSceneManager::CaptureRuntimeValue(
 {
     FRuntimeEditValue Value;
     Value.Instance = Instance;
+    if (Instance) Value.InstanceId = Instance->GetInstanceId();
     if (Instance && IsValid(Instance))
     {
         Value.Transform = Instance->GetActorTransform();
@@ -5105,7 +5116,7 @@ bool ATwinSceneManager::CreateRuntimeBusiness(const FString& Name)
 
 void ATwinSceneManager::ApplyRuntimeValue(const FRuntimeEditValue& Value)
 {
-    ATwinInstance* Instance = Value.Instance.Get();
+    ATwinInstance* Instance = InstanceRegistry.FindRef(Value.InstanceId);
     if (!Instance || !IsValid(Instance)) return;
     EnsureRuntimeEditState(Instance);
     Instance->SetActorTransform(Value.Transform);
@@ -5147,6 +5158,7 @@ void ATwinSceneManager::ApplyRuntimeCommand(
 void ATwinSceneManager::UndoRuntimeEdit()
 {
     if (!CanUndoRuntimeEdit()) return;
+    if (RuntimeUndoStack.Last().SavedObjectIds.Num()) { RunObjectHistory(RuntimeUndoStack.Last(), -1); return; }
     FRuntimeEditCommand Command = MoveTemp(RuntimeUndoStack.Last());
     RuntimeUndoStack.Pop();
     ApplyRuntimeCommand(Command, false);
@@ -5162,6 +5174,7 @@ void ATwinSceneManager::UndoRuntimeEdit()
 void ATwinSceneManager::RedoRuntimeEdit()
 {
     if (!CanRedoRuntimeEdit()) return;
+    if (RuntimeRedoStack.Last().SavedObjectIds.Num()) { RunObjectHistory(RuntimeRedoStack.Last(), 1); return; }
     FRuntimeEditCommand Command = MoveTemp(RuntimeRedoStack.Last());
     RuntimeRedoStack.Pop();
     ApplyRuntimeCommand(Command, true);
@@ -5602,8 +5615,8 @@ void ATwinSceneManager::SaveRuntimeEdit()
                     return;
                 }
 
-                Self->RuntimeUndoStack.Reset();
-                Self->RuntimeRedoStack.Reset();
+                Self->RuntimeUndoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
+                Self->RuntimeRedoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
                 Self->RuntimeStatusMessage = TEXT("业务修改已保存并应用");
                 if (Self->RuntimeEditorPanel && IsValid(Self->RuntimeEditorPanel))
                 {
@@ -5736,8 +5749,8 @@ void ATwinSceneManager::SaveRuntimeEdit()
                     }
                 }
 
-                Self->RuntimeUndoStack.Reset();
-                Self->RuntimeRedoStack.Reset();
+                Self->RuntimeUndoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
+                Self->RuntimeRedoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
                 Self->RefreshRuntimeEditDirtyState();
                 Self->ReleaseCleanUnselectedRuntimeStates();
                 Self->RuntimeStatusMessage = TEXT("修改已保存");
@@ -5831,8 +5844,8 @@ void ATwinSceneManager::CancelRuntimeEdit()
     {
         ReleaseRuntimeEditState(InstanceId, true);
     }
-    RuntimeUndoStack.Reset();
-    RuntimeRedoStack.Reset();
+    RuntimeUndoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
+    RuntimeRedoStack.RemoveAll([](const FRuntimeEditCommand& C){return C.SavedObjectIds.IsEmpty();});
     RuntimeBusinessConfig = CloneRuntimeBusinessConfig(RuntimeBusinessBaseline);
     bRuntimeBusinessDirty = false;
     bRuntimeEditDirty = false;
@@ -5840,11 +5853,11 @@ void ATwinSceneManager::CancelRuntimeEdit()
     bRuntimeExitAfterSave = false;
     RuntimeSelectionYawDelta = 0.0f;
     if (RuntimeGizmo && IsValid(RuntimeGizmo)) RuntimeGizmo->SetGizmoEnabled(false);
-    RuntimeStatusMessage = TEXT("已取消全部修改");
+    RuntimeStatusMessage = TEXT("已取消未保存修改");
     if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel))
     {
         RuntimeEditorPanel->ShowToast(
-            TEXT("全部修改已恢复"),
+            TEXT("已恢复至上次保存状态"),
             EOntoTwinRuntimeToastType::Info);
     }
     UpdateRuntimeEditorPanel();
@@ -6042,6 +6055,14 @@ FString ATwinSceneManager::GetRuntimeEditorTypeNameRaw() const
         : FString();
 }
 
+FString ATwinSceneManager::GetRuntimeEditorInstanceIdTooltip() const
+{
+    if (GetRuntimeEditSelectionCount() != 1) return FString();
+    return RuntimeSelectedInstance->IsScenery()
+        ? TEXT("尚未分配业务编号，当前为场景陈设")
+        : RuntimeSelectedInstance->GetInstanceId();
+}
+
 FString ATwinSceneManager::GetRuntimeEditorInstanceIdText() const
 {
     const int32 SelectionCount = GetRuntimeEditSelectionCount();
@@ -6054,6 +6075,7 @@ FString ATwinSceneManager::GetRuntimeEditorInstanceIdText() const
         return TEXT("多个实例");
     }
 
+    if (RuntimeSelectedInstance->IsScenery()) return TEXT("未编号（场景陈设）");
     const FString InstanceId = RuntimeSelectedInstance->GetInstanceId();
     if (InstanceId.Len() <= 18)
     {

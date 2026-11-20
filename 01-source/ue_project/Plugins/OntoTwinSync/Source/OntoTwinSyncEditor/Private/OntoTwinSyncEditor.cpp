@@ -1,4 +1,5 @@
 #include "OntoTwinSyncEditor.h"
+#include "OntoTwinModelLibrarySettings.h"
 #include "OntoTwinConnectionDetails.h"
 #include "OntoTwinCalibrationSnapshot.h"
 
@@ -30,6 +31,7 @@ namespace
 
 void FOntoTwinSyncEditorModule::StartupModule()
 {
+    OntoTwinEditorLibrary::Register();
 	FCoreRedirects::AddRedirectList(MouseWorldRedirects, MouseWorldRedirectSource);
 
 	if (!IsRunningCommandlet() && !IsRunningGame())
@@ -43,6 +45,7 @@ void FOntoTwinSyncEditorModule::StartupModule()
 
 void FOntoTwinSyncEditorModule::ShutdownModule()
 {
+    OntoTwinEditorLibrary::Unregister();
 	UnregisterOntoTwinConnectionDetails();
 	if (UObjectInitialized())
 	{

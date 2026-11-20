@@ -19,6 +19,9 @@ public class OntoTwinSyncEditor : ModuleRules
 		{
 			"Blutility",
             "PropertyEditor",
+            "DeveloperSettings",
+            "DeveloperToolSettings",
+            "AssetRegistry",
             "HTTP",
 			"Projects",
 			"Json",

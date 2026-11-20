@@ -187,6 +187,9 @@ class ZoneManagementService:
             )
 
         instance_ids = _normalize_instance_ids(payload.get("instance_ids"))
+        if any((project.get("instances", {}).get(iid) or {}).get("object_type_rid") == "ontotwin.scene_object"
+               for iid in instance_ids):
+            raise ZoneManagementError("scenery_requires_number", "请在实例详情绑定业务编号，或在运行中的三维场景按 F10 进入编辑模式补填")
         zone_id = _normalize_zone_id(payload.get("zone_id"))
         if zone_id:
             catalog = zone_catalog(project)

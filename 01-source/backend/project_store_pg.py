@@ -450,7 +450,39 @@ class ProjectStorePG(ProjectStore):
                         )
         self._dirty = False
 
-    def transact_project(self, pid, updater):
+    def _trashed_instances(self, pid, connection=None):
+        with (nullcontext(connection) if connection is not None else pg.get_conn()) as conn, conn.cursor() as cur:
+            cur.execute("""SELECT id, display_name, object_type_rid, render_config
+                           FROM instance WHERE project_id=%s AND deleted_at IS NOT NULL""", (pid,))
+            return {iid: {"display_name": name, "object_type_rid": rid, "render_config": config or {}}
+                    for iid, name, rid, config in cur.fetchall()}
+
+    def edit_runtime_objects(self, pid, action, ids, destination, update):
+        """Apply row identity/trash changes under the same lock as roster changes."""
+        with self._lock, pg.get_conn() as conn, conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM project WHERE id=%s AND deleted_at IS NULL FOR UPDATE", (pid,))
+                if not cur.fetchone():
+                    raise ValueError("项目不存在")
+                _guard_project_mutation(cur, pid)
+                project = self._read_project(pid, conn)
+                result = update(project, self._trashed_instances(pid, conn))
+                if action == "restore":
+                    cur.execute("UPDATE instance SET deleted_at=NULL WHERE project_id=%s AND id=ANY(%s)", (pid, ids))
+                elif action == "delete":
+                    cur.execute("""UPDATE instance SET deleted_at=now() WHERE project_id=%s
+                                   AND id=ANY(%s) AND deleted_at IS NULL""", (pid, ids))
+                else:
+                    cur.execute("UPDATE instance SET id=%s WHERE project_id=%s AND id=%s", (destination, pid, ids[0]))
+                    previous = self._current
+                    try:
+                        self._current = project
+                        self._save_current(conn)
+                    finally:
+                        self._current = previous
+            return result
+
+    def transact_project(self, pid, updater, *, include_trash=False):
         """Read-modify-write on one connection/row lock, never resurrect a deleted project."""
         with self._lock:
             previous, dirty_before = self._current, self._dirty
@@ -463,7 +495,11 @@ class ProjectStorePG(ProjectStore):
                     # Read under the row lock: request-scoped snapshots may predate another commit.
                     project = self._read_project(pid, conn)
                     working = copy.deepcopy(project)
-                    result = updater(working)
+                    if include_trash:
+                        deleted = self._trashed_instances(pid, conn)
+                        result = updater(working, deleted)
+                    else:
+                        result = updater(working)
                     self._current = working
                     self._save_current(conn)
             except Exception:
@@ -743,11 +779,11 @@ class ProjectStorePG(ProjectStore):
                               (SELECT count(*) FROM object_type o
                                  WHERE o.project_id = p.id AND o.deleted_at IS NULL),
                               (SELECT count(*) FROM instance i
-                                 WHERE i.project_id = p.id AND i.deleted_at IS NULL),
+                                 WHERE i.project_id = p.id AND i.deleted_at IS NULL AND i.object_type_rid IS DISTINCT FROM 'ontotwin.scene_object'),
                               (SELECT count(DISTINCT i.zone_id) FROM instance i
-                                 WHERE i.project_id = p.id AND i.deleted_at IS NULL AND i.zone_id IS NOT NULL),
+                                 WHERE i.project_id = p.id AND i.deleted_at IS NULL AND i.zone_id IS NOT NULL AND i.object_type_rid IS DISTINCT FROM 'ontotwin.scene_object'),
                               (SELECT count(*) FROM instance i
-                                 WHERE i.project_id = p.id AND i.deleted_at IS NULL AND i.zone_id IS NULL)
+                                 WHERE i.project_id = p.id AND i.deleted_at IS NULL AND i.zone_id IS NULL AND i.object_type_rid IS DISTINCT FROM 'ontotwin.scene_object')
                        FROM project p WHERE p.deleted_at IS NULL""",
                 )
                 for pid, name, created, dataset, schema_version, tc, ic, zc, unzoned in cur.fetchall():

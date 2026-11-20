@@ -193,6 +193,8 @@ def business_view_members(project, business_view, zones=None):
         for zone_id in group.get("zone_ids") or []:
             permitted_zones.update(zone_descendants(zones, str(zone_id)))
         for instance_id, instance in instances.items():
+            if (instance or {}).get("object_type_rid") == "ontotwin.scene_object":
+                continue
             if group.get("zone_ids") and str((instance or {}).get("zone_id") or "") not in permitted_zones:
                 continue
             if group.get("object_type_rids") and (instance or {}).get("object_type_rid") not in group["object_type_rids"]:
@@ -251,7 +253,8 @@ def validate_config(project, value):
                     _error(errors, f"{path}.scope_effects.{scope_type}", "invalid_scope_effect", "只支持 web_only 或 web_and_scene")
 
     zones = zone_catalog(project)
-    instance_ids = set((project.get("instances") or {}).keys())
+    instance_ids = {iid for iid, rec in (project.get("instances") or {}).items()
+                    if rec.get("object_type_rid") != "ontotwin.scene_object"}
     type_ids = set((project.get("object_types") or {}).keys())
     for index, view in enumerate(config["business_views"]):
         path = f"business_views[{index}]"

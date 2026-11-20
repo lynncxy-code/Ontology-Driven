@@ -507,7 +507,8 @@ class ProjectStore:
                 with open(os.path.join(self._projects_dir, fn), "r", encoding="utf-8") as f:
                     p = json.load(f)
                 ds = p.get("dataset") or {}
-                insts = p.get("instances") or {}
+                insts = {iid: rec for iid, rec in (p.get("instances") or {}).items()
+                         if rec.get("object_type_rid") != "ontotwin.scene_object"}
                 zones = {r.get("zone_id") for r in insts.values() if isinstance(r, dict) and r.get("zone_id")}
                 unzoned = sum(1 for r in insts.values() if isinstance(r, dict) and not r.get("zone_id"))
                 out.append({
@@ -689,7 +690,54 @@ class ProjectStore:
                     # 不是激活项目 → 还原 _current，避免污染激活态
                     self._current = saved
 
-    def transact_project(self, pid, updater):
+    def _trashed_instances(self, pid):
+        records = {}
+        for entry in self.list_trash():
+            if entry.get("project_id") != pid or entry["kind"] not in ("instance", "scene"):
+                continue
+            _, payload = self._trash.get_snapshot(entry["id"])
+            if payload and entry["kind"] == "instance":
+                records[payload["instance_id"]] = payload["record"]
+            elif payload:
+                records.update(payload.get("instances", {}))
+        return records
+
+    def edit_runtime_objects(self, pid, action, ids, destination, update):
+        with self._lock:
+            created, restored = [], []
+            def mutate(project, deleted):
+                result = update(project, deleted)
+                records = project["instances"]
+                if action == "delete":
+                    for iid in ids:
+                        if iid not in records:
+                            continue
+                        record = records.pop(iid)
+                        payload = {"project_id": pid, "instance_id": iid, "record": record}
+                        entry = self._trash.put("instance", payload, project_id=pid, instance_id=iid,
+                                                name=record.get("display_name", iid))
+                        created.append(entry["id"])
+                elif action == "restore":
+                    by_id = {e["instance_id"]: e["id"] for e in self.list_trash()
+                             if e["kind"] == "instance" and e["project_id"] == pid}
+                    for iid in ids:
+                        if iid not in records:
+                            if iid not in by_id:
+                                raise ValueError("请在网页回收站恢复此批次")
+                            records[iid] = deleted[iid]
+                            restored.append(by_id[iid])
+                return result
+            try:
+                result = self.transact_project(pid, mutate, include_trash=True)
+            except Exception:
+                for tid in created:
+                    self._trash.delete(tid)
+                raise
+            for tid in restored:
+                self._trash.delete(tid)
+            return result
+
+    def transact_project(self, pid, updater, *, include_trash=False):
         """Atomically read, update and persist a project by id.
 
         The updater receives a detached copy. Failed writes therefore cannot
@@ -700,7 +748,7 @@ class ProjectStore:
             if project is None:
                 raise ValueError(f"project not found: {pid}")
             working = copy.deepcopy(project)
-            result = updater(working)
+            result = updater(working, self._trashed_instances(pid)) if include_trash else updater(working)
             previous = self._current
             dirty_before = self._dirty
             try:

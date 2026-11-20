@@ -1,4 +1,6 @@
 #include "OntoTwinRuntimeEditorPanel.h"
+#include "RuntimeEditor/RuntimeModelLibrary.h"
+#include "Components/NativeWidgetHost.h"
 
 #include "TwinSceneManager.h"
 #include "UI/OntoTwinGlassTheme.h"
@@ -20,6 +22,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Components/Viewport.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "Framework/Application/SlateApplication.h"
@@ -32,7 +35,8 @@
 
 namespace
 {
-const FLinearColor PanelBackground(0.078f, 0.078f, 0.078f, 0.92f);
+// Keep the editor and copied library surface neutral over bright, coloured scene objects.
+const FLinearColor PanelBackground(0.078f, 0.078f, 0.078f, 0.98f);
 const FLinearColor PrimaryText(0.96f, 0.96f, 0.96f, 1.0f);
 const FLinearColor SecondaryText(0.64f, 0.64f, 0.64f, 1.0f);
 const FLinearColor MutedText(0.46f, 0.46f, 0.46f, 1.0f);
@@ -74,7 +78,7 @@ FButtonStyle BuildCopyValueButtonStyle(const FButtonStyle& BaseStyle)
 FButtonStyle BuildTabButtonStyle(const FButtonStyle& BaseStyle, bool bActive)
 {
     FButtonStyle Style = BaseStyle;
-    const FLinearColor ActiveFill(0.96f, 0.96f, 0.96f, 0.96f);
+    const FLinearColor ActiveFill = FLinearColor::White;
     const FLinearColor InactiveFill(1.0f, 1.0f, 1.0f, 0.035f);
     Style.SetNormal(FSlateRoundedBoxBrush(bActive ? ActiveFill : InactiveFill, 6.0f));
     Style.SetHovered(FSlateRoundedBoxBrush(
@@ -167,6 +171,7 @@ void UOntoTwinRuntimeEditorPanel::NativeConstruct()
 {
     Super::NativeConstruct();
     SetIsFocusable(true);
+    if (LibraryBounds && LibraryBounds->IsVisible()) PopulateModelLibrary(ModelSource);
 
     if (AccessActionButton)
     {
@@ -273,8 +278,26 @@ FReply UOntoTwinRuntimeEditorPanel::NativeOnKeyDown(
     const FGeometry& InGeometry,
     const FKeyEvent& InKeyEvent)
 {
+    if (SceneManager && !IsConfirmationOpen() && InKeyEvent.IsControlDown())
+    {
+        if (InKeyEvent.GetKey() == EKeys::Z)
+        {
+            SceneManager->UndoRuntimeEdit();
+            return FReply::Handled();
+        }
+        if (InKeyEvent.GetKey() == EKeys::Y)
+        {
+            SceneManager->RedoRuntimeEdit();
+            return FReply::Handled();
+        }
+    }
     if (InKeyEvent.GetKey() == EKeys::Escape && IsConfirmationOpen())
     {
+        if (PlacementFormHost && PlacementFormHost->IsVisible() && SceneManager)
+        {
+            SceneManager->DismissObjectForm();
+            return FReply::Handled();
+        }
         if (SceneManager) SceneManager->CancelRuntimeEditExitRequest();
         HideConfirmation();
         return FReply::Handled();
@@ -284,6 +307,7 @@ FReply UOntoTwinRuntimeEditorPanel::NativeOnKeyDown(
 
 void UOntoTwinRuntimeEditorPanel::NativeDestruct()
 {
+    EndLibraryPreview();
     if (UWorld* World = GetWorld())
     {
         World->GetTimerManager().ClearTimer(ToastTimerHandle);
@@ -393,6 +417,8 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
         UVerticalBox::StaticClass(), TEXT("SceneContent"));
     Body->AddChildToVerticalBox(SceneContent);
 
+    BuildModelLibrary(Root);
+
     UTextBlock* DeviceLabel = CreateText(TEXT("DeviceLabel"), TEXT("选中对象"), 10, MutedText, true);
     SceneContent->AddChildToVerticalBox(DeviceLabel);
 
@@ -409,7 +435,7 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     DisplayNameCopyButton->SetStyle(BuildCopyValueButtonStyle(DisplayNameCopyButton->GetStyle()));
     DisplayNameCopyButton->SetToolTipText(FText::FromString(TEXT("点击复制完整实例名称")));
     DisplayNameText = CreateText(TEXT("DisplayNameText"), TEXT("未选择实例"), 12, PrimaryText, true);
-    DisplayNameText->SetAutoWrapText(true);
+    DisplayNameText->SetAutoWrapText(false);
     DisplayNameText->SetWrapTextAt(250.0f);
     DisplayNameText->SetJustification(ETextJustify::Right);
     DisplayNameCopyButton->SetContent(DisplayNameText);
@@ -424,8 +450,8 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     TypeNameCopyButton->SetStyle(BuildCopyValueButtonStyle(TypeNameCopyButton->GetStyle()));
     TypeNameCopyButton->SetToolTipText(FText::FromString(TEXT("点击复制完整类型名称")));
     TypeNameText = CreateText(TEXT("TypeNameText"), TEXT("-"), 11, SecondaryText, true);
-    TypeNameText->SetAutoWrapText(true);
-    TypeNameText->SetWrapTextAt(250.0f);
+    TypeNameText->SetAutoWrapText(false);
+    TypeNameText->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
     TypeNameText->SetJustification(ETextJustify::Right);
     TypeNameCopyButton->SetContent(TypeNameText);
     UGridSlot* TypeNameSlot = IdentityGrid->AddChildToGrid(TypeNameCopyButton, 1, 1);
@@ -435,15 +461,24 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     UGridSlot* IdLabelSlot = IdentityGrid->AddChildToGrid(IdLabel, 2, 0);
     IdLabelSlot->SetPadding(FMargin(0.0f, 2.0f, 12.0f, 2.0f));
     InstanceIdText = CreateText(TEXT("InstanceIdText"), TEXT("-"), 11, SecondaryText);
+    InstanceIdText->SetAutoWrapText(false);
+    InstanceIdText->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+    InstanceIdText->SetJustification(ETextJustify::Right);
     UGridSlot* InstanceIdSlot = IdentityGrid->AddChildToGrid(InstanceIdText, 2, 1);
     InstanceIdSlot->SetPadding(FMargin(0.0f, 2.0f));
-    InstanceIdSlot->SetHorizontalAlignment(HAlign_Right);
+    InstanceIdSlot->SetHorizontalAlignment(HAlign_Fill);
 
     UTextBlock* RemoveLabel = nullptr;
     RemoveButton = CreateButton(TEXT("RemoveButton"), TEXT("从场景移除"), RemoveLabel, false);
     RemoveButton->SetToolTipText(FText::FromString(TEXT("立即隐藏所选实例，保存后可在 Web 端重新加载")));
     UVerticalBoxSlot* RemoveSlot = SceneContent->AddChildToVerticalBox(RemoveButton);
     RemoveSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 10.0f));
+    DeleteObjectsButton = CreateButton(TEXT("DeleteObjects"), TEXT("删除到回收站"), RemoveLabel, false);
+    DeleteObjectsButton->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::DeleteSelectedObjects);
+    SceneContent->AddChildToVerticalBox(DeleteObjectsButton);
+    EditIdentityButton = CreateButton(TEXT("EditIdentity"), TEXT("编辑名称或编号"), RemoveLabel, false);
+    EditIdentityButton->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::EditSelectedIdentity);
+    SceneContent->AddChildToVerticalBox(EditIdentityButton);
 
     UGridPanel* TransformGrid = WidgetTree->ConstructWidget<UGridPanel>(UGridPanel::StaticClass(), TEXT("TransformGrid"));
     TransformGrid->SetColumnFill(1, 1.0f);
@@ -537,7 +572,7 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     BusinessSelector->SetToolTipText(FText::FromString(
         TEXT("选择业务后切换所选对象的业务归属。")));
     BusinessSelector->OnGenerateWidgetEvent.BindDynamic(
-        this, &UOntoTwinRuntimeEditorPanel::GenerateBusinessOptionWidget);
+        this, &UOntoTwinRuntimeEditorPanel::GenerateSelectorOptionWidget);
     UVerticalBoxSlot* BusinessSelectorSlot =
         BusinessContent->AddChildToVerticalBox(BusinessSelector);
     BusinessSelectorSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 12.0f));
@@ -589,7 +624,7 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     Stack->AddChildToVerticalBox(Footer);
 
     UTextBlock* CancelLabel = nullptr;
-    CancelButton = CreateButton(TEXT("CancelButton"), TEXT("取消全部修改"), CancelLabel, false);
+    CancelButton = CreateButton(TEXT("CancelButton"), TEXT("取消未保存修改"), CancelLabel, false);
     UHorizontalBoxSlot* CancelSlot = Footer->AddChildToHorizontalBox(CancelButton);
     CancelSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     CancelSlot->SetPadding(FMargin(0.0f, 0.0f, 4.0f, 0.0f));
@@ -779,14 +814,14 @@ void UOntoTwinRuntimeEditorPanel::ShowCancelAllConfirmation()
     if (!ConfirmationOverlay) return;
 
     ConfirmationMode = EOntoTwinRuntimePanelConfirmation::CancelAll;
-    if (ConfirmationTitleText) ConfirmationTitleText->SetText(FText::FromString(TEXT("取消全部修改？")));
+    if (ConfirmationTitleText) ConfirmationTitleText->SetText(FText::FromString(TEXT("取消未保存修改？")));
     if (ConfirmationBodyText)
     {
         ConfirmationBodyText->SetText(FText::FromString(
-            FString::Printf(TEXT("将恢复本次编辑会话中 %d 个实例的全部修改，此操作不能通过重做恢复。"),
+            FString::Printf(TEXT("将丢弃 %d 个对象的未保存修改，恢复至上次保存状态。此操作会清除对应的空间编辑历史。"),
                 SceneManager ? SceneManager->GetRuntimeEditPendingCount() : 0)));
     }
-    if (ConfirmationPrimaryLabel) ConfirmationPrimaryLabel->SetText(FText::FromString(TEXT("确认取消全部修改")));
+    if (ConfirmationPrimaryLabel) ConfirmationPrimaryLabel->SetText(FText::FromString(TEXT("确认取消未保存修改")));
     if (ConfirmationContinueLabel) ConfirmationContinueLabel->SetText(FText::FromString(TEXT("继续编辑")));
     if (ConfirmationSecondaryButton) ConfirmationSecondaryButton->SetVisibility(ESlateVisibility::Collapsed);
     ConfirmationOverlay->SetVisibility(ESlateVisibility::Visible);
@@ -795,8 +830,9 @@ void UOntoTwinRuntimeEditorPanel::ShowCancelAllConfirmation()
 
 bool UOntoTwinRuntimeEditorPanel::IsConfirmationOpen() const
 {
-    return ConfirmationMode != EOntoTwinRuntimePanelConfirmation::None &&
-        ConfirmationOverlay && ConfirmationOverlay->GetVisibility() != ESlateVisibility::Collapsed;
+    return (PlacementFormHost && PlacementFormHost->IsVisible()) ||
+        (ConfirmationMode != EOntoTwinRuntimePanelConfirmation::None &&
+        ConfirmationOverlay && ConfirmationOverlay->GetVisibility() != ESlateVisibility::Collapsed);
 }
 
 bool UOntoTwinRuntimeEditorPanel::IsPointerOverPanel() const
@@ -810,7 +846,10 @@ bool UOntoTwinRuntimeEditorPanel::IsPointerOverPanel() const
         return false;
     }
 
-    return PanelBorder->GetCachedGeometry().IsUnderLocation(FSlateApplication::Get().GetCursorPos());
+    const FVector2D MousePosition = FSlateApplication::Get().GetCursorPos();
+    return PanelBorder->GetCachedGeometry().IsUnderLocation(MousePosition) ||
+        (LibraryBounds && LibraryBounds->IsVisible() && LibraryBounds->GetCachedGeometry().IsUnderLocation(MousePosition)) ||
+        (ModelPreviewBounds && ModelPreviewBounds->IsVisible() && ModelPreviewBounds->GetCachedGeometry().IsUnderLocation(MousePosition));
 }
 
 void UOntoTwinRuntimeEditorPanel::HideConfirmation()
@@ -881,6 +920,19 @@ void UOntoTwinRuntimeEditorPanel::SetActiveTab(bool bBusiness)
     SetTextColor(SceneTabLabel, bBusiness ? SecondaryText : PanelBackground);
     SetTextColor(BusinessTabLabel, bBusiness ? PanelBackground : SecondaryText);
     if (bBusiness) RefreshBusinessEditor();
+}
+
+void UOntoTwinRuntimeEditorPanel::RefreshModelSourceTabs()
+{
+    for (int32 Index = 0; Index < ModelSourceTabs.Num(); ++Index)
+    {
+        UButton* Button = ModelSourceTabs[Index];
+        if (!Button) continue;
+        const bool bActive = Index == static_cast<int32>(ModelSource);
+        Button->SetIsEnabled(true);
+        Button->SetStyle(BuildTabButtonStyle(Button->GetStyle(), bActive));
+        SetTextColor(Cast<UTextBlock>(Button->GetContent()), bActive ? PanelBackground : SecondaryText);
+    }
 }
 
 void UOntoTwinRuntimeEditorPanel::RefreshBusinessEditor()
@@ -986,7 +1038,7 @@ void UOntoTwinRuntimeEditorPanel::RefreshBusinessEditor()
     if (BusinessNameInput) BusinessNameInput->SetIsEnabled(SelectionCount > 0 && bHasSnapshot);
 }
 
-UWidget* UOntoTwinRuntimeEditorPanel::GenerateBusinessOptionWidget(FString Item)
+UWidget* UOntoTwinRuntimeEditorPanel::GenerateSelectorOptionWidget(FString Item)
 {
     UTextBlock* Text = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
     Text->SetText(FText::FromString(Item));
@@ -1046,6 +1098,7 @@ void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
     if (InstanceIdText)
     {
         InstanceIdText->SetText(FText::FromString(SceneManager->GetRuntimeEditorInstanceIdText()));
+        InstanceIdText->SetToolTipText(FText::FromString(SceneManager->GetRuntimeEditorInstanceIdTooltip()));
     }
 
     FVector Location = FVector::ZeroVector;
@@ -1129,6 +1182,8 @@ void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
     if (UndoButton) UndoButton->SetIsEnabled(SceneManager->CanUndoRuntimeEdit());
     if (RedoButton) RedoButton->SetIsEnabled(SceneManager->CanRedoRuntimeEdit());
     if (RemoveButton) RemoveButton->SetIsEnabled(SceneManager->CanRemoveRuntimeSelection());
+    if (DeleteObjectsButton) DeleteObjectsButton->SetIsEnabled(SceneManager->CanPlaceRuntimeModel() && SceneManager->CanRemoveRuntimeSelection());
+    if (EditIdentityButton) EditIdentityButton->SetIsEnabled(SceneManager->CanPlaceRuntimeModel() && SceneManager->GetRuntimeEditSelectionCount() == 1);
 
     if (WallSnapCheckBox && WallSnapCheckBox->IsChecked() != SceneManager->IsRuntimeWallSnapEnabled())
     {
@@ -1267,7 +1322,9 @@ void UOntoTwinRuntimeEditorPanel::HandleConfirmationPrimaryClicked()
     }
 
     const EOntoTwinRuntimePanelConfirmation Action = ConfirmationMode;
+    FSimpleDelegate Accept = MoveTemp(PendingDeleteAction);
     HideConfirmation();
+    if (Action == EOntoTwinRuntimePanelConfirmation::DeleteObjects) { Accept.ExecuteIfBound(); return; }
     if (Action == EOntoTwinRuntimePanelConfirmation::ExitEditor)
     {
         SceneManager->SaveAndExitRuntimeEdit();

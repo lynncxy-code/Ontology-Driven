@@ -9,6 +9,7 @@ if BACKEND_DIR not in sys.path:
 
 from realtime_channel import (
     enrich_instances_with_realtime_channel,
+    has_external_realtime_data,
     project_instance_liveness,
     project_instance_realtime_channel,
 )
@@ -41,6 +42,11 @@ def runtime_status(active_source="websocket", targets=None, online=True):
 
 
 class RealtimeChannelProjectionTests(unittest.TestCase):
+    def test_external_attachment_uses_latest_targets_even_when_offline(self):
+        status = runtime_status(online=False, targets=[{"instance_id": "ACCEPT48_EXTERNAL"}])
+        self.assertTrue(has_external_realtime_data("ACCEPT48_EXTERNAL", status))
+        self.assertFalse(has_external_realtime_data("ACCEPT48_OTHER", status))
+
     def test_non_websocket_instance_has_no_second_tag(self):
         self.assertIsNone(project_instance_realtime_channel("worker:01", None))
 

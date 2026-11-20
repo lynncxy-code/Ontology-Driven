@@ -285,7 +285,7 @@
           hasPrevious.value = !!data.has_previous_published; validation.value = data.draft_validation || null;
           zones.value = zoneRes.data.zones || [];
           objectTypes.value = Array.isArray(typeRes.data) ? typeRes.data : (typeRes.data.types || []);
-          instances.value = Array.isArray(instanceRes.data) ? instanceRes.data : (instanceRes.data.instances || []);
+          instances.value = (Array.isArray(instanceRes.data) ? instanceRes.data : (instanceRes.data.instances || [])).filter(item => item.object_type_rid !== "ontotwin.scene_object");
           unzonedCount.value = Number(zoneRes.data.unassigned_count || instances.value.filter(item => !item.zone_id).length);
           assignDraft(data.draft);
         } catch (error) { notify(error.response?.data?.message || "业务配置台加载失败", "err"); }

@@ -17,12 +17,19 @@ class USizeBox;
 class UTextBlock;
 class UVerticalBox;
 class UWidget;
+class UViewport;
+class UHorizontalBox;
+class UWrapBox;
+class UCanvasPanel;
+class UImage;
+class AActor;
 
 enum class EOntoTwinRuntimePanelConfirmation : uint8
 {
     None,
     ExitEditor,
-    CancelAll
+    CancelAll,
+    DeleteObjects
 };
 
 enum class EOntoTwinRuntimeToastType : uint8
@@ -45,11 +52,17 @@ public:
     void ShowExitConfirmation();
     void ShowCancelAllConfirmation();
     bool IsPointerOverPanel() const;
+    void EndLibraryPreview();
+    void ShowPlacementDetails(const FString& Label, const TSharedPtr<FJsonObject>& Options, const FString& Error);
+    void ClosePlacementDetails();
+    void SetPlacementFeedback(const FString& Message);
+    void ConfirmObjectDeletion(const FString& Message, FSimpleDelegate Accept);
     bool IsConfirmationOpen() const;
 
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeConstruct() override;
+    virtual void NativeTick(const FGeometry& Geometry, float DeltaSeconds) override;
     virtual void NativeDestruct() override;
     virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
 
@@ -59,6 +72,51 @@ private:
 
     UPROPERTY()
     UBorder* PanelBorder = nullptr;
+
+    UPROPERTY()
+    USizeBox* LibraryBounds = nullptr;
+    UPROPERTY()
+    UTextBlock* ModelLibraryStatus = nullptr;
+    UPROPERTY(Transient) UWrapBox* LibraryGrid = nullptr;
+    UPROPERTY(Transient) class UNativeWidgetHost* PlacementFormHost = nullptr;
+    TSharedPtr<class SRuntimePlacementForm> PlacementForm;
+    UPROPERTY(Transient) UEditableTextBox* LibrarySearch = nullptr;
+    UPROPERTY(Transient) UImage* BlueprintImage = nullptr;
+    UPROPERTY(Transient) UHorizontalBox* LocalActions = nullptr;
+    UPROPERTY(Transient) UVerticalBox* ArtStudioPanel = nullptr;
+    UPROPERTY(Transient) UTextBlock* ArtStudioAdminInfo = nullptr;
+    TMap<FString, FString> ModelLabels, ModelErrors, ModelImages, ModelKinds;
+    TArray<FString> OrderedModelKeys;
+    TArray<FString> PendingLocalImages;
+    float LibraryGridWidth = 404.f;
+    UPROPERTY(Transient) TMap<FString, TObjectPtr<UTexture2D>> LibraryTextures;
+    UPROPERTY(Transient) TMap<FString, TObjectPtr<UImage>> LibraryIcons;
+    FString SelectedModelKey;
+    void BuildModelLibrary(UCanvasPanel* Root);
+    void RebuildLibraryGrid();
+    void SelectLibraryKey(const FString& Key);
+    UFUNCTION() void ToggleLibrary();
+    UFUNCTION() void RefreshLibrary();
+    UFUNCTION() void CollapseLibraryPreview();
+    UFUNCTION() void OpenModelsFolder();
+    UFUNCTION() void SearchLibrary(const FText& Query);
+    enum class EModelSource : uint8 { Project, Local, ArtStudio };
+    EModelSource ModelSource = EModelSource::Project;
+    UPROPERTY(Transient) UViewport* ModelViewport = nullptr;
+    UPROPERTY(Transient) USizeBox* ModelPreviewBounds = nullptr;
+    UPROPERTY(Transient) USizeBox* ModelPreviewBox = nullptr;
+    UPROPERTY(Transient) UTextBlock* ModelPreviewMessage = nullptr;
+    UPROPERTY(Transient) UHorizontalBox* ModelControls = nullptr;
+    UPROPERTY(Transient) UButton* PlaceModelButton = nullptr;
+    UPROPERTY(Transient) TArray<TObjectPtr<UButton>> ModelSourceTabs;
+    TWeakObjectPtr<AActor> LibraryPreviewActor;
+    void ClearLibraryPreview();
+    void PopulateModelLibrary(EModelSource Source);
+    UFUNCTION() void ShowArtStudioModels();
+    UFUNCTION() void OpenArtStudioAdmin();
+    UFUNCTION() void ShowProjectModels();
+    UFUNCTION() void ShowLocalModels();
+    UFUNCTION() void PlaceSelectedModel();
 
     UPROPERTY()
     USizeBox* PanelBounds = nullptr;
@@ -163,6 +221,11 @@ private:
 
     UPROPERTY()
     UButton* RemoveButton = nullptr;
+    UPROPERTY(Transient) UButton* DeleteObjectsButton = nullptr;
+    UPROPERTY(Transient) UButton* EditIdentityButton = nullptr;
+    UFUNCTION() void DeleteSelectedObjects();
+    UFUNCTION() void EditSelectedIdentity();
+    FSimpleDelegate PendingDeleteAction;
 
     UPROPERTY()
     UButton* PendingToggleButton = nullptr;
@@ -233,6 +296,7 @@ private:
     void HideConfirmation();
     void RefreshPendingList();
     void SetActiveTab(bool bBusiness);
+    void RefreshModelSourceTabs();
     void RefreshBusinessEditor();
 
     UFUNCTION()
@@ -269,7 +333,7 @@ private:
     void HandleBusinessSelected(FString SelectedItem, ESelectInfo::Type SelectionType);
 
     UFUNCTION()
-    UWidget* GenerateBusinessOptionWidget(FString Item);
+    UWidget* GenerateSelectorOptionWidget(FString Item);
 
     UFUNCTION()
     void HandleCreateBusinessClicked();

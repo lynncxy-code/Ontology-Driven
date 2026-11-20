@@ -8,6 +8,7 @@
 // ============================================================================
 
 #include "TwinInstance.h"
+#include "RuntimeEditor/RuntimeModelLibrary.h"
 #include "OntoTwinConnectionContext.h"
 #include "TwinSceneManager.h"
 #include "EngineUtils.h"
@@ -43,9 +44,6 @@
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
-// glTFRuntime —— 运行时加载磁盘上的 glb/gltf（B2 方案，模型不参与打包）
-#include "glTFRuntimeFunctionLibrary.h"
-#include "glTFRuntimeAsset.h"
 #include "Blueprint/UserWidget.h"
 #include "GameFramework/PlayerController.h"
 
@@ -517,6 +515,9 @@ void ATwinInstance::ApplySnapshot(const TSharedPtr<FJsonObject>& Snapshot, bool 
         TwinDisplayName = SnapshotDisplayName;
     }
 
+    FString TypeRid;
+    if (Snapshot->TryGetStringField(TEXT("objectTypeRid"),TypeRid))
+        bSceneryObject = TypeRid == TEXT("ontotwin.scene_object");
     FString SnapshotObjectTypeName;
     if (Snapshot->TryGetStringField(TEXT("objectTypeName"), SnapshotObjectTypeName)
         && !SnapshotObjectTypeName.IsEmpty())
@@ -845,6 +846,16 @@ void ATwinInstance::TriggerPresentationFx(const FString& FxName)
 // ═══════════════════════════════════════════════════════════════════════════
 // 资产加载
 // ═══════════════════════════════════════════════════════════════════════════
+
+bool ATwinInstance::InitializePlacementPreview(const FString& ModelKey)
+{
+    const bool bLoaded = LoadMeshFromPath(ModelKey);
+    SetActorEnableCollision(false);
+    SetActorTickEnabled(false);
+    if (LabelComponent) LabelComponent->SetVisibility(false);
+    if (OverlayWidgetComponent) OverlayWidgetComponent->SetVisibility(false);
+    return bLoaded;
+}
 
 bool ATwinInstance::LoadMeshFromPath(const FString& MeshPath)
 {
@@ -1931,6 +1942,7 @@ static FString FindVersionedModelFile(const FString& Directory, const FString& F
 
 FString ATwinInstance::ResolveModelFilePath(const FString& AssetId) const
 {
+    if (AssetId.StartsWith(TEXT("models:"))) return OntoTwinModelLibrary::ResolveLocal(AssetId);
     // 在候选目录里找 <file>，返回第一个存在的；都没有则返回空串。
     // 优先级：① 固定目录（ini 可配，默认 kDefaultModelsDir）—— 编辑器/打包共用，零拷贝；
     //         ②③④ exe 相对的 Models/（兜底，兼容把模型丢在包旁的情况）。
@@ -1999,26 +2011,8 @@ bool ATwinInstance::LoadGltfFromFile(const FString& FilePath)
 {
     UE_LOG(LogTemp, Log, TEXT("[孪生体] 运行时加载 glb: %s"), *FilePath);
 
-    // glTF 以米为单位，UE 以厘米，SceneScale=100 做单位换算
-    FglTFRuntimeConfig LoaderConfig;
-    LoaderConfig.TransformBaseType = EglTFRuntimeTransformBaseType::Default;
-    LoaderConfig.SceneScale = 100.0f;
+    UStaticMesh* Mesh = OntoTwinModelLibrary::LoadGltfMesh(FilePath, true);
 
-    UglTFRuntimeAsset* Asset =
-        UglTFRuntimeFunctionLibrary::glTFLoadAssetFromFilename(FilePath, false, LoaderConfig);
-    if (!Asset)
-    {
-        UE_LOG(LogTemp, Error, TEXT("[孪生体] glb 解析失败: %s"), *FilePath);
-        return false;
-    }
-
-    // 把整个默认场景的所有静态网格递归合并成一个 StaticMesh
-    FglTFRuntimeStaticMeshConfig MeshConfig;
-    MeshConfig.bBuildSimpleCollision = true;
-    MeshConfig.NormalsGenerationStrategy = EglTFRuntimeNormalsGenerationStrategy::IfMissing;
-    MeshConfig.TangentsGenerationStrategy = EglTFRuntimeTangentsGenerationStrategy::IfMissing;
-
-    UStaticMesh* Mesh = Asset->LoadStaticMeshRecursive(FString(), TArray<FString>(), MeshConfig);
     if (!Mesh)
     {
         UE_LOG(LogTemp, Error, TEXT("[孪生体] glb 网格生成失败: %s"), *FilePath);

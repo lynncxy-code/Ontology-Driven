@@ -40,6 +40,7 @@ from ue_project_binding import (
     discovered_ue_projects,
     request_ue_project,
 )
+from runtime_placement import SCENERY_NAME, TYPE_RID as SCENERY_RID, register_runtime_placement_routes
 from realtime_channel import enrich_instances_with_realtime_channel
 from scene_interaction.service import get_runtime_status
 from dataset_activation import (
@@ -2101,7 +2102,7 @@ def _object_type_response(rid, ot, instances_by_type=None):
     injected = ot.get("injected_interfaces", [])
     return {
         "rid": ot.get("rid", rid),
-        "name": ot.get("name", rid),
+        "name": SCENERY_NAME if rid == SCENERY_RID else ot.get("name", rid),
         "category": ot.get("category", ""),
         # Keep the origin available to the catalog UI.  CAD-generated types
         # use this to distinguish their layer-based category from ordinary
@@ -2899,7 +2900,13 @@ def list_instances():
     all_inst = instance_store.list_all()
     visible = [i for i in all_inst if i["object_type_rid"] in _object_types]
     runtime_status = get_runtime_status(project_store.get_active_id())
-    return jsonify(enrich_instances_with_realtime_channel(visible, runtime_status))
+    items = enrich_instances_with_realtime_channel(visible, runtime_status)
+    for item in items:
+        if item["object_type_rid"] == SCENERY_RID:
+            item["object_type_name"] = SCENERY_NAME
+            if item.get("hierarchy_path") == ["场景对象"]:
+                item["hierarchy_path"] = [SCENERY_NAME]
+    return jsonify(items)
 
 @app.route('/api/v2/instances', methods=['POST'])
 def spawn_instance():
@@ -3259,7 +3266,11 @@ def _build_snapshot(instance_id, ctx=None):
         except Exception as overlay_error:
             print(f"[overlay] snapshot resolve failed instance={instance_id}: {overlay_error}")
 
+    if ot_rid == SCENERY_RID:
+        ot_name = SCENERY_NAME
     hierarchy_path = inst_meta.get("hierarchy_path") or [ot_name]
+    if ot_rid == SCENERY_RID and hierarchy_path == ["场景对象"]:
+        hierarchy_path = [SCENERY_NAME]
     if not isinstance(hierarchy_path, list):
         hierarchy_path = [str(hierarchy_path)]
 
@@ -5924,6 +5935,12 @@ register_label_routes(app, lambda: _object_types, _persist_active_project)
 
 from overlay import register_overlay_routes
 overlay_service = register_overlay_routes(app, project_store, _refresh_object_types_after_overlay_save)
+
+register_runtime_placement_routes(
+    app, lambda: project_store,
+    lambda iid, project: _build_snapshot(iid, _project_snapshot_context(project)),
+    get_runtime_status,
+)
 
 from scene_interaction import register_scene_interaction_routes
 register_scene_interaction_routes(app, project_store)

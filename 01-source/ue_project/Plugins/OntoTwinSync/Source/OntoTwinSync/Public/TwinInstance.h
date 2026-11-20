@@ -234,10 +234,13 @@ public:
     FString GetTwinDisplayName() const { return TwinDisplayName.IsEmpty() ? InstanceId : TwinDisplayName; }
 
     /** 获取后端对象类型名称。 */
+    bool IsScenery() const { return bSceneryObject; }
+    bool bSceneryObject = false;
     const FString& GetTwinObjectTypeName() const { return TwinObjectTypeName; }
 
     /** 当前主表现（含 Blueprint 子 Actor）的世界包围盒。 */
     FBox GetRepresentationWorldBounds(bool bIncludeNonColliding = true) const;
+    bool InitializePlacementPreview(const FString& ModelKey);
 
     /** 当前主表现转换到 TwinInstance 局部空间后的包围盒。 */
     bool GetRepresentationLocalBounds(FBox& OutLocalBounds) const;

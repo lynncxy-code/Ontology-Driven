@@ -52,6 +52,9 @@ public:
     void ShowExitConfirmation();
     void ShowCancelAllConfirmation();
     bool IsPointerOverPanel() const;
+    void OpenProjectModelLibrary();
+    void ToggleProjectModelLibrary();
+    bool IsProjectModelLibraryOpen() const { return !bBusinessTabActive && bLibraryOpen; }
     void EndLibraryPreview();
     void ShowPlacementDetails(const FString& Label, const TSharedPtr<FJsonObject>& Options, const FString& Error);
     void ClosePlacementDetails();
@@ -67,6 +70,9 @@ protected:
     virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
 
 private:
+    friend class FCheckStandardSceneEdits;
+    friend class FCheckLiveLocalModel;
+    friend class FCheckPlacementControls;
     UPROPERTY()
     ATwinSceneManager* SceneManager = nullptr;
 
@@ -75,6 +81,9 @@ private:
 
     UPROPERTY()
     USizeBox* LibraryBounds = nullptr;
+    UPROPERTY(Transient) UButton* LibraryHandle = nullptr;
+    bool bLibraryOpen = true;
+    void UpdateLibraryVisibility();
     UPROPERTY()
     UTextBlock* ModelLibraryStatus = nullptr;
     UPROPERTY(Transient) UWrapBox* LibraryGrid = nullptr;
@@ -87,6 +96,8 @@ private:
     UPROPERTY(Transient) UTextBlock* ArtStudioAdminInfo = nullptr;
     TMap<FString, FString> ModelLabels, ModelErrors, ModelImages, ModelKinds;
     TArray<FString> OrderedModelKeys;
+    TMap<FString, int64> LocalFiles;
+    float LocalScanDelay = 0.f;
     TArray<FString> PendingLocalImages;
     float LibraryGridWidth = 404.f;
     UPROPERTY(Transient) TMap<FString, TObjectPtr<UTexture2D>> LibraryTextures;
@@ -138,21 +149,6 @@ private:
 
     UPROPERTY()
     UTextBlock* InstanceIdText = nullptr;
-
-    UPROPERTY()
-    UTextBlock* XValueText = nullptr;
-
-    UPROPERTY()
-    UTextBlock* YValueText = nullptr;
-
-    UPROPERTY()
-    UTextBlock* ZValueText = nullptr;
-
-    UPROPERTY()
-    UTextBlock* YawValueText = nullptr;
-
-    UPROPERTY()
-    UTextBlock* YawLabelText = nullptr;
 
     UPROPERTY()
     UBorder* AccessStatusDot = nullptr;

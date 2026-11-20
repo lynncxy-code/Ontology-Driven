@@ -207,6 +207,8 @@ public:
             ? CurrentConfig.CharacterId : ActiveSessionCharacterId;
     }
     bool IsCharacterSwitching() const { return bCharacterSwitchInProgress; }
+    /** Bottom edge of the expanded minimap, so the F10 model library can sit below it. */
+    float ExpandedMinimapBottom() const;
     FString GetMinimapState() const { return MinimapState; }
     void RefreshMinimapForDisplayScheme() { ScheduleMinimapRefreshSeries(TEXT("display_scheme"), 3, 0.2f); }
     bool CanUseMinimapTeleport() const;

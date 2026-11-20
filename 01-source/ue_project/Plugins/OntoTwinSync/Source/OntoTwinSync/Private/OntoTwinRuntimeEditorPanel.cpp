@@ -1,10 +1,12 @@
 #include "OntoTwinRuntimeEditorPanel.h"
-#include "RuntimeEditor/RuntimeModelLibrary.h"
 #include "Components/NativeWidgetHost.h"
+#include "RuntimeEditor/OntoTwinNumericTransform.h"
+#include "RuntimeEditor/RuntimeModelLibrary.h"
 
 #include "TwinSceneManager.h"
 #include "UI/OntoTwinGlassTheme.h"
 #include "Blueprint/WidgetTree.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
@@ -325,12 +327,11 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
 
     PanelBounds = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("PanelBounds"));
     PanelBounds->SetWidthOverride(380.0f);
-    PanelBounds->SetMinDesiredHeight(360.0f);
-    PanelBounds->SetMaxDesiredHeight(640.0f);
+    PanelBounds->SetHeightOverride(620.f);
 
     PanelBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("PanelBorder"));
     PanelBorder->SetPadding(FMargin(14.0f));
-    PanelBorder->SetBrush(FSlateRoundedBoxBrush(PanelBackground, 6.0f));
+    PanelBorder->SetBrush(FSlateRoundedBoxBrush(PanelBackground, 12.f, DividerColor, 1.f));
     PanelBounds->AddChild(PanelBorder);
 
     UCanvasPanelSlot* PanelSlot = Root->AddChildToCanvas(PanelBounds);
@@ -419,12 +420,24 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
 
     BuildModelLibrary(Root);
 
-    UTextBlock* DeviceLabel = CreateText(TEXT("DeviceLabel"), TEXT("选中对象"), 10, MutedText, true);
-    SceneContent->AddChildToVerticalBox(DeviceLabel);
+    auto AddSection = [&](const TCHAR* Name, const TCHAR* Title, bool bEditable)
+    {
+        auto* Card = WidgetTree->ConstructWidget<UBorder>();
+        const FLinearColor Fill = bEditable ? FLinearColor(.095f,.10f,.11f,.94f) : FLinearColor(.042f,.045f,.05f,.92f);
+        Card->SetBrush(FSlateRoundedBoxBrush(Fill, 9.f, DividerColor, 1.f));
+        Card->SetPadding(FMargin(12.f, 9.f));
+        SceneContent->AddChildToVerticalBox(Card)->SetPadding(FMargin(0,0,0,8));
+        auto* Group = WidgetTree->ConstructWidget<UVerticalBox>();
+        Card->SetContent(Group);
+        Group->AddChildToVerticalBox(CreateText(Name, Title, 12, PrimaryText, true))
+            ->SetPadding(FMargin(0,0,0,6));
+        return Group;
+    };
+    auto* Info = AddSection(TEXT("DeviceLabel"), TEXT("对象信息"), false);
 
     UGridPanel* IdentityGrid = WidgetTree->ConstructWidget<UGridPanel>(UGridPanel::StaticClass(), TEXT("IdentityGrid"));
     IdentityGrid->SetColumnFill(1, 1.0f);
-    UVerticalBoxSlot* IdentitySlot = SceneContent->AddChildToVerticalBox(IdentityGrid);
+    UVerticalBoxSlot* IdentitySlot = Info->AddChildToVerticalBox(IdentityGrid);
     IdentitySlot->SetPadding(FMargin(0.0f, 4.0f, 6.0f, 4.0f));
 
     UTextBlock* NameLabel = CreateText(TEXT("NameLabel"), TEXT("实例名称"), 11, MutedText, true);
@@ -468,50 +481,49 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     InstanceIdSlot->SetPadding(FMargin(0.0f, 2.0f));
     InstanceIdSlot->SetHorizontalAlignment(HAlign_Fill);
 
+    auto* Controls = AddSection(TEXT("ControlsTitle"), TEXT("调整所选对象"), true);
+    auto* TransformHost = WidgetTree->ConstructWidget<UNativeWidgetHost>(UNativeWidgetHost::StaticClass(), TEXT("NumericTransform"));
+    TWeakObjectPtr<UOntoTwinRuntimeEditorPanel> WeakPanel(this);
+    TransformHost->SetContent(MakeNumericTransformPanel([WeakPanel]{
+        return WeakPanel.IsValid() ? WeakPanel->SceneManager : nullptr;
+    }));
+    Controls->AddChildToVerticalBox(TransformHost);
+
+    UHorizontalBox* Toggles = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("SnapToggles"));
+    UVerticalBoxSlot* TogglesSlot = Controls->AddChildToVerticalBox(Toggles);
+    TogglesSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 10.0f));
+
+    auto AddSnapToggle = [this, Toggles](const FName CheckName, const FString& Label, UCheckBox*& OutCheckBox)
+    {
+        OutCheckBox = WidgetTree->ConstructWidget<UCheckBox>(UCheckBox::StaticClass(), CheckName);
+        UTextBlock* ToggleLabel = CreateText(FName(*(CheckName.ToString() + TEXT("Label"))), Label, 11, SecondaryText);
+        OutCheckBox->SetContent(ToggleLabel);
+        UHorizontalBoxSlot* ToggleSlot = Toggles->AddChildToHorizontalBox(OutCheckBox);
+        ToggleSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        ToggleSlot->SetVerticalAlignment(VAlign_Center);
+    };
+
+    AddSnapToggle(TEXT("WallSnapCheckBox"), TEXT("靠墙吸附"), WallSnapCheckBox);
+    AddSnapToggle(TEXT("GridSnapCheckBox"), TEXT("网格吸附"), GridSnapCheckBox);
+
+    UTextBlock* IdentityLabel = nullptr;
+    EditIdentityButton = CreateButton(TEXT("EditIdentity"), TEXT("编辑名称或编号"), IdentityLabel, false);
+    EditIdentityButton->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::EditSelectedIdentity);
+    Controls->AddChildToVerticalBox(EditIdentityButton)->SetPadding(FMargin(0,6,0,0));
+
+    auto* Actions = AddSection(TEXT("ObjectActionsTitle"), TEXT("移除与回收"), true);
     UTextBlock* RemoveLabel = nullptr;
     RemoveButton = CreateButton(TEXT("RemoveButton"), TEXT("从场景移除"), RemoveLabel, false);
     RemoveButton->SetToolTipText(FText::FromString(TEXT("立即隐藏所选实例，保存后可在 Web 端重新加载")));
-    UVerticalBoxSlot* RemoveSlot = SceneContent->AddChildToVerticalBox(RemoveButton);
+    UVerticalBoxSlot* RemoveSlot = Actions->AddChildToVerticalBox(RemoveButton);
     RemoveSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 10.0f));
     DeleteObjectsButton = CreateButton(TEXT("DeleteObjects"), TEXT("删除到回收站"), RemoveLabel, false);
     DeleteObjectsButton->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::DeleteSelectedObjects);
-    SceneContent->AddChildToVerticalBox(DeleteObjectsButton);
-    EditIdentityButton = CreateButton(TEXT("EditIdentity"), TEXT("编辑名称或编号"), RemoveLabel, false);
-    EditIdentityButton->OnClicked.AddDynamic(this,&UOntoTwinRuntimeEditorPanel::EditSelectedIdentity);
-    SceneContent->AddChildToVerticalBox(EditIdentityButton);
-
-    UGridPanel* TransformGrid = WidgetTree->ConstructWidget<UGridPanel>(UGridPanel::StaticClass(), TEXT("TransformGrid"));
-    TransformGrid->SetColumnFill(1, 1.0f);
-    TransformGrid->SetColumnFill(3, 1.0f);
-    UVerticalBoxSlot* TransformGridSlot = SceneContent->AddChildToVerticalBox(TransformGrid);
-    TransformGridSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 10.0f));
-
-    auto AddTransformCell = [this, TransformGrid](const FName LabelName, const FString& Label,
-        UTextBlock*& ValueText, const FName ValueName, int32 Row, int32 Column)
-    {
-        UTextBlock* LabelText = CreateText(LabelName, Label, 11, MutedText, true);
-        UGridSlot* LabelSlot = TransformGrid->AddChildToGrid(LabelText, Row, Column);
-        LabelSlot->SetPadding(FMargin(Column == 0 ? 0.0f : 12.0f, 1.0f, 6.0f, 1.0f));
-        LabelSlot->SetVerticalAlignment(VAlign_Center);
-
-        ValueText = CreateText(ValueName, TEXT("-"), 12, PrimaryText);
-        UGridSlot* ValueSlot = TransformGrid->AddChildToGrid(ValueText, Row, Column + 1);
-        ValueSlot->SetPadding(FMargin(0.0f, 1.0f));
-        ValueSlot->SetHorizontalAlignment(HAlign_Right);
-        ValueSlot->SetVerticalAlignment(VAlign_Center);
-    };
-
-    AddTransformCell(TEXT("XLabel"), TEXT("X"), XValueText, TEXT("XValue"), 0, 0);
-    AddTransformCell(TEXT("YLabel"), TEXT("Y"), YValueText, TEXT("YValue"), 0, 2);
-    AddTransformCell(TEXT("ZLabel"), TEXT("Z"), ZValueText, TEXT("ZValue"), 1, 0);
-    AddTransformCell(TEXT("YawLabel"), TEXT("偏航"), YawValueText, TEXT("YawValue"), 1, 2);
-    YawLabelText = Cast<UTextBlock>(WidgetTree->FindWidget(TEXT("YawLabel")));
-
-    UTextBlock* AccessLabel = CreateText(TEXT("AccessLabel"), TEXT("数据集访问"), 10, MutedText, true);
-    SceneContent->AddChildToVerticalBox(AccessLabel);
+    Actions->AddChildToVerticalBox(DeleteObjectsButton);
+    auto* Access = AddSection(TEXT("AccessLabel"), TEXT("数据集访问"), false);
 
     UHorizontalBox* AccessRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AccessRow"));
-    UVerticalBoxSlot* AccessRowSlot = SceneContent->AddChildToVerticalBox(AccessRow);
+    UVerticalBoxSlot* AccessRowSlot = Access->AddChildToVerticalBox(AccessRow);
     AccessRowSlot->SetPadding(FMargin(0.0f, 2.0f, 6.0f, 9.0f));
 
     AccessStatusDot = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("AccessStatusDot"));
@@ -533,23 +545,6 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     UHorizontalBoxSlot* AccessActionSlot = AccessRow->AddChildToHorizontalBox(AccessActionButton);
     AccessActionSlot->SetPadding(FMargin(8.0f, 0.0f, 0.0f, 0.0f));
     AccessActionSlot->SetVerticalAlignment(VAlign_Center);
-
-    UHorizontalBox* Toggles = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("SnapToggles"));
-    UVerticalBoxSlot* TogglesSlot = SceneContent->AddChildToVerticalBox(Toggles);
-    TogglesSlot->SetPadding(FMargin(0.0f, 0.0f, 6.0f, 10.0f));
-
-    auto AddSnapToggle = [this, Toggles](const FName CheckName, const FString& Label, UCheckBox*& OutCheckBox)
-    {
-        OutCheckBox = WidgetTree->ConstructWidget<UCheckBox>(UCheckBox::StaticClass(), CheckName);
-        UTextBlock* ToggleLabel = CreateText(FName(*(CheckName.ToString() + TEXT("Label"))), Label, 11, SecondaryText);
-        OutCheckBox->SetContent(ToggleLabel);
-        UHorizontalBoxSlot* ToggleSlot = Toggles->AddChildToHorizontalBox(OutCheckBox);
-        ToggleSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-        ToggleSlot->SetVerticalAlignment(VAlign_Center);
-    };
-
-    AddSnapToggle(TEXT("WallSnapCheckBox"), TEXT("靠墙吸附"), WallSnapCheckBox);
-    AddSnapToggle(TEXT("GridSnapCheckBox"), TEXT("网格吸附"), GridSnapCheckBox);
 
     BusinessContent = WidgetTree->ConstructWidget<UVerticalBox>(
         UVerticalBox::StaticClass(), TEXT("BusinessContent"));
@@ -642,9 +637,9 @@ void UOntoTwinRuntimeEditorPanel::BuildDefaultLayout()
     UCanvasPanelSlot* ToastSlot = Root->AddChildToCanvas(ToastBorder);
     if (ToastSlot)
     {
-        ToastSlot->SetAnchors(FAnchors(1.0f, 0.0f));
-        ToastSlot->SetAlignment(FVector2D(1.0f, 0.0f));
-        ToastSlot->SetPosition(FVector2D(-24.0f, 24.0f));
+        ToastSlot->SetAnchors(FAnchors(0.5f, 1.0f));
+        ToastSlot->SetAlignment(FVector2D(0.5f, 1.0f));
+        ToastSlot->SetPosition(FVector2D(0.0f, -60.0f));
         ToastSlot->SetAutoSize(true);
     }
 
@@ -848,6 +843,7 @@ bool UOntoTwinRuntimeEditorPanel::IsPointerOverPanel() const
 
     const FVector2D MousePosition = FSlateApplication::Get().GetCursorPos();
     return PanelBorder->GetCachedGeometry().IsUnderLocation(MousePosition) ||
+        (LibraryHandle && LibraryHandle->IsVisible() && LibraryHandle->GetCachedGeometry().IsUnderLocation(MousePosition)) ||
         (LibraryBounds && LibraryBounds->IsVisible() && LibraryBounds->GetCachedGeometry().IsUnderLocation(MousePosition)) ||
         (ModelPreviewBounds && ModelPreviewBounds->IsVisible() && ModelPreviewBounds->GetCachedGeometry().IsUnderLocation(MousePosition));
 }
@@ -908,7 +904,9 @@ void UOntoTwinRuntimeEditorPanel::HideToast()
 
 void UOntoTwinRuntimeEditorPanel::SetActiveTab(bool bBusiness)
 {
+    if (bBusiness && SceneManager) SceneManager->CancelUnconfirmedModelPlacement();
     bBusinessTabActive = bBusiness;
+    UpdateLibraryVisibility();
     if (SceneContent) SceneContent->SetVisibility(
         bBusiness ? ESlateVisibility::Collapsed : ESlateVisibility::SelfHitTestInvisible);
     if (BusinessContent) BusinessContent->SetVisibility(
@@ -1059,7 +1057,11 @@ void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
         GEngine->GameViewport->GetViewportSize(ViewportSize);
         if (ViewportSize.Y > 0.0f)
         {
-            PanelBounds->SetMaxDesiredHeight(FMath::Max(360.0f, ViewportSize.Y * 0.70f));
+            const float Dpi = FMath::Max(.01f, UWidgetLayoutLibrary::GetViewportScale(this));
+            const float Top = SceneManager->bHasExternalLibraryButton ? 76.f : 20.f;
+            if (auto* PanelSlot = Cast<UCanvasPanelSlot>(PanelBounds->Slot))
+                PanelSlot->SetPosition(FVector2D(20.f, Top));
+            PanelBounds->SetHeightOverride(FMath::Clamp(float(ViewportSize.Y) / Dpi - Top - 100.f, 240.f, 700.f));
         }
     }
 
@@ -1099,19 +1101,6 @@ void UOntoTwinRuntimeEditorPanel::RefreshFromManager()
     {
         InstanceIdText->SetText(FText::FromString(SceneManager->GetRuntimeEditorInstanceIdText()));
         InstanceIdText->SetToolTipText(FText::FromString(SceneManager->GetRuntimeEditorInstanceIdTooltip()));
-    }
-
-    FVector Location = FVector::ZeroVector;
-    float Yaw = 0.0f;
-    const bool bHasTransform = SceneManager->GetRuntimeEditorTransform(Location, Yaw);
-    if (XValueText) XValueText->SetText(FText::FromString(bHasTransform ? FString::Printf(TEXT("%.1f"), Location.X) : TEXT("-")));
-    if (YValueText) YValueText->SetText(FText::FromString(bHasTransform ? FString::Printf(TEXT("%.1f"), Location.Y) : TEXT("-")));
-    if (ZValueText) ZValueText->SetText(FText::FromString(bHasTransform ? FString::Printf(TEXT("%.1f"), Location.Z) : TEXT("-")));
-    if (YawValueText) YawValueText->SetText(FText::FromString(bHasTransform ? FString::Printf(TEXT("%.1f"), Yaw) : TEXT("-")));
-    if (YawLabelText)
-    {
-        YawLabelText->SetText(FText::FromString(
-            SceneManager->IsRuntimeSelectionMultiple() ? TEXT("偏航增量") : TEXT("偏航")));
     }
 
     const EOntoTwinRuntimeAccessState AccessState = SceneManager->GetRuntimeEditorAccessState();
@@ -1353,10 +1342,17 @@ void UOntoTwinRuntimeEditorPanel::HandleConfirmationContinueClicked()
 
 void UOntoTwinRuntimeEditorPanel::HandleWallSnapChanged(bool bIsChecked)
 {
-    if (SceneManager) SceneManager->SetRuntimeWallSnapEnabled(bIsChecked);
+    if (!SceneManager) return;
+    SceneManager->SetRuntimeWallSnapEnabled(bIsChecked);
+    ShowToast(bIsChecked ? TEXT("贴墙已开启 · 摆放或水平拖动时靠近墙面即可吸附") : TEXT("贴墙已关闭"), EOntoTwinRuntimeToastType::Info);
 }
 
 void UOntoTwinRuntimeEditorPanel::HandleGridSnapChanged(bool bIsChecked)
 {
-    if (SceneManager) SceneManager->SetRuntimeGridSnapEnabled(bIsChecked);
+    if (!SceneManager) return;
+    SceneManager->SetRuntimeGridSnapEnabled(bIsChecked);
+    const FString Message = bIsChecked
+        ? FString::Printf(TEXT("网格已开启 · 水平位置按 %g 厘米对齐"), SceneManager->GridSnapSizeCm)
+        : TEXT("网格已关闭");
+    ShowToast(Message, EOntoTwinRuntimeToastType::Info);
 }

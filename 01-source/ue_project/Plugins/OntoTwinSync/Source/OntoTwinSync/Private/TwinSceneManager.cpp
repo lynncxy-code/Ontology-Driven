@@ -11,6 +11,8 @@
 // ============================================================================
 
 #include "TwinSceneManager.h"
+#include "RuntimeEditor/OntoTwinWallRules.h"
+#include "Framework/Application/SlateApplication.h"
 #include "OntoTwinConnectionContext.h"
 #include "Realtime/OntoTwinRealtimeStreamProvider.h"
 #include "UEAssetCatalogSyncComponent.h"
@@ -3240,6 +3242,26 @@ void ATwinSceneManager::ToggleRuntimeEditMode()
     }
 }
 
+void ATwinSceneManager::OpenProjectModelLibrary()
+{
+    if (!bEnableRuntimeEditor || bPlacementSending || bRuntimeEditSaving) return;
+    if (!bRuntimeEditMode) EnterRuntimeEditMode();
+    if (RuntimeEditorPanel && !RuntimeEditorPanel->IsConfirmationOpen())
+        RuntimeEditorPanel->OpenProjectModelLibrary();
+}
+
+bool ATwinSceneManager::IsProjectModelLibraryOpen() const
+{
+    return bRuntimeEditMode && RuntimeEditorPanel && RuntimeEditorPanel->IsProjectModelLibraryOpen();
+}
+
+void ATwinSceneManager::ToggleProjectModelLibrary()
+{
+    if (!bRuntimeEditMode) { OpenProjectModelLibrary(); return; }
+    if (RuntimeEditorPanel && !bRuntimeEditSaving && !bPlacementSending && !RuntimeEditorPanel->IsConfirmationOpen())
+        RuntimeEditorPanel->ToggleProjectModelLibrary();
+}
+
 void ATwinSceneManager::RequestRuntimeEditToggle()
 {
     if (bPlacementSending) return;
@@ -3442,6 +3464,11 @@ void ATwinSceneManager::DiscardAndExitRuntimeEdit()
 
 void ATwinSceneManager::TickRuntimeEditor(float DeltaTime)
 {
+    if (bRuntimeEditMode && FSlateApplication::IsInitialized())
+    {
+        const auto Focused = FSlateApplication::Get().GetKeyboardFocusedWidget();
+        if (Focused && Focused->GetTypeAsString().Contains(TEXT("EditableText"))) return;
+    }
     if (!bEnableRuntimeEditor)
     {
         return;
@@ -3832,7 +3859,7 @@ void ATwinSceneManager::ShowRuntimeEditorPanel()
 {
     if (RuntimeEditorPanel && IsValid(RuntimeEditorPanel))
     {
-        RuntimeEditorPanel->SetVisibility(ESlateVisibility::Visible);
+        RuntimeEditorPanel->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         return;
     }
 
@@ -5308,13 +5335,13 @@ void ATwinSceneManager::ApplyRuntimeGroupSnaps(
     }
 
     if (RuntimeDragPart != ERuntimeDragPart::MoveXY || !bEnableWallSnap ||
-        WallTag.IsNone() || RuntimeSelectedInstances.Num() == 0 || !GetWorld())
+        RuntimeSelectedInstances.Num() == 0 || !GetWorld())
     {
         return;
     }
 
     TArray<AActor*> Walls;
-    UGameplayStatics::GetAllActorsWithTag(GetWorld(), WallTag, Walls);
+    OntoTwinWalls::Collect(GetWorld(), WallTag, Walls);
     AActor* BestWall = nullptr;
     FVector BestClosest = FVector::ZeroVector;
     FVector BestNormal = FVector::ForwardVector;
@@ -5437,7 +5464,6 @@ void ATwinSceneManager::ApplyRuntimeSnaps(FVector& InOutLocation, FRotator& InOu
 
     if (RuntimeDragPart != ERuntimeDragPart::MoveXY ||
         !bEnableWallSnap ||
-        WallTag.IsNone() ||
         !RuntimeSelectedInstance ||
         !GetWorld())
     {
@@ -5445,7 +5471,7 @@ void ATwinSceneManager::ApplyRuntimeSnaps(FVector& InOutLocation, FRotator& InOu
     }
 
     TArray<AActor*> Walls;
-    UGameplayStatics::GetAllActorsWithTag(GetWorld(), WallTag, Walls);
+    OntoTwinWalls::Collect(GetWorld(), WallTag, Walls);
     if (Walls.Num() == 0)
     {
         return;

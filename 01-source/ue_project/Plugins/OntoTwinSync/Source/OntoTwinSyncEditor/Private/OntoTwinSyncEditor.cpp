@@ -2,6 +2,7 @@
 #include "OntoTwinModelLibrarySettings.h"
 #include "OntoTwinConnectionDetails.h"
 #include "OntoTwinCalibrationSnapshot.h"
+#include "OntoTwinWallAutoTag.h"
 
 #include "Editor.h"
 #include "EditorUtilitySubsystem.h"
@@ -32,6 +33,8 @@ namespace
 void FOntoTwinSyncEditorModule::StartupModule()
 {
     OntoTwinEditorLibrary::Register();
+	// Also runs in cook commandlets so packaged builds get the wall tag.
+	OntoTwinWallAutoTag::Register();
 	FCoreRedirects::AddRedirectList(MouseWorldRedirects, MouseWorldRedirectSource);
 
 	if (!IsRunningCommandlet() && !IsRunningGame())
@@ -46,6 +49,7 @@ void FOntoTwinSyncEditorModule::StartupModule()
 void FOntoTwinSyncEditorModule::ShutdownModule()
 {
     OntoTwinEditorLibrary::Unregister();
+	OntoTwinWallAutoTag::Unregister();
 	UnregisterOntoTwinConnectionDetails();
 	if (UObjectInitialized())
 	{

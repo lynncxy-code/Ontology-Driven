@@ -3,8 +3,10 @@
 #include "OntoTwinRuntimeEditorPanel.h"
 #include "OntoTwinRuntimeGizmo.h"
 #include "RuntimeEditor/RuntimeModelLibrary.h"
+#include "RuntimeEditor/OntoTwinWallRules.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
 #include "HttpModule.h"
 #include "Framework/Application/SlateApplication.h"
@@ -33,7 +35,11 @@ bool ATwinSceneManager::BeginModelPlacement(const FString& ModelKey, const FStri
         return false;
     }
     const FBox Bounds = PlacementPreview->GetRepresentationWorldBounds(true);
-    PlacementBottomOffset = Bounds.IsValid ? -Bounds.Min.Z : 0.;
+    PlacementRelativeBounds = Bounds.IsValid ? Bounds.ShiftBy(-PlacementPreview->GetActorLocation()) : FBox(FVector::ZeroVector, FVector::ZeroVector);
+    PlacementBottomOffset = -PlacementRelativeBounds.Min.Z;
+    TArray<AActor*> Walls;
+    OntoTwinWalls::Collect(GetWorld(), WallTag, Walls);
+    for (AActor* Wall : Walls) PlacementWalls.Add(Wall);
     PlacementPreview->SetActorHiddenInGame(true);
     PlacementModelKey = ModelKey;
     PlacementLabel = Label;
@@ -55,6 +61,7 @@ void ATwinSceneManager::CancelModelPlacement()
 {
     if (IsValid(PlacementPreview)) PlacementPreview->Destroy();
     PlacementPreview = nullptr;
+    PlacementWalls.Reset();
     PlacementId.Reset();
     PlacementProjectId.Reset();
     bPlacementPositionFrozen = false;
@@ -64,6 +71,42 @@ void ATwinSceneManager::CancelModelPlacement()
     PlacementType.Reset();
     if (RuntimeEditorPanel) RuntimeEditorPanel->ClosePlacementDetails();
     bPlacementSending = false;
+}
+
+FVector ATwinSceneManager::SnapPlacementLocation(FVector Location, const FHitResult& Hit) const
+{
+    if (bEnableGridSnap && GridSnapSizeCm > 0.f) {
+        Location.X = FMath::GridSnap(Location.X, double(GridSnapSizeCm));
+        Location.Y = FMath::GridSnap(Location.Y, double(GridSnapSizeCm));
+    }
+    if (!bEnableWallSnap) return Location;
+    const FVector Center = Location + PlacementRelativeBounds.GetCenter();
+    const FVector Extent = PlacementRelativeBounds.GetExtent();
+    FVector Snapped = Location;
+    double Nearest = WallSnapDistanceCm;
+    for (const auto& WeakWall : PlacementWalls) {
+        AActor* Wall = WeakWall.Get();
+        if (!Wall) continue;
+        const FBox Bounds = Wall->GetComponentsBoundingBox(true);
+        if (!Bounds.IsValid || Center.Z + Extent.Z < Bounds.Min.Z || Center.Z - Extent.Z > Bounds.Max.Z) continue;
+        FVector Surface = Bounds.GetClosestPointTo(Center);
+        Surface.Z = Center.Z;
+        FVector Normal = (Center - Surface).GetSafeNormal2D();
+        const bool HitWallFace = Hit.GetActor() == Wall && FMath::Abs(Hit.ImpactNormal.Z) < 0.35f;
+        if (HitWallFace || Normal.IsNearlyZero()) {
+            if (!HitWallFace) continue;
+            Normal = Hit.ImpactNormal.GetSafeNormal2D();
+            Surface = Hit.ImpactPoint;
+            Surface.Z = Center.Z;
+        }
+        const double Radius = FMath::Abs(Normal.X) * Extent.X + FMath::Abs(Normal.Y) * Extent.Y;
+        const double Gap = FVector::DotProduct(Center - Surface, Normal) - Radius;
+        if (!HitWallFace && FMath::Abs(Gap) > Nearest) continue;
+        Nearest = FMath::Abs(Gap);
+        Snapped = Location - Normal * Gap;
+        if (HitWallFace) break;
+    }
+    return Snapped;
 }
 
 void ATwinSceneManager::TickModelPlacement(APlayerController* PC, float DeltaTime)
@@ -94,7 +137,15 @@ void ATwinSceneManager::TickModelPlacement(APlayerController* PC, float DeltaTim
             if (bReleased) CancelModelPlacement();
             return;
         }
-        PlacementPreview->SetActorLocation(Hit.ImpactPoint + FVector(0., 0., PlacementBottomOffset));
+        FVector Location = Hit.ImpactPoint + FVector(0., 0., PlacementBottomOffset);
+        if (bEnableWallSnap && OntoTwinWalls::IsWall(Hit.GetActor(), WallTag)
+            && FMath::Abs(Hit.ImpactNormal.Z) < 0.35f) {
+            const FVector Edge = Hit.ImpactPoint + Hit.ImpactNormal.GetSafeNormal2D() * 2.;
+            FHitResult Floor;
+            if (GetWorld()->LineTraceSingleByChannel(Floor, Edge, Edge - FVector(0., 0., 100000.), ECC_Visibility, Query))
+                Location.Z = Floor.ImpactPoint.Z + PlacementBottomOffset;
+        }
+        PlacementPreview->SetActorLocation(SnapPlacementLocation(Location, Hit));
     }
     if (!bOverPanel && (bReleased || (!bPlacementDrag && PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))))
         OpenPlacementDetails();

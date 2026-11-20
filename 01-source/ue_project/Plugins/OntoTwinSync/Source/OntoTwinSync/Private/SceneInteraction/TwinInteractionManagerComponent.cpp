@@ -1670,6 +1670,11 @@ void UTwinInteractionManagerComponent::ShutdownMinimap(bool bResetState)
     if (bResetState) SetMinimapState(TEXT("disabled"));
 }
 
+float UTwinInteractionManagerComponent::ExpandedMinimapBottom() const
+{
+    return RoamingHUD ? RoamingHUD->ExpandedMinimapBottom() : 0.f;
+}
+
 void UTwinInteractionManagerComponent::ApplyMinimapConfig(bool bEnabled)
 {
     if (!bEnabled || !CurrentConfig.bEnabled)

@@ -78,6 +78,9 @@ class ONTOTWINSYNC_API ATwinInstance : public AActor
 
 public:
     ATwinInstance();
+    const FString& GetLocalModelPath() const { return LocalModelPath; }
+    const FString& GetLocalModelDigest() const { return LocalModelDigest; }
+    bool ReloadLocalModel();
 
     /** Process-local signal emitted after a runtime GLB has produced its final mesh. */
     static FOnTwinRepresentationVisualReady OnRepresentationVisualReady;
@@ -424,6 +427,10 @@ private:
 
     /** 运行时从磁盘加载 glb/gltf（glTFRuntime）；成功返回 true 并已 SetStaticMesh */
     bool LoadRuntimeGltf(const FString& AssetId);
+    friend class FCheckStandardSceneEdits;
+    friend class FCheckLiveLocalModel;
+    FString LocalModelPath;
+    FString LocalModelDigest;
 
     /** 从绝对路径加载 glb（glTFRuntime 核心，被本地/远程缓存复用） */
     bool LoadGltfFromFile(const FString& FilePath);

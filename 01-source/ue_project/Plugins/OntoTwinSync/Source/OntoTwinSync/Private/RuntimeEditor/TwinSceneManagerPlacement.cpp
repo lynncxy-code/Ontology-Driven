@@ -3,6 +3,7 @@
 #include "OntoTwinRuntimeEditorPanel.h"
 #include "OntoTwinRuntimeGizmo.h"
 #include "RuntimeEditor/RuntimeModelLibrary.h"
+#include "RuntimeEditor/OntoTwinWallRules.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
@@ -37,7 +38,7 @@ bool ATwinSceneManager::BeginModelPlacement(const FString& ModelKey, const FStri
     PlacementRelativeBounds = Bounds.IsValid ? Bounds.ShiftBy(-PlacementPreview->GetActorLocation()) : FBox(FVector::ZeroVector, FVector::ZeroVector);
     PlacementBottomOffset = -PlacementRelativeBounds.Min.Z;
     TArray<AActor*> Walls;
-    if (!WallTag.IsNone()) UGameplayStatics::GetAllActorsWithTag(GetWorld(), WallTag, Walls);
+    OntoTwinWalls::Collect(GetWorld(), WallTag, Walls);
     for (AActor* Wall : Walls) PlacementWalls.Add(Wall);
     PlacementPreview->SetActorHiddenInGame(true);
     PlacementModelKey = ModelKey;
@@ -137,7 +138,7 @@ void ATwinSceneManager::TickModelPlacement(APlayerController* PC, float DeltaTim
             return;
         }
         FVector Location = Hit.ImpactPoint + FVector(0., 0., PlacementBottomOffset);
-        if (bEnableWallSnap && Hit.GetActor() && Hit.GetActor()->ActorHasTag(WallTag)
+        if (bEnableWallSnap && OntoTwinWalls::IsWall(Hit.GetActor(), WallTag)
             && FMath::Abs(Hit.ImpactNormal.Z) < 0.35f) {
             const FVector Edge = Hit.ImpactPoint + Hit.ImpactNormal.GetSafeNormal2D() * 2.;
             FHitResult Floor;

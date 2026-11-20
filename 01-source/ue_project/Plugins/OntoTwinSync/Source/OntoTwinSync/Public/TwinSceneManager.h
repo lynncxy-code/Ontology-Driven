@@ -274,7 +274,7 @@ public:
     float WallSnapDistanceCm = 100.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|吸附",
-              meta=(DisplayName="墙体Tag"))
+              meta=(DisplayName="墙体Tag", ToolTip="带此标签、或名称以 _Wall 结尾（可带复制编号）的对象都视为墙；编辑器保存或打包关卡时会给 _Wall 对象自动补上此标签"))
     FName WallTag = TEXT("OntoTwinWall");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime Editor|批量",

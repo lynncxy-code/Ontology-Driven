@@ -11,6 +11,7 @@
 // ============================================================================
 
 #include "TwinSceneManager.h"
+#include "RuntimeEditor/OntoTwinWallRules.h"
 #include "Framework/Application/SlateApplication.h"
 #include "OntoTwinConnectionContext.h"
 #include "Realtime/OntoTwinRealtimeStreamProvider.h"
@@ -5334,13 +5335,13 @@ void ATwinSceneManager::ApplyRuntimeGroupSnaps(
     }
 
     if (RuntimeDragPart != ERuntimeDragPart::MoveXY || !bEnableWallSnap ||
-        WallTag.IsNone() || RuntimeSelectedInstances.Num() == 0 || !GetWorld())
+        RuntimeSelectedInstances.Num() == 0 || !GetWorld())
     {
         return;
     }
 
     TArray<AActor*> Walls;
-    UGameplayStatics::GetAllActorsWithTag(GetWorld(), WallTag, Walls);
+    OntoTwinWalls::Collect(GetWorld(), WallTag, Walls);
     AActor* BestWall = nullptr;
     FVector BestClosest = FVector::ZeroVector;
     FVector BestNormal = FVector::ForwardVector;
@@ -5463,7 +5464,6 @@ void ATwinSceneManager::ApplyRuntimeSnaps(FVector& InOutLocation, FRotator& InOu
 
     if (RuntimeDragPart != ERuntimeDragPart::MoveXY ||
         !bEnableWallSnap ||
-        WallTag.IsNone() ||
         !RuntimeSelectedInstance ||
         !GetWorld())
     {
@@ -5471,7 +5471,7 @@ void ATwinSceneManager::ApplyRuntimeSnaps(FVector& InOutLocation, FRotator& InOu
     }
 
     TArray<AActor*> Walls;
-    UGameplayStatics::GetAllActorsWithTag(GetWorld(), WallTag, Walls);
+    OntoTwinWalls::Collect(GetWorld(), WallTag, Walls);
     if (Walls.Num() == 0)
     {
         return;

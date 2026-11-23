@@ -32,7 +32,7 @@ task/*  ->  acceptance (5501)  ->  dev  ->  release/*  ->  main  ->  production
 
 - `task/<id>`: one feature, bug fix, migration, or experiment, in `.worktrees/<id>` (see `AGENTS.md`). Short-lived. Do not use as a permanent integration branch.
 - `dev`: the only long-lived development branch. It contains only changes the product manager has accepted; it is not necessarily releasable as a whole.
-- `release/*`: optional short-lived stabilization branch for a named release. Freeze scope here and perform regression/UAT.
+- `release/*`: not used by default (see [references/release-versioning.md](references/release-versioning.md)). Create one only as an exception the product manager approves.
 - `main`: protected, production-ready release branch. Only accepted release commits and approved hotfixes enter it.
 - `backup/main`: a mirror of `main`, never an independent development line. Preserve any explicitly protected historical tags such as `1.0.0`.
 - `hotfix/*`: created from `main` for a production incident; after acceptance, merge the fix into both `main` and `dev`.
@@ -47,7 +47,7 @@ Use this source-to-environment mapping:
 |---|---|---|---|
 | Local | `task/*` or a temporary investigation branch | disposable local data | development and diagnosis |
 | Acceptance (5501) | latest `dev` plus all `task/*` branches awaiting acceptance, built from committed code | real business data; no destructive experiments | product acceptance before a change enters `dev` |
-| Release candidate/UAT | `release/*` | isolated release database copy | regression and product acceptance |
+| Release candidate/UAT | the accepted 5501 candidate `rc.N`, promoted unchanged | isolated release database copy | regression and product acceptance |
 | Production | immutable tag on `main` | production database | real users and real data |
 | Backup/recovery | `backup/main` and database backups | recovery copies | disaster recovery, not development |
 
@@ -64,7 +64,7 @@ When the user describes a new requirement or change:
 5. Create a local checkpoint commit when the batch boundary is clear. A local commit is allowed without a remote upload; pushing requires explicit user authorization.
 6. Review the diff and test evidence, then publish to the acceptance environment (5501) as described in `AGENTS.md`. The product manager accepts or rejects the behavior there.
 7. Only after the product manager explicitly accepts, merge that one `task/<id>` branch (never the assembled acceptance candidate) into `dev`, then clean up the task worktree and branch.
-8. For a release, cut `release/<version>` from the accepted `dev` state, freeze scope, run regression/UAT, then merge to `main` and create an immutable `v<version>` tag.
+8. For a formal release, promote the accepted 5501 candidate unchanged, as defined in [references/release-versioning.md](references/release-versioning.md): give the same image its formal name and put an immutable `v<year>.<month>.<n>` tag on the exact commit the candidate was built from. How that commit reaches `main` follows the development SOP.
 9. Deploy production only from that tag. After production verification, fast-forward `backup/main` to the same `main` commit if the user authorizes the remote update.
 
 If acceptance fails, keep the release candidate unchanged, record the failed criterion, and create a focused follow-up `task/<id>` branch. Do not silently patch production or rewrite a released commit.
@@ -73,7 +73,7 @@ If acceptance fails, keep the release candidate unchanged, record the failed cri
 
 For integration packaging, repeated upgrades on another computer, or an “导入更新包” workflow, read [references/package-update-lifecycle.md](references/package-update-lifecycle.md).
 
-The agreed product direction is a fixed installation environment with replaceable program releases. Importing a package coordinates frontend, backend, and selected UE plugins as one compatible release; it does not imply hot replacement or identical component version numbers. Preserve datasets, accounts, project/level bindings, CAD/images/models, and environment configuration across ordinary upgrades.
+The agreed product direction is a fixed installation environment with replaceable program releases. Importing a package coordinates frontend, backend, and selected UE plugins as one compatible release; it does not imply hot replacement. The whole set carries one platform version number; whether each component changed is decided by its fingerprint (see [references/release-versioning.md](references/release-versioning.md)). Preserve datasets, accounts, project/level bindings, CAD/images/models, and environment configuration across ordinary upgrades.
 
 These are development and acceptance requirements, not proof that an existing package implements an updater. Inspect the actual package, source, and target machine before claiming support. Use the database migration and UE stewardship skills when those components are involved. Updating this skill alone does not authorize a production deployment; use the user's existing authorization without asking again for already authorized work.
 
@@ -142,3 +142,4 @@ When a file is ambiguous, leave it uncommitted and report the ambiguity instead 
 
 - Read [references/branch-environment-matrix.md](references/branch-environment-matrix.md) when explaining branch/environment mapping or deciding where a change belongs.
 - Read [references/release-gates.md](references/release-gates.md) when preparing a release, UAT, production deployment, hotfix, or rollback.
+- Read [references/release-versioning.md](references/release-versioning.md) before assigning any version number, git tag, image name, or package name. It replaces older names such as `release/<version>` and `4.8.0-rc.N`.

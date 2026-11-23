@@ -270,8 +270,15 @@ class SnapshotDeltaService:
             return self._delta_payload(state, since_revision)
 
 
-def _tokens_from_instances(instances, zone, object_types, project_id):
-    """从一份 instances 字典生成 tokens。抽出以复用（激活/非激活两条路径）。"""
+def _tokens_from_instances(instances, zone, object_types, project_id, generation=None):
+    """从一份 instances 字典生成 tokens。抽出以复用（激活/非激活两条路径）。
+
+    OPT-07：``generation`` 来自 project_read_cache，同一份共享项目对象的编号。
+    下面的 id() 只有在项目对象常驻内存时才代表“没变”；每次请求重新读出的
+    副本会让 id() 全变（每轮都重建全部快照），而已释放对象的 id() 还可能被
+    新对象复用（漏掉变化）。带上 generation 后：同一代内 token 稳定、跳过重建；
+    换代（写入或 30 秒核对）时全部重建并逐项比较，结果仍只下发真正的变化。
+    """
     now = time.time()
     tokens = {}
     for instance_id, instance in instances.items():
@@ -311,6 +318,7 @@ def _tokens_from_instances(instances, zone, object_types, project_id):
             render_presentation_profile = _EMPTY_DICT
         last_seen = float(instance.get("last_seen") or 0.0)
         tokens[instance_id] = (
+            generation,
             id(instance),
             id(raw_state),
             # Exact heartbeat timestamps are intentionally excluded. They used
@@ -351,11 +359,12 @@ def _tokens_from_instances(instances, zone, object_types, project_id):
     return project_id, tokens
 
 
-def _collect_instance_tokens(project_store, zone, object_types, project=None, project_id=None):
+def _collect_instance_tokens(project_store, zone, object_types, project=None, project_id=None,
+                             generation=None):
     """3.5：project/project_id 显式传入时不走 _current（供 UE 按 UE-ID 路由到非激活项目用）。"""
     if project is not None:
         instances = (project or {}).get("instances") or {}
-        return _tokens_from_instances(instances, zone, object_types, project_id or "")
+        return _tokens_from_instances(instances, zone, object_types, project_id or "", generation)
     lock = getattr(project_store, "_lock", None)
     context = lock if lock is not None else nullcontext()
     with context:
@@ -413,9 +422,13 @@ def register_snapshot_delta_routes(
             if project is None:
                 return jsonify({"error": "project_gone", "project_id": pid}), 410
             object_types = project.get("object_types") or {}
+            # OPT-07：只有拿到的正是本请求共享缓存里的那份对象时才用它的代号。
+            generation = None
+            if project is getattr(project_store, "_current", None):
+                generation = getattr(project_store, "_cache_generation", None)
             project_id, tokens = _collect_instance_tokens(
                 project_store, zone, object_types,
-                project=project, project_id=pid,
+                project=project, project_id=pid, generation=generation,
             )
             if build_snapshot_for_project is not None:
                 build_snap = build_snapshot_for_project(project)

@@ -156,6 +156,10 @@ from tenant_api import (
 )
 register_tenant_routes(app, project_store)
 
+# OPT-07：UE 高频轮询共用内存中的项目数据，写入后立即作废；ONTOTWIN_PROJECT_READ_CACHE=off 可关闭。
+from project_read_cache import register_project_read_cache
+project_read_cache = register_project_read_cache(app, project_store)
+
 simulator = None
 if os.environ.get("ONTOTWIN_MOCK_SIMULATOR_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on"
@@ -296,7 +300,7 @@ def _bind_explicit_v2_project():
                 "message": "4.8 业务请求必须显式携带 project_id",
             }), 400
         return None
-    if ue_id and not legacy_project_ue_allowed(pid, ue_id, scene_id):
+    if ue_id and not project_read_cache.ue_allowed(legacy_project_ue_allowed, pid, ue_id, scene_id):
         return jsonify({"error": "ue_project_mismatch", "message": "project_id 与 UE 场景绑定不一致"}), 403
     if session_cookie:
         role = legacy_project_role(pid)
@@ -309,7 +313,8 @@ def _bind_explicit_v2_project():
             if write_role == "none":
                 return jsonify({"error": "forbidden", "message": "当前项目没有编辑权限"}), 403
     try:
-        g.ontotwin_project_store = project_view(project_store, pid)
+        g.ontotwin_project_store = project_read_cache.request_view(
+            project_store, pid, request.method, request.path)
     except KeyError:
         return jsonify({"error": "project_not_found", "project_id": pid}), 404
     g.ontotwin_project_id = pid

@@ -18,7 +18,3 @@
     overflow-wrap: anywhere;
 }
 .release-badge__panel[hidden] { display: none; }
-.release-badge__panel h2 { font-size: 14px; font-weight: 600; color: #1a1a1a; margin-bottom: 12px; }
-.release-badge__panel dt { color: #5c5c5c; margin-top: 8px; }
-.release-badge__panel dd { margin: 0; color: #1a1a1a; }
-.release-badge__note { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e8e8e8; }

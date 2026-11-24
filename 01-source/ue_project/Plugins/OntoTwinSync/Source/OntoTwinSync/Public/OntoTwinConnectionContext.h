@@ -4,6 +4,7 @@
 #include "Engine/World.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Misc/ConfigCacheIni.h"
+#include "OntoTwinBuildIdentity.h"
 
 // Optional deployment settings in DefaultGame.ini. No customer identity is compiled in.
 namespace OntoTwinConnectionContext
@@ -26,6 +27,9 @@ inline bool IsExplicit()
 
 inline void Apply(TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request, const UWorld* World)
 {
+    // Every request reports the installed platform version, so the web can tell whether UE matches (NEW-13).
+    const FString& Release = OntoTwinInstalledRelease();
+    if (!Release.IsEmpty()) Request->SetHeader(TEXT("X-OntoTwin-Plugin-Release"), Release);
     const FString ProjectId = Setting(TEXT("ProjectId"));
     if (ProjectId.IsEmpty()) return;
     Request->SetHeader(TEXT("X-OntoTwin-Project-Id"), ProjectId);

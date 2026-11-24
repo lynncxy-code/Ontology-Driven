@@ -60,18 +60,8 @@ mimetypes.add_type("font/woff", ".woff")
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
 app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
 
-@app.get('/release-info.json')
-def release_info():
-    """Expose the running image identity to the account menu."""
-    release = os.environ.get('ONTOTWIN_RELEASE_ID', '4.8-dev')
-    return jsonify({
-        'environment': os.environ.get('ONTOTWIN_ENV', 'test'),
-        'version': release,
-        'backend': release,
-        'updated_at': os.environ.get('ONTOTWIN_RELEASE_BUILT_AT', ''),
-        'time_zone': 'UTC',
-        'note': '当前信息来自正在运行的 4.8 RC 后端镜像。',
-    })
+from release_info import register_release_info_routes
+register_release_info_routes(app)   # /release-info.json and UE plugin versions
 app.json.ensure_ascii = False  # 中文字符不转义为 \uXXXX，便于 2.9.2 调试（Flask 2.2+ 用法）
 CORS(app)
 

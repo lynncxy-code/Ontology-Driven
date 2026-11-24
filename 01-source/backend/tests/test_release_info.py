@@ -54,7 +54,7 @@ def test_ue_requests_record_the_reported_plugin_version(client):
     assert len(release_info._reports) == 1
 
 
-def _fake_org_db(monkeypatch):
+def _fake_db(monkeypatch, project_id):
     import tenant_api
     from db import pg
 
@@ -63,11 +63,12 @@ def _fake_org_db(monkeypatch):
         CREATE TABLE project_scene_binding(project_id,organization_id,ue_project_id,scene_id,status);
         CREATE TABLE ue_project(ue_project_id,display_name,stable_key);
         CREATE TABLE ue_scene(scene_id,level_path,display_name,stable_key);
-        INSERT INTO ue_project VALUES('u1','0bay 办公室','ue_office'),('u2','航展主场馆','ue_show'),('u3','受限工程','ue_secret');
-        INSERT INTO ue_scene VALUES('s1','/Game/Office','','/Game/Office'),('s2','/Game/Show','主场馆','/Game/Show'),('s3','/Game/S','','/Game/S');
+        INSERT INTO ue_project VALUES('u1','0bay 办公室','ue_office'),('u2','DigitalFactoryBase','ue_air');
+        INSERT INTO ue_scene VALUES('s1','/Game/OfficeShell/Maps/Office','','/Game/OfficeShell/Maps/Office'),
+                                   ('s2','/Game/Develop/Maps/Airbase/L_Airbase_J20','','/Game/Develop/Maps/Airbase/L_Airbase_J20');
         INSERT INTO project_scene_binding VALUES('p_office','org_0bay','u1','s1','active'),
-                                                ('p_show','org_show','u2','s2','active'),
-                                                ('p_secret','org_0bay','u3','s3','active');
+                                                ('p_air','org_test','u2','s2','active'),
+                                                ('p_show','org_test','u2','s2','replaced');
     """)
     cursor = db.cursor()
     cur = MagicMock()
@@ -78,26 +79,46 @@ def _fake_org_db(monkeypatch):
     conn.cursor.return_value.__enter__.return_value = cur
     monkeypatch.setattr(pg, "get_conn", lambda: conn)
     monkeypatch.setattr(tenant_api, "_require_pg", lambda: None)
-    monkeypatch.setattr(tenant_api, "_load_session", lambda c: {"user_id": "user", "organization_id": "org_0bay"})
+    monkeypatch.setattr(tenant_api, "_load_session", lambda c: {"user_id": "user", "organization_id": "org_test", "project_id": project_id})
     monkeypatch.setattr(tenant_api, "_project_allowed", lambda c, u, p, m="view": None if p == "p_secret" else {"role": "viewer"})
+    for ue, scene in (("ue_office", "/Game/OfficeShell/Maps/Office"), ("ue_air", "/Game/Develop/Maps/Airbase/L_Airbase_J20")):
+        release_info.remember_plugin_report(ue, scene, None if ue == "ue_air" else "rc.29")
     return db
 
 
-def test_ue_plugin_list_only_shows_projects_the_account_may_see(client, monkeypatch):
-    monkeypatch.setenv("ONTOTWIN_RELEASE_ID", "rc.25")
-    db = _fake_org_db(monkeypatch)
+def test_ue_plugin_list_only_shows_the_current_projects_levels(client, monkeypatch):
+    monkeypatch.setenv("ONTOTWIN_RELEASE_ID", "rc.29")
+    db = _fake_db(monkeypatch, "p_air")
     try:
-        for ue, scene in (("ue_office", "/Game/Office"), ("ue_show", "/Game/Show"), ("ue_secret", "/Game/S")):
-            release_info.remember_plugin_report(ue, scene, "rc.25")
-        result = client.get("/api/v4.8/release/ue-plugins")
-        assert result.status_code == 200
-        names = [r["ue_project_name"] for r in result.json["items"]]
-        assert names == ["0bay 办公室"]          # other organization and unpermitted project are hidden
-        assert result.json["items"][0]["status"] == "same"
-        assert result.json["items"][0]["scene_name"] == "/Game/Office"
+        data = client.get("/api/v4.8/release/ue-plugins").json
+        assert data["project_id"] == "p_air" and data["bound"] == 1 and data["backend_label"] == "候选 29"
+        assert [(r["ue_project_name"], r["scene_name"], r["status"]) for r in data["items"]] == [("DigitalFactoryBase", "L_Airbase_J20", "unknown")]
     finally:
         db.close()
 
+
+def test_project_without_bindings_or_without_project_lists_nothing(client, monkeypatch):
+    for project_id, bound in (("p_show", 0), (None, 0)):
+        db = _fake_db(monkeypatch, project_id)
+        try:
+            data = client.get("/api/v4.8/release/ue-plugins").json
+            assert data["bound"] == bound and data["items"] == [] and data["project_id"] == project_id
+        finally:
+            db.close()
+
+
+def test_project_the_account_may_not_view_is_refused(client, monkeypatch):
+    db = _fake_db(monkeypatch, "p_secret")
+    try:
+        assert client.get("/api/v4.8/release/ue-plugins").status_code == 403
+    finally:
+        db.close()
+
+
+def test_level_paths_are_shortened_for_display():
+    assert release_info.short_level_name("/Game/Develop/Maps/Airbase/L_Airbase_J20") == "L_Airbase_J20"
+    assert release_info.short_level_name("standard.factory") == "standard.factory"
+    assert release_info.short_level_name("主场馆") == "主场馆"
 
 def test_ue_plugin_list_requires_sign_in(client, monkeypatch):
     import tenant_api

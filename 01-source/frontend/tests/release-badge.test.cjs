@@ -20,18 +20,23 @@ test('build time is shown with an explicit time zone and never guessed', () => {
     assert.equal(formatUpdated('2026-11-24T02:39:11Z', 'invalid/zone'), '');
 });
 
-test('UE plugin rows say plainly whether each project runs the same version', () => {
+test('UE rows only for the current project, worded plainly', () => {
     assert.equal(pluginRows(null), null);
     assert.equal(pluginRows({ error: 'auth_required' }), null);
-    const rows = pluginRows({ items: [
+    assert.equal(pluginRows({ items: [], project_id: null, bound: 0 }), null);   // no project: block hidden
+    assert.deepEqual(pluginRows({ items: [], project_id: 'p', bound: 0 }), { rows: [], empty: '这个项目还没有绑定 UE 关卡' });
+    assert.equal(pluginRows({ items: [], project_id: 'p', bound: 2 }).empty, '这个项目绑定的 UE 关卡最近 7 天没有连过后台');
+    const result = pluginRows({ project_id: 'p', bound: 3, backend_label: '候选 29', items: [
         { ue_project_name: '展馆', scene_name: 'B', status: 'different', plugin_label: '候选 24' },
-        { ue_project_name: '旧工程', scene_name: 'C', status: 'unknown' },
+        { ue_project_name: 'DigitalFactoryBase', scene_name: 'L_Airbase_J20', status: 'unknown' },
         { ue_project_name: '办公室', scene_name: 'A', status: 'same' },
     ] });
-    assert.deepEqual(rows.map(r => r.tone), ['warn', 'muted', 'ok']);
-    assert.equal(rows[0].name, '展馆 · B');
-    assert.equal(rows[0].status, '不是同一版（插件为 候选 24），请重新安装插件');
-    assert.equal(rows[2].status, '同一版');
+    assert.equal(result.empty, '');
+    assert.deepEqual(result.rows.map(r => r.tone), ['warn', 'muted', 'ok']);
+    assert.equal(result.rows[0].status, '不是同一版：插件是候选 24，后台是候选 29。请装上候选 29 的插件。');
+    assert.equal(result.rows[1].name, 'DigitalFactoryBase · L_Airbase_J20');
+    assert.equal(result.rows[1].status, '版本未知：这个 UE 工程的插件太旧，不会报告版本。装上候选 29 的插件后才能比对。');
+    assert.equal(result.rows[2].status, '同一版');
 });
 
 function fakeDocument() {
@@ -42,16 +47,15 @@ function fakeDocument() {
     return { createElement: make };
 }
 
-test('render writes text only and hides the UE block when not signed in', () => {
+test('render writes text only and hides the UE block outside a project', () => {
     const doc = fakeDocument();
     const box = doc.createElement('div');
-    render(doc, box, { release: normalize({ display: 'OntoTwin 候选 25 · 验收版' }), plugins: null });
+    render(doc, box, { release: normalize({ display: 'OntoTwin 候选 29 · 验收版' }), plugins: null });
     assert.equal(box.children.length, 2);
-    render(doc, box, { release: normalize({ display: '<b>x</b>' }), plugins: [] });
-    assert.match(box.textContent, /<b>x<\/b>.*UE 插件最近 7 天没有 UE 工程连过后台/);
+    render(doc, box, { release: normalize({ display: '<b>x</b>' }), plugins: { rows: [], empty: '这个项目还没有绑定 UE 关卡' } });
+    assert.match(box.textContent, /<b>x<\/b>.*本项目的 UE 关卡这个项目还没有绑定 UE 关卡/);
     assert.doesNotMatch(box.textContent, /NEW-|BUG-|OPT-/);
 });
-
 test('load asks the public release info and the signed-in plugin list', async () => {
     const seen = [];
     const fetcher = async url => { seen.push(url); return url === '/release-info.json'

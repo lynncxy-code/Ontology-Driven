@@ -1,5 +1,5 @@
 // OntoTwin 版本显示（NEW-13）：全产品一个版本号，账号菜单和 Nexus 角标共用这一份。
-// 只显示版本号、更新时间，以及当前组织里各 UE 工程的插件是否同一版；不显示内部编号。
+// 只显示版本号、更新时间，以及当前项目绑定的 UE 关卡插件是否同一版；不显示内部编号。
 (function (root, factory) {
     const api = factory();
     if (typeof module === 'object' && module.exports) module.exports = api;
@@ -36,20 +36,24 @@
 
     const STATUS = {
         same: ['ok', () => '同一版'],
-        different: ['warn', row => '不是同一版（插件为' + (row.plugin_label ? ' ' + row.plugin_label : '旧版') + '），请重新安装插件'],
-        unknown: ['muted', () => '插件没有报告版本，可能是旧版插件，请重新安装']
+        different: ['warn', (row, backend) => '不是同一版：插件是' + (row.plugin_label || '其他版本') + '，后台是' + backend + '。请装上' + backend + ' 的插件。'],
+        unknown: ['muted', (row, backend) => '版本未知：这个 UE 工程的插件太旧，不会报告版本。装上' + backend + ' 的插件后才能比对。']
     };
 
+    // 只看当前项目绑定的 UE 关卡；没有进项目（或未登录）时整块不显示
     function pluginRows(data) {
-        if (!data || !Array.isArray(data.items)) return null;     // 未登录或没有组织：不显示这一块
-        return data.items.slice(0, 50).map(row => {
+        if (!data || !Array.isArray(data.items) || !data.project_id) return null;
+        const backend = text(data.backend_label, '当前版本', 40);
+        const rows = data.items.slice(0, 50).map(row => {
             const status = STATUS[row && row.status] || STATUS.unknown;
             return {
                 name: text(row && row.ue_project_name, 'UE 工程') + ' · ' + text(row && row.scene_name, '未命名关卡'),
                 tone: status[0],
-                status: status[1](row || {})
+                status: status[1](row || {}, backend)
             };
         });
+        const empty = rows.length ? '' : (data.bound ? '这个项目绑定的 UE 关卡最近 7 天没有连过后台' : '这个项目还没有绑定 UE 关卡');
+        return { rows, empty };
     }
 
     async function getJson(fetcher, url) {
@@ -80,9 +84,9 @@
         container.appendChild(el(document, 'div', 'ot-release__time', state.release.updated));
         if (!state.plugins) return;
         const block = el(document, 'div', 'ot-release__plugins');
-        block.appendChild(el(document, 'div', 'ot-release__heading', 'UE 插件'));
-        if (!state.plugins.length) block.appendChild(el(document, 'div', 'ot-release__empty', '最近 7 天没有 UE 工程连过后台'));
-        state.plugins.forEach(row => {
+        block.appendChild(el(document, 'div', 'ot-release__heading', '本项目的 UE 关卡'));
+        if (state.plugins.empty) block.appendChild(el(document, 'div', 'ot-release__empty', state.plugins.empty));
+        state.plugins.rows.forEach(row => {
             const item = el(document, 'div', 'ot-release__row');
             item.appendChild(el(document, 'div', 'ot-release__project', row.name));
             const status = el(document, 'div', 'ot-release__status');

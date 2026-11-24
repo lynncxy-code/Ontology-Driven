@@ -7,9 +7,9 @@ One platform version number covers web, backend and UE plugins (see
   was built, already worded for display.
 * UE plugins report their installed version in ``X-OntoTwin-Plugin-Release``;
   the backend remembers the last report per UE project and level, in memory.
-* ``GET /api/v4.8/release/ue-plugins`` (signed in): the UE projects bound to
-  projects the current account may view in its current organization, each
-  with the plugin version it last reported and whether it matches.
+* ``GET /api/v4.8/release/ue-plugins`` (signed in): the UE levels bound to the
+  current project (if the account may view it), each with the plugin version
+  it last reported and whether it matches.
 """
 import os
 import re
@@ -97,22 +97,25 @@ def plugin_rows(bindings, backend_release, now=None):
     return rows
 
 
-def _visible_bindings(cur, session, project_allowed):
+def short_level_name(name):
+    """/Game/Develop/Maps/Airbase/L_Airbase_J20 -> L_Airbase_J20; other names unchanged."""
+    name = (name or "").strip()
+    return name.rstrip("/").rsplit("/", 1)[-1] if name.startswith("/") else name
+
+
+def _project_bindings(cur, project_id):
+    """UE levels bound to one project (the page's current project)."""
     cur.execute(
-        """SELECT b.project_id, u.stable_key, s.stable_key, u.display_name,
+        """SELECT u.stable_key, s.stable_key, u.display_name,
                   COALESCE(NULLIF(s.display_name,''), NULLIF(s.level_path,''), s.stable_key)
              FROM project_scene_binding b
              JOIN ue_project u ON u.ue_project_id=b.ue_project_id
              JOIN ue_scene s ON s.scene_id=b.scene_id
-            WHERE b.organization_id=%s AND b.status='active'""",
-        (session["organization_id"],))
-    rows, allowed = [], {}
-    for project_id, ue_key, scene_key, ue_name, scene_name in cur.fetchall():
-        if project_id not in allowed:
-            allowed[project_id] = bool(project_allowed(cur, session["user_id"], project_id))
-        if allowed[project_id]:
-            rows.append({"ue_project_key": ue_key, "scene_key": scene_key, "ue_project_name": ue_name, "scene_name": scene_name})
-    return rows
+            WHERE b.project_id=%s AND b.status='active'""",
+        (project_id,))
+    return [{"ue_project_key": ue_key, "scene_key": scene_key, "ue_project_name": ue_name,
+             "scene_name": short_level_name(scene_name)}
+            for ue_key, scene_key, ue_name, scene_name in cur.fetchall()]
 
 
 def register_release_info_routes(app):
@@ -148,10 +151,13 @@ def register_release_info_routes(app):
         with pg.get_conn() as conn:
             with conn.cursor() as cur:
                 session = tenant_api._load_session(cur)
-                if not session.get("organization_id"):
-                    raise tenant_api.ApiError(400, "请先选择组织", "context_required")
-                bindings = _visible_bindings(cur, session, lambda c, u, p: tenant_api._project_allowed(c, u, p, "view"))
+                project_id = session.get("project_id")
+                if project_id and not tenant_api._project_allowed(cur, session["user_id"], project_id, "view"):
+                    raise tenant_api.ApiError(403, "无权查看该项目", "forbidden")
+                bindings = _project_bindings(cur, project_id) if project_id else []
         release = running_release()
-        return jsonify({"backend_release": release, "items": plugin_rows(bindings, release)})
+        return jsonify({"backend_release": release, "backend_label": describe(release)["label"],
+                        "project_id": project_id or None, "bound": len(bindings),
+                        "items": plugin_rows(bindings, release)})
 
     app.register_blueprint(blueprint)

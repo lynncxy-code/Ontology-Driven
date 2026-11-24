@@ -296,6 +296,10 @@ def _bind_explicit_v2_project():
     # once a 4.8 project has been selected.
     if request.path in _V2_PROJECTLESS_EXACT and not pid:
         return None
+    # 回收站按当前组织／工厂列出（OPT-08），删掉最后一个数据集后也要能
+    # 从「我的数据集」进来恢复；权限由回收站路由逐条核对。
+    if request.path.startswith("/api/v2/trash") and not pid:
+        return None
     scene_id = request.headers.get("X-OntoTwin-UE-Scene-Id") or request.args.get("scene_id") or request.args.get("scene") or ""
     if ue_id and not pid and request.path.startswith(_V2_UE_ASSET_PREFIX):
         return None
@@ -6047,6 +6051,39 @@ dataset_package_service = register_dataset_package_routes(
     on_project_imported=_dataset_package_project_imported,
 )
 
+
+def _dataset_admin_renamed(project_id, name):
+    """重命名后同步旧页面用的内存目录。"""
+    for item in _datasets:
+        if item.get("id") == project_id:
+            item["name"] = name
+            if isinstance(item.get("dataset"), dict):
+                item["dataset"]["name"] = name
+
+
+def _dataset_admin_deleted(project_id):
+    """删除（进回收站）后同步内存目录和 UE 绑定索引，与旧删除接口一致。"""
+    global _datasets
+    _datasets = [item for item in _datasets if item.get("id") != project_id]
+    try:
+        from ue_project_binding import index_forget_project
+        index_forget_project(project_id)
+    except Exception as _e:
+        print(f"[ue_binding] 索引清理 {project_id} 失败: {_e}")
+    if _active_dataset_id == project_id:
+        _set_active_dataset_view("demo")
+        _set_object_types({k: dict(v) for k, v in OBJECT_TYPES.items()})
+
+
+from dataset_admin import current_trash_scope, register_dataset_admin_routes
+register_dataset_admin_routes(
+    app,
+    project_store,
+    dataset_package_service,
+    on_renamed=_dataset_admin_renamed,
+    on_deleted=_dataset_admin_deleted,
+)
+
 from zone_management import register_zone_management_routes
 register_zone_management_routes(app, project_store)
 
@@ -6113,20 +6150,71 @@ def trash_list():
     """列出回收站条目。
     - 文件后端：来自 data/trash 快照
     - PG 后端：来自 project/instance 表的 deleted_at IS NOT NULL 记录"""
-    return jsonify({"items": project_store.list_trash()})
+    items = project_store.list_trash()
+    scope = current_trash_scope()
+    if scope is not None:
+        # 只列当前组织／工厂里本人有权看到的条目（OPT-08）。
+        items = [item for item in items if scope.can_view(item)]
+    return jsonify({"items": items})
+
+
+def _is_foreign_key_block(exc):
+    """彻底删除被操作记录等外键挡住（4.8 建的数据集都有操作记录）。"""
+    return type(exc).__name__ == "ForeignKeyViolation"
+
+
+def _trash_item_for_change(trash_id):
+    """4.8 会话下核对回收站条目归属与权限；返回 (错误响应 or None)。"""
+    scope = current_trash_scope()
+    if scope is None:
+        return None
+    item = next((x for x in project_store.list_trash() if x.get("id") == trash_id), None)
+    if item is None or not scope.can_view(item):
+        return jsonify({"error": "not_found"}), 404
+    if not scope.can_modify(item):
+        message = "只有组织管理员可以恢复或彻底删除数据集" if item.get("kind") == "project" else "需要该数据集的编辑权限"
+        return jsonify({"error": "forbidden", "message": message}), 403
+    return None
 
 
 @app.route('/api/v2/trash/purge', methods=['POST'])
 def trash_purge():
     """一键清空回收站，永久删除。"""
-    n = project_store.purge_trash()
-    return jsonify({"status": "ok", "purged": n})
+    scope = current_trash_scope()
+    if scope is None:
+        n = project_store.purge_trash()
+        return jsonify({"status": "ok", "purged": n})
+    # 4.8：只清当前组织／工厂里本人有权彻底删除的条目，不碰别人的。
+    n = skipped = 0
+    for item in project_store.list_trash():
+        if not scope.can_view(item):
+            continue
+        if not scope.can_modify(item):
+            skipped += 1
+            continue
+        try:
+            if project_store.delete_trash(item["id"]):
+                n += 1
+        except Exception as exc:
+            if not _is_foreign_key_block(exc):
+                raise
+            skipped += 1
+    return jsonify({"status": "ok", "purged": n, "skipped": skipped})
 
 
 @app.route('/api/v2/trash/<trash_id>', methods=['DELETE'])
 def trash_delete(trash_id):
     """永久删除单条。"""
-    ok = project_store.delete_trash(trash_id)
+    denied = _trash_item_for_change(trash_id)
+    if denied:
+        return denied
+    try:
+        ok = project_store.delete_trash(trash_id)
+    except Exception as exc:
+        if not _is_foreign_key_block(exc):
+            raise
+        return jsonify({"error": "trash_delete_blocked",
+                        "message": "这个数据集还有操作记录等关联数据，暂时不能彻底删除；它会一直留在回收站里，可随时恢复"}), 409
     if not ok:
         return jsonify({"error": "not found"}), 404
     return jsonify({"status": "ok", "id": trash_id})
@@ -6135,6 +6223,9 @@ def trash_delete(trash_id):
 @app.route('/api/v2/trash/<trash_id>/restore', methods=['POST'])
 def trash_restore(trash_id):
     """恢复单条到原位置。冲突策略：覆盖。"""
+    denied = _trash_item_for_change(trash_id)
+    if denied:
+        return denied
     try:
         kind, restored_id = project_store.restore_trash(trash_id)
     except ValueError as e:

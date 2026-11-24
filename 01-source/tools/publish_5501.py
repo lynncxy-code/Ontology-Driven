@@ -21,7 +21,7 @@ import subprocess
 import sys
 import time
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -76,10 +76,11 @@ def container_specific_env(container_env, image_env):
         key, value = item.split('=', 1)
         keep[key] = value
     keep.pop('ONTOTWIN_RELEASE_ID', None)
+    keep.pop('ONTOTWIN_RELEASE_BUILT_AT', None)
     return keep
 
 
-def create_args(old, env_keys, image, version, name):
+def create_args(old, env_keys, image, version, name, built_at=''):
     host = old['HostConfig']
     network = host['NetworkMode']
     args = ['create', '--name', name, '--network', network]
@@ -99,6 +100,8 @@ def create_args(old, env_keys, image, version, name):
         args += ['--mount', 'type=bind,src={},dst={}{}'.format(m['Source'], m['Destination'], '' if m['RW'] else ',readonly')]
     for key in sorted(env_keys):
         args += ['-e', key]          # values come from the process environment, never the command line
+    if built_at:
+        args += ['-e', 'ONTOTWIN_RELEASE_BUILT_AT=' + built_at]   # shown as the update time in the account menu
     args += ['-e', 'ONTOTWIN_RELEASE_ID=' + version, image]
     return args
 
@@ -205,14 +208,14 @@ def wait_healthy(url, version):
     raise PublishError('新版本 {} 秒内没有报出版本号 {}'.format(HEALTH_TIMEOUT, version))
 
 
-def swap(old, image, version):
+def swap(old, image, version, built_at):
     old_image = inspect('image', old['Image']) or {}
     env_values = container_specific_env(old['Config']['Env'], (old_image.get('Config') or {}).get('Env'))
     if inspect('', NEXT):
         run('docker', 'rm', '-f', NEXT)
     child_env = os.environ.copy()
     child_env.update(env_values)
-    new_id = run('docker', *create_args(old, env_values.keys(), image, version, NEXT), env=child_env)
+    new_id = run('docker', *create_args(old, env_values.keys(), image, version, NEXT, built_at), env=child_env)
     had_previous = inspect('', PREVIOUS) is not None
     url = health_url(old)
     run('docker', 'stop', old['Id'])
@@ -296,7 +299,8 @@ def main(argv=None):
             '--label', 'org.opencontainers.image.revision=' + sha,
             '--label', 'org.opencontainers.image.version=' + version, '.', cwd=wt)
         print('已打包镜像：' + image)
-        swap(old, image, version)
+        built_at = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        swap(old, image, version, built_at)
         run('git', 'tag', '-a', version, sha, '-m', notes, cwd=root)
         removed = prune_images()
         print('5501 已切换到 {}，版本号核对一致。上一版保留为容器 {}。'.format(version, PREVIOUS))

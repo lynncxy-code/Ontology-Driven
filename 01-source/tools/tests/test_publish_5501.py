@@ -53,6 +53,10 @@ class PublishHelpersTests(unittest.TestCase):
         self.assertIn('-e DATABASE_URL ', joined)
         self.assertNotIn('postgresql', joined)
         self.assertEqual(args[-2:], ['ONTOTWIN_RELEASE_ID=rc.24', 'ontotwin/platform:rc.24'])
+        self.assertNotIn('ONTOTWIN_RELEASE_BUILT_AT', joined)
+        timed = ns['create_args'](OLD, [], 'img', 'rc.24', 'next', '2026-11-23T09:10:00Z')
+        self.assertIn('ONTOTWIN_RELEASE_BUILT_AT=2026-11-23T09:10:00Z', timed)
+        self.assertNotIn('ONTOTWIN_RELEASE_BUILT_AT', ns['container_specific_env'](['ONTOTWIN_RELEASE_BUILT_AT=old'], []))
         self.assertEqual(ns['health_url'](OLD), 'http://127.0.0.1:5501/api/v4.8/health')
 
     def test_non_bind_mount_is_refused(self):

@@ -64,6 +64,23 @@ class PublishHelpersTests(unittest.TestCase):
         with self.assertRaises(ns['PublishError']):
             ns['create_args'](old, [], 'img', 'rc.24', 'next')
 
+    def test_previous_drafts_are_read_back_from_tag_notes(self):
+        notes = ns['render_notes']('rc.27', 'a' * 40, 'b' * 40, ['task/OPT-08', 'task/NEW-11'], [], 'rc.26', 't')
+        self.assertEqual(ns['tasks_in_notes'](notes), ['task/OPT-08', 'task/NEW-11'])
+        self.assertEqual(ns['tasks_in_notes'](ns['render_notes']('rc.25', 'c' * 40, 'c' * 40, [], [], None, 't')), [])
+        self.assertEqual(ns['tasks_in_notes'](''), [])
+
+    def test_drafts_on_5501_are_kept_unless_in_dev_missing_or_dropped(self):
+        tasks, plan = ns['choose_tasks'](['task/OPT-08', 'task/NEW-11', 'task/BUG-30', 'task/OPT-09'],
+                                         ['NEW-12', 'OPT-08'], ['OPT-09'], {'task/NEW-11'}, {'task/BUG-30'})
+        self.assertEqual(tasks, ['task/OPT-08', 'task/NEW-12'])
+        joined = '\n'.join(plan)
+        self.assertIn('沿用上一版的待验收草稿：task/OPT-08', joined)
+        self.assertIn('这次新加入：task/NEW-12', joined)
+        self.assertIn('已经存进 dev，不再单独带上：task/NEW-11', joined)
+        self.assertIn('分支已不存在（可能已收尾或放弃），不再带上：task/BUG-30', joined)
+        self.assertIn('按要求拿掉：task/OPT-09', joined)
+
     def test_notes_name_candidate_sources_and_ids(self):
         notes = ns['render_notes']('rc.24', 'a' * 40, 'b' * 40, ['task/NEW-11'], ['NEW-11'], '8bf6752a7908', '2026-11-23 10:00')
         self.assertIn('OntoTwin 候选 24（rc.24）· 验收版', notes)

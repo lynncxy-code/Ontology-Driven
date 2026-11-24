@@ -113,6 +113,41 @@ def health_url(old):
     raise PublishError('5501 容器没有对外端口')
 
 
+def tasks_in_notes(notes):
+    """The drafts a previous candidate carried, read from its tag notes."""
+    for line in (notes or '').splitlines():
+        if line.startswith('待验收草稿：'):
+            return [t for t in re.split('[、,，\\s]+', line.split('：', 1)[1]) if t.startswith('task/')]
+    return []
+
+
+def choose_tasks(previous, added, dropped, in_dev, missing=()):
+    """Keep what 5501 already carried, add new drafts, leave out drafts already in dev or dropped."""
+    added = [task_branch(t) for t in added]
+    dropped = {task_branch(t) for t in dropped}
+    tasks, plan = [], []
+    for t in previous + added:
+        if t in tasks or t in dropped or t in in_dev or t in missing:
+            continue
+        tasks.append(t)
+    kept = [t for t in previous if t in tasks]
+    new = [t for t in tasks if t not in previous]
+    if kept:
+        plan.append('沿用上一版的待验收草稿：' + '、'.join(kept))
+    if new:
+        plan.append('这次新加入：' + '、'.join(new))
+    gone_dev = [t for t in dict.fromkeys(previous + added) if t in in_dev]
+    if gone_dev:
+        plan.append('已经存进 dev，不再单独带上：' + '、'.join(gone_dev))
+    vanished = [t for t in previous if t in missing]
+    if vanished:
+        plan.append('分支已不存在（可能已收尾或放弃），不再带上：' + '、'.join(vanished))
+    gone = [t for t in previous if t in dropped]
+    if gone:
+        plan.append('按要求拿掉：' + '、'.join(gone))
+    return tasks, plan
+
+
 def render_notes(version, sha, dev_sha, tasks, ids, base, when):
     lines = ['OntoTwin 候选 {}（{}）· 验收版'.format(version.split('.')[1], version),
              '发布时间：' + when,
@@ -252,7 +287,8 @@ def prune_images():
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description='发布 5501 验收环境')
-    parser.add_argument('--task', action='append', default=[], help='要带上的待验收草稿编号，可重复，例如 --task NEW-11')
+    parser.add_argument('--task', action='append', default=[], help='新加入的待验收草稿编号，可重复，例如 --task NEW-11；上一版已带的草稿自动沿用')
+    parser.add_argument('--drop', action='append', default=[], help='从 5501 上拿掉的草稿编号，可重复')
     parser.add_argument('--dry-run', action='store_true', help='只组装并显示将要发布的内容，不打包、不切换')
     args = parser.parse_args(argv)
     try:
@@ -271,22 +307,31 @@ def main(argv=None):
     os.write(fd, str(os.getpid()).encode())
     os.close(fd)
     try:
-        tasks = [task_branch(t) for t in args.task]
         old = inspect('', CONTAINER)
         if not old or not old['State']['Running']:
             raise PublishError('5501 容器 {} 不在运行，先查明原因'.format(CONTAINER))
         tags = run('git', 'tag', '--list', 'rc.*', cwd=root).splitlines()
         version = 'rc.{}'.format(next_rc(tags))
+        previous = latest_rc_tag(tags)
+        previous_tasks = tasks_in_notes(run('git', 'tag', '--list', previous, '--format=%(contents)', cwd=root)) if previous else []
+        exists = lambda t: bool(run('git', 'rev-parse', '--verify', '--quiet', t, cwd=root, check=False))
+        missing = {t for t in previous_tasks if not exists(t)}
+        in_dev = {t for t in previous_tasks + [task_branch(x) for x in args.task]
+                  if t not in missing and exists(t)
+                  and not subprocess.run(['git', 'merge-base', '--is-ancestor', t, 'dev'], cwd=root).returncode}
+        tasks, plan = choose_tasks(previous_tasks, args.task, args.drop, in_dev, missing)
         wt, sha, warnings = assemble(root, tasks)
         dev_sha = run('git', 'rev-parse', 'dev', cwd=root)
-        base = latest_rc_tag(tags) or (old['Config'].get('Labels') or {}).get('org.opencontainers.image.revision')
-        if base and subprocess.run(['git', 'merge-base', '--is-ancestor', base, sha], cwd=root).returncode:
+        base = previous or (old['Config'].get('Labels') or {}).get('org.opencontainers.image.revision')
+        if base and not previous and subprocess.run(['git', 'merge-base', '--is-ancestor', base, sha], cwd=root).returncode:
             base = None
-        log = run('git', 'log', '--format=%s%n%b', '{}..{}'.format(base, sha) if base else sha, '-n', '400', cwd=root)
-        ids = collect_ids(log.splitlines() + tasks)
-        notes = render_notes(version, sha, dev_sha, tasks, ids, base and base[:12], datetime.now().strftime('%Y-%m-%d %H:%M'))
-        for w in warnings:
-            print('提醒：' + w)
+        # Merge commits only say which drafts were assembled; what is new is in the other commits.
+        log = run('git', 'log', '--no-merges', '--format=%s%n%b', '{}..{}'.format(base, sha) if base else sha, '-n', '400', cwd=root)
+        ids = collect_ids(log.splitlines() + [t for t in tasks if t not in previous_tasks])
+        notes = render_notes(version, sha, dev_sha, tasks, ids, base and (base if base.startswith('rc.') else base[:12]),
+                             datetime.now().strftime('%Y-%m-%d %H:%M'))
+        for line in plan + ['提醒：' + w for w in warnings]:
+            print(line)
         print(notes)
         if args.dry_run:
             print('（空跑：没有打包、没有切换 5501）')

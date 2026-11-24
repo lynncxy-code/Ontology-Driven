@@ -89,6 +89,8 @@ def main():
     subprocess.run(['docker','save','-o',str(output/'Runtime/images.tar'),*images.values()],check=True)
     for name, source in sources.items():
         copy_plugin(source, output/'Plugins'/name)
+    # Platform version beside the plugin, read by UE and reported to the backend (NEW-13).
+    write(output/'Plugins'/'OntoTwinSync'/'OntoTwinRelease.json', json.dumps({'release': release}) + '\n')
     for name in ('Backend.ps1','DockerCommand.ps1','Install-OntoTwinPlugin.ps1'):
         write(output/'Tools'/name,(TEMPLATES/name).read_text('utf-8'))
     shutil.copy2(TEMPLATES/'compose.yaml', output/'Runtime/compose.yaml')

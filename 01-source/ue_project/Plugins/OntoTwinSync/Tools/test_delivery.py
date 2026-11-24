@@ -278,5 +278,43 @@ class DeliveryTests(unittest.TestCase):
             d.inventory(content)
 
 
+class ReleaseComparisonTests(unittest.TestCase):
+    """NEW-13: the version window says plainly whether this plugin matches the backend."""
+
+    def plugin(self, temp, release=None):
+        root = Path(temp)
+        if release is not None:
+            (root / d.RELEASE_FILE).write_text(json.dumps({"release": release}), encoding="utf-8")
+        return root
+
+    def backend(self, version):
+        return lambda base, route, limit: json.dumps({"version": version}).encode("utf-8")
+
+    def test_same_and_different_versions(self):
+        with tempfile.TemporaryDirectory() as temp:
+            plugin = self.plugin(temp, "rc.25")
+            same = d.release_comparison(plugin, "http://127.0.0.1:5501", self.backend("rc.25"))
+            self.assertEqual(same, ["本插件：候选 25", "后台：候选 25（http://127.0.0.1:5501）", "结论：同一版"])
+            other = d.release_comparison(plugin, "http://127.0.0.1:5501", self.backend("2026.12.1"))
+            self.assertEqual(other[1], "后台：2026.12.1（http://127.0.0.1:5501）")
+            self.assertIn("不是同一版", other[2])
+
+    def test_unknown_plugin_unreachable_or_missing_backend(self):
+        with tempfile.TemporaryDirectory() as temp:
+            plugin = self.plugin(temp)
+            lines = d.release_comparison(plugin, "http://127.0.0.1:5501", self.backend("rc.25"))
+            self.assertEqual(lines[0], "本插件：版本未知（不是用安装包装的插件）")
+            self.assertEqual(len(lines), 2)
+
+            def down(base, route, limit):
+                raise OSError("refused")
+            self.assertEqual(d.release_comparison(plugin, "http://x:1", down)[1], "后台：连不上 http://x:1")
+            self.assertEqual(d.release_comparison(plugin, "")[1], "后台：当前关卡没有设置后台地址")
+
+    def test_broken_release_file_is_treated_as_unknown(self):
+        with tempfile.TemporaryDirectory() as temp:
+            (Path(temp) / d.RELEASE_FILE).write_text("{not json", encoding="utf-8")
+            self.assertEqual(d.installed_release(temp), "")
+
 if __name__ == "__main__":
     unittest.main()

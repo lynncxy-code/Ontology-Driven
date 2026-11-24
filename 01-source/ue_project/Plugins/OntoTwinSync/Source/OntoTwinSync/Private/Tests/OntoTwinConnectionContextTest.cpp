@@ -23,6 +23,10 @@ bool FOntoTwinConnectionContextTest::RunTest(const FString& Parameters)
     OntoTwinConnectionContext::Apply(Legacy, nullptr);
     TestEqual(TEXT("Unconfigured deployments keep existing protocol"),
         Legacy->GetHeader(TEXT("X-OntoTwin-Project-Id")), FString(TEXT("existing")));
+    // NEW-13: the installed platform version is reported even without an explicit project.
+    TestEqual(TEXT("Installed release is reported"),
+        Legacy->GetHeader(TEXT("X-OntoTwin-Plugin-Release")), OntoTwinInstalledRelease());
+    AddInfo(FString::Printf(TEXT("ONTOTWIN_INSTALLED_RELEASE=%s"), *OntoTwinInstalledRelease()));
 
     GConfig->SetString(Section, TEXT("ProjectId"), TEXT("ACCEPT48_connection"), GGameIni);
     UPackage* Package = CreatePackage(TEXT("/Game/ACCEPT48/UEDPIE_0_Office"));

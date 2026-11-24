@@ -135,6 +135,43 @@ def api_bytes(base, route, limit=MAX_PACKAGE):
     return data
 
 
+RELEASE_FILE = "OntoTwinRelease.json"
+
+
+def release_label(release):
+    """Same wording as the web: rc.25 -> 候选 25; 2026.12.1 stays as is."""
+    match = re.match(r"^rc\.(\d+)$", release or "")
+    return f"候选 {match.group(1)}" if match else (release or "")
+
+
+def installed_release(plugin):
+    """Platform version written beside the plugin by the installer (NEW-13)."""
+    path = Path(plugin) / RELEASE_FILE
+    try:
+        value = read_json(path).get("release", "") if path.is_file() else ""
+    except (OSError, ValueError):
+        value = ""
+    return value.strip()[:64] if isinstance(value, str) else ""
+
+
+def release_comparison(plugin, backend, fetch=None):
+    """Plain-language lines: this plugin, the backend, and whether they match."""
+    mine = installed_release(plugin)
+    lines = [f"本插件：{release_label(mine)}" if mine else "本插件：版本未知（不是用安装包装的插件）"]
+    theirs = ""
+    if backend:
+        try:
+            info = json.loads((fetch or api_bytes)(backend, "/release-info.json", 65536).decode("utf-8"))
+            theirs = str(info.get("version") or "").strip()
+            lines.append(f"后台：{release_label(theirs) or '版本未知'}（{backend}）")
+        except Exception:  # noqa: BLE001 - any failure means the backend could not be read
+            lines.append(f"后台：连不上 {backend}")
+    else:
+        lines.append("后台：当前关卡没有设置后台地址")
+    if mine and theirs:
+        lines.append("结论：同一版" if mine == theirs else "结论：不是同一版，请用同一版本的安装包重新安装插件")
+    return lines
+
 def datasets(base):
     records = json.loads(api_bytes(base, "/api/v2/ontology/datasets", 4 * 1024 * 1024))
     if not isinstance(records, list):
@@ -550,7 +587,8 @@ def launch_version_gui(context):
     def check():
         def work():
             r = version_report(context, mother.get().strip() or None); c = r["current"]
-            events.put(("log", f"当前插件：{c['version']}\n最后更新：{c['last_updated']}\n运行状态：{r['runtime_status']}\n插件来源：{'共享母本' if c['shared'] else '独立副本'}\n源码编号：{c['source_hash'][:12]}\n资源编号：{c['resource_hash'][:12]}\n母本状态：{r['mother_status']}"))
+            events.put(("log", "\n".join(release_comparison(context["plugin"], context.get("backend", "")))))
+            events.put(("log", f"插件文件最后更新：{c['last_updated']}\n运行状态：{r['runtime_status']}\n插件来源：{'共享母本' if c['shared'] else '独立副本'}\n源码编号：{c['source_hash'][:12]}\n资源编号：{c['resource_hash'][:12]}\n母本状态：{r['mother_status']}"))
             if r["mother"]:
                 events.put(("log", f"本机母本最后更新：{r['mother']['last_updated']}"))
         run(work)

@@ -278,11 +278,17 @@ def _bind_explicit_v2_project():
     # used by unit fixtures, but a live PG request must never become anonymous
     # merely because it used a legacy /api/v2 route.  UE calls are identified
     # separately and still require the explicit project/scene binding checks.
-    if os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() == "pg" and not session_cookie and not ue_id:
-        return jsonify({
-            "error": "auth_required",
-            "message": "4.8 业务请求必须先登录",
-        }), 401
+    if os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() == "pg":
+        if request.path.startswith("/api/v2/trash") and not session_cookie:
+            return jsonify({
+                "error": "auth_required",
+                "message": "请先登录",
+            }), 401
+        if not session_cookie and not ue_id:
+            return jsonify({
+                "error": "auth_required",
+                "message": "4.8 业务请求必须先登录",
+            }), 401
     if os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() == "pg" and session_cookie:
         try:
             validate_legacy_browser_session(ignore_project=request.path.startswith("/api/v2/trash"))
@@ -6153,13 +6159,35 @@ except Exception as _e:
     print(f"[trash] 启动清理失败: {_e}")
 
 
+def _resolve_trash_scope():
+    """解析回收站权限范围；返回 (scope, error_response)。
+
+    PG 运行时一旦缺少有效用户会话或组织／工厂权限，立即返回拒绝响应，绝不退回全局范围。
+    """
+    pg_mode = os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() == "pg"
+    try:
+        scope = current_trash_scope()
+    except ApiError as exc:
+        payload = {"error": exc.code, "message": exc.message}
+        payload.update(exc.extra)
+        return None, (jsonify(payload), exc.status)
+    except Exception as exc:
+        print(f"[trash] scope check failed: {exc}")
+        return None, (jsonify({"error": "storage_unavailable", "message": "无法核验回收站权限"}), 503)
+    if pg_mode and scope is None:
+        return None, (jsonify({"error": "auth_required", "message": "请先登录"}), 401)
+    return scope, None
+
+
 @app.route('/api/v2/trash', methods=['GET'])
 def trash_list():
     """列出回收站条目。
     - 文件后端：来自 data/trash 快照
     - PG 后端：来自 project/instance 表的 deleted_at IS NOT NULL 记录"""
+    scope, denied = _resolve_trash_scope()
+    if denied:
+        return denied
     items = project_store.list_trash()
-    scope = current_trash_scope()
     if scope is not None:
         # 只列当前组织／工厂里本人有权看到的条目（OPT-08）。
         items = [item for item in items if scope.can_view(item)]
@@ -6173,7 +6201,9 @@ def _is_foreign_key_block(exc):
 
 def _trash_item_for_change(trash_id):
     """会话下核对回收站条目归属与权限；返回 (错误响应, scope, item)。"""
-    scope = current_trash_scope()
+    scope, denied = _resolve_trash_scope()
+    if denied:
+        return denied, None, None
     if scope is None:
         return None, None, None
     item = next((x for x in project_store.list_trash() if x.get("id") == trash_id), None)
@@ -6188,7 +6218,9 @@ def _trash_item_for_change(trash_id):
 @app.route('/api/v2/trash/purge', methods=['POST'])
 def trash_purge():
     """一键清空回收站，永久删除。"""
-    scope = current_trash_scope()
+    scope, denied = _resolve_trash_scope()
+    if denied:
+        return denied
     if scope is None:
         n = project_store.purge_trash()
         return jsonify({"status": "ok", "purged": n})

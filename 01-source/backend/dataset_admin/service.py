@@ -259,12 +259,7 @@ class TrashScope:
         return item.get("project_id") in self.editable
 
 
-def trash_scope(cur, user_id, org_id, factory_id):
-    if not org_id or not factory_id:
-        return TrashScope()
-    allowed, role = tenant._factory_allowed(cur, user_id, org_id, factory_id)
-    if not allowed:
-        return TrashScope()
+def _build_trash_scope(cur, user_id, org_id, factory_id, role):
     scope = TrashScope(
         is_admin=(role == "admin"),
         user_id=user_id,
@@ -288,3 +283,22 @@ def trash_scope(cur, user_id, org_id, factory_id):
             if tenant._project_allowed(cur, user_id, pid, minimum="edit"):
                 scope.editable.add(pid)
     return scope
+
+
+def trash_scope(cur, user_id, org_id, factory_id):
+    if not org_id or not factory_id:
+        return TrashScope()
+    allowed, role = tenant._factory_allowed(cur, user_id, org_id, factory_id)
+    if not allowed:
+        return TrashScope()
+    return _build_trash_scope(cur, user_id, org_id, factory_id, role)
+
+
+def require_trash_scope(cur, user_id, org_id, factory_id):
+    """严格核验当前组织与工厂权限；无法确认权限时直接拒绝。"""
+    if not org_id or not factory_id:
+        raise ApiError(400, "请先选择组织和工厂", "context_required")
+    allowed, role = tenant._factory_allowed(cur, user_id, org_id, factory_id)
+    if not allowed:
+        raise ApiError(403, "无权访问该组织或工厂的回收站", "forbidden")
+    return _build_trash_scope(cur, user_id, org_id, factory_id, role)

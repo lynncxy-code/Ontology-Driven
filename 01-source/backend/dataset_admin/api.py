@@ -21,22 +21,28 @@ def _package_error(exc):
 
 
 def current_trash_scope():
-    """返回当前请求的回收站范围；旧 JSON 部署或未登录时返回 ``None``（不限制）。"""
-    if os.environ.get("ONTOTWIN_STORE", "pg").lower() != "pg":
-        return None
-    token = request.cookies.get(tenant.SESSION_COOKIE) or request.headers.get("X-OntoTwin-Session")
-    if not token:
+    """返回当前请求的回收站范围。
+
+    仅显式 JSON 测试模式（ONTOTWIN_STORE != 'pg'）返回 ``None``；
+    PG 运行时强制核验登录会话及当前组织／工厂权限，缺失或越权直接抛 ``ApiError``，
+    绝不退回全局范围。
+    """
+    if os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() != "pg":
         return None
     with pg.get_conn() as conn:
         with conn.cursor() as cur:
-            session = tenant._load_session(cur, ignore_project=True)
-            return service.trash_scope(cur, session["user_id"],
-                                       session.get("organization_id"), session.get("factory_id"))
+            session = tenant._load_session(cur, required=True, ignore_project=True)
+            return service.require_trash_scope(
+                cur,
+                session["user_id"],
+                session.get("organization_id"),
+                session.get("factory_id"),
+            )
 
 
 def current_factory_dataset_names():
     """返回当前会话所属工厂下的数据集名称列表；非 PG 或无工厂上下文时返回 ``None``。"""
-    if os.environ.get("ONTOTWIN_STORE", "pg").lower() != "pg":
+    if os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() != "pg":
         return None
     try:
         token = request.cookies.get(tenant.SESSION_COOKIE) or request.headers.get("X-OntoTwin-Session")
@@ -62,7 +68,7 @@ def current_factory_dataset_names():
 
 def check_trashed_binding_conflict(trash_id):
     """恢复已删数据集前检查其原关卡是否已被其他数据集占用。"""
-    if os.environ.get("ONTOTWIN_STORE", "pg").lower() != "pg":
+    if os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() != "pg":
         return False
     text = str(trash_id or "")
     if not text.startswith("pg:prj:"):
@@ -89,7 +95,7 @@ def cleanup_deleted_project_trash(trash_id, package_service, scope=None, item_na
             shutil.rmtree(package_service._backup_dir(pid), ignore_errors=True)
         except Exception:
             pass
-    if os.environ.get("ONTOTWIN_STORE", "pg").lower() == "pg" and scope and scope.user_id and scope.organization_id:
+    if os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() == "pg" and scope and scope.user_id and scope.organization_id:
         try:
             with pg.get_conn() as conn:
                 with conn.transaction():
@@ -188,14 +194,11 @@ def register_dataset_admin_routes(app, project_store, package_service,
             name = package_service._suggest_name(source["name"], existing)
         missing = []
         try:
-            try:
-                data, _, _ = package_service.export_package(project_id)
-            except DatasetPackageError as exc:
-                if exc.code != "attachments_missing":
-                    raise
-                # 附件文件已丢失时仍复制数据本身，并告诉用户缺了哪些附件。
-                missing = (exc.details or {}).get("missing") or []
-                data, _, _ = package_service.export_package(project_id, data_only=True)
+            # 某张底图或附件缺失时，保留其余完好附件一并复制，并把缺失项如实告知用户。
+            data, _, manifest = package_service.export_package(
+                project_id, allow_missing_attachments=True
+            )
+            missing = list(manifest.get("missing_attachments") or [])
             # 归属由下面的 assign_copy 按源数据集明确写入；导入包自带的
             # 「按请求头归属」钩子在这里关掉（它要求工厂成员身份，组织管理员
             # 不一定是成员），重名检查也切到本工厂数据库名单。

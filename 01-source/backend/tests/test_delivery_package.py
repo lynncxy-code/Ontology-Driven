@@ -91,6 +91,21 @@ class DeliveryTests(unittest.TestCase):
         package = self.exporter.export_package('source', data_only=True)[0]
         self.assertEqual('data_only',self.importer.preflight(package)['attachments']['mode'])
 
+    def test_partial_attachment_copy_keeps_intact_floorplans_when_another_is_missing(self):
+        p = self.source.read_project('source')
+        p['frames'].append({'id':'frame-two', 'kind':'image', 'image':{'storage_name':'missing_plan.png'}, 'to_ue':{'matrix':[[1,0,0],[0,1,0],[0,0,1]]}})
+        self.source.write_project('source', p)
+        with self.assertRaises(DatasetPackageError):
+            self.exporter.export_package('source')
+        package, _, manifest = self.exporter.export_package('source', allow_missing_attachments=True)
+        self.assertEqual(['spatial_frames/missing_plan.png'], manifest['missing_attachments'])
+        self.assertEqual('partial_assets', manifest['delivery_mode'])
+        copied = self.importer.import_delivery(package, 'PartialCopy', origin='http://new-host:5000')
+        pid = copied['project_id']
+        self.assertEqual(b'fixture-png', (self.dst_assets/pid/'spatial_frames/plan.png').read_bytes())
+        self.assertFalse((self.dst_assets/pid/'spatial_frames/missing_plan.png').exists())
+        self.assertTrue((self.dst_assets/pid/'web/monitor.html').exists())
+
     def test_stale_preview_and_unconfirmed_stop_rejected(self):
         with self.assertRaises(DatasetPackageError):
             self.importer.import_delivery(self.package,target_id='target',expected='stale',stopped=True)

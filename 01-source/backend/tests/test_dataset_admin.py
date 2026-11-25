@@ -314,3 +314,56 @@ def test_permanent_delete_cleans_project_assets_and_backups(tmp_path):
     cleanup_deleted_project_trash("pg:prj:p_gone", fake_pkg)
     assert not (asset_root / "p_gone").exists()
     assert not backup_root.exists()
+
+
+def test_require_trash_scope_rejects_missing_context_and_disallowed_factory():
+    with pytest.raises(tenant.ApiError) as err:
+        service.require_trash_scope(MagicMock(), "u", None, "fac")
+    assert err.value.status == 400 and err.value.code == "context_required"
+    with patch.object(tenant, "_factory_allowed", return_value=(False, None)):
+        with pytest.raises(tenant.ApiError) as err2:
+            service.require_trash_scope(MagicMock(), "u", "org", "fac")
+    assert err2.value.status == 403 and err2.value.code == "forbidden"
+
+
+def test_trash_pg_rejects_missing_or_ue_only_session_across_all_routes(scoped_client, monkeypatch):
+    import app as app_module
+    client, holder, calls = scoped_client
+    monkeypatch.setenv("ONTOTWIN_STORE", "pg")
+    holder["scope"] = None
+    monkeypatch.setattr(app_module.project_store, "purge_trash", lambda: (_ for _ in ()).throw(AssertionError("must not purge")), raising=False)
+    for hdrs in ({}, {"X-OntoTwin-UE-Project-Id": "ue_plant_01"}):
+        assert client.get("/api/v2/trash", headers=hdrs).status_code == 401
+        assert client.post("/api/v2/trash/purge", headers=hdrs).status_code == 401
+        assert client.delete("/api/v2/trash/pg:prj:p_own_deleted", headers=hdrs).status_code == 401
+        assert client.post("/api/v2/trash/pg:prj:p_own_deleted/restore", headers=hdrs).status_code == 401
+    assert calls == {"restore": [], "delete": []}
+
+
+def test_trash_pg_rejects_when_context_or_permission_unconfirmed(scoped_client, monkeypatch):
+    import app as app_module
+    client, holder, calls = scoped_client
+    monkeypatch.setenv("ONTOTWIN_STORE", "pg")
+    monkeypatch.setattr(app_module, "validate_legacy_browser_session", lambda ignore_project=False: {"ok": True})
+    monkeypatch.setattr(app_module.project_store, "purge_trash", lambda: (_ for _ in ()).throw(AssertionError("must not purge")), raising=False)
+
+    # Even if current_trash_scope somehow returned None in PG mode, all four endpoints must refuse (401).
+    holder["scope"] = None
+    headers = {"X-OntoTwin-Session": "tok"}
+    assert client.get("/api/v2/trash", headers=headers).status_code == 401
+    assert client.post("/api/v2/trash/purge", headers=headers).status_code == 401
+    assert client.delete("/api/v2/trash/pg:inst:p_live:I1", headers=headers).status_code == 401
+    assert client.post("/api/v2/trash/pg:inst:p_live:I1/restore", headers=headers).status_code == 401
+
+    # When current_trash_scope raises context_required (400) or forbidden (403), all four endpoints propagate refusal.
+    for code, status in (("context_required", 400), ("forbidden", 403)):
+        monkeypatch.setattr(
+            app_module,
+            "current_trash_scope",
+            lambda s=status, c=code: (_ for _ in ()).throw(tenant.ApiError(s, "拒绝", c)),
+        )
+        assert client.get("/api/v2/trash", headers=headers).status_code == status
+        assert client.post("/api/v2/trash/purge", headers=headers).status_code == status
+        assert client.delete("/api/v2/trash/pg:inst:p_live:I1", headers=headers).status_code == status
+        assert client.post("/api/v2/trash/pg:inst:p_live:I1/restore", headers=headers).status_code == status
+    assert calls == {"restore": [], "delete": []}

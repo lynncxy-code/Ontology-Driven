@@ -17,7 +17,7 @@ import time
 import uuid
 import zipfile
 from . import attachments
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 
 from dataset_activation import project_dataset_to_object_types
 from project_store import (
@@ -499,18 +499,26 @@ class DatasetPackageService:
             "attachments": {"count": len(files), "size_bytes": sum(map(len, files.values())), "missing": missing},
         }
 
-    def export_package(self, dataset_id, data_only=False):
+    def export_package(self, dataset_id, data_only=False, allow_missing_attachments=False):
         project, source_ue, removed = self._sanitized_export(dataset_id)
         payload = _canonical_json(project)
         manifest = self._manifest(project, source_ue, removed, payload)
         files, missing, urls = self._collect_delivery(project)
-        if missing and not data_only:
+        if missing and not data_only and not allow_missing_attachments:
             raise DatasetPackageError("attachments_missing", "项目附件缺失，请补齐或明确选择仅数据包", 422, {"missing": missing})
         if data_only:
             files = {}
-        manifest['delivery_mode'] = 'data_only' if data_only else 'project_assets'
+            urls = []
+        elif missing:
+            urls = [
+                u for u in urls
+                if 'attachments/web/' + attachments.safe_relative(unquote(urlsplit(u).path).lstrip('/')) in files
+            ]
+        manifest['delivery_mode'] = (
+            'data_only' if data_only else ('partial_assets' if missing else 'project_assets')
+        )
         manifest['attachments'] = attachments.manifest_for(files)
-        manifest['local_web_urls'] = urls if not data_only else []
+        manifest['local_web_urls'] = urls
         manifest['missing_attachments'] = missing
         if len(payload) + sum(map(len, files.values())) > MAX_UNCOMPRESSED_BYTES - 1024 * 1024:
             raise DatasetPackageError('package_too_large', '数据与附件超过 64 MB 限制', 413)
@@ -597,6 +605,18 @@ class DatasetPackageService:
                     required = {'attachments/' + path for path in attachments.referenced_files(project)}
                     if not required.issubset(set(archive.namelist())):
                         raise ValueError('完整交付包缺少项目引用的附件')
+                elif manifest.get('delivery_mode') == 'partial_assets':
+                    missing_set = {
+                        attachments.safe_relative(path)
+                        for path in (manifest.get('missing_attachments') or [])
+                    }
+                    required = {
+                        'attachments/' + path
+                        for path in attachments.referenced_files(project)
+                        if path not in missing_set
+                    }
+                    if not required.issubset(set(archive.namelist())):
+                        raise ValueError('部分附件包缺少未声明丢失的附件')
         except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile) as exc:
             raise DatasetPackageError('attachment_integrity_failed', str(exc), 422) from exc
         return manifest, project

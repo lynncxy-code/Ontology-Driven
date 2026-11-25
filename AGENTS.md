@@ -35,7 +35,7 @@ OntoTwin Nexus 是本体驱动的工业数字孪生平台，已经交付给客�
 
 - **主文件夹** `D:\tmp\digital_twin_aircraft` 固定放 dev。不在这里直接改，也不切换它的分支、不丢弃里面的改动，免得几个 AI 互相覆盖。
 - **任务草稿**放在 `D:\tmp\digital_twin_aircraft\.worktrees\<编号>`，分支 `task/<编号>`，从最新的 dev 建立。草稿只放这里，这样产品和其他 AI 随时找得到，收尾时也删得干净。
-- **台账** `D:\tmp\digital_twin_aircraft\OntoTwin 修改台账.html` 是全项目唯一的进度记录，只存在于本机。开工前先读，填写规则见文件顶部注释。
+- **台账** `D:\tmp\digital_twin_aircraft\OntoTwin 修改台账.html` 是全项目唯一的进度记录，只存在于本机。开工前先读，填写规则见文件顶部注释。只登记会进平台 dev 的修改；客户项目的交付（记在客户自己的项目文件夹里）和方案评审（结论作为文档存进 dev）都不登记。
 
 ### 一条修改怎么走
 

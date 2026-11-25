@@ -103,6 +103,67 @@ def test_binding_cache_keeps_only_successful_checks():
     assert len(calls) == 4
 
 
+def test_unbind_during_a_running_binding_check_is_not_overwritten():
+    """Reviewer case: an unbind clears the cache while a check is in flight."""
+    import threading
+
+    cache = prc.UEBindingCheckCache(ttl=30)
+    bound = {"value": True}
+    check_started = threading.Event()
+    unbind_done = threading.Event()
+    calls = []
+
+    def slow_check(pid, ue, scene):
+        calls.append(pid)
+        result = bound["value"]          # reads the binding before the unbind commits
+        if len(calls) == 1:
+            check_started.set()
+            assert unbind_done.wait(5)
+        return result
+
+    def unbind():
+        assert check_started.wait(5)
+        bound["value"] = False           # unbind commits ...
+        cache.invalidate_all()           # ... and the request drops the cache
+        unbind_done.set()
+
+    worker = threading.Thread(target=unbind)
+    worker.start()
+    assert cache.allowed(slow_check, "p1", "ue", "/Game/A") is True   # in-flight answer
+    worker.join(5)
+
+    # The stale "allowed" must not have been remembered: the next request re-checks.
+    assert cache.allowed(slow_check, "p1", "ue", "/Game/A") is False
+    assert len(calls) == 2
+
+
+def test_unbound_scene_is_refused_through_the_service_after_concurrent_unbind():
+    import threading
+
+    service = prc.ProjectReadCacheService(object(), enabled=True, log=None)
+    bound = {"value": True}
+    started, released = threading.Event(), threading.Event()
+
+    def check(pid, ue, scene):
+        result = bound["value"]
+        if not started.is_set():
+            started.set()
+            released.wait(5)
+        return result
+
+    def unbind_request():
+        started.wait(5)
+        bound["value"] = False
+        service.after_request_finished("POST", "/api/v4.8/ue/scene-bindings/unbind")
+        released.set()
+
+    worker = threading.Thread(target=unbind_request)
+    worker.start()
+    service.ue_allowed(check, "p1", "ue", "/Game/A")
+    worker.join(5)
+    assert service.ue_allowed(check, "p1", "ue", "/Game/A") is False
+
+
 # ── write hooks ────────────────────────────────────────────────────
 
 

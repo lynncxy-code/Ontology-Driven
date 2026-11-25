@@ -223,6 +223,7 @@ class UEBindingCheckCache:
         self._clock = clock
         self._lock = threading.Lock()
         self._allowed = {}
+        self._epoch = 0
 
     def allowed(self, check, project_id, ue_project_id, scene_id=""):
         key = (str(project_id or ""), str(ue_project_id or ""), str(scene_id or ""))
@@ -231,14 +232,20 @@ class UEBindingCheckCache:
             expires = self._allowed.get(key)
             if expires is not None and expires > now:
                 return True
+            epoch = self._epoch
         ok = bool(check(project_id, ue_project_id, scene_id))
         if ok:
             with self._lock:
-                self._allowed[key] = now + self.ttl
+                # An unbind (or any other write) that cleared the cache while
+                # this check was running may have made ``ok`` stale: answer this
+                # one request, but do not remember it.
+                if self._epoch == epoch:
+                    self._allowed[key] = now + self.ttl
         return ok
 
     def invalidate_all(self):
         with self._lock:
+            self._epoch += 1
             self._allowed.clear()
 
 

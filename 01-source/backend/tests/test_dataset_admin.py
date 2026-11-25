@@ -255,3 +255,62 @@ def test_blocked_permanent_delete_returns_409_and_purge_skips(scoped_client, mon
     assert r.status_code == 409 and r.get_json()["error"] == "trash_delete_blocked"
     body = client.post("/api/v2/trash/purge").get_json()
     assert body["purged"] == 0 and body["skipped"] == 3
+
+
+def test_delete_rejects_online_bound_ue_scene():
+    cur = MagicMock()
+    cur.fetchone.return_value = ("org", "fac", "数据集A", True)
+    cur.fetchall.return_value = [("ue_plant", "/Game/Maps/Main")]
+    with patch.object(tenant, "_project_allowed", return_value={"role": "admin"}), \
+         patch.object(tenant, "_org_role", return_value="admin"), \
+         patch.object(tenant, "_factory_allowed", return_value=(True, "admin")), \
+         patch("ue_project_binding.ue_scene_online", return_value=True):
+        with pytest.raises(tenant.ApiError) as err:
+            service.require_delete(cur, "u", "p1")
+    assert err.value.status == 409 and err.value.code == "ue_still_online"
+
+
+def test_assign_copy_rejects_same_factory_duplicate_name():
+    cur = MagicMock()
+    cur.fetchone.return_value = (1,)
+    with pytest.raises(tenant.ApiError) as err:
+        service.assign_copy(cur, "u", {"organization_id": "org", "factory_id": "fac"}, "p_new", name="重名集")
+    assert err.value.status == 409 and err.value.code == "dataset_name_conflict"
+
+
+def test_trashed_binding_conflict_detection():
+    cur = MagicMock()
+    cur.fetchone.side_effect = [("ue1", "sc1"), (1,)]
+    assert service.trashed_binding_has_conflict(cur, "p1") is True
+    cur2 = MagicMock()
+    cur2.fetchone.side_effect = [("ue1", "sc1"), None]
+    assert service.trashed_binding_has_conflict(cur2, "p1") is False
+
+
+def test_trash_routes_ignore_explicit_project_header(scoped_client, monkeypatch):
+    import app as app_module
+    client, _, calls = scoped_client
+    monkeypatch.setenv("ONTOTWIN_STORE", "pg")
+    monkeypatch.setattr(app_module, "validate_legacy_browser_session", lambda ignore_project=False: {"ok": ignore_project})
+    r = client.post(
+        "/api/v2/trash/pg:inst:p_live:I1/restore",
+        headers={"X-OntoTwin-Session": "tok", "X-OntoTwin-Project-Id": "p_deleted_or_readonly"},
+    )
+    assert r.status_code == 200
+    assert calls["restore"] == ["pg:inst:p_live:I1"]
+
+
+def test_permanent_delete_cleans_project_assets_and_backups(tmp_path):
+    from dataset_admin.api import cleanup_deleted_project_trash
+    asset_root = tmp_path / "project_assets"
+    backup_root = tmp_path / "delivery_backups" / "p_gone"
+    (asset_root / "p_gone" / "web").mkdir(parents=True)
+    (asset_root / "p_gone" / "web" / "index.html").write_text("x", encoding="utf-8")
+    backup_root.mkdir(parents=True)
+    (backup_root / "latest.json").write_text("{}", encoding="utf-8")
+    fake_pkg = MagicMock()
+    fake_pkg.asset_root = str(asset_root)
+    fake_pkg._backup_dir.side_effect = lambda pid: tmp_path / "delivery_backups" / pid
+    cleanup_deleted_project_trash("pg:prj:p_gone", fake_pkg)
+    assert not (asset_root / "p_gone").exists()
+    assert not backup_root.exists()

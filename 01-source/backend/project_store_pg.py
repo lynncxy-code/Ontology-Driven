@@ -666,16 +666,56 @@ class ProjectStorePG(ProjectStore):
             # 兜底：走文件 trash（PG 一般不产生，容错）
             return super().restore_trash(tid)
         if kind == "project":
+            pid = data["pid"]
             with pg.get_conn() as conn:
-                with conn.cursor() as cur:
-                    _guard_project_mutation(cur, data["pid"])
-                    cur.execute(
-                        "UPDATE project SET deleted_at = NULL WHERE id = %s AND deleted_at IS NOT NULL RETURNING id",
-                        (data["pid"],),
-                    )
-                    if cur.fetchone() is None:
-                        raise ValueError("not_found")
-            return "project", data["pid"]
+                with conn.transaction():
+                    with conn.cursor() as cur:
+                        _guard_project_mutation(cur, pid)
+                        cur.execute(
+                            "UPDATE project SET deleted_at = NULL WHERE id = %s AND deleted_at IS NOT NULL RETURNING id",
+                            (pid,),
+                        )
+                        if cur.fetchone() is None:
+                            raise ValueError("not_found")
+                        cur.execute(
+                            """SELECT binding_id, ue_project_id, scene_id
+                                 FROM project_scene_binding
+                                WHERE project_id = %s AND status = 'trashed'
+                                ORDER BY updated_at DESC LIMIT 1 FOR UPDATE""",
+                            (pid,),
+                        )
+                        trashed_binding = cur.fetchone()
+                        if trashed_binding:
+                            binding_id, ue_project_id, scene_id = trashed_binding
+                            cur.execute(
+                                """SELECT 1 FROM project_scene_binding
+                                    WHERE ue_project_id = %s AND scene_id = %s AND status = 'active'
+                                    FOR UPDATE""",
+                                (ue_project_id, scene_id),
+                            )
+                            if cur.fetchone() is None:
+                                cur.execute(
+                                    """UPDATE project_scene_binding
+                                          SET status = 'active', updated_at = now(), revision = revision + 1
+                                        WHERE binding_id = %s""",
+                                    (binding_id,),
+                                )
+                            else:
+                                cur.execute(
+                                    """UPDATE project_scene_binding
+                                          SET status = 'replaced', updated_at = now()
+                                        WHERE binding_id = %s""",
+                                    (binding_id,),
+                                )
+                                cur.execute(
+                                    """UPDATE project
+                                          SET dataset = jsonb_set(
+                                                  jsonb_set(dataset, '{bound_ue_project_id}', '""'::jsonb),
+                                                  '{bound_ue_project_name}', '""'::jsonb)
+                                        WHERE id = %s AND jsonb_typeof(dataset) = 'object'""",
+                                    (pid,),
+                                )
+            return "project", pid
         if kind == "instance":
             pid, iid = data["pid"], data["iid"]
             with pg.get_conn() as conn:
@@ -719,14 +759,32 @@ class ProjectStorePG(ProjectStore):
         if kind is None:
             return super().delete_trash(tid)
         if kind == "project":
+            pid = data["pid"]
             with pg.get_conn() as conn:
-                with conn.cursor() as cur:
-                    _guard_project_mutation(cur, data["pid"])
-                    cur.execute(
-                        "DELETE FROM project WHERE id = %s AND deleted_at IS NOT NULL RETURNING id",
-                        (data["pid"],),
-                    )
-                    return cur.fetchone() is not None
+                with conn.transaction():
+                    with conn.cursor() as cur:
+                        _guard_project_mutation(cur, pid)
+                        cur.execute(
+                            "SELECT id FROM project WHERE id = %s AND deleted_at IS NOT NULL FOR UPDATE",
+                            (pid,),
+                        )
+                        if cur.fetchone() is None:
+                            return False
+                        cur.execute("UPDATE user_session SET current_project_id = NULL WHERE current_project_id = %s", (pid,))
+                        cur.execute("UPDATE ue_connection SET project_id = NULL WHERE project_id = %s", (pid,))
+                        cur.execute(
+                            """UPDATE audit_event
+                                  SET detail = jsonb_set(COALESCE(detail, '{}'::jsonb), '{deleted_project_id}', to_jsonb(project_id)),
+                                      project_id = NULL
+                                WHERE project_id = %s""",
+                            (pid,),
+                        )
+                        cur.execute("DELETE FROM trash_item WHERE project_id = %s", (pid,))
+                        cur.execute(
+                            "DELETE FROM project WHERE id = %s AND deleted_at IS NOT NULL RETURNING id",
+                            (pid,),
+                        )
+                        return cur.fetchone() is not None
         if kind == "instance":
             pid, iid = data["pid"], data["iid"]
             with pg.get_conn() as conn:
@@ -756,14 +814,28 @@ class ProjectStorePG(ProjectStore):
     def purge_trash(self):
         n = 0
         with pg.get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT DISTINCT p.id FROM project p LEFT JOIN instance i ON i.project_id=p.id WHERE p.deleted_at IS NOT NULL OR i.deleted_at IS NOT NULL")
-                for (pid,) in cur.fetchall():
-                    _guard_project_mutation(cur, pid)
-                cur.execute("DELETE FROM instance WHERE deleted_at IS NOT NULL")
-                n += cur.rowcount or 0
-                cur.execute("DELETE FROM project WHERE deleted_at IS NOT NULL")
-                n += cur.rowcount or 0
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute("SELECT DISTINCT p.id FROM project p LEFT JOIN instance i ON i.project_id=p.id WHERE p.deleted_at IS NOT NULL OR i.deleted_at IS NOT NULL")
+                    for (pid,) in cur.fetchall():
+                        _guard_project_mutation(cur, pid)
+                    cur.execute("DELETE FROM instance WHERE deleted_at IS NOT NULL")
+                    n += cur.rowcount or 0
+                    cur.execute("SELECT id FROM project WHERE deleted_at IS NOT NULL FOR UPDATE")
+                    deleted_pids = [r[0] for r in cur.fetchall()]
+                    if deleted_pids:
+                        cur.execute("UPDATE user_session SET current_project_id = NULL WHERE current_project_id = ANY(%s)", (deleted_pids,))
+                        cur.execute("UPDATE ue_connection SET project_id = NULL WHERE project_id = ANY(%s)", (deleted_pids,))
+                        cur.execute(
+                            """UPDATE audit_event
+                                  SET detail = jsonb_set(COALESCE(detail, '{}'::jsonb), '{deleted_project_id}', to_jsonb(project_id)),
+                                      project_id = NULL
+                                WHERE project_id = ANY(%s)""",
+                            (deleted_pids,),
+                        )
+                        cur.execute("DELETE FROM trash_item WHERE project_id = ANY(%s)", (deleted_pids,))
+                    cur.execute("DELETE FROM project WHERE deleted_at IS NOT NULL")
+                    n += cur.rowcount or 0
         return n
 
     def mint_instances(self, dry_run=False, expected_project_id=None):
@@ -858,16 +930,23 @@ class ProjectStorePG(ProjectStore):
     def delete_project(self, pid):
         with self._lock:
             with pg.get_conn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT 1 FROM project WHERE id = %s AND deleted_at IS NULL", (pid,)
-                    )
-                    existed = cur.fetchone() is not None
-                    if existed:
-                        _guard_project_mutation(cur, pid)
+                with conn.transaction():
+                    with conn.cursor() as cur:
                         cur.execute(
-                            "UPDATE project SET deleted_at = now() WHERE id = %s", (pid,)
+                            "SELECT 1 FROM project WHERE id = %s AND deleted_at IS NULL FOR UPDATE", (pid,)
                         )
+                        existed = cur.fetchone() is not None
+                        if existed:
+                            _guard_project_mutation(cur, pid)
+                            cur.execute(
+                                "UPDATE project SET deleted_at = now() WHERE id = %s", (pid,)
+                            )
+                            cur.execute(
+                                """UPDATE project_scene_binding
+                                      SET status = 'trashed', updated_at = now()
+                                    WHERE project_id = %s AND status = 'active'""",
+                                (pid,),
+                            )
             if self._active_id == pid:
                 self._active_id = None
                 self._current = None

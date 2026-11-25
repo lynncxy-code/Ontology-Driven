@@ -35,7 +35,7 @@ test('project cards escape names and show binding, live state and this tab selec
   const r=runtime([{project_id:'web-project',name:'<img onerror=x>',ue_project_name:'Plant',scene_name:'Level A',ue_online:true,type_count:2,instance_count:3}]);
   await r.loadProjects();
   const rendered=r.elements['#projects'].innerHTML;
-  for(const value of ['&lt;img onerror=x&gt;','已绑定 Plant / Level A','关卡在线','当前项目','关卡绑定','导出','回退','进入项目']) assert.ok(rendered.includes(value),value);
+  for(const value of ['&lt;img onerror=x&gt;','已绑定 Plant / Level A','关卡在线','当前项目','关卡绑定','导出','进入项目','更多操作：&lt;img onerror=x&gt;']) assert.ok(rendered.includes(value),value);
   assert.ok(!rendered.includes('<img'));
 });
 test('entering a dataset changes only the browser context', async () => {
@@ -45,12 +45,14 @@ test('entering a dataset changes only the browser context', async () => {
   assert.equal(JSON.parse(r.calls[0][1].body).project_id,'chosen');
   assert.equal(r.location.href,'/nexus?nexus=true');
 });
-test('periodic refresh catches errors, retries and avoids hidden or modal pages', async () => {
+test('periodic refresh catches errors, retries and avoids hidden, modal or menu-open pages', async () => {
   const r=runtime();
   r.api=async()=>{throw Error('offline')};
   await r.refreshProjects(); assert.match(r.elements['#error'].textContent,/offline/);
   let count=0; r.api=async()=>{count++;return {items:[]}};
   await r.refreshProjects(); assert.equal(count,1); assert.equal(r.elements['#error'].textContent,'');
-  r.document.hidden=true; await r.refreshProjects(); assert.equal(count,1);
-  r.document.hidden=false; r.document.querySelector=()=>({}); await r.refreshProjects(); assert.equal(count,1);
+  r.elements['#moreMenu']={hidden:false}; await r.refreshProjects(); assert.equal(count,1);
+  r.elements['#moreMenu']={hidden:true}; await r.refreshProjects(); assert.equal(count,2);
+  r.document.hidden=true; await r.refreshProjects(); assert.equal(count,2);
+  r.document.hidden=false; r.document.querySelector=()=>({}); await r.refreshProjects(); assert.equal(count,2);
 });

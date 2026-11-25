@@ -15,8 +15,25 @@ from . import attachments
 from .service import DatasetPackageService, DatasetPackageError, _canonical_json, _summary
 
 
+_RUNTIME_INSTANCE_KEYS = ('last_seen', 'last_seen_at', 'status')
+
+
+def _fingerprint_view(project):
+    if not isinstance(project, dict):
+        return project
+    view = dict(project)
+    instances = project.get('instances')
+    if isinstance(instances, dict):
+        view['instances'] = {
+            iid: ({k: v for k, v in rec.items() if k not in _RUNTIME_INSTANCE_KEYS}
+                  if isinstance(rec, dict) else rec)
+            for iid, rec in instances.items()
+        }
+    return view
+
+
 def digest(project):
-    return hashlib.sha256(_canonical_json(project)).hexdigest()
+    return hashlib.sha256(_canonical_json(_fingerprint_view(project))).hexdigest()
 
 
 class DeliveryPackageService(DatasetPackageService):
@@ -125,7 +142,8 @@ class DeliveryPackageService(DatasetPackageService):
                 self.store.write_project(new_id, imported)
                 self._notify(imported)
                 if old:
-                    marker = {'backup': backup.name, 'after': digest(imported)}
+                    persisted = self.store.read_project(new_id) or imported
+                    marker = {'backup': backup.name, 'after': digest(persisted)}
                     marker_path = self._backup_dir(new_id) / 'latest.json'
                     temp_marker = marker_path.with_suffix('.tmp')
                     temp_marker.write_text(json.dumps(marker), encoding='utf-8')

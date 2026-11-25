@@ -2,12 +2,14 @@
 以及给旧回收站路由用的组织／工厂范围。"""
 
 import os
+import shutil
 
 from flask import request
 
 import tenant_api as tenant
 from tenant_api import ApiError, _api, _json
 from db import pg
+from dataset_package import attachments
 from dataset_package.service import DatasetPackageError
 
 from . import service
@@ -27,9 +29,76 @@ def current_trash_scope():
         return None
     with pg.get_conn() as conn:
         with conn.cursor() as cur:
-            session = tenant._load_session(cur)
+            session = tenant._load_session(cur, ignore_project=True)
             return service.trash_scope(cur, session["user_id"],
                                        session.get("organization_id"), session.get("factory_id"))
+
+
+def current_factory_dataset_names():
+    """返回当前会话所属工厂下的数据集名称列表；非 PG 或无工厂上下文时返回 ``None``。"""
+    if os.environ.get("ONTOTWIN_STORE", "pg").lower() != "pg":
+        return None
+    try:
+        token = request.cookies.get(tenant.SESSION_COOKIE) or request.headers.get("X-OntoTwin-Session")
+    except RuntimeError:
+        return None
+    if not token:
+        return None
+    try:
+        with pg.get_conn() as conn:
+            with conn.cursor() as cur:
+                session = tenant._load_session(cur, required=False, ignore_project=True)
+                org_id = (session or {}).get("organization_id")
+                factory_id = (session or {}).get("factory_id")
+                if not org_id or not factory_id:
+                    return []
+                allowed, _ = tenant._factory_allowed(cur, session["user_id"], org_id, factory_id)
+                if not allowed:
+                    return []
+                return sorted(service.factory_dataset_names(cur, org_id, factory_id))
+    except Exception:
+        return None
+
+
+def check_trashed_binding_conflict(trash_id):
+    """恢复已删数据集前检查其原关卡是否已被其他数据集占用。"""
+    if os.environ.get("ONTOTWIN_STORE", "pg").lower() != "pg":
+        return False
+    text = str(trash_id or "")
+    if not text.startswith("pg:prj:"):
+        return False
+    pid = text[len("pg:prj:"):]
+    if not pid or ":" in pid:
+        return False
+    with pg.get_conn() as conn:
+        with conn.cursor() as cur:
+            return service.trashed_binding_has_conflict(cur, pid)
+
+
+def cleanup_deleted_project_trash(trash_id, package_service, scope=None, item_name=""):
+    """数据集永久删除成功后清理磁盘附件与回退备份，并补记审计记录。"""
+    text = str(trash_id or "")
+    if not text.startswith("pg:prj:"):
+        return
+    pid = text[len("pg:prj:"):]
+    if not pid or ":" in pid:
+        return
+    if package_service is not None:
+        try:
+            shutil.rmtree(attachments.project_dir(package_service.asset_root, pid), ignore_errors=True)
+            shutil.rmtree(package_service._backup_dir(pid), ignore_errors=True)
+        except Exception:
+            pass
+    if os.environ.get("ONTOTWIN_STORE", "pg").lower() == "pg" and scope and scope.user_id and scope.organization_id:
+        try:
+            with pg.get_conn() as conn:
+                with conn.transaction():
+                    with conn.cursor() as cur:
+                        tenant._audit(cur, scope.user_id, scope.organization_id, scope.factory_id,
+                                      None, "project.permanent_delete", pid,
+                                      detail={"deleted_project_id": pid, "name": item_name or pid})
+        except Exception:
+            pass
 
 
 def register_dataset_admin_routes(app, project_store, package_service,
@@ -103,13 +172,20 @@ def register_dataset_admin_routes(app, project_store, package_service,
     def dataset_admin_copy(project_id):
         tenant._require_pg()
         body = request.get_json(silent=True) or {}
+        requested = str(body.get("name") or "").strip()
         with pg.get_conn() as conn:
             with conn.cursor() as cur:
                 session = tenant._load_session(cur)
                 source = service.require_copy(cur, session["user_id"], project_id)
-        requested = str(body.get("name") or "").strip()
-        name = service.normalize_name(requested) if requested else package_service._suggest_name(
-            source["name"], package_service._existing_names())
+                existing = service.factory_dataset_names(
+                    cur, source["organization_id"], source["factory_id"]
+                )
+        if requested:
+            name = service.normalize_name(requested)
+            if name in existing:
+                raise ApiError(409, f"当前工厂已有同名数据集：{name}", "dataset_name_conflict")
+        else:
+            name = package_service._suggest_name(source["name"], existing)
         missing = []
         try:
             try:
@@ -122,14 +198,16 @@ def register_dataset_admin_routes(app, project_store, package_service,
                 data, _, _ = package_service.export_package(project_id, data_only=True)
             # 归属由下面的 assign_copy 按源数据集明确写入；导入包自带的
             # 「按请求头归属」钩子在这里关掉（它要求工厂成员身份，组织管理员
-            # 不一定是成员）。导入本身也持有这把可重入锁，所以替换是安全的。
+            # 不一定是成员），重名检查也切到本工厂数据库名单。
             with package_service.store._lock:
                 hook, package_service.on_project_imported = package_service.on_project_imported, None
+                names_fn, package_service.dataset_names = package_service.dataset_names, (lambda: list(existing))
                 try:
                     result = package_service.import_delivery(
                         data, name, origin=request.host_url.rstrip("/"))
                 finally:
                     package_service.on_project_imported = hook
+                    package_service.dataset_names = names_fn
         except DatasetPackageError as exc:
             raise _package_error(exc)
         new_id = result["project_id"]
@@ -137,11 +215,16 @@ def register_dataset_admin_routes(app, project_store, package_service,
             with pg.get_conn() as conn:
                 with conn.transaction():
                     with conn.cursor() as cur:
-                        service.assign_copy(cur, session["user_id"], source, new_id)
+                        service.assign_copy(cur, session["user_id"], source, new_id, name=name)
                         service.audit(cur, session["user_id"], source, new_id, "project.copy",
                                       detail={"source_project_id": project_id})
         except Exception:
             project_store.delete_project(new_id)
+            try:
+                project_store.delete_trash(f"pg:prj:{new_id}")
+                cleanup_deleted_project_trash(f"pg:prj:{new_id}", package_service)
+            except Exception:
+                pass
             if on_deleted:
                 on_deleted(new_id)
             raise

@@ -78,6 +78,13 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(original,self.target.read_project('target'))
         self.assertEqual('old',(assets/'old.txt').read_text())
 
+    def test_digest_ignores_instance_liveness_fields_but_detects_content_changes(self):
+        base = {'id': 'p1', 'name': 'A', 'instances': {'I1': {'id': 'I1', 'raw_state': {'rpm': 10}}}}
+        with_runtime = {'id': 'p1', 'name': 'A', 'instances': {'I1': {'id': 'I1', 'raw_state': {'rpm': 10}, 'last_seen': None, 'last_seen_at': '2026-11-24T00:00:00Z', 'status': 'online'}}}
+        edited = {'id': 'p1', 'name': 'A', 'instances': {'I1': {'id': 'I1', 'raw_state': {'rpm': 20}, 'last_seen': None, 'status': 'online'}}}
+        self.assertEqual(digest(base), digest(with_runtime))
+        self.assertNotEqual(digest(base), digest(edited))
+
     def test_missing_attachment_blocks_full_export(self):
         (self.src_assets/'source/spatial_frames/plan.png').unlink()
         with self.assertRaises(DatasetPackageError): self.exporter.export_package('source')

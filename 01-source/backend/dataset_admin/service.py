@@ -81,7 +81,32 @@ def require_delete(cur, user_id, project_id):
     project, role, _, _ = _permission_flags(cur, user_id, project_id)
     if role != "admin":
         raise ApiError(403, "只有组织管理员可以删除数据集", "forbidden")
+    require_scene_offline(cur, project_id)
     return project
+
+
+def require_scene_offline(cur, project_id):
+    cur.execute(
+        """SELECT u.stable_key, s.stable_key
+             FROM project_scene_binding b
+             JOIN ue_project u ON u.ue_project_id = b.ue_project_id
+             JOIN ue_scene s ON s.scene_id = b.scene_id
+            WHERE b.project_id = %s AND b.status = 'active'""",
+        (project_id,),
+    )
+    from ue_project_binding import ue_scene_online
+    for bound_ue_id, scene_key in cur.fetchall():
+        if ue_scene_online(bound_ue_id, scene_key):
+            raise ApiError(409, "该数据集的关卡正在 UE 中运行，请先停止 UE 再删除", "ue_still_online")
+
+
+def factory_dataset_names(cur, org_id, factory_id):
+    cur.execute(
+        """SELECT btrim(name) FROM project
+            WHERE organization_id=%s AND factory_id=%s AND deleted_at IS NULL AND name IS NOT NULL""",
+        (org_id, factory_id),
+    )
+    return {r[0] for r in cur.fetchall() if r[0]}
 
 
 def require_copy(cur, user_id, project_id):
@@ -133,8 +158,17 @@ def rename(cur, user_id, project_id, new_name):
     return {"project_id": project_id, "name": name, "changed": True}
 
 
-def assign_copy(cur, user_id, source, new_project_id):
+def assign_copy(cur, user_id, source, new_project_id, name=None):
     """复制出的数据集归到源数据集所在的组织／工厂，复制人获得编辑授权。"""
+    if name:
+        cur.execute(
+            """SELECT 1 FROM project
+                WHERE organization_id=%s AND factory_id=%s AND deleted_at IS NULL
+                  AND id<>%s AND btrim(name)=%s LIMIT 1""",
+            (source["organization_id"], source["factory_id"], new_project_id, name),
+        )
+        if cur.fetchone():
+            raise ApiError(409, f"当前工厂已有同名数据集：{name}", "dataset_name_conflict")
     cur.execute("SELECT environment_id FROM organization WHERE organization_id=%s",
                 (source["organization_id"],))
     env = cur.fetchone()
@@ -180,6 +214,25 @@ def revoke_permission(cur, user_id, project_id, target_user_id):
     return {"project_id": project_id, "user_id": target_user_id, "revoked": revoked}
 
 
+def trashed_binding_has_conflict(cur, project_id):
+    cur.execute(
+        """SELECT ue_project_id, scene_id
+             FROM project_scene_binding
+            WHERE project_id=%s AND status='trashed'
+            ORDER BY updated_at DESC LIMIT 1""",
+        (project_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        return False
+    cur.execute(
+        """SELECT 1 FROM project_scene_binding
+            WHERE ue_project_id=%s AND scene_id=%s AND status='active' LIMIT 1""",
+        row,
+    )
+    return cur.fetchone() is not None
+
+
 # ── 回收站隔离 ───────────────────────────────────────────────────────
 
 @dataclass
@@ -190,6 +243,9 @@ class TrashScope:
     deleted_projects: set = field(default_factory=set)   # 本工厂已删除的数据集（仅管理员可见）
     viewable: set = field(default_factory=set)           # 可查看的数据集（看其中被删的实例）
     editable: set = field(default_factory=set)           # 可编辑的数据集（恢复／彻底删除实例）
+    user_id: str = ""
+    organization_id: str | None = None
+    factory_id: str | None = None
 
     def can_view(self, item):
         pid = item.get("project_id")
@@ -209,7 +265,12 @@ def trash_scope(cur, user_id, org_id, factory_id):
     allowed, role = tenant._factory_allowed(cur, user_id, org_id, factory_id)
     if not allowed:
         return TrashScope()
-    scope = TrashScope(is_admin=(role == "admin"))
+    scope = TrashScope(
+        is_admin=(role == "admin"),
+        user_id=user_id,
+        organization_id=org_id,
+        factory_id=factory_id,
+    )
     if scope.is_admin:
         cur.execute(
             """SELECT id FROM project

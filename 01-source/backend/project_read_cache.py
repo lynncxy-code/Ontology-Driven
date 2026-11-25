@@ -64,6 +64,7 @@ _READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 # when a ProjectStorePG method writes SQL but is missing from this list.
 WRITE_METHODS = (
     "_save_current",
+    "persist_snapshot",          # OPT-08: shared low-level PG writer (staticmethod)
     "_soft_delete_absent_instances",
     "transact_project",
     "transact_active",
@@ -118,7 +119,9 @@ def install_write_hooks(*classes):
     for cls in classes:
         for name in WRITE_METHODS:
             method = cls.__dict__.get(name)
-            if callable(method):
+            if isinstance(method, (staticmethod, classmethod)):
+                setattr(cls, name, type(method)(_wrap_write_method(method.__func__)))
+            elif callable(method):
                 setattr(cls, name, _wrap_write_method(method))
 
 

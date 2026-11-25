@@ -130,6 +130,28 @@ def test_write_hooks_notify_even_when_the_write_fails(monkeypatch):
     assert events == ["x", "x"]
 
 
+def test_write_hooks_keep_static_and_class_methods_working(monkeypatch):
+    events = []
+    monkeypatch.setattr(prc, "_LISTENERS", [lambda: events.append("x")])
+
+    class Store:
+        @staticmethod
+        def persist_snapshot(project, connection=None):
+            return ("static", project, connection)
+
+        @classmethod
+        def delete_project(cls, pid):
+            return (cls.__name__, pid)
+
+    prc.install_write_hooks(Store)
+    prc.install_write_hooks(Store)
+    store = Store()
+    assert store.persist_snapshot("p", "c") == ("static", "p", "c")
+    assert Store.persist_snapshot("p") == ("static", "p", None)
+    assert store.delete_project("p") == ("Store", "p")
+    assert events == ["x", "x", "x"]
+
+
 _SQL_WRITE = re.compile(r"\b(INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM)\b", re.I)
 # Methods writing only non-project tables (process settings).
 _NON_PROJECT_WRITERS = {"_save_active", "set_runtime_setting"}

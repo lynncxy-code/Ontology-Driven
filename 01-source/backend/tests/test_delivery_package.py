@@ -78,11 +78,33 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(original,self.target.read_project('target'))
         self.assertEqual('old',(assets/'old.txt').read_text())
 
+    def test_digest_ignores_instance_liveness_fields_but_detects_content_changes(self):
+        base = {'id': 'p1', 'name': 'A', 'instances': {'I1': {'id': 'I1', 'raw_state': {'rpm': 10}}}}
+        with_runtime = {'id': 'p1', 'name': 'A', 'instances': {'I1': {'id': 'I1', 'raw_state': {'rpm': 10}, 'last_seen': None, 'last_seen_at': '2026-11-24T00:00:00Z', 'status': 'online'}}}
+        edited = {'id': 'p1', 'name': 'A', 'instances': {'I1': {'id': 'I1', 'raw_state': {'rpm': 20}, 'last_seen': None, 'status': 'online'}}}
+        self.assertEqual(digest(base), digest(with_runtime))
+        self.assertNotEqual(digest(base), digest(edited))
+
     def test_missing_attachment_blocks_full_export(self):
         (self.src_assets/'source/spatial_frames/plan.png').unlink()
         with self.assertRaises(DatasetPackageError): self.exporter.export_package('source')
         package = self.exporter.export_package('source', data_only=True)[0]
         self.assertEqual('data_only',self.importer.preflight(package)['attachments']['mode'])
+
+    def test_partial_attachment_copy_keeps_intact_floorplans_when_another_is_missing(self):
+        p = self.source.read_project('source')
+        p['frames'].append({'id':'frame-two', 'kind':'image', 'image':{'storage_name':'missing_plan.png'}, 'to_ue':{'matrix':[[1,0,0],[0,1,0],[0,0,1]]}})
+        self.source.write_project('source', p)
+        with self.assertRaises(DatasetPackageError):
+            self.exporter.export_package('source')
+        package, _, manifest = self.exporter.export_package('source', allow_missing_attachments=True)
+        self.assertEqual(['spatial_frames/missing_plan.png'], manifest['missing_attachments'])
+        self.assertEqual('partial_assets', manifest['delivery_mode'])
+        copied = self.importer.import_delivery(package, 'PartialCopy', origin='http://new-host:5000')
+        pid = copied['project_id']
+        self.assertEqual(b'fixture-png', (self.dst_assets/pid/'spatial_frames/plan.png').read_bytes())
+        self.assertFalse((self.dst_assets/pid/'spatial_frames/missing_plan.png').exists())
+        self.assertTrue((self.dst_assets/pid/'web/monitor.html').exists())
 
     def test_stale_preview_and_unconfirmed_stop_rejected(self):
         with self.assertRaises(DatasetPackageError):

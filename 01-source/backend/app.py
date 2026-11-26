@@ -272,14 +272,20 @@ def _bind_explicit_v2_project():
     # used by unit fixtures, but a live PG request must never become anonymous
     # merely because it used a legacy /api/v2 route.  UE calls are identified
     # separately and still require the explicit project/scene binding checks.
-    if os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() == "pg" and not session_cookie and not ue_id:
-        return jsonify({
-            "error": "auth_required",
-            "message": "4.8 业务请求必须先登录",
-        }), 401
+    if os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() == "pg":
+        if request.path.startswith("/api/v2/trash") and not session_cookie:
+            return jsonify({
+                "error": "auth_required",
+                "message": "请先登录",
+            }), 401
+        if not session_cookie and not ue_id:
+            return jsonify({
+                "error": "auth_required",
+                "message": "4.8 业务请求必须先登录",
+            }), 401
     if os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() == "pg" and session_cookie:
         try:
-            validate_legacy_browser_session()
+            validate_legacy_browser_session(ignore_project=request.path.startswith("/api/v2/trash"))
         except ApiError as exc:
             return jsonify({"error": exc.code, "message": exc.message}), exc.status
         except Exception:
@@ -289,6 +295,9 @@ def _bind_explicit_v2_project():
     # usable before project creation while making its active view explicit
     # once a 4.8 project has been selected.
     if request.path in _V2_PROJECTLESS_EXACT and not pid:
+        return None
+    # 回收站一律按当前组织／工厂列出并逐条核对权限（OPT-08），不管请求是否携带项目编号。
+    if request.path.startswith("/api/v2/trash"):
         return None
     scene_id = request.headers.get("X-OntoTwin-UE-Scene-Id") or request.args.get("scene_id") or request.args.get("scene") or ""
     if ue_id and not pid and request.path.startswith(_V2_UE_ASSET_PREFIX):
@@ -5955,6 +5964,9 @@ def _dataset_package_lookup(dataset_id):
 
 
 def _dataset_package_names():
+    scoped = current_factory_dataset_names()
+    if scoped is not None:
+        return scoped
     return [item.get("name") for item in _datasets if item.get("name")]
 
 
@@ -6042,6 +6054,45 @@ dataset_package_service = register_dataset_package_routes(
     on_project_imported=_dataset_package_project_imported,
 )
 
+
+def _dataset_admin_renamed(project_id, name):
+    """重命名后同步旧页面用的内存目录。"""
+    for item in _datasets:
+        if item.get("id") == project_id:
+            item["name"] = name
+            if isinstance(item.get("dataset"), dict):
+                item["dataset"]["name"] = name
+
+
+def _dataset_admin_deleted(project_id):
+    """删除（进回收站）后同步内存目录和 UE 绑定索引，与旧删除接口一致。"""
+    global _datasets
+    _datasets = [item for item in _datasets if item.get("id") != project_id]
+    try:
+        from ue_project_binding import index_forget_project
+        index_forget_project(project_id)
+    except Exception as _e:
+        print(f"[ue_binding] 索引清理 {project_id} 失败: {_e}")
+    if _active_dataset_id == project_id:
+        _set_active_dataset_view("demo")
+        _set_object_types({k: dict(v) for k, v in OBJECT_TYPES.items()})
+
+
+from dataset_admin import (
+    check_trashed_binding_conflict,
+    cleanup_deleted_project_trash,
+    current_factory_dataset_names,
+    current_trash_scope,
+    register_dataset_admin_routes,
+)
+register_dataset_admin_routes(
+    app,
+    project_store,
+    dataset_package_service,
+    on_renamed=_dataset_admin_renamed,
+    on_deleted=_dataset_admin_deleted,
+)
+
 from zone_management import register_zone_management_routes
 register_zone_management_routes(app, project_store)
 
@@ -6103,33 +6154,120 @@ except Exception as _e:
     print(f"[trash] 启动清理失败: {_e}")
 
 
+def _resolve_trash_scope():
+    """解析回收站权限范围；返回 (scope, error_response)。
+
+    PG 运行时一旦缺少有效用户会话或组织／工厂权限，立即返回拒绝响应，绝不退回全局范围。
+    """
+    pg_mode = os.environ.get("ONTOTWIN_STORE", "pg").strip().lower() == "pg"
+    try:
+        scope = current_trash_scope()
+    except ApiError as exc:
+        payload = {"error": exc.code, "message": exc.message}
+        payload.update(exc.extra)
+        return None, (jsonify(payload), exc.status)
+    except Exception as exc:
+        print(f"[trash] scope check failed: {exc}")
+        return None, (jsonify({"error": "storage_unavailable", "message": "无法核验回收站权限"}), 503)
+    if pg_mode and scope is None:
+        return None, (jsonify({"error": "auth_required", "message": "请先登录"}), 401)
+    return scope, None
+
+
 @app.route('/api/v2/trash', methods=['GET'])
 def trash_list():
     """列出回收站条目。
     - 文件后端：来自 data/trash 快照
     - PG 后端：来自 project/instance 表的 deleted_at IS NOT NULL 记录"""
-    return jsonify({"items": project_store.list_trash()})
+    scope, denied = _resolve_trash_scope()
+    if denied:
+        return denied
+    items = project_store.list_trash()
+    if scope is not None:
+        # 只列当前组织／工厂里本人有权看到的条目（OPT-08）。
+        items = [item for item in items if scope.can_view(item)]
+    return jsonify({"items": items})
+
+
+def _is_foreign_key_block(exc):
+    """彻底删除被操作记录等外键挡住（4.8 建的数据集都有操作记录）。"""
+    return type(exc).__name__ == "ForeignKeyViolation"
+
+
+def _trash_item_for_change(trash_id):
+    """会话下核对回收站条目归属与权限；返回 (错误响应, scope, item)。"""
+    scope, denied = _resolve_trash_scope()
+    if denied:
+        return denied, None, None
+    if scope is None:
+        return None, None, None
+    item = next((x for x in project_store.list_trash() if x.get("id") == trash_id), None)
+    if item is None or not scope.can_view(item):
+        return (jsonify({"error": "not_found"}), 404), scope, None
+    if not scope.can_modify(item):
+        message = "只有组织管理员可以恢复或彻底删除数据集" if item.get("kind") == "project" else "需要该数据集的编辑权限"
+        return (jsonify({"error": "forbidden", "message": message}), 403), scope, item
+    return None, scope, item
 
 
 @app.route('/api/v2/trash/purge', methods=['POST'])
 def trash_purge():
     """一键清空回收站，永久删除。"""
-    n = project_store.purge_trash()
-    return jsonify({"status": "ok", "purged": n})
+    scope, denied = _resolve_trash_scope()
+    if denied:
+        return denied
+    if scope is None:
+        n = project_store.purge_trash()
+        return jsonify({"status": "ok", "purged": n})
+    # 只清当前组织／工厂里本人有权彻底删除的条目，不碰别人的。
+    n = skipped = 0
+    for item in project_store.list_trash():
+        if not scope.can_view(item):
+            continue
+        if not scope.can_modify(item):
+            skipped += 1
+            continue
+        try:
+            if project_store.delete_trash(item["id"]):
+                cleanup_deleted_project_trash(
+                    item["id"], dataset_package_service, scope=scope, item_name=item.get("name") or ""
+                )
+                n += 1
+        except Exception as exc:
+            if not _is_foreign_key_block(exc):
+                raise
+            skipped += 1
+    return jsonify({"status": "ok", "purged": n, "skipped": skipped})
 
 
 @app.route('/api/v2/trash/<trash_id>', methods=['DELETE'])
 def trash_delete(trash_id):
     """永久删除单条。"""
-    ok = project_store.delete_trash(trash_id)
+    denied, scope, item = _trash_item_for_change(trash_id)
+    if denied:
+        return denied
+    try:
+        ok = project_store.delete_trash(trash_id)
+    except Exception as exc:
+        if not _is_foreign_key_block(exc):
+            raise
+        return jsonify({"error": "trash_delete_blocked",
+                        "message": "这个数据集还有关联数据未解开，暂时不能彻底删除"}), 409
     if not ok:
         return jsonify({"error": "not found"}), 404
+    cleanup_deleted_project_trash(
+        trash_id, dataset_package_service, scope=scope, item_name=(item or {}).get("name") or ""
+    )
     return jsonify({"status": "ok", "id": trash_id})
 
 
 @app.route('/api/v2/trash/<trash_id>/restore', methods=['POST'])
 def trash_restore(trash_id):
     """恢复单条到原位置。冲突策略：覆盖。"""
+    denied, _, _ = _trash_item_for_change(trash_id)
+    if denied:
+        return denied
+    binding_conflict = check_trashed_binding_conflict(trash_id)
     try:
         kind, restored_id = project_store.restore_trash(trash_id)
     except ValueError as e:
@@ -6139,7 +6277,12 @@ def trash_restore(trash_id):
     if kind == "project":
         _init_from_project_store()
         _ue_try_rebuild_index(project_store, force=True)
-    return jsonify({"status": "ok", "kind": kind, "restored": restored_id})
+    return jsonify({
+        "status": "ok",
+        "kind": kind,
+        "restored": restored_id,
+        "binding_conflict": bool(binding_conflict),
+    })
 
 
 if __name__ == '__main__':

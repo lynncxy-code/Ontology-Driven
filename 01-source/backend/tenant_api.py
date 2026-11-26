@@ -192,7 +192,7 @@ def _require_pg():
         raise ApiError(503, "4.8 组织服务需要 PostgreSQL", "postgresql_required")
 
 
-def _load_session(cur, required=True):
+def _load_session(cur, required=True, ignore_project=False):
     token = request.cookies.get(SESSION_COOKIE) or request.headers.get("X-OntoTwin-Session")
     if not token:
         if required:
@@ -231,6 +231,9 @@ def _load_session(cur, required=True):
         "expires_at": row[6].isoformat() if hasattr(row[6], "isoformat") else str(row[6]),
     }
     context = _request_context_headers()
+    if ignore_project:
+        context["project_id"] = ""
+        session["project_id"] = None
     if any(context.values()):
         # Explicit tab context is a complete selection, not a partial patch
         # over the shared session. Missing children were cleared by the UI
@@ -360,11 +363,11 @@ def legacy_project_scope():
         return set()
 
 
-def validate_legacy_browser_session():
+def validate_legacy_browser_session(ignore_project=False):
     """Validate projectless browser requests too; a nonempty cookie is not authentication."""
     with pg.get_conn() as conn:
         with conn.cursor() as cur:
-            return _load_session(cur)
+            return _load_session(cur, ignore_project=ignore_project)
 
 
 def legacy_project_role(project_id, minimum="view"):

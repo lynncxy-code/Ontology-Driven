@@ -23,7 +23,11 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:var(--font);background:var(--bg-2);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--t-base)}
 .wrap{max-width:1180px;margin:0 auto;padding:20px 24px 48px}
-.page-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+.back-link{display:inline-flex;align-items:center;gap:4px;margin-bottom:10px;color:var(--ink-2);text-decoration:none;font-size:var(--t-base)}
+.back-link:hover{color:var(--ink)}
+.back-link[hidden]{display:none}
+.page-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:6px}
+.standalone .page-head{padding-right:52px}
 .page-head h1{font-size:var(--t-xl);font-weight:600;letter-spacing:-.01em}
 .page-head .sub{font-size:var(--t-sm);color:var(--ink-3)}
 .toolbar{display:flex;align-items:center;gap:10px;margin:14px 0}
@@ -41,8 +45,8 @@ body{font-family:var(--font);background:var(--bg-2);color:var(--ink);-webkit-fon
 .tabs{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:3px}
 .tab{padding:6px 12px;font-size:var(--t-sm);color:var(--ink-2);border-radius:var(--r-sm);cursor:pointer;user-select:none}
 .tab.on{background:var(--ink);color:var(--on-ink)}
-.pane{background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
-.thead,.trow{display:grid;grid-template-columns:88px 1fr 220px 160px 220px;align-items:center;gap:12px;padding:11px 16px}
+.pane{background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);overflow-x:auto;overflow-y:hidden}
+.thead,.trow{display:grid;grid-template-columns:80px minmax(160px,1fr) minmax(130px,190px) 148px 168px;min-width:720px;align-items:center;gap:12px;padding:11px 16px}
 .thead{background:var(--bg-2);border-bottom:1px solid var(--line);font-size:var(--t-xs);color:var(--ink-3);font-weight:500;letter-spacing:.02em;text-transform:uppercase}
 .trow{border-bottom:1px solid var(--line);font-size:var(--t-sm)}
 .trow:last-child{border-bottom:none}
@@ -60,6 +64,7 @@ body{font-family:var(--font);background:var(--bg-2);color:var(--ink);-webkit-fon
 .count{font-family:'SFMono-Regular',Consolas,monospace;color:var(--ink-3);font-size:var(--t-xs)}
 /* toast */
 .toast{position:fixed;top:16px;right:16px;z-index:1100;display:flex;flex-direction:column;gap:8px}
+.standalone .toast{right:64px}
 .toast-item{background:var(--ink);color:var(--on-ink);padding:10px 14px;border-radius:var(--r-md);font-size:var(--t-sm);box-shadow:var(--shadow-pop);max-width:360px;animation:slideIn .18s ease}
 .toast-item.ok{background:#fff;color:var(--ink);border-left:2px solid var(--ok)}
 .toast-item.err{background:#fff;color:var(--ink);border-left:2px solid var(--danger)}
@@ -76,6 +81,7 @@ body{font-family:var(--font);background:var(--bg-2);color:var(--ink);-webkit-fon
 </head>
 <body>
 <div class="wrap">
+  <a class="back-link" id="back-link" href="/workspace48" hidden>← 返回我的数据集</a>
   <div class="page-head">
     <div>
       <h1>回收站</h1>
@@ -155,11 +161,12 @@ function confirmModal({ title, body, confirmText='确定', danger=false }){
 async function load(){
   try {
     const r = await fetch('/api/v2/trash');
-    if (!r.ok) throw new Error('HTTP '+r.status);
-    const j = await r.json();
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(j.message || j.error || ('HTTP '+r.status));
     CURRENT.items = j.items || [];
     render();
   } catch(e){
+    document.getElementById('rows').innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
     toast('加载失败：'+e.message, 'err');
   }
 }
@@ -220,8 +227,8 @@ async function onRestore(id){
   try {
     const r = await fetch(`/api/v2/trash/${encodeURIComponent(id)}/restore`, { method:'POST' });
     const j = await r.json().catch(()=>({}));
-    if (!r.ok) throw new Error(j.error || ('HTTP '+r.status));
-    toast('恢复成功', 'ok');
+    if (!r.ok) throw new Error(j.message || j.error || ('HTTP '+r.status));
+    toast(j.binding_conflict ? '恢复成功；原关卡已绑定其他数据集，未自动恢复绑定' : '恢复成功', 'ok');
     load();
   } catch(e){
     toast('恢复失败：'+e.message, 'err');
@@ -233,7 +240,8 @@ async function onDelete(id){
   if (!ok) return;
   try {
     const r = await fetch(`/api/v2/trash/${encodeURIComponent(id)}`, { method:'DELETE' });
-    if (!r.ok) throw new Error('HTTP '+r.status);
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(j.message || j.error || ('HTTP '+r.status));
     toast('已删除', 'ok');
     load();
   } catch(e){
@@ -246,14 +254,15 @@ document.getElementById('btn-purge').onclick = async () => {
   if (CURRENT.items.length === 0){ toast('回收站已空'); return; }
   const ok = await confirmModal({
     title:'清空回收站',
-    body:`将永久删除全部 ${CURRENT.items.length} 条记录，此操作不可恢复。`,
+    body:`将永久删除这里列出的、你有权删除的记录（共列出 ${CURRENT.items.length} 条），此操作不可恢复。`,
     confirmText:'全部删除', danger:true
   });
   if (!ok) return;
   try {
     const r = await fetch('/api/v2/trash/purge', { method:'POST' });
-    const j = await r.json();
-    toast(`已清空 ${j.purged || 0} 条`, 'ok');
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(j.message || j.error || ('HTTP '+r.status));
+    toast(j.skipped ? `已清空 ${j.purged || 0} 条；${j.skipped} 条无权删除或暂时不能删除，已保留` : `已清空 ${j.purged || 0} 条`, 'ok');
     load();
   } catch(e){
     toast('清空失败：'+e.message, 'err');
@@ -268,6 +277,10 @@ document.getElementById('tabs').addEventListener('click', e => {
   render();
 });
 
+if (window.self === window.top) {
+  document.body.classList.add('standalone');
+  document.getElementById('back-link').hidden = false;
+}
 load();
 </script>
 </body>
